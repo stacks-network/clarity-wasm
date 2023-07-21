@@ -33,15 +33,15 @@ cargo clar2wasm-install
 Once installed, try compiling one of our examples:
 
 ```sh
-clar2wasm examples/def-readonly-simple.clar
+clar2wasm examples/define-read-only-0.clar
 ```
 
-This will generate a wasm file, `examples/def-readonly-simple.wasm`, from the Clarity source code.
+This will generate a wasm file, `examples/define-read-only-0.wasm`, from the Clarity source code.
 
 You can view the text format of the generated Wasm by using a tool like [`wasm2wat`](https://github.com/WebAssembly/wabt):
 
 ```sh
-wasm2wat examples/def-readonly-simple.wasm
+wasm2wat examples/define-read-only-0.wasm
 ```
 
 The output should look something like this:

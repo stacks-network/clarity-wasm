@@ -1,3 +1,6 @@
+// This file is copied from [Clarinet](https://github.com/hirosystems/clarinet),
+// which is licensed under the GPPLv3 license.
+
 use clarity::vm::functions::define::DefineFunctions;
 use clarity::vm::functions::NativeFunctions;
 use clarity::vm::representations::SymbolicExpressionType::*;

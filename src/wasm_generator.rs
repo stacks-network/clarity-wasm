@@ -11,6 +11,8 @@ use walrus::{ir::BinaryOp, FunctionBuilder, FunctionId, LocalId, Module, ModuleC
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
+/// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
+/// as it traverses the AST.
 pub struct WasmGenerator {
     contract_analysis: ContractAnalysis,
     module: Module,
