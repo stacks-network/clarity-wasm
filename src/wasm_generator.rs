@@ -144,7 +144,6 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             }
         };
 
-        // TODO: Create locals for the parameters
         let mut param_locals = Vec::new();
         let mut param_types = Vec::new();
         for param in function_type.args.iter() {
