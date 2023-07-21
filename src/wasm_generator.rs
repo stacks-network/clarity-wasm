@@ -1,8 +1,11 @@
 use clarity::vm::{
-    analysis::ContractAnalysis, diagnostic::DiagnosableError, functions::NativeFunctions,
-    SymbolicExpression, types::{FunctionType, TypeSignature},
+    analysis::ContractAnalysis,
+    diagnostic::DiagnosableError,
+    functions::NativeFunctions,
+    types::{FunctionType, TypeSignature},
+    SymbolicExpression,
 };
-use walrus::{FunctionBuilder, Module, ModuleConfig, ValType, ir::BinaryOp};
+use walrus::{ir::BinaryOp, FunctionBuilder, Module, ModuleConfig, ValType};
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
@@ -45,9 +48,7 @@ impl WasmGenerator {
         }
     }
 
-    pub fn generate(
-        mut self,
-    ) -> Result<Vec<u8>, GeneratorError> {
+    pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
         traverse(&mut self, &expressions);
         println!("{:?}", expressions);
@@ -57,15 +58,16 @@ impl WasmGenerator {
             return Err(err);
         }
 
-        // Insert a return instruction at the end of the top-level function
+        // Insert a return instruction at the end of the top-level function so
+        // that the top level always has no return value.
         self.current_function.func_body().return_();
 
-        self.module.exports.add(".top-level", self.current_function.finish(vec![], &mut self.module.funcs));
+        self.module.exports.add(
+            ".top-level",
+            self.current_function.finish(vec![], &mut self.module.funcs),
+        );
 
-        // TODO: Remove this - for debugging only
-        self.module.emit_wasm_file("out.wasm").unwrap();
-
-        Ok(self.module.emit_wasm())
+        Ok(self.module)
     }
 }
 
@@ -97,7 +99,11 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         }
     }
 
-    fn visit_literal_value(&mut self, _expr: &'a SymbolicExpression, value: &clarity::vm::Value) -> bool {
+    fn visit_literal_value(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        value: &clarity::vm::Value,
+    ) -> bool {
         match value {
             clarity::vm::Value::Int(i) => {
                 self.current_function.func_body().i64_const(*i as i64);
@@ -110,23 +116,30 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         }
     }
 
+    // fn visit_atom(&mut self, _expr: &'a SymbolicExpression, _atom: &'a clarity::vm::ClarityName) -> bool {
+    //     self.current_function.func_body().local_get(local)
+    // }
+
     fn traverse_define_private(
-            &mut self,
-            _expr: &'a SymbolicExpression,
-            name: &'a clarity::vm::ClarityName,
-            _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
-            body: &'a SymbolicExpression,
-        ) -> bool {
-        let function_type = match self.contract_analysis.get_private_function(name.as_str()){
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+        _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        let function_type = match self.contract_analysis.get_private_function(name.as_str()) {
             Some(function_type) => match function_type {
                 FunctionType::Fixed(fixed) => fixed,
                 _ => {
                     self.error = Some(GeneratorError::NotImplemented);
                     return false;
                 }
-            }
+            },
             None => {
-                self.error = Some(GeneratorError::InternalError(format!("unable to find function type for {}", name.as_str())));
+                self.error = Some(GeneratorError::InternalError(format!(
+                    "unable to find function type for {}",
+                    name.as_str()
+                )));
                 return false;
             }
         };
@@ -141,7 +154,12 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         let mut func_builder = FunctionBuilder::new(
             &mut self.module.types,
-            function_type.args.iter().map(|arg| clar2wasm_ty(&arg.signature)).collect::<Vec<_>>().as_slice(),
+            function_type
+                .args
+                .iter()
+                .map(|arg| clar2wasm_ty(&arg.signature))
+                .collect::<Vec<_>>()
+                .as_slice(),
             &[clar2wasm_ty(&function_type.returns)],
         );
 

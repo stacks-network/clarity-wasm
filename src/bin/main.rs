@@ -8,6 +8,9 @@ use std::fs;
 struct Args {
     /// Clarity source file to compile
     input: String,
+    /// Output file to write compiled WebAssembly to
+    #[arg(short, long)]
+    output: Option<String>,
 }
 
 fn main() {
@@ -22,45 +25,31 @@ fn main() {
         }
     };
 
-    // let mut datastore = MemoryBackingStore::new();
-    // let mut analysis_db = AnalysisDatabase::new(&mut datastore);
-    // let mut headers_db = NullHeadersDB {};
-    // let mut burn_state_db = NullBurnStateDB { epoch };
-    // let mut clarity_db = ClarityDatabase::new(&mut datastore, &headers_db, &burn_state_db);
-
-    // // Create a cost tracker
-    // let mut cost_track = match LimitedCostTracker::new(
-    //     true,
-    //     CHAIN_ID_MAINNET,
-    //     BLOCK_LIMIT_MAINNET_21,
-    //     &mut clarity_db,
-    //     epoch,
-    // ) {
-    //     Ok(cost_track) => cost_track,
-    //     Err(e) => {
-    //         return (
-    //             vec![Diagnostic {
-    //                 level: clarity::vm::diagnostic::Level::Error,
-    //                 message: "error creating cost tracker".to_string(),
-    //                 spans: Vec::new(),
-    //                 suggestion: None,
-    //             }],
-    //             Err(()),
-    //         );
-    //     }
-    // };
-
     // Pass the source code to the compiler.
     let (diagnostics, result) = clar2wasm::compile(&source);
     for diagnostic in diagnostics.iter() {
         eprintln!("{diagnostic}");
     }
-    let _bytecode = match result {
-        Ok(bytecode) => bytecode,
+
+    let mut module = match result {
+        Ok(module) => module,
         Err(_) => {
             std::process::exit(1);
         }
     };
 
-    // TODO: Do something with the bytecode.
+    // Write the compiled WebAssembly to a file.
+    let output = match args.output {
+        Some(output) => output,
+        None => {
+            let mut output = args.input.clone();
+            output.push_str(".wasm");
+            output
+        }
+    };
+
+    if let Err(error) = module.emit_wasm_file(output.as_str()) {
+        eprintln!("Error writing Wasm file, {}: {}", output, error);
+        std::process::exit(1);
+    }
 }

@@ -9,6 +9,7 @@ use clarity::{
     types::StacksEpochId,
     vm::{ast::build_ast_with_diagnostics, types::QualifiedContractIdentifier, ClarityVersion},
 };
+use walrus::Module;
 use wasm_generator::WasmGenerator;
 
 mod ast_visitor;
@@ -24,7 +25,7 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
     runtime: 5_000_000_000,
 };
 
-pub fn compile(source: &str) -> (Vec<Diagnostic>, Result<Vec<u8>, ()>) {
+pub fn compile(source: &str) -> (Vec<Diagnostic>, Result<Module, ()>) {
     let contract_id = QualifiedContractIdentifier::transient();
     let clarity_version = ClarityVersion::Clarity2;
     let epoch = StacksEpochId::latest();
@@ -65,13 +66,11 @@ pub fn compile(source: &str) -> (Vec<Diagnostic>, Result<Vec<u8>, ()>) {
     };
 
     let generator = WasmGenerator::new(contract_analysis);
-    let bytecode = match generator.generate() {
-        Ok(bytecode) => bytecode,
+    match generator.generate() {
+        Ok(module) => return (diagnostics, Ok(module)),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
             return (diagnostics, Err(()));
         }
     };
-
-    (diagnostics, Ok(bytecode))
 }
