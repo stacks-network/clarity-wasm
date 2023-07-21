@@ -16,6 +16,12 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
+    // Require a .clar extension
+    if !args.input.ends_with(".clar") {
+        eprintln!("Input file must have a .clar extension");
+        std::process::exit(1);
+    }
+
     // Read the file.
     let source = match fs::read_to_string(args.input.as_str()) {
         Ok(source) => source,
@@ -39,14 +45,14 @@ fn main() {
     };
 
     // Write the compiled WebAssembly to a file.
-    let output = match args.output {
-        Some(output) => output,
-        None => {
-            let mut output = args.input.clone();
-            output.push_str(".wasm");
-            output
-        }
-    };
+    let output = args.output.unwrap_or_else(|| {
+        // Use the input file name with a .wasm extension
+        let mut output = args.input.clone();
+
+        // Strip the .clar and add .wasm
+        output.replace_range(output.len() - 4.., "wasm");
+        output
+    });
 
     if let Err(error) = module.emit_wasm_file(output.as_str()) {
         eprintln!("Error writing Wasm file, {}: {}", output, error);

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
@@ -5,7 +7,7 @@ use clarity::vm::{
     types::{FunctionType, TypeSignature},
     SymbolicExpression,
 };
-use walrus::{ir::BinaryOp, FunctionBuilder, Module, ModuleConfig, ValType};
+use walrus::{ir::BinaryOp, FunctionBuilder, FunctionId, LocalId, Module, ModuleConfig, ValType};
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
@@ -15,6 +17,8 @@ pub struct WasmGenerator {
     error: Option<GeneratorError>,
     /// Current function context we are in.
     current_function: FunctionBuilder,
+    /// Locals for the current function.
+    locals: HashMap<String, LocalId>,
 }
 
 pub enum GeneratorError {
@@ -35,6 +39,12 @@ impl DiagnosableError for GeneratorError {
     }
 }
 
+enum FunctionKind {
+    Public,
+    Private,
+    ReadOnly,
+}
+
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let mut module = Module::with_config(ModuleConfig::default());
@@ -45,6 +55,7 @@ impl WasmGenerator {
             module,
             error: None,
             current_function: top_level,
+            locals: HashMap::new(),
         }
     }
 
@@ -68,6 +79,71 @@ impl WasmGenerator {
         );
 
         Ok(self.module)
+    }
+
+    fn traverse_define_function(
+        &mut self,
+        name: &clarity::vm::ClarityName,
+        body: &SymbolicExpression,
+        kind: FunctionKind,
+    ) -> Option<FunctionId> {
+        let opt_function_type = match kind {
+            FunctionKind::Private => self.contract_analysis.get_private_function(name.as_str()),
+            FunctionKind::ReadOnly => self
+                .contract_analysis
+                .get_read_only_function_type(name.as_str()),
+            FunctionKind::Public => self
+                .contract_analysis
+                .get_public_function_type(name.as_str()),
+        };
+        let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
+            fixed
+        } else {
+            self.error = Some(GeneratorError::InternalError(match opt_function_type {
+                Some(_) => "expected fixed function type".to_string(),
+                None => format!("unable to find function type for {}", name.as_str()),
+            }));
+            return None;
+        };
+
+        // Ensure the locals hashmap is empty
+        assert!(
+            self.locals.is_empty(),
+            "locals hashmap is not empty at the start of a function"
+        );
+
+        // Setup the parameters
+        let mut param_locals = Vec::new();
+        let mut param_types = Vec::new();
+        for param in function_type.args.iter() {
+            let local = self.module.locals.add(clar2wasm_ty(&param.signature));
+            self.locals.insert(param.name.as_str().to_string(), local);
+            param_locals.push(local);
+            param_types.push(clar2wasm_ty(&param.signature));
+        }
+
+        let mut func_builder = FunctionBuilder::new(
+            &mut self.module.types,
+            function_type
+                .args
+                .iter()
+                .map(|arg| clar2wasm_ty(&arg.signature))
+                .collect::<Vec<_>>()
+                .as_slice(),
+            &[clar2wasm_ty(&function_type.returns)],
+        );
+        func_builder.name(name.as_str().to_string());
+
+        let top_level = std::mem::replace(&mut self.current_function, func_builder);
+
+        self.traverse_expr(body);
+
+        func_builder = std::mem::replace(&mut self.current_function, top_level);
+
+        // Clear the locals hashmap
+        self.locals = HashMap::new();
+
+        Some(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 }
 
@@ -116,9 +192,25 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         }
     }
 
-    // fn visit_atom(&mut self, _expr: &'a SymbolicExpression, _atom: &'a clarity::vm::ClarityName) -> bool {
-    //     self.current_function.func_body().local_get(local)
-    // }
+    fn visit_atom(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        atom: &'a clarity::vm::ClarityName,
+    ) -> bool {
+        // FIXME: This should also handle constants and keywords
+        let local = match self.locals.get(atom.as_str()) {
+            Some(local) => *local,
+            None => {
+                self.error = Some(GeneratorError::InternalError(format!(
+                    "unable to find local for {}",
+                    atom.as_str()
+                )));
+                return false;
+            }
+        };
+        self.current_function.func_body().local_get(local);
+        true
+    }
 
     fn traverse_define_private(
         &mut self,
@@ -127,51 +219,26 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        let function_type = match self.contract_analysis.get_private_function(name.as_str()) {
-            Some(function_type) => match function_type {
-                FunctionType::Fixed(fixed) => fixed,
-                _ => {
-                    self.error = Some(GeneratorError::NotImplemented);
-                    return false;
-                }
-            },
-            None => {
-                self.error = Some(GeneratorError::InternalError(format!(
-                    "unable to find function type for {}",
-                    name.as_str()
-                )));
-                return false;
-            }
-        };
-
-        let mut param_locals = Vec::new();
-        let mut param_types = Vec::new();
-        for param in function_type.args.iter() {
-            param_locals.push(self.module.locals.add(clar2wasm_ty(&param.signature)));
-            param_types.push(clar2wasm_ty(&param.signature));
+        match self.traverse_define_function(name, body, FunctionKind::Private) {
+            Some(_) => true,
+            None => false,
         }
+    }
 
-        let mut func_builder = FunctionBuilder::new(
-            &mut self.module.types,
-            function_type
-                .args
-                .iter()
-                .map(|arg| clar2wasm_ty(&arg.signature))
-                .collect::<Vec<_>>()
-                .as_slice(),
-            &[clar2wasm_ty(&function_type.returns)],
-        );
-        func_builder.name(name.as_str().to_string());
-
-        let top_level = std::mem::replace(&mut self.current_function, func_builder);
-
-        self.traverse_expr(body);
-
-        func_builder = std::mem::replace(&mut self.current_function, top_level);
-
-        func_builder.finish(param_locals, &mut self.module.funcs);
-
-        true
+    fn traverse_define_read_only(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+        _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        match self.traverse_define_function(name, body, FunctionKind::ReadOnly) {
+            Some(function_id) => {
+                self.module.exports.add(name.as_str(), function_id);
+                true
+            }
+            None => false,
+        }
     }
 }
 
