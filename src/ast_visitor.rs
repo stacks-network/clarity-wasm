@@ -645,7 +645,11 @@ pub trait ASTVisitor<'a> {
         rv && self.visit_list(expr, list)
     }
 
-    fn visit_list(&mut self, _expr: &'a SymbolicExpression, _list: &'a [SymbolicExpression]) -> bool {
+    fn visit_list(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        _list: &'a [SymbolicExpression],
+    ) -> bool {
         true
     }
 
@@ -1321,7 +1325,11 @@ pub trait ASTVisitor<'a> {
         self.traverse_expr(value) && self.visit_print(expr, value)
     }
 
-    fn visit_print(&mut self, _expr: &'a SymbolicExpression, _value: &'a SymbolicExpression) -> bool {
+    fn visit_print(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        _value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
@@ -1490,7 +1498,11 @@ pub trait ASTVisitor<'a> {
         self.traverse_expr(value) && self.visit_some(expr, value)
     }
 
-    fn visit_some(&mut self, _expr: &'a SymbolicExpression, _value: &'a SymbolicExpression) -> bool {
+    fn visit_some(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        _value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
@@ -1562,7 +1574,11 @@ pub trait ASTVisitor<'a> {
         self.traverse_expr(value) && self.visit_is_ok(expr, value)
     }
 
-    fn visit_is_ok(&mut self, _expr: &'a SymbolicExpression, _value: &'a SymbolicExpression) -> bool {
+    fn visit_is_ok(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        _value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
