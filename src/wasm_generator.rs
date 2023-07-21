@@ -1,17 +1,15 @@
 use clarity::vm::{
     analysis::ContractAnalysis, diagnostic::DiagnosableError, functions::NativeFunctions,
-    SymbolicExpression,
+    SymbolicExpression, types::{FunctionType, TypeSignature},
 };
 use walrus::{FunctionBuilder, Module, ModuleConfig, ValType, ir::BinaryOp};
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
 pub struct WasmGenerator {
+    contract_analysis: ContractAnalysis,
     module: Module,
     error: Option<GeneratorError>,
-    /// Top-level code in the contract. When we are in the top-level context,
-    /// this will be None, and the current context will be the top-level.
-    top_level_builder: Option<FunctionBuilder>,
     /// Current function context we are in.
     current_function: FunctionBuilder,
 }
@@ -35,24 +33,25 @@ impl DiagnosableError for GeneratorError {
 }
 
 impl WasmGenerator {
-    pub fn new() -> WasmGenerator {
+    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let mut module = Module::with_config(ModuleConfig::default());
-        let top_level = FunctionBuilder::new(&mut module.types, &[], &[ValType::I64]);
+        let top_level = FunctionBuilder::new(&mut module.types, &[], &[]);
 
         WasmGenerator {
+            contract_analysis,
             module,
             error: None,
-            top_level_builder: None,
             current_function: top_level,
         }
     }
 
     pub fn generate(
         mut self,
-        contract_analysis: ContractAnalysis,
     ) -> Result<Vec<u8>, GeneratorError> {
-        // println!("{:?}", contract_analysis.expressions);
-        traverse(&mut self, &contract_analysis.expressions);
+        let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
+        traverse(&mut self, &expressions);
+        println!("{:?}", expressions);
+        self.contract_analysis.expressions = expressions;
 
         if let Some(err) = self.error {
             return Err(err);
@@ -109,5 +108,58 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 false
             }
         }
+    }
+
+    fn traverse_define_private(
+            &mut self,
+            _expr: &'a SymbolicExpression,
+            name: &'a clarity::vm::ClarityName,
+            _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
+            body: &'a SymbolicExpression,
+        ) -> bool {
+        let function_type = match self.contract_analysis.get_private_function(name.as_str()){
+            Some(function_type) => match function_type {
+                FunctionType::Fixed(fixed) => fixed,
+                _ => {
+                    self.error = Some(GeneratorError::NotImplemented);
+                    return false;
+                }
+            }
+            None => {
+                self.error = Some(GeneratorError::InternalError(format!("unable to find function type for {}", name.as_str())));
+                return false;
+            }
+        };
+
+        // TODO: Create locals for the parameters
+        let mut param_locals = Vec::new();
+        let mut param_types = Vec::new();
+        for param in function_type.args.iter() {
+            param_locals.push(self.module.locals.add(clar2wasm_ty(&param.signature)));
+            param_types.push(clar2wasm_ty(&param.signature));
+        }
+
+        let mut func_builder = FunctionBuilder::new(
+            &mut self.module.types,
+            function_type.args.iter().map(|arg| clar2wasm_ty(&arg.signature)).collect::<Vec<_>>().as_slice(),
+            &[clar2wasm_ty(&function_type.returns)],
+        );
+
+        let top_level = std::mem::replace(&mut self.current_function, func_builder);
+
+        self.traverse_expr(body);
+
+        func_builder = std::mem::replace(&mut self.current_function, top_level);
+
+        func_builder.finish(param_locals, &mut self.module.funcs);
+
+        true
+    }
+}
+
+fn clar2wasm_ty(ty: &TypeSignature) -> ValType {
+    match ty {
+        TypeSignature::IntType => ValType::I64,
+        _ => unimplemented!(),
     }
 }

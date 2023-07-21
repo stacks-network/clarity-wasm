@@ -653,7 +653,7 @@ pub trait ASTVisitor<'a> {
         true
     }
 
-    fn visit_atom(&mut self, __expr: &'a SymbolicExpression, _atom: &'a ClarityName) -> bool {
+    fn visit_atom(&mut self, _expr: &'a SymbolicExpression, _atom: &'a ClarityName) -> bool {
         true
     }
 

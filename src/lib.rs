@@ -64,8 +64,8 @@ pub fn compile(source: &str) -> (Vec<Diagnostic>, Result<Vec<u8>, ()>) {
         }
     };
 
-    let generator = WasmGenerator::new();
-    let bytecode = match generator.generate(contract_analysis) {
+    let generator = WasmGenerator::new(contract_analysis);
+    let bytecode = match generator.generate() {
         Ok(bytecode) => bytecode,
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
