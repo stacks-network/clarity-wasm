@@ -162,6 +162,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .as_slice(),
             &[clar2wasm_ty(&function_type.returns)],
         );
+        func_builder.name(name.as_str().to_string());
 
         let top_level = std::mem::replace(&mut self.current_function, func_builder);
 
