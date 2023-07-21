@@ -1,0 +1,2 @@
+[alias]
+clar2wasm-install = "install --path . --locked --force"
