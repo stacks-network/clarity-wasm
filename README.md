@@ -12,7 +12,7 @@
 
 </div>
 
-***
+---
 
 ## Introduction
 
@@ -23,10 +23,39 @@
 ## Quick-start
 
 ### Command line tool
+
 Install the command line tool, `clar2wasm` with:
 
-```
+```sh
 cargo clar2wasm-install
+```
+
+Once installed, try compiling one of our examples:
+
+```sh
+clar2wasm examples/def-readonly-simple.clar
+```
+
+This will generate a wasm file, `examples/def-readonly-simple.wasm`, from the Clarity source code.
+
+You can view the text format of the generated Wasm by using a tool like [`wasm2wat`](https://github.com/WebAssembly/wabt):
+
+```sh
+wasm2wat examples/def-readonly-simple.wasm
+```
+
+The output should look something like this:
+
+```wasm
+(module
+  (type (;0;) (func))
+  (type (;1;) (func (result i64)))
+  (func $simple (type 1) (result i64)
+    i64.const 42)
+  (func (;1;) (type 0)
+    return)
+  (export "simple" (func $simple))
+  (export ".top-level" (func 1)))
 ```
 
 ### Crate
