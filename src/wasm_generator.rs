@@ -21,6 +21,8 @@ pub struct WasmGenerator {
     current_function: FunctionBuilder,
     /// Locals for the current function.
     locals: HashMap<String, LocalId>,
+    /// Functions defined in this contract
+    local_funcs: HashMap<String, FunctionId>,
 }
 
 pub enum GeneratorError {
@@ -58,6 +60,7 @@ impl WasmGenerator {
             error: None,
             current_function: top_level,
             locals: HashMap::new(),
+            local_funcs: HashMap::new(),
         }
     }
 
@@ -143,7 +146,11 @@ impl WasmGenerator {
         // Clear the locals hashmap
         self.locals = HashMap::new();
 
-        Some(func_builder.finish(param_locals, &mut self.module.funcs))
+        let function_id = func_builder.finish(param_locals, &mut self.module.funcs);
+        self.local_funcs
+            .insert(name.as_str().to_string(), function_id);
+
+        Some(function_id)
     }
 
     fn add_placeholder_for_type(&mut self, ty: ValType) {
@@ -316,6 +323,18 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             panic!("expected response type");
         }
         self.traverse_expr(value)
+    }
+
+    fn visit_call_user_defined(
+        &mut self,
+        _expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+        _args: &'a [SymbolicExpression],
+    ) -> bool {
+        self.current_function
+            .func_body()
+            .call(self.local_funcs[name.as_str()]);
+        true
     }
 }
 
