@@ -4,11 +4,7 @@
 
 <div align="center">
 
-[![Introduction](https://img.shields.io/badge/%23-%20Introduction%20-orange?labelColor=gray)](#introduction)
-[![Features](https://img.shields.io/badge/%23-Features-orange?labelColor=gray)](#features)
-[![Quick Start](https://img.shields.io/badge/%23-Quick%20Start-orange?labelColor=gray)](#quick-start)
-[![Documentation](https://img.shields.io/badge/%23-Documentation-orange?labelColor=gray)](#documentation)
-[![Contribute](https://img.shields.io/badge/%23-Contribute-orange?labelColor=gray)](#contribute)
+[![Introduction](https://img.shields.io/badge/%23-%20Introduction%20-orange?labelColor=gray)](#introduction) [![Features](https://img.shields.io/badge/%23-Features-orange?labelColor=gray)](#features) [![Quick Start](https://img.shields.io/badge/%23-Quick%20Start-orange?labelColor=gray)](#quick-start) [![Documentation](https://img.shields.io/badge/%23-Documentation-orange?labelColor=gray)](#documentation) [![Contribute](https://img.shields.io/badge/%23-Contribute-orange?labelColor=gray)](#contribute)
 
 </div>
 
@@ -63,6 +59,10 @@ The output should look something like this:
 `clar2wasm` is also available as a Rust library crate, to embed into other Rust projects.
 
 ## Documentation
+
+### Top-Level Expressions
+
+Any top-level expressions from a Clarity contract are added into a `.top-level` function that is exported from the generated Wasm module. This function should be called once during contract deployment.
 
 ### ABI
 
