@@ -64,4 +64,20 @@ The output should look something like this:
 
 ## Documentation
 
+### ABI
+
+WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We need to decide how to map Clarity types into these Wasm types.
+
+- `int`: pair of `i64`s
+- `uint`: pair of `i64`s
+- `bool`: `i32`
+- `principal`: `i32` pointer to stack; stack contains 20 bytes for standard principal followed by an `i32` indicating the length of the contract name, which, if non-zero, is followed by the contract name string.
+- `buff`: `i32` pointer to stack, `i32` length
+- `string-ascii`: `i32` pointer to stack, `i32` length
+- `string-utf8`: `i32` pointer to stack, `i32` length
+- `list`: `i32` pointer to stack, `i32` length
+- `tuple`: each value in the tuple concatenated
+- `optional`: `i32` indicator (`0` for `none`, `1` for `some`), followed by value for `some`
+- `response`: `i32` indicator (`0` for `err`, `1` for `ok`) followed by ok value, then err value
+
 ## Contribute
