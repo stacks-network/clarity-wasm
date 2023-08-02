@@ -164,28 +164,60 @@ impl WasmGenerator {
             ValType::Funcref => unimplemented!("Funcref"),
         };
     }
+
+    fn get_expr_type(&self, expr: &SymbolicExpression) -> &TypeSignature {
+        self.contract_analysis
+            .type_map
+            .as_ref()
+            .expect("type-checker must be called before Wasm generation")
+            .get_type(expr)
+            .expect("expression must be typed")
+    }
+
+    fn expand_arithmetic_to_binop(
+        &mut self,
+        op: BinaryOp,
+        operands: &[SymbolicExpression],
+    ) -> bool {
+        // TODO: Handle 128-bit arithmetic
+
+        // Start off with operand 0, then loop over the rest
+        if !self.traverse_expr(&operands[0]) {
+            return false;
+        }
+        for operand in operands.iter().skip(1) {
+            if !self.traverse_expr(operand) {
+                return false;
+            }
+            self.current_function.func_body().binop(op);
+        }
+
+        true
+    }
 }
 
 impl<'a> ASTVisitor<'a> for WasmGenerator {
-    fn visit_arithmetic(
+    fn traverse_arithmetic(
         &mut self,
-        _expr: &'a SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        operands: &'a [SymbolicExpression],
     ) -> bool {
         match func {
-            NativeFunctions::Add => {
-                // TODO: Handle 128-bit
-
-                // TODO: Handle > 2 operands
-                // e.g. (+ 1 2 3) should become:
-                // i64.const 1
-                // i64.const 2
-                // i64.add
-                // i64.const 3
-                // i64.add
-                self.current_function.func_body().binop(BinaryOp::I64Add);
-                true
+            NativeFunctions::Add => self.expand_arithmetic_to_binop(BinaryOp::I64Add, operands),
+            NativeFunctions::Subtract => {
+                self.expand_arithmetic_to_binop(BinaryOp::I64Sub, operands)
+            }
+            NativeFunctions::Multiply => {
+                self.expand_arithmetic_to_binop(BinaryOp::I64Mul, operands)
+            }
+            NativeFunctions::Divide => {
+                let ty = self.get_expr_type(expr);
+                if ty == &TypeSignature::UIntType {
+                    self.expand_arithmetic_to_binop(BinaryOp::I64DivU, operands)
+                } else {
+                    self.expand_arithmetic_to_binop(BinaryOp::I64DivS, operands)
+                }
             }
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
@@ -202,6 +234,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         match value {
             clarity::vm::Value::Int(i) => {
                 self.current_function.func_body().i64_const(*i as i64);
+                true
+            }
+            clarity::vm::Value::UInt(u) => {
+                self.current_function.func_body().i64_const(*u as i64);
                 true
             }
             _ => {
@@ -281,13 +317,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         if !self.traverse_expr(value) {
             return false;
         }
-        let ty = self
-            .contract_analysis
-            .type_map
-            .as_ref()
-            .expect("type-checker must be called before Wasm generation")
-            .get_type(expr)
-            .expect("expression must be typed");
+        let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let err_types = clar2wasm_ty(&inner_types.1);
             for err_type in err_types.iter() {
@@ -307,13 +337,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // (err <val>) is represented by an i32 1, followed by a placeholder
         // for the ok value, followed by the err value
         self.current_function.func_body().i32_const(1);
-        let ty = self
-            .contract_analysis
-            .type_map
-            .as_ref()
-            .expect("type-checker must be called before Wasm generation")
-            .get_type(expr)
-            .expect("expression must be typed");
+        let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
