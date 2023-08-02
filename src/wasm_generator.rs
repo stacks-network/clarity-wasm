@@ -21,8 +21,6 @@ pub struct WasmGenerator {
     current_function: FunctionBuilder,
     /// Locals for the current function.
     locals: HashMap<String, LocalId>,
-    /// Functions defined in this contract
-    local_funcs: HashMap<String, FunctionId>,
 }
 
 pub enum GeneratorError {
@@ -60,7 +58,6 @@ impl WasmGenerator {
             error: None,
             current_function: top_level,
             locals: HashMap::new(),
-            local_funcs: HashMap::new(),
         }
     }
 
@@ -146,11 +143,7 @@ impl WasmGenerator {
         // Clear the locals hashmap
         self.locals = HashMap::new();
 
-        let function_id = func_builder.finish(param_locals, &mut self.module.funcs);
-        self.local_funcs
-            .insert(name.as_str().to_string(), function_id);
-
-        Some(function_id)
+        Some(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
     fn add_placeholder_for_type(&mut self, ty: ValType) {
