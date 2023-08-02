@@ -49,8 +49,9 @@ enum FunctionKind {
 
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
+        let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let mut module =
-            Module::from_file("src/standard_lib.wasm").expect("failed to load standard library");
+            Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
         let top_level = FunctionBuilder::new(&mut module.types, &[], &[]);
 
         WasmGenerator {
@@ -181,7 +182,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                self.error = Some(GeneratorError::InternalError("invalid type for arithmetic".to_string()));
+                self.error = Some(GeneratorError::InternalError(
+                    "invalid type for arithmetic".to_string(),
+                ));
                 return false;
             }
         };
@@ -190,12 +193,12 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .module
                 .funcs
                 .by_name(&format!("add-{type_suffix}"))
-                .expect("function not found: add-int128"),
+                .expect(&format!("function not found: add-{type_suffix}")),
             NativeFunctions::Subtract => self
                 .module
                 .funcs
                 .by_name(&format!("sub-{type_suffix}"))
-                .expect("function not found: sub-int128"),
+                .expect(&format!("function not found: sub-{type_suffix}")),
             // NativeFunctions::Multiply => {
             //     self.expand_arithmetic_to_binop(BinaryOp::I64Mul, operands)
             // }
