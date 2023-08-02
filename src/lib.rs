@@ -14,6 +14,7 @@ use wasm_generator::WasmGenerator;
 
 mod ast_visitor;
 mod wasm_generator;
+mod standard;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1

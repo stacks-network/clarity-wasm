@@ -68,8 +68,8 @@ Any top-level expressions from a Clarity contract are added into a `.top-level` 
 
 WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We need to decide how to map Clarity types into these Wasm types.
 
-- `int`: pair of `i64`s
-- `uint`: pair of `i64`s
+- `int`: pair of `i64`s (upper, lower)
+- `uint`: pair of `i64`s (upper, lower)
 - `bool`: `i32`
 - `principal`: `i32` pointer to stack; stack contains 20 bytes for standard principal followed by an `i32` indicating the length of the contract name, which, if non-zero, is followed by the contract name string.
 - `buff`: `i32` pointer to stack, `i32` length

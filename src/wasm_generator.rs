@@ -7,7 +7,7 @@ use clarity::vm::{
     types::{FunctionType, TypeSignature},
     SymbolicExpression,
 };
-use walrus::{ir::BinaryOp, FunctionBuilder, FunctionId, LocalId, Module, ModuleConfig, ValType};
+use walrus::{FunctionBuilder, FunctionId, LocalId, Module, ValType};
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
@@ -49,7 +49,8 @@ enum FunctionKind {
 
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
-        let mut module = Module::with_config(ModuleConfig::default());
+        let mut module =
+            Module::from_file("src/standard_lib.wasm").expect("failed to load standard library");
         let top_level = FunctionBuilder::new(&mut module.types, &[], &[]);
 
         WasmGenerator {
@@ -64,7 +65,7 @@ impl WasmGenerator {
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
         traverse(&mut self, &expressions);
-        println!("{:?}", expressions);
+        // println!("{:?}", expressions);
         self.contract_analysis.expressions = expressions;
 
         if let Some(err) = self.error {
@@ -119,9 +120,9 @@ impl WasmGenerator {
         let mut params_types = Vec::new();
         for param in function_type.args.iter() {
             let param_types = clar2wasm_ty(&param.signature);
-            for ty in param_types.iter() {
+            for (n, ty) in param_types.iter().enumerate() {
                 let local = self.module.locals.add(*ty);
-                self.locals.insert(param.name.as_str().to_string(), local);
+                self.locals.insert(format!("{}.{}", param.name, n), local);
                 param_locals.push(local);
                 params_types.push(*ty);
             }
@@ -166,27 +167,6 @@ impl WasmGenerator {
             .get_type(expr)
             .expect("expression must be typed")
     }
-
-    fn expand_arithmetic_to_binop(
-        &mut self,
-        op: BinaryOp,
-        operands: &[SymbolicExpression],
-    ) -> bool {
-        // TODO: Handle 128-bit arithmetic
-
-        // Start off with operand 0, then loop over the rest
-        if !self.traverse_expr(&operands[0]) {
-            return false;
-        }
-        for operand in operands.iter().skip(1) {
-            if !self.traverse_expr(operand) {
-                return false;
-            }
-            self.current_function.func_body().binop(op);
-        }
-
-        true
-    }
 }
 
 impl<'a> ASTVisitor<'a> for WasmGenerator {
@@ -196,27 +176,55 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
-        match func {
-            NativeFunctions::Add => self.expand_arithmetic_to_binop(BinaryOp::I64Add, operands),
-            NativeFunctions::Subtract => {
-                self.expand_arithmetic_to_binop(BinaryOp::I64Sub, operands)
+        let ty = self.get_expr_type(expr);
+        let type_suffix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                self.error = Some(GeneratorError::InternalError("invalid type for arithmetic".to_string()));
+                return false;
             }
-            NativeFunctions::Multiply => {
-                self.expand_arithmetic_to_binop(BinaryOp::I64Mul, operands)
-            }
-            NativeFunctions::Divide => {
-                let ty = self.get_expr_type(expr);
-                if ty == &TypeSignature::UIntType {
-                    self.expand_arithmetic_to_binop(BinaryOp::I64DivU, operands)
-                } else {
-                    self.expand_arithmetic_to_binop(BinaryOp::I64DivS, operands)
-                }
-            }
+        };
+        let helper_func = match func {
+            NativeFunctions::Add => self
+                .module
+                .funcs
+                .by_name(&format!("add-{type_suffix}"))
+                .expect("function not found: add-int128"),
+            NativeFunctions::Subtract => self
+                .module
+                .funcs
+                .by_name(&format!("sub-{type_suffix}"))
+                .expect("function not found: sub-int128"),
+            // NativeFunctions::Multiply => {
+            //     self.expand_arithmetic_to_binop(BinaryOp::I64Mul, operands)
+            // }
+            // NativeFunctions::Divide => {
+            //     let ty = self.get_expr_type(expr);
+            //     if ty == &TypeSignature::UIntType {
+            //         self.expand_arithmetic_to_binop(BinaryOp::I64DivU, operands)
+            //     } else {
+            //         self.expand_arithmetic_to_binop(BinaryOp::I64DivS, operands)
+            //     }
+            // }
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                false
+                return false;
             }
+        };
+
+        // Start off with operand 0, then loop over the rest
+        if !self.traverse_expr(&operands[0]) {
+            return false;
         }
+        for operand in operands.iter().skip(1) {
+            if !self.traverse_expr(operand) {
+                return false;
+            }
+            self.current_function.func_body().call(helper_func);
+        }
+
+        true
     }
 
     fn visit_literal_value(
@@ -226,11 +234,21 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
     ) -> bool {
         match value {
             clarity::vm::Value::Int(i) => {
-                self.current_function.func_body().i64_const(*i as i64);
+                self.current_function
+                    .func_body()
+                    .i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                self.current_function
+                    .func_body()
+                    .i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
                 true
             }
             clarity::vm::Value::UInt(u) => {
-                self.current_function.func_body().i64_const(*u as i64);
+                self.current_function
+                    .func_body()
+                    .i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                self.current_function
+                    .func_body()
+                    .i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
                 true
             }
             _ => {
@@ -242,21 +260,25 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
     fn visit_atom(
         &mut self,
-        _expr: &'a SymbolicExpression,
+        expr: &'a SymbolicExpression,
         atom: &'a clarity::vm::ClarityName,
     ) -> bool {
         // FIXME: This should also handle constants and keywords
-        let local = match self.locals.get(atom.as_str()) {
-            Some(local) => *local,
-            None => {
-                self.error = Some(GeneratorError::InternalError(format!(
-                    "unable to find local for {}",
-                    atom.as_str()
-                )));
-                return false;
-            }
-        };
-        self.current_function.func_body().local_get(local);
+        let types = clar2wasm_ty(self.get_expr_type(expr));
+        for n in 0..types.len() {
+            let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
+                Some(local) => *local,
+                None => {
+                    self.error = Some(GeneratorError::InternalError(format!(
+                        "unable to find local for {}",
+                        atom.as_str()
+                    )));
+                    return false;
+                }
+            };
+            self.current_function.func_body().local_get(local);
+        }
+
         true
     }
 
@@ -348,17 +370,21 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         name: &'a clarity::vm::ClarityName,
         _args: &'a [SymbolicExpression],
     ) -> bool {
-        self.current_function
-            .func_body()
-            .call(self.local_funcs[name.as_str()]);
+        self.current_function.func_body().call(
+            self.module
+                .funcs
+                .by_name(name.as_str())
+                .expect("function not found"),
+        );
         true
     }
 }
 
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     match ty {
-        TypeSignature::NoType => vec![ValType::I32],
-        TypeSignature::IntType => vec![ValType::I64],
+        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
+        TypeSignature::IntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
         TypeSignature::ResponseType(inner_types) => {
             let mut types = vec![ValType::I32];
             types.extend(clar2wasm_ty(&inner_types.0));
