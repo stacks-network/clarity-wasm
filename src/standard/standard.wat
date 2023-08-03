@@ -1,11 +1,15 @@
 ;; This module contains a standard library for Clarity, defining Clarity's
 ;; builtins, to be called from the generated Wasm code.
 (module
-    (type (;0;) (func))
+    (type (;0;) (func (param i32)))
     (type (;1;) (func (param i64 i64 i64 i64) (result i64 i64)))
 
-    (func $overflow (type 0)
-        ;; TODO: Implement overflow
+    ;; The error code is one of:
+        ;; 0: overflow
+        ;; 1: underflow
+        ;; 2: divide by zero
+    (func $runtime-error (type 0) (param $error-code i32)
+        ;; TODO: Implement runtime error
         unreachable
     )
 
@@ -44,7 +48,7 @@
         ;; Check for overflow and underflow
         (if (i64.eq (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have the same sign
             (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $sum_hi) (i64.const 63))) ;; and the result has a different sign
-                (call $overflow)
+                (call $runtime-error (i32.const 0))
             )
         )
 
@@ -67,7 +71,7 @@
 
         ;; Check for overflow
         (if (i64.lt_u (local.get $sum_hi) (local.get $a_hi))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
 
         ;; Return the result
@@ -109,7 +113,7 @@
         ;; Check for overflow and underflow
         (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have different signs
             (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $diff_hi) (i64.const 63))) ;; and the result has a different sign from a
-                (call $overflow)
+                (call $runtime-error (i32.const 1))
             )
         )
 
@@ -132,9 +136,7 @@
 
         ;; Check for underflow
         (if (i64.gt_u (local.get $diff_hi) (local.get $a_hi))
-            (then
-                (call $overflow)
-            )
+            (call $runtime-error (i32.const 1))
         )
 
         ;; Return the result
@@ -217,18 +219,18 @@
         (local.set $product0 (i64.add (local.get $product0) (local.get $product1)))
         ;; check for carry
         (if (i64.lt_u (local.get $product0) (local.get $product1))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         (local.set $product0 (i64.add (local.get $product0) (local.get $product2)))
         ;; check for carry
         (if (i64.lt_u (local.get $product0) (local.get $product2))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         ;; res_hi += (a2b0 + a1b1 + a0b2)
         (local.set $res_hi (i64.add (local.get $res_hi) (local.get $product0)))
         ;; check for carry
         (if (i64.lt_u (local.get $res_hi) (local.get $product0))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
 
         ;; (a3b0 + a2b1 + a1b2 + a0b3) << 96
@@ -244,30 +246,30 @@
         (local.set $product0 (i64.add (local.get $product0) (local.get $product1)))
         ;; check for carry
         (if (i64.lt_u (local.get $product0) (local.get $product1))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         ;; a3b0 + a2b1 + a1b2
         (local.set $product0 (i64.add (local.get $product0) (local.get $product2)))
         ;; check for carry
         (if (i64.lt_u (local.get $product0) (local.get $product2))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         ;; a3b0 + a2b1 + a1b2 + a0b3
         (local.set $product0 (i64.add (local.get $product0) (local.get $product3)))
         ;; check for carry
         (if (i64.lt_u (local.get $product0) (local.get $product3))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         ;; check for overflow in upper 32 bits of result
         (if (i64.ne (i64.shr_u (local.get $product0) (i64.const 32)) (i64.const 0))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
         ;; result += (a3b0 + a2b1 + a1b2 + a0b3) << 96
         (local.set $product0 (i64.shl (local.get $product0) (i64.const 32)))
         (local.set $res_hi (i64.add (local.get $res_hi) (local.get $product0)))
         ;; check for carry
         (if (i64.lt_u (local.get $res_hi) (local.get $product0))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
 
         ;; Return the result
@@ -302,7 +304,7 @@
         (local.set $sign_b (i64.shr_s (local.get $b_hi) (i64.const 63)))
         (local.set $expected_sign (i64.xor (local.get $sign_a) (local.get $sign_b)))
         (if (i64.ne (i64.shr_s (local.get $res_hi) (i64.const 63)) (local.get $expected_sign))
-            (call $overflow)
+            (call $runtime-error (i32.const 0))
         )
 
         ;; Return the result
