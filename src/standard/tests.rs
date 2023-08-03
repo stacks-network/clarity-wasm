@@ -382,6 +382,85 @@ fn test_mul_uint() {
         &mut result,
     )
     .expect_err("expected overflow");
+
+    // Overflow (a2b2)
+    // 0x1_0000_0000_0000_0000 * 0x1_0000_0000_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // Overflow (a3b1)
+    // 0x1_0000_0000_0000_0000_0000_0000 * 0x1_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+            Val::I64(0),
+            Val::I64(0x1_0000_0000),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // Overflow (a1b3)
+    // 0x1_0000_0000 * 0x1_0000_0000_0000_0000_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(0),
+            Val::I64(0x1_0000_0000),
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // Overflow (a3b2)
+    // 0x1_0000_0000_0000_0000_0000_0000 * 0x1_0000_0000_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+            Val::I64(1),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // Overflow (a2b3)
+    // 0x1_0000_0000_0000_0000 * 0x1_0000_0000_0000_0000_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(1),
+            Val::I64(0),
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // Overflow (a3b3)
+    // 0x1_0000_0000_0000_0000_0000_0000 * 0x1_0000_0000_0000_0000_0000_0000 = Overflow
+    mul.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
 }
 
 #[test]

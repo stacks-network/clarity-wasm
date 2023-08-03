@@ -186,7 +186,17 @@
         ;;         (a3b1 + a2b2 + a1b3) << 128 +
         ;;         (a3b2 + a2b3) << 160 +
         ;;         a3b3 << 192
-        ;; We would need to make sure these are 0 or report overflow if they are not
+        ;; We need to make sure these are 0 or report overflow if they are not
+        (if (i32.or
+                (i32.ne (i32.or (local.get $a3) (local.get $b1)) (i32.const 0))
+                (i32.ne (i32.or (local.get $a2) (local.get $b2)) (i32.const 0))
+                (i32.ne (i32.or (local.get $a1) (local.get $b3)) (i32.const 0))
+                (i32.ne (i32.or (local.get $a3) (local.get $b2)) (i32.const 0))
+                (i32.ne (i32.or (local.get $a2) (local.get $b3)) (i32.const 0))
+                (i32.ne (i32.or (local.get $a3) (local.get $b3)) (i32.const 0))
+            )
+            (call $runtime-error (i32.const 0))
+        )
         
         ;; a0b0
         (local.set $res_lo (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b0))))
