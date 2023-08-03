@@ -25,5 +25,28 @@ fn add(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, add);
-criterion_main!(benches);
+fn mul(c: &mut Criterion) {
+    c.bench_function("mul", |b| {
+        let standard_lib = include_str!("../src/standard/standard.wat");
+        let engine = Engine::default();
+        let mut store = Store::new(&engine, ());
+        let module = Module::new(&engine, standard_lib).unwrap();
+        let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
+        let mul = instance
+            .get_func(&mut store.borrow_mut(), "mul-uint")
+            .unwrap();
+
+        b.iter(|| {
+            let mut results = [Val::I64(0), Val::I64(0)];
+            mul.call(
+                &mut store.borrow_mut(),
+                &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(-1)],
+                &mut results,
+            )
+            .unwrap();
+        })
+    });
+}
+
+criterion_group!(arithmetic, add, mul);
+criterion_main!(arithmetic);

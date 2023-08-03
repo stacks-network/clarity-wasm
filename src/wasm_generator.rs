@@ -199,17 +199,16 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .funcs
                 .by_name(&format!("sub-{type_suffix}"))
                 .expect(&format!("function not found: sub-{type_suffix}")),
-            // NativeFunctions::Multiply => {
-            //     self.expand_arithmetic_to_binop(BinaryOp::I64Mul, operands)
-            // }
-            // NativeFunctions::Divide => {
-            //     let ty = self.get_expr_type(expr);
-            //     if ty == &TypeSignature::UIntType {
-            //         self.expand_arithmetic_to_binop(BinaryOp::I64DivU, operands)
-            //     } else {
-            //         self.expand_arithmetic_to_binop(BinaryOp::I64DivS, operands)
-            //     }
-            // }
+            NativeFunctions::Multiply => self
+                .module
+                .funcs
+                .by_name(&format!("mul-{type_suffix}"))
+                .expect(&format!("function not found: mul-{type_suffix}")),
+            NativeFunctions::Divide => self
+                .module
+                .funcs
+                .by_name(&format!("div-{type_suffix}"))
+                .expect(&format!("function not found: div-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return false;
