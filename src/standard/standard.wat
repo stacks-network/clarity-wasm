@@ -357,8 +357,6 @@
                 (i64.shl (local.get $remainder_lo) (i64.const 1))
                 (i64.shr_u (local.get $dividend_hi) (i64.const 63))))
 
-            ;; (call $log (local.get $remainder_lo))
-
             ;; Shift the dividend left by one bit
             (local.set $dividend_hi (i64.or
                 (i64.shl (local.get $dividend_hi) (i64.const 1))
