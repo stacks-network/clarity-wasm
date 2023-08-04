@@ -542,3 +542,285 @@ fn test_mul_int() {
     )
     .expect_err("expected overflow");
 }
+
+#[test]
+fn test_div_uint() {
+    let standard_lib = include_str!("standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+    let module = Module::new(&engine, standard_lib).unwrap();
+    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
+    let div = instance
+        .get_func(&mut store.borrow_mut(), "div-uint")
+        .unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // 4 / 2 = 2
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+        &mut result,
+    )
+    .expect("call to div-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(2));
+
+    // 7 / 4 = 1
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+        &mut result,
+    )
+    .expect("call to div-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(1));
+
+    // 123 / 456 = 0
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(123), Val::I64(0), Val::I64(456)],
+        &mut result,
+    )
+    .expect("call to div-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // 0 / 0x123_0000_0000_0000_0456 = 0
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(0x123), Val::I64(0x456)],
+        &mut result,
+    )
+    .expect("call to div-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // 0x123_0000_0000_0000_0456 / 0 = DivideByZero
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected divide by zero");
+
+    // 0x123_0000_0000_0000_0456 / 22 = 0xd_3a2e_8ba2_e8ba_2ebe
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(22)],
+        &mut result,
+    )
+    .expect("call to div-uint failed");
+    assert_eq!(result[0].i64(), Some(0xd));
+    assert_eq!(result[1].i64(), Some(0x3a2e_8ba2_e8ba_2ebe));
+}
+
+#[test]
+fn test_div_int() {
+    let standard_lib = include_str!("standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+    let module = Module::new(&engine, standard_lib).unwrap();
+    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
+    let div = instance
+        .get_func(&mut store.borrow_mut(), "div-int")
+        .unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // 4 / 2 = 2
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+        &mut result,
+    )
+    .expect("call to div-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(2));
+
+    // -4 / 2 = -2
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-4), Val::I64(0), Val::I64(2)],
+        &mut result,
+    )
+    .expect("call to div-int failed");
+    assert_eq!(result[0].i64(), Some(-1));
+    assert_eq!(result[1].i64(), Some(-2));
+
+    // 4 / -2 = -2
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(0), Val::I64(4), Val::I64(-1), Val::I64(-2)],
+        &mut result,
+    )
+    .expect("call to div-int failed");
+    assert_eq!(result[0].i64(), Some(-1));
+    assert_eq!(result[1].i64(), Some(-2));
+
+    // -4 / -2 = 2
+    div.call(
+        &mut store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-4), Val::I64(-1), Val::I64(-2)],
+        &mut result,
+    )
+    .expect("call to div-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(2));
+
+    // 0x8000_0000_0000_0000_0000_0000_0000_0000 / -2 = 0xc000_0000_0000_0000_0000_0000_0000_0000
+    div.call(
+        &mut store.borrow_mut(),
+        &[
+            Val::I64(-9223372036854775808),
+            Val::I64(0),
+            Val::I64(0),
+            Val::I64(2),
+        ],
+        &mut result,
+    )
+    .expect("call to div-int failed");
+    assert_eq!(result[0].i64(), Some(-4611686018427387904i64));
+    assert_eq!(result[1].i64(), Some(0));
+}
+
+#[test]
+fn test_mod_uint() {
+    let standard_lib = include_str!("standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+    let module = Module::new(&engine, standard_lib).unwrap();
+    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
+    let modulo = instance
+        .get_func(&mut store.borrow_mut(), "mod-uint")
+        .unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // 4 % 2 = 0
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+            &mut result,
+        )
+        .expect("call to mod-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // 7 % 4 = 3
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+            &mut result,
+        )
+        .expect("call to mod-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(3));
+
+    // 123 % 456 = 123
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(123), Val::I64(0), Val::I64(456)],
+            &mut result,
+        )
+        .expect("call to mod-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(123));
+
+    // 0 % 0x123_0000_0000_0000_0456 = 0
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(0), Val::I64(0x123), Val::I64(0x456)],
+            &mut result,
+        )
+        .expect("call to mod-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // 0x123_0000_0000_0000_0456 % 0 = DivideByZero
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+            &mut result,
+        )
+        .expect_err("expected divide by zero");
+
+    // 0x123_0000_0000_0000_0456 % 22 = 2
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(22)],
+            &mut result,
+        )
+        .expect("call to mod-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(2));
+}
+
+#[test]
+fn test_mod_int() {
+    let standard_lib = include_str!("standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+    let module = Module::new(&engine, standard_lib).unwrap();
+    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
+    let modulo = instance
+        .get_func(&mut store.borrow_mut(), "mod-int")
+        .unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // 7 % 4 = 3
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+            &mut result,
+        )
+        .expect("call to mod-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(3));
+
+    // -7 / 4 = -3
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(-1), Val::I64(-7), Val::I64(0), Val::I64(4)],
+            &mut result,
+        )
+        .expect("call to mod-int failed");
+    assert_eq!(result[0].i64(), Some(-1));
+    assert_eq!(result[1].i64(), Some(-3));
+
+    // 7 / -4 = 3
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0), Val::I64(7), Val::I64(-1), Val::I64(-4)],
+            &mut result,
+        )
+        .expect("call to mod-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(3));
+
+    // -7 / -4 = -3
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(-1), Val::I64(-7), Val::I64(-1), Val::I64(-4)],
+            &mut result,
+        )
+        .expect("call to mod-int failed");
+    assert_eq!(result[0].i64(), Some(-1));
+    assert_eq!(result[1].i64(), Some(-3));
+
+    // 0x123_0000_0000_0000_0456 % 0 = DivideByZero
+    modulo
+        .call(
+            &mut store.borrow_mut(),
+            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+            &mut result,
+        )
+        .expect_err("expected divide by zero");
+}

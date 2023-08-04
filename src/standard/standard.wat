@@ -3,6 +3,8 @@
 (module
     (type (;0;) (func (param i32)))
     (type (;1;) (func (param i64 i64 i64 i64) (result i64 i64)))
+    (type (;2;) (func (param i64 i64 i64 i64) (result i64 i64 i64 i64)))
+    (type (;3;) (func (param i64 i64) (result i64 i64)))
 
     ;; The error code is one of:
         ;; 0: overflow
@@ -14,7 +16,7 @@
     )
 
     ;; This function can be used to add either signed or unsigned integers
-    (func $add128 (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+    (func $add-int128 (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
         (local $sum_lo i64)
         (local $sum_hi i64)
         (local $carry i64)
@@ -40,7 +42,7 @@
         (local.get $a_lo)
         (local.get $b_hi)
         (local.get $b_lo)
-        (call $add128)
+        (call $add-int128)
 
         (local.set $sum_lo)
         (local.set $sum_hi)
@@ -64,7 +66,7 @@
         (local.get $a_lo)
         (local.get $b_hi)
         (local.get $b_lo)
-        (call $add128)
+        (call $add-int128)
 
         (local.set $sum_lo)
         (local.set $sum_hi)
@@ -143,7 +145,7 @@
         (return (local.get $diff_hi) (local.get $diff_lo))
     )
 
-    (func $mul-int128 (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+    (func $mul-uint (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
         (local $a0 i32)
         (local $a1 i32)
         (local $a2 i32)
@@ -286,7 +288,7 @@
         (return (local.get $res_hi) (local.get $res_lo))
     )
 
-    (func $mul-int (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+    (func $mul-int (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
         (local $res_hi i64)
         (local $res_lo i64)
         (local $sign_a i64)
@@ -304,7 +306,7 @@
         (local.get $a_lo)
         (local.get $b_hi)
         (local.get $b_lo)
-        (call $mul-int128)
+        (call $mul-uint)
 
         (local.set $res_lo)
         (local.set $res_hi)
@@ -321,10 +323,215 @@
         (return (local.get $res_hi) (local.get $res_lo))
     )
 
+    (func $div-int128 (type 2) (param $dividend_hi i64) (param $dividend_lo i64) (param $divisor_hi i64) (param $divisor_lo i64) (result i64 i64 i64 i64)
+        (local $quotient_hi i64)
+        (local $quotient_lo i64)
+        (local $remainder_hi i64)
+        (local $remainder_lo i64)
+        (local $current_bit i64)
+
+        ;; Check for division by 0
+        (if (i64.eqz (i64.or (local.get $divisor_hi) (local.get $divisor_lo)))
+            (call $runtime-error (i32.const 2))
+        )
+
+        ;; Long division algorithm
+        ;; Initialize the quotient and remainder to 0
+        (local.set $quotient_hi (i64.const 0))
+        (local.set $quotient_lo (i64.const 0))
+        (local.set $remainder_hi (i64.const 0))
+        (local.set $remainder_lo (i64.const 0))
+        ;; (local.set $remainder_hi (local.get $dividend_hi))
+        ;; (local.set $remainder_lo (local.get $dividend_lo))
+
+        ;; Use current_bit to loop over the bits of the dividend
+        (local.set $current_bit (i64.const 127))
+
+        (loop $div_loop
+            ;; Shift the remainder left by one bit, 
+            ;; filling the least significant bit with the next bit of the dividend
+            (local.set $remainder_hi (i64.or
+                (i64.shl (local.get $remainder_hi) (i64.const 1))
+                (i64.shr_u (local.get $remainder_lo) (i64.const 63))))
+            (local.set $remainder_lo (i64.or
+                (i64.shl (local.get $remainder_lo) (i64.const 1))
+                (i64.shr_u (local.get $dividend_hi) (i64.const 63))))
+
+            ;; (call $log (local.get $remainder_lo))
+
+            ;; Shift the dividend left by one bit
+            (local.set $dividend_hi (i64.or
+                (i64.shl (local.get $dividend_hi) (i64.const 1))
+                (i64.shr_u (local.get $dividend_lo) (i64.const 63))))
+            (local.set $dividend_lo (i64.shl (local.get $dividend_lo) (i64.const 1)))
+
+            ;; If the remainder is greater than or equal to the divisor,
+            (if (i32.or (i64.gt_u (local.get $remainder_hi) (local.get $divisor_hi))
+                        (i32.and (i64.eq (local.get $remainder_hi) (local.get $divisor_hi))
+                                 (i64.ge_u (local.get $remainder_lo) (local.get $divisor_lo))))
+                (then
+                    ;; Subtract the divisor from the remainder
+                    (call $sub-int128 (local.get $remainder_hi) (local.get $remainder_lo) (local.get $divisor_hi) (local.get $divisor_lo))
+                    (local.set $remainder_lo)
+                    (local.set $remainder_hi)
+
+                    ;; and set the current bit of the quotient to 1
+                    (if (i64.lt_u (local.get $current_bit) (i64.const 64))
+                        (then
+                            (local.set $quotient_lo (i64.or (local.get $quotient_lo)
+                                (i64.shl (i64.const 1) (local.get $current_bit))))
+                        )
+                        (else
+                            (local.set $quotient_hi (i64.or (local.get $quotient_hi)
+                                (i64.shl (i64.const 1) (i64.sub (local.get $current_bit) (i64.const 64)))))
+                        )
+                    )
+                )
+            )
+
+            ;; Decrement the current bit and loop until all bits have been processed
+            (local.set $current_bit (i64.sub (local.get $current_bit) (i64.const 1)))
+            (br_if $div_loop (i64.ge_s (local.get $current_bit) (i64.const 0)))
+        )
+
+        ;; Return the quotient and the remainder
+        (return (local.get $quotient_hi) (local.get $quotient_lo) (local.get $remainder_hi) (local.get $remainder_lo))
+    )
+
+    (func $div-uint (type 1) (param $dividend_hi i64) (param $dividend_lo i64) (param $divisor_hi i64) (param $divisor_lo i64) (result i64 i64)
+        (local $quotient_hi i64)
+        (local $quotient_lo i64)
+        (local $remainder_hi i64)
+        (local $remainder_lo i64)
+
+        (call $div-int128 (local.get $dividend_hi) (local.get $dividend_lo) (local.get $divisor_hi) (local.get $divisor_lo))
+        (local.set $remainder_lo)
+        (local.set $remainder_hi)
+        (local.set $quotient_lo)
+        (local.set $quotient_hi)
+
+        (return (local.get $quotient_hi) (local.get $quotient_lo))
+    )
+
+    (func $div-int (type 1) (param $dividend_hi i64) (param $dividend_lo i64) (param $divisor_hi i64) (param $divisor_lo i64) (result i64 i64)
+        (local $quotient_hi i64)
+        (local $quotient_lo i64)
+        (local $remainder_hi i64)
+        (local $remainder_lo i64)
+        (local $sign_dividend i64)
+        (local $sign_divisor i64)
+        (local $expected_sign i64)
+
+        ;; Compute the expected sign of the result
+        (local.set $sign_dividend (i64.shr_s (local.get $dividend_hi) (i64.const 63)))
+        (local.set $sign_divisor (i64.shr_s (local.get $divisor_hi) (i64.const 63)))
+        (local.set $expected_sign (i64.xor (local.get $sign_dividend) (local.get $sign_divisor)))
+
+        ;; Perform the division using the absolute values of the operands
+        (if (i32.wrap_i64 (local.get $sign_dividend))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_hi) (local.get $dividend_lo))
+                (local.set $dividend_lo)
+                (local.set $dividend_hi)
+            )
+        )
+        (if (i32.wrap_i64 (local.get $sign_divisor))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_hi) (local.get $divisor_lo))
+                (local.set $divisor_lo)
+                (local.set $divisor_hi)
+            )
+        )
+
+        (call $div-int128 (local.get $dividend_hi) (local.get $dividend_lo) (local.get $divisor_hi) (local.get $divisor_lo))
+        (local.set $remainder_lo)
+        (local.set $remainder_hi)
+        (local.set $quotient_lo)
+        (local.set $quotient_hi)
+
+        ;; If the result should be negative, negate it
+        (if (i32.wrap_i64 (local.get $expected_sign))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $quotient_hi) (local.get $quotient_lo))
+                (local.set $quotient_lo)
+                (local.set $quotient_hi)
+            )
+        )
+
+        (return (local.get $quotient_hi) (local.get $quotient_lo))
+    )
+
+    (func $mod-uint (type 1) (param $dividend_hi i64) (param $dividend_lo i64) (param $divisor_hi i64) (param $divisor_lo i64) (result i64 i64)
+        (local $quotient_hi i64)
+        (local $quotient_lo i64)
+        (local $remainder_hi i64)
+        (local $remainder_lo i64)
+
+        (call $div-int128 (local.get $dividend_hi) (local.get $dividend_lo) (local.get $divisor_hi) (local.get $divisor_lo))
+        (local.set $remainder_lo)
+        (local.set $remainder_hi)
+        (local.set $quotient_lo)
+        (local.set $quotient_hi)
+
+        (return (local.get $remainder_hi) (local.get $remainder_lo))
+    )
+
+    (func $mod-int (type 1) (param $dividend_hi i64) (param $dividend_lo i64) (param $divisor_hi i64) (param $divisor_lo i64) (result i64 i64)
+        (local $quotient_hi i64)
+        (local $quotient_lo i64)
+        (local $remainder_hi i64)
+        (local $remainder_lo i64)
+        (local $sign_dividend i64)
+        (local $sign_divisor i64)
+        (local $expected_sign i64)
+
+        ;; Compute the expected sign of the result
+        (local.set $sign_dividend (i64.shr_s (local.get $dividend_hi) (i64.const 63)))
+        (local.set $sign_divisor (i64.shr_s (local.get $divisor_hi) (i64.const 63)))
+        (local.set $expected_sign (i64.xor (local.get $sign_dividend) (local.get $sign_divisor)))
+
+        ;; Perform the division using the absolute values of the operands
+        (if (i32.wrap_i64 (local.get $sign_dividend))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_hi) (local.get $dividend_lo))
+                (local.set $dividend_lo)
+                (local.set $dividend_hi)
+            )
+        )
+        (if (i32.wrap_i64 (local.get $sign_divisor))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_hi) (local.get $divisor_lo))
+                (local.set $divisor_lo)
+                (local.set $divisor_hi)
+            )
+        )
+
+        (call $div-int128 (local.get $dividend_hi) (local.get $dividend_lo) (local.get $divisor_hi) (local.get $divisor_lo))
+        (local.set $remainder_lo)
+        (local.set $remainder_hi)
+        (local.set $quotient_lo)
+        (local.set $quotient_hi)
+
+        ;; If the result should be negative, negate it
+        (if (i32.wrap_i64 (local.get $sign_dividend))
+            (then
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $remainder_hi) (local.get $remainder_lo))
+                (local.set $remainder_lo)
+                (local.set $remainder_hi)
+            )
+        )
+
+        (return (local.get $remainder_hi) (local.get $remainder_lo))
+    )
+
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
     (export "sub-uint" (func $sub-uint))
     (export "sub-int" (func $sub-int))
-    (export "mul-uint" (func $mul-int128))
+    (export "mul-uint" (func $mul-uint))
     (export "mul-int" (func $mul-int))
+    (export "div-uint" (func $div-uint))
+    (export "div-int" (func $div-int))
+    (export "mod-uint" (func $mod-uint))
+    (export "mod-int" (func $mod-int))
 )
