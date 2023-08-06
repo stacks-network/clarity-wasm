@@ -4,12 +4,35 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
-    types::{FunctionType, TypeSignature},
     SymbolicExpression,
+    types::{FunctionType, SequenceSubtype, TypeSignature},
 };
-use walrus::{FunctionBuilder, FunctionId, LocalId, Module, ValType};
+use walrus::{
+    FunctionBuilder, FunctionId, InstrSeqBuilder, LocalId, Module, ValType,
+};
 
 use crate::ast_visitor::{traverse, ASTVisitor};
+
+struct FunctionContext {
+    /// The function builder for the current function.
+    builder: FunctionBuilder,
+    /// The locals for the current function.
+    locals: HashMap<String, LocalId>,
+}
+
+impl FunctionContext {
+    pub fn func_body(&mut self) -> InstrSeqBuilder {
+        self.builder.func_body()
+    }
+
+    pub fn get_local(&self, name: &str) -> Option<&LocalId> {
+        self.locals.get(name)
+    }
+
+    pub fn finish(self, args: Vec<LocalId>, module: &mut Module) -> FunctionId {
+        self.builder.finish(args, &mut module.funcs)
+    }
+}
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
@@ -17,10 +40,8 @@ pub struct WasmGenerator {
     contract_analysis: ContractAnalysis,
     module: Module,
     error: Option<GeneratorError>,
-    /// Current function context we are in.
-    current_function: FunctionBuilder,
-    /// Locals for the current function.
-    locals: HashMap<String, LocalId>,
+    /// Current function context.
+    current_function: FunctionContext,
 }
 
 pub enum GeneratorError {
@@ -52,14 +73,16 @@ impl WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let mut module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
-        let top_level = FunctionBuilder::new(&mut module.types, &[], &[]);
+        let current_function = FunctionContext {
+            builder: FunctionBuilder::new(&mut module.types, &[], &[]),
+            locals: HashMap::new(),
+        };
 
         WasmGenerator {
             contract_analysis,
             module,
             error: None,
-            current_function: top_level,
-            locals: HashMap::new(),
+            current_function,
         }
     }
 
@@ -76,11 +99,8 @@ impl WasmGenerator {
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         self.current_function.func_body().return_();
-
-        self.module.exports.add(
-            ".top-level",
-            self.current_function.finish(vec![], &mut self.module.funcs),
-        );
+        let top_level = self.current_function.finish(vec![], &mut self.module);
+        self.module.exports.add(".top-level", top_level);
 
         Ok(self.module)
     }
@@ -110,11 +130,7 @@ impl WasmGenerator {
             return None;
         };
 
-        // Ensure the locals hashmap is empty
-        assert!(
-            self.locals.is_empty(),
-            "locals hashmap is not empty at the start of a function"
-        );
+        let mut locals = HashMap::new();
 
         // Setup the parameters
         let mut param_locals = Vec::new();
@@ -123,7 +139,7 @@ impl WasmGenerator {
             let param_types = clar2wasm_ty(&param.signature);
             for (n, ty) in param_types.iter().enumerate() {
                 let local = self.module.locals.add(*ty);
-                self.locals.insert(format!("{}.{}", param.name, n), local);
+                locals.insert(format!("{}.{}", param.name, n), local);
                 param_locals.push(local);
                 params_types.push(*ty);
             }
@@ -136,16 +152,20 @@ impl WasmGenerator {
         );
         func_builder.name(name.as_str().to_string());
 
-        let top_level = std::mem::replace(&mut self.current_function, func_builder);
+        let mut context = FunctionContext {
+            builder: func_builder,
+            locals,
+        };
+
+        // Set this as the current function context, and save the top-level context.
+        let top_level = std::mem::replace(&mut self.current_function, context);
 
         self.traverse_expr(body);
 
-        func_builder = std::mem::replace(&mut self.current_function, top_level);
+        // Replace the top-level context.
+        context = std::mem::replace(&mut self.current_function, top_level);
 
-        // Clear the locals hashmap
-        self.locals = HashMap::new();
-
-        Some(func_builder.finish(param_locals, &mut self.module.funcs))
+        Some(context.finish(param_locals, &mut self.module))
     }
 
     fn add_placeholder_for_type(&mut self, ty: ValType) {
@@ -273,7 +293,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // FIXME: This should also handle constants and keywords
         let types = clar2wasm_ty(self.get_expr_type(expr));
         for n in 0..types.len() {
-            let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
+            let local = match self
+                .current_function
+                .get_local(format!("{}.{}", atom.as_str(), n).as_str())
+            {
                 Some(local) => *local,
                 None => {
                     self.error = Some(GeneratorError::InternalError(format!(
