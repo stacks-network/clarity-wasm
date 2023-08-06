@@ -209,6 +209,11 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .funcs
                 .by_name(&format!("div-{type_suffix}"))
                 .expect(&format!("function not found: div-{type_suffix}")),
+            NativeFunctions::Modulo => self
+                .module
+                .funcs
+                .by_name(&format!("mod-{type_suffix}"))
+                .expect(&format!("function not found: mod-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return false;
