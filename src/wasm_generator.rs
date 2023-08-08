@@ -240,7 +240,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             }
         };
 
-        // Start off with operand 0, then loop over the rest
+        // Start off with operand 0, then loop over the rest, calling the
+        // helper function with a pair of operands, either operand 0 and 1, or
+        // the result of the previous call and the next operand.
+        // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
         if !self.traverse_expr(&operands[0]) {
             return false;
         }
