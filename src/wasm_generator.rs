@@ -14,84 +14,25 @@ use walrus::{
 
 use crate::ast_visitor::{traverse, ASTVisitor};
 
-struct FunctionContext {
-    /// The function builder for the current function.
-    builder: FunctionBuilder,
-    /// The locals for the current function.
-    locals: HashMap<String, LocalId>,
-    /// The global ID of the stack pointer.
-    stack_pointer: GlobalId,
-    /// Size of this function's stack.
-    stack_size: i32,
-}
-
-impl FunctionContext {
-    pub fn new(
-        builder: FunctionBuilder,
-        locals: HashMap<String, LocalId>,
-        stack_pointer: GlobalId,
-    ) -> Self {
-        Self {
-            builder,
-            locals,
-            stack_pointer,
-            stack_size: 0,
-        }
-    }
-
-    pub fn func_body(&mut self) -> InstrSeqBuilder {
-        self.builder.func_body()
-    }
-
-    pub fn get_local(&self, name: &str) -> Option<&LocalId> {
-        self.locals.get(name)
-    }
-
-    pub fn finish(self, args: Vec<LocalId>, module: &mut Module) -> FunctionId {
-        self.builder.finish(args, &mut module.funcs)
-    }
-
-    /// Push a new local onto the stack, adjusting the stack pointer and
-    /// tracking this function's stack size accordingly.
-    pub fn create_stack_local(&mut self, module: &mut Module, ty: &TypeSignature) -> LocalId {
-        let size = match ty {
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                length,
-            ))) => u32::from(length.clone()),
-            _ => unimplemented!("Unsupported type for stack local"),
-        };
-
-        // Save the offset (current stack pointer) into a local
-        let stack_pointer = self.stack_pointer;
-        let offset = module.locals.add(ValType::I32);
-        self.func_body().global_get(stack_pointer).local_tee(offset);
-
-        // TODO: The total stack size can be computed at compile time, so we
-        //       should be able to increment the stack pointer once in the function
-        //       prelude with a constant instead of incrementing it for each local.
-        // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
-        self.func_body()
-            .i32_const(size as i32)
-            .binop(BinaryOp::I32Add)
-            .global_set(stack_pointer);
-        self.stack_size += size as i32;
-
-        offset
-    }
-}
-
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
 pub struct WasmGenerator {
+    /// The contract analysis, which contains the expressions and type
+    /// information for the contract.
     contract_analysis: ContractAnalysis,
+    /// The WebAssembly module that is being generated.
     module: Module,
+    /// The error that occurred during generation, if any.
     error: Option<GeneratorError>,
-    /// Current function context.
-    current_function: FunctionContext,
     /// Offset of the end of the literal memory.
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
     stack_pointer: GlobalId,
+
+    /// The locals for the current function.
+    locals: HashMap<String, LocalId>,
+    /// Size of the current function's stack.
+    stack_size: i32,
 }
 
 pub enum GeneratorError {
@@ -118,10 +59,10 @@ enum FunctionKind {
     ReadOnly,
 }
 
-impl WasmGenerator {
+impl<'a> WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
-        let mut module =
+        let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
 
         // Get the stack-pointer global ID
@@ -138,26 +79,25 @@ impl WasmGenerator {
             .map(|global| global.id())
             .expect("Expected to find a global named $stack-pointer");
 
-        let current_function = FunctionContext::new(
-            FunctionBuilder::new(&mut module.types, &[], &[]),
-            HashMap::new(),
-            global_id,
-        );
-
         WasmGenerator {
             contract_analysis,
             module,
             error: None,
-            current_function,
             literal_memory_end: 0,
             stack_pointer: global_id,
+            locals: HashMap::new(),
+            stack_size: 0,
         }
     }
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
-        traverse(&mut self, &expressions);
         // println!("{:?}", expressions);
+
+        let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
+
+        let _ = traverse(&mut self, current_function.func_body(), &expressions);
+
         self.contract_analysis.expressions = expressions;
 
         if let Some(err) = self.error {
@@ -166,19 +106,20 @@ impl WasmGenerator {
 
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
-        self.current_function.func_body().return_();
-        let top_level = self.current_function.finish(vec![], &mut self.module);
+        current_function.func_body().return_();
+        let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
         Ok(self.module)
     }
 
-    fn traverse_define_function(
+    fn traverse_define_function<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         name: &clarity::vm::ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
-    ) -> Option<FunctionId> {
+    ) -> Result<(InstrSeqBuilder<'b>, FunctionId), InstrSeqBuilder<'b>> {
         let opt_function_type = match kind {
             FunctionKind::Private => self.contract_analysis.get_private_function(name.as_str()),
             FunctionKind::ReadOnly => self
@@ -195,7 +136,7 @@ impl WasmGenerator {
                 Some(_) => "expected fixed function type".to_string(),
                 None => format!("unable to find function type for {}", name.as_str()),
             }));
-            return None;
+            return Err(builder);
         };
 
         let mut locals = HashMap::new();
@@ -220,22 +161,19 @@ impl WasmGenerator {
         );
         func_builder.name(name.as_str().to_string());
 
-        let mut context = FunctionContext::new(func_builder, locals, self.stack_pointer);
-
-        // Set this as the current function context, and save the top-level context.
-        let top_level = std::mem::replace(&mut self.current_function, context);
-
         // Function prelude
         // Store the initial stack offset.
         let initial_stack_pointer = self.module.locals.add(ValType::I32);
-
-        self.current_function
-            .func_body()
+        builder
             .global_get(self.stack_pointer)
             .local_set(initial_stack_pointer);
 
+        let block = builder.dangling_instr_seq(None);
+
         // Traverse the body of the function
-        self.traverse_expr(body);
+        if self.traverse_expr(block, body).is_err() {
+            return Err(builder);
+        }
 
         // TODO: We need to ensure that all exits from the function go through
         // the postlude. Maybe put the body in a block, and then have any exits
@@ -243,27 +181,31 @@ impl WasmGenerator {
 
         // Function postlude
         // Restore the initial stack pointer.
-        self.current_function
-            .func_body()
+        builder
             .local_get(initial_stack_pointer)
             .global_set(self.stack_pointer);
 
-        // Replace the top-level context.
-        context = std::mem::replace(&mut self.current_function, top_level);
-
-        Some(context.finish(param_locals, &mut self.module))
+        Ok((
+            builder,
+            func_builder.finish(param_locals, &mut self.module.funcs),
+        ))
     }
 
-    fn add_placeholder_for_type(&mut self, ty: ValType) {
+    fn add_placeholder_for_type<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        ty: ValType,
+    ) -> InstrSeqBuilder<'b> {
         match ty {
-            ValType::I32 => self.current_function.func_body().i32_const(0),
-            ValType::I64 => self.current_function.func_body().i64_const(0),
-            ValType::F32 => self.current_function.func_body().f32_const(0.0),
-            ValType::F64 => self.current_function.func_body().f64_const(0.0),
+            ValType::I32 => builder.i32_const(0),
+            ValType::I64 => builder.i64_const(0),
+            ValType::F32 => builder.f32_const(0.0),
+            ValType::F64 => builder.f64_const(0.0),
             ValType::V128 => unimplemented!("V128"),
             ValType::Externref => unimplemented!("Externref"),
             ValType::Funcref => unimplemented!("Funcref"),
         };
+        builder
     }
 
     fn get_expr_type(&self, expr: &SymbolicExpression) -> &TypeSignature {
@@ -294,15 +236,49 @@ impl WasmGenerator {
         self.literal_memory_end += data.len() as u32;
         (offset, len)
     }
+
+    /// Push a new local onto the stack, adjusting the stack pointer and
+    /// tracking the current function's stack size accordingly.
+    pub fn create_stack_local<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        stack_pointer: GlobalId,
+        // module: &mut Module,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, LocalId) {
+        let size = match ty {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                length,
+            ))) => u32::from(length.clone()),
+            _ => unimplemented!("Unsupported type for stack local"),
+        };
+
+        // Save the offset (current stack pointer) into a local
+        let offset = self.module.locals.add(ValType::I32);
+        builder.global_get(stack_pointer).local_tee(offset);
+
+        // TODO: The total stack size can be computed at compile time, so we
+        //       should be able to increment the stack pointer once in the function
+        //       prelude with a constant instead of incrementing it for each local.
+        // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
+        builder
+            .i32_const(size as i32)
+            .binop(BinaryOp::I32Add)
+            .global_set(stack_pointer);
+        self.stack_size += size as i32;
+
+        (builder, offset)
+    }
 }
 
 impl<'a> ASTVisitor<'a> for WasmGenerator {
-    fn traverse_arithmetic(
+    fn traverse_arithmetic<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         expr: &'a SymbolicExpression,
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
-    ) -> bool {
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         let ty = self.get_expr_type(expr);
         let type_suffix = match ty {
             TypeSignature::IntType => "int",
@@ -311,7 +287,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 self.error = Some(GeneratorError::InternalError(
                     "invalid type for arithmetic".to_string(),
                 ));
-                return false;
+                return Err(builder);
             }
         };
         let helper_func = match func {
@@ -342,7 +318,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .expect(&format!("function not found: mod-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                return false;
+                return Err(builder);
             }
         };
 
@@ -350,196 +326,184 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // helper function with a pair of operands, either operand 0 and 1, or
         // the result of the previous call and the next operand.
         // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
-        if !self.traverse_expr(&operands[0]) {
-            return false;
-        }
+        builder = self.traverse_expr(builder, &operands[0])?;
         for operand in operands.iter().skip(1) {
-            if !self.traverse_expr(operand) {
-                return false;
-            }
-            self.current_function.func_body().call(helper_func);
+            builder = self.traverse_expr(builder, operand)?;
+            builder.call(helper_func);
         }
 
-        true
+        Ok(builder)
     }
 
-    fn visit_literal_value(
+    fn visit_literal_value<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
         value: &clarity::vm::Value,
-    ) -> bool {
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         match value {
             clarity::vm::Value::Int(i) => {
-                self.current_function
-                    .func_body()
-                    .i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
-                self.current_function
-                    .func_body()
-                    .i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
-                true
+                builder.i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                builder.i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
+                Ok(builder)
             }
             clarity::vm::Value::UInt(u) => {
-                self.current_function
-                    .func_body()
-                    .i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
-                self.current_function
-                    .func_body()
-                    .i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
-                true
+                builder.i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                builder.i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
+                Ok(builder)
             }
             clarity::vm::Value::Sequence(SequenceData::String(s)) => {
                 let (offset, len) = self.add_string_literal(s);
-                self.current_function.func_body().i32_const(offset as i32);
-                self.current_function.func_body().i32_const(len as i32);
-                true
+                builder.i32_const(offset as i32);
+                builder.i32_const(len as i32);
+                Ok(builder)
             }
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                false
+                Err(builder)
             }
         }
     }
 
-    fn visit_atom(
+    fn visit_atom<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         expr: &'a SymbolicExpression,
         atom: &'a clarity::vm::ClarityName,
-    ) -> bool {
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // FIXME: This should also handle constants and keywords
         let types = clar2wasm_ty(self.get_expr_type(expr));
         for n in 0..types.len() {
-            let local = match self
-                .current_function
-                .get_local(format!("{}.{}", atom.as_str(), n).as_str())
-            {
+            let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
                 None => {
                     self.error = Some(GeneratorError::InternalError(format!(
                         "unable to find local for {}",
                         atom.as_str()
                     )));
-                    return false;
+                    return Err(builder);
                 }
             };
-            self.current_function.func_body().local_get(local);
+            builder.local_get(local);
         }
 
-        true
+        Ok(builder)
     }
 
-    fn traverse_define_private(
+    fn traverse_define_private<'b>(
         &mut self,
+        builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
         name: &'a clarity::vm::ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
-    ) -> bool {
-        self.traverse_define_function(name, body, FunctionKind::Private)
-            .is_some()
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let (builder, _func_id) =
+            self.traverse_define_function(builder, name, body, FunctionKind::Private)?;
+        Ok(builder)
     }
 
-    fn traverse_define_read_only(
+    fn traverse_define_read_only<'b>(
         &mut self,
+        builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
         name: &'a clarity::vm::ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
-    ) -> bool {
-        match self.traverse_define_function(name, body, FunctionKind::ReadOnly) {
-            Some(function_id) => {
-                self.module.exports.add(name.as_str(), function_id);
-                true
-            }
-            None => false,
-        }
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let (builder, function_id) =
+            self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
+        self.module.exports.add(name.as_str(), function_id);
+        Ok(builder)
     }
 
-    fn traverse_define_public(
+    fn traverse_define_public<'b>(
         &mut self,
+        builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
         name: &'a clarity::vm::ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
-    ) -> bool {
-        match self.traverse_define_function(name, body, FunctionKind::Public) {
-            Some(function_id) => {
-                self.module.exports.add(name.as_str(), function_id);
-                true
-            }
-            None => false,
-        }
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let (builder, function_id) =
+            self.traverse_define_function(builder, name, body, FunctionKind::Public)?;
+        self.module.exports.add(name.as_str(), function_id);
+        Ok(builder)
     }
 
-    fn traverse_ok(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_ok<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // (ok <val>) is represented by an i32 1, followed by the ok value,
         // followed by a placeholder for the err value
-        self.current_function.func_body().i32_const(1);
-        if !self.traverse_expr(value) {
-            return false;
-        }
+        builder.i32_const(1);
+        builder = self.traverse_expr(builder, value)?;
         let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let err_types = clar2wasm_ty(&inner_types.1);
             for err_type in err_types.iter() {
-                self.add_placeholder_for_type(*err_type);
+                builder = self.add_placeholder_for_type(builder, *err_type);
             }
         } else {
             panic!("expected response type");
         }
-        true
+        Ok(builder)
     }
 
-    fn traverse_err(
+    fn traverse_err<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
-    ) -> bool {
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // (err <val>) is represented by an i32 1, followed by a placeholder
         // for the ok value, followed by the err value
-        self.current_function.func_body().i32_const(1);
+        builder.i32_const(1);
         let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
-                self.add_placeholder_for_type(*ok_type);
+                builder = self.add_placeholder_for_type(builder, *ok_type);
             }
         } else {
             panic!("expected response type");
         }
-        self.traverse_expr(value)
+        self.traverse_expr(builder, value)
     }
 
-    fn visit_call_user_defined(
+    fn visit_call_user_defined<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
         name: &'a clarity::vm::ClarityName,
         _args: &'a [SymbolicExpression],
-    ) -> bool {
-        self.current_function.func_body().call(
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder.call(
             self.module
                 .funcs
                 .by_name(name.as_str())
                 .expect("function not found"),
         );
-        true
+        Ok(builder)
     }
 
-    fn traverse_concat(
+    fn traverse_concat<'b>(
         &mut self,
+        mut builder: InstrSeqBuilder<'b>,
         expr: &'a SymbolicExpression,
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
-    ) -> bool {
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // Create a new sequence to hold the result on the stack
         let ty = self.get_expr_type(expr).clone();
-        let offset = self
-            .current_function
-            .create_stack_local(&mut self.module, &ty);
+        let offset;
+        (builder, offset) = self.create_stack_local(builder, self.stack_pointer, &ty);
 
         // Traverse the lhs, leaving it on the stack (offset, size)
-        if !self.traverse_expr(lhs) {
-            return false;
-        }
+        builder = self.traverse_expr(builder, lhs)?;
 
         // Retrieve the memcpy function:
         // memcpy(src_offset, length, dst_offset)
@@ -550,41 +514,29 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .expect(&format!("function not found: memcpy"));
 
         // Copy the lhs to the new sequence
-        self.current_function
-            .func_body()
-            .local_get(offset)
-            .call(memcpy);
+        builder.local_get(offset).call(memcpy);
 
         // Save the new destination offset
         let end_offset = self.module.locals.add(ValType::I32);
-        self.current_function.func_body().local_set(end_offset);
+        builder.local_set(end_offset);
 
         // Traverse the rhs, leaving it on the stack (offset, size)
-        if !self.traverse_expr(rhs) {
-            return false;
-        }
+        builder = self.traverse_expr(builder, rhs)?;
 
         // Copy the rhs to the new sequence
-        self.current_function
-            .func_body()
-            .local_get(end_offset)
-            .call(memcpy);
+        builder.local_get(end_offset).call(memcpy);
 
         // Total size = end_offset - offset
         let size = self.module.locals.add(ValType::I32);
-        self.current_function
-            .func_body()
+        builder
             .local_get(offset)
             .binop(BinaryOp::I32Sub)
             .local_set(size);
 
         // Return the new sequence (offset, size)
-        self.current_function
-            .func_body()
-            .local_get(offset)
-            .local_get(size);
+        builder.local_get(offset).local_get(size);
 
-        true
+        Ok(builder)
     }
 }
 
