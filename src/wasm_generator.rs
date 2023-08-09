@@ -8,8 +8,9 @@ use clarity::vm::{
     SymbolicExpression,
 };
 use walrus::{
-    ir::BinaryOp, ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder,
-    LocalId, Module, ValType,
+    ir::{BinaryOp, Block, InstrSeqType},
+    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
+    ValType,
 };
 
 use crate::ast_visitor::{traverse, ASTVisitor};
@@ -96,7 +97,11 @@ impl<'a> WasmGenerator {
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
 
-        let _ = traverse(&mut self, current_function.func_body(), &expressions);
+        if traverse(&mut self, current_function.func_body(), &expressions).is_err() {
+            return Err(GeneratorError::InternalError(
+                "ast traversal failed".to_string(),
+            ));
+        }
 
         self.contract_analysis.expressions = expressions;
 
@@ -115,11 +120,10 @@ impl<'a> WasmGenerator {
 
     fn traverse_define_function<'b>(
         &mut self,
-        mut builder: InstrSeqBuilder<'b>,
         name: &clarity::vm::ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
-    ) -> Result<(InstrSeqBuilder<'b>, FunctionId), InstrSeqBuilder<'b>> {
+    ) -> Option<FunctionId> {
         let opt_function_type = match kind {
             FunctionKind::Private => self.contract_analysis.get_private_function(name.as_str()),
             FunctionKind::ReadOnly => self
@@ -136,7 +140,7 @@ impl<'a> WasmGenerator {
                 Some(_) => "expected fixed function type".to_string(),
                 None => format!("unable to find function type for {}", name.as_str()),
             }));
-            return Err(builder);
+            return None;
         };
 
         let mut locals = HashMap::new();
@@ -154,41 +158,55 @@ impl<'a> WasmGenerator {
             }
         }
 
+        let results_types = clar2wasm_ty(&function_type.returns);
         let mut func_builder = FunctionBuilder::new(
             &mut self.module.types,
             params_types.as_slice(),
-            clar2wasm_ty(&function_type.returns).as_slice(),
+            results_types.as_slice(),
         );
         func_builder.name(name.as_str().to_string());
+        let mut func_body = func_builder.func_body();
 
         // Function prelude
         // Store the initial stack offset.
         let initial_stack_pointer = self.module.locals.add(ValType::I32);
-        builder
+        func_body
             .global_get(self.stack_pointer)
             .local_set(initial_stack_pointer);
 
-        let block = builder.dangling_instr_seq(None);
+        // Setup the locals map for this function, saving the top-level map to
+        // restore after.
+        let top_level_locals = std::mem::replace(&mut self.locals, locals);
+
+        let block = func_body.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            results_types.as_slice(),
+        ));
+        let block_id = block.id();
 
         // Traverse the body of the function
         if self.traverse_expr(block, body).is_err() {
-            return Err(builder);
+            return None;
         }
 
         // TODO: We need to ensure that all exits from the function go through
         // the postlude. Maybe put the body in a block, and then have any exits
         // from the block go to the postlude with a `br` instruction?
 
+        // Insert the function body block into the function
+        func_body.instr(Block { seq: block_id });
+
         // Function postlude
         // Restore the initial stack pointer.
-        builder
+        func_body
             .local_get(initial_stack_pointer)
             .global_set(self.stack_pointer);
 
-        Ok((
-            builder,
-            func_builder.finish(param_locals, &mut self.module.funcs),
-        ))
+        // Restore the top-level locals map.
+        self.locals = top_level_locals;
+
+        Some(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
     fn add_placeholder_for_type<'b>(
@@ -398,9 +416,14 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let (builder, _func_id) =
-            self.traverse_define_function(builder, name, body, FunctionKind::Private)?;
-        Ok(builder)
+        if self
+            .traverse_define_function(name, body, FunctionKind::Private)
+            .is_some()
+        {
+            Ok(builder)
+        } else {
+            Err(builder)
+        }
     }
 
     fn traverse_define_read_only<'b>(
@@ -411,10 +434,13 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let (builder, function_id) =
-            self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
-        self.module.exports.add(name.as_str(), function_id);
-        Ok(builder)
+        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::ReadOnly)
+        {
+            self.module.exports.add(name.as_str(), function_id);
+            Ok(builder)
+        } else {
+            Err(builder)
+        }
     }
 
     fn traverse_define_public<'b>(
@@ -425,10 +451,12 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let (builder, function_id) =
-            self.traverse_define_function(builder, name, body, FunctionKind::Public)?;
-        self.module.exports.add(name.as_str(), function_id);
-        Ok(builder)
+        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::Public) {
+            self.module.exports.add(name.as_str(), function_id);
+            Ok(builder)
+        } else {
+            Err(builder)
+        }
     }
 
     fn traverse_ok<'b>(
