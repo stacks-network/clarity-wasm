@@ -5,6 +5,10 @@
     (type (;1;) (func (param i64 i64 i64 i64) (result i64 i64)))
     (type (;2;) (func (param i64 i64 i64 i64) (result i64 i64 i64 i64)))
     (type (;3;) (func (param i64 i64) (result i64 i64)))
+    (type (;4;) (func (param i32 i32 i32) (result i32)))
+
+    (global $stack-pointer (mut i32) (i32.const 0))
+    (memory $memory 1)
 
     ;; The error code is one of:
         ;; 0: overflow
@@ -14,6 +18,41 @@
         ;; TODO: Implement runtime error
         unreachable
     )
+
+    ;; Copies a range of bytes from one location in memory to another. It is
+    ;; assumed that the source and destination ranges do not overlap.
+    ;; Returns the ending destination offset.
+    ;; TODO: This can be optimized to use 32-bit load/stores if the source and
+    ;; destination are both 32-bit aligned.
+    (func $memcpy (type 4) (param $src_offset i32) (param $src_size i32) (param $dest_offset i32) (result i32)
+        (local $end i32)
+        (local $tmp i32)
+
+        (local.set $end (i32.add (local.get $src_offset) (local.get $src_size)))
+        (block $done
+            (loop $loop
+                ;; Check if we've copied all bytes
+                (if (i32.eq (local.get $src_offset) (local.get $end))
+                    (br $done)
+                )
+
+                ;; Load byte from source
+                (local.set $tmp (i32.load8_u (local.get $src_offset)))
+
+                ;; Store byte to destination
+                (i32.store8 (local.get $dest_offset) (local.get $tmp))
+
+                ;; Increment offsets
+                (local.set $src_offset (i32.add (local.get $src_offset) (i32.const 1)))
+                (local.set $dest_offset (i32.add (local.get $dest_offset) (i32.const 1)))
+
+                ;; Continue loop
+                (br $loop)
+            )
+        )
+        (return (local.get $dest_offset))
+    )
+
 
     ;; This function can be used to add either signed or unsigned integers
     (func $add-int128 (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
@@ -522,6 +561,7 @@
         (return (local.get $remainder_hi) (local.get $remainder_lo))
     )
 
+    (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
     (export "sub-uint" (func $sub-uint))

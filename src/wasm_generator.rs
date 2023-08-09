@@ -4,11 +4,12 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
+    types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
     SymbolicExpression,
-    types::{FunctionType, SequenceSubtype, TypeSignature},
 };
 use walrus::{
-    FunctionBuilder, FunctionId, InstrSeqBuilder, LocalId, Module, ValType,
+    ir::BinaryOp, ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder,
+    LocalId, Module, ValType,
 };
 
 use crate::ast_visitor::{traverse, ASTVisitor};
@@ -18,9 +19,26 @@ struct FunctionContext {
     builder: FunctionBuilder,
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
+    /// The global ID of the stack pointer.
+    stack_pointer: GlobalId,
+    /// Size of this function's stack.
+    stack_size: i32,
 }
 
 impl FunctionContext {
+    pub fn new(
+        builder: FunctionBuilder,
+        locals: HashMap<String, LocalId>,
+        stack_pointer: GlobalId,
+    ) -> Self {
+        Self {
+            builder,
+            locals,
+            stack_pointer,
+            stack_size: 0,
+        }
+    }
+
     pub fn func_body(&mut self) -> InstrSeqBuilder {
         self.builder.func_body()
     }
@@ -32,6 +50,34 @@ impl FunctionContext {
     pub fn finish(self, args: Vec<LocalId>, module: &mut Module) -> FunctionId {
         self.builder.finish(args, &mut module.funcs)
     }
+
+    /// Push a new local onto the stack, adjusting the stack pointer and
+    /// tracking this function's stack size accordingly.
+    pub fn create_stack_local(&mut self, module: &mut Module, ty: &TypeSignature) -> LocalId {
+        let size = match ty {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                length,
+            ))) => u32::from(length.clone()),
+            _ => unimplemented!("Unsupported type for stack local"),
+        };
+
+        // Save the offset (current stack pointer) into a local
+        let stack_pointer = self.stack_pointer;
+        let offset = module.locals.add(ValType::I32);
+        self.func_body().global_get(stack_pointer).local_tee(offset);
+
+        // TODO: The total stack size can be computed at compile time, so we
+        //       should be able to increment the stack pointer once in the function
+        //       prelude with a constant instead of incrementing it for each local.
+        // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
+        self.func_body()
+            .i32_const(size as i32)
+            .binop(BinaryOp::I32Add)
+            .global_set(stack_pointer);
+        self.stack_size += size as i32;
+
+        offset
+    }
 }
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
@@ -42,6 +88,10 @@ pub struct WasmGenerator {
     error: Option<GeneratorError>,
     /// Current function context.
     current_function: FunctionContext,
+    /// Offset of the end of the literal memory.
+    literal_memory_end: u32,
+    /// Global ID of the stack pointer.
+    stack_pointer: GlobalId,
 }
 
 pub enum GeneratorError {
@@ -73,16 +123,34 @@ impl WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let mut module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
-        let current_function = FunctionContext {
-            builder: FunctionBuilder::new(&mut module.types, &[], &[]),
-            locals: HashMap::new(),
-        };
+
+        // Get the stack-pointer global ID
+        let stack_pointer_name = "stack-pointer";
+        let global_id = module
+            .globals
+            .iter()
+            .find(|global| {
+                global
+                    .name
+                    .as_ref()
+                    .map_or(false, |name| name == stack_pointer_name)
+            })
+            .map(|global| global.id())
+            .expect("Expected to find a global named $stack-pointer");
+
+        let current_function = FunctionContext::new(
+            FunctionBuilder::new(&mut module.types, &[], &[]),
+            HashMap::new(),
+            global_id,
+        );
 
         WasmGenerator {
             contract_analysis,
             module,
             error: None,
             current_function,
+            literal_memory_end: 0,
+            stack_pointer: global_id,
         }
     }
 
@@ -152,15 +220,33 @@ impl WasmGenerator {
         );
         func_builder.name(name.as_str().to_string());
 
-        let mut context = FunctionContext {
-            builder: func_builder,
-            locals,
-        };
+        let mut context = FunctionContext::new(func_builder, locals, self.stack_pointer);
 
         // Set this as the current function context, and save the top-level context.
         let top_level = std::mem::replace(&mut self.current_function, context);
 
+        // Function prelude
+        // Store the initial stack offset.
+        let initial_stack_pointer = self.module.locals.add(ValType::I32);
+
+        self.current_function
+            .func_body()
+            .global_get(self.stack_pointer)
+            .local_set(initial_stack_pointer);
+
+        // Traverse the body of the function
         self.traverse_expr(body);
+
+        // TODO: We need to ensure that all exits from the function go through
+        // the postlude. Maybe put the body in a block, and then have any exits
+        // from the block go to the postlude with a `br` instruction?
+
+        // Function postlude
+        // Restore the initial stack pointer.
+        self.current_function
+            .func_body()
+            .local_get(initial_stack_pointer)
+            .global_set(self.stack_pointer);
 
         // Replace the top-level context.
         context = std::mem::replace(&mut self.current_function, top_level);
@@ -187,6 +273,26 @@ impl WasmGenerator {
             .expect("type-checker must be called before Wasm generation")
             .get_type(expr)
             .expect("expression must be typed")
+    }
+
+    /// Adds a new string literal into the memory, and returns the offset and length.
+    fn add_string_literal(&mut self, s: &CharType) -> (u32, u32) {
+        let data = match s {
+            CharType::ASCII(s) => s.data.clone(),
+            CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
+        };
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let offset = self.literal_memory_end;
+        let len = data.len() as u32;
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory: memory.id(),
+                location: walrus::ActiveDataLocation::Absolute(offset),
+            }),
+            data.clone(),
+        );
+        self.literal_memory_end += data.len() as u32;
+        (offset, len)
     }
 }
 
@@ -279,6 +385,12 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 self.current_function
                     .func_body()
                     .i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
+                true
+            }
+            clarity::vm::Value::Sequence(SequenceData::String(s)) => {
+                let (offset, len) = self.add_string_literal(s);
+                self.current_function.func_body().i32_const(offset as i32);
+                self.current_function.func_body().i32_const(len as i32);
                 true
             }
             _ => {
@@ -411,6 +523,69 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         );
         true
     }
+
+    fn traverse_concat(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        lhs: &'a SymbolicExpression,
+        rhs: &'a SymbolicExpression,
+    ) -> bool {
+        // Create a new sequence to hold the result on the stack
+        let ty = self.get_expr_type(expr).clone();
+        let offset = self
+            .current_function
+            .create_stack_local(&mut self.module, &ty);
+
+        // Traverse the lhs, leaving it on the stack (offset, size)
+        if !self.traverse_expr(lhs) {
+            return false;
+        }
+
+        // Retrieve the memcpy function:
+        // memcpy(src_offset, length, dst_offset)
+        let memcpy = self
+            .module
+            .funcs
+            .by_name(&format!("memcpy"))
+            .expect(&format!("function not found: memcpy"));
+
+        // Copy the lhs to the new sequence
+        self.current_function
+            .func_body()
+            .local_get(offset)
+            .call(memcpy);
+
+        // Save the new destination offset
+        let end_offset = self.module.locals.add(ValType::I32);
+        self.current_function.func_body().local_set(end_offset);
+
+        // Traverse the rhs, leaving it on the stack (offset, size)
+        if !self.traverse_expr(rhs) {
+            return false;
+        }
+
+        // Copy the rhs to the new sequence
+        self.current_function
+            .func_body()
+            .local_get(end_offset)
+            .call(memcpy);
+
+        // Total size = end_offset - offset
+        let size = self.module.locals.add(ValType::I32);
+        self.current_function
+            .func_body()
+            .local_get(offset)
+            .binop(BinaryOp::I32Sub)
+            .local_set(size);
+
+        // Return the new sequence (offset, size)
+        self.current_function
+            .func_body()
+            .local_get(offset)
+            .local_get(size);
+
+        true
+    }
 }
 
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
@@ -424,6 +599,10 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             types.extend(clar2wasm_ty(&inner_types.1));
             types
         }
+        TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
         _ => unimplemented!("{:?}", ty),
     }
 }
