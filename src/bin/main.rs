@@ -1,5 +1,12 @@
 use clap::Parser;
 use clar2wasm;
+use clarity::{
+    types::StacksEpochId,
+    vm::{
+        costs::LimitedCostTracker, database::MemoryBackingStore,
+        types::QualifiedContractIdentifier, ClarityVersion,
+    },
+};
 use std::fs;
 
 /// clar2wasm is a compiler for generating WebAssembly from Clarity.
@@ -31,8 +38,24 @@ fn main() {
         }
     };
 
+    // Define some settings
+    let contract_id = QualifiedContractIdentifier::transient();
+    let clarity_version = ClarityVersion::Clarity2;
+    let epoch = StacksEpochId::latest();
+
+    // Setup a datastore and cost tracker
+    let mut datastore = MemoryBackingStore::new();
+    let cost_track = LimitedCostTracker::new_free();
+
     // Pass the source code to the compiler.
-    let (diagnostics, result) = clar2wasm::compile(&source);
+    let (diagnostics, result) = clar2wasm::compile(
+        &source,
+        &contract_id,
+        cost_track,
+        clarity_version,
+        epoch,
+        &mut datastore,
+    );
     for diagnostic in diagnostics.iter() {
         eprintln!("{diagnostic}");
     }
