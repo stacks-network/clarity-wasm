@@ -1,8 +1,15 @@
 {
   "cSpell.words": [
+    "binop",
     "clar",
     "Externref",
     "Funcref",
-    "funcs"
+    "funcs",
+    "Keccak",
+    "secp",
+    "Secp",
+    "shamt",
+    "Sqrti",
+    "Trunc"
   ]
 }
