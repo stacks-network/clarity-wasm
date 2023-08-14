@@ -487,9 +487,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // (err <val>) is represented by an i32 1, followed by a placeholder
+        // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
-        builder.i32_const(1);
+        builder.i32_const(0);
         let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);

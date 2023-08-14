@@ -4,5 +4,8 @@
     "Externref",
     "Funcref",
     "funcs"
+  ],
+  "rust-analyzer.linkedProjects": [
+    "./clar2wasm/Cargo.toml"
   ]
 }

@@ -1,0 +1,27 @@
+[package]
+name = "clar2wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# TODO: switch back to tag after PR is merged
+clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
+clap = { version = "4.3.17", features = ["derive"] }
+regex = "1.9.1"
+walrus = "0.20.1"
+lazy_static = "1.4.0"
+
+[dev-dependencies]
+wasmtime = "11.0.1"
+criterion = "0.5.1"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "clar2wasm"
+path = "src/bin/main.rs"
+
+[[bench]]
+name = "benchmark"
+harness = false

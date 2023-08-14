@@ -1,0 +1,13 @@
+[package]
+name = "clar2wasm-tests"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
+
+[dependencies]
+# TODO: switch back to tag after PR is merged
+clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
+clar2wasm = { path = "../clar2wasm" }
+wasmtime = "11.0.1"
