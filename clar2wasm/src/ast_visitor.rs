@@ -1990,6 +1990,7 @@ pub trait ASTVisitor<'a> {
         Ok(builder)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn traverse_match_response<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -2008,6 +2009,7 @@ pub trait ASTVisitor<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn visit_match_response<'b>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
