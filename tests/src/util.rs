@@ -1,7 +1,14 @@
 #![allow(dead_code)]
 
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
 use clar2wasm::compile;
+use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::database::ClarityDatabase;
+use clarity::vm::types::{BufferLength, SequenceSubtype, StringSubtype};
 use clarity::vm::{
     analysis::ContractAnalysis,
     costs::LimitedCostTracker,
@@ -9,7 +16,12 @@ use clarity::vm::{
     types::{FunctionType, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature},
     ClarityVersion, ContractName,
 };
-use wasmtime::{AsContextMut, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType};
+use clarity::vm::{CallStack, ContractContext, Environment, LocalContext, Value};
+use wasmtime::{
+    AsContextMut, Caller, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType,
+};
+
+use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
 #[derive(Debug, PartialEq)]
 pub enum ClarityWasmResult {
@@ -58,14 +70,32 @@ pub enum ClarityWasmResult {
     NoType,
 }
 
+pub struct ClarityWasmContext {
+    /// Contract context for runtime execution
+    pub contract_context: ContractContext,
+    /// The contract analysis for the compiled contract
+    pub contract_analysis: ContractAnalysis,
+    /// Map an identifier from a contract to an integer id for simple access
+    pub identifier_map: HashMap<i32, String>,
+}
+
+impl ClarityWasmContext {
+    pub fn new(contract_context: ContractContext, contract_analysis: ContractAnalysis) -> Self {
+        ClarityWasmContext {
+            contract_analysis,
+            contract_context,
+            identifier_map: HashMap::new(),
+        }
+    }
+}
+
 /// A simple wrapper for WASMTime to help reduce the amount of boilerplate needed
 /// in test code. The wrapper compiles the specified contract using `clar2wasm` and
 /// stores a copy of its contract analysis for type inferrence when calling functions.
 pub struct WasmtimeHelper {
     module: Module,
     instance: Instance,
-    store: Box<Store<()>>,
-    contract_analysis: ContractAnalysis,
+    store: Box<Store<ClarityWasmContext>>,
 }
 
 impl WasmtimeHelper {
@@ -90,21 +120,229 @@ impl WasmtimeHelper {
         )
         .expect("Failed to compile contract.");
 
+        let mut datastore = Datastore::new();
+        let constants = StacksConstants {
+            burn_start_height: 0,
+            pox_prepare_length: 0,
+            pox_reward_cycle_length: 0,
+            pox_rejection_fraction: 0,
+            epoch_21_start_height: 0,
+        };
+        let burn_datastore = BurnDatastore::new(constants);
+        let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+        conn.begin();
+        conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
+        conn.commit();
+        let cost_tracker = LimitedCostTracker::new_free();
+        let mut global_context = GlobalContext::new(
+            false,
+            CHAIN_ID_TESTNET,
+            conn,
+            cost_tracker,
+            StacksEpochId::Epoch24,
+        );
+
+        let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
+        let context = LocalContext::new();
+        let mut call_stack = CallStack::new();
+        let mut env = Environment::new(
+            &mut global_context,
+            &mut contract_context,
+            &mut call_stack,
+            None,
+            None,
+            None,
+        );
+
         let wasm = compile_result.module.emit_wasm();
         let contract_analysis = compile_result.contract_analysis;
+        let context = ClarityWasmContext::new(contract_context, contract_analysis);
 
         let engine = Engine::default();
         let module = Module::from_binary(&engine, wasm.as_slice()).unwrap();
-        let mut store = Store::new(&engine, ());
-        let linker = Linker::new(&engine);
+        let mut store = Store::new(&engine, context);
+        let mut linker = Linker::new(&engine);
+
+        // Link in the host interface functions.
+        linker
+            .func_wrap(
+                "clarity",
+                "define_variable",
+                |mut caller: Caller<'_, ClarityWasmContext>,
+                 identifier: i32,
+                 name_offset: i32,
+                 name_length: i32,
+                 value_offset: i32,
+                 value_length: i32| {
+                    // Read the variable name string from the memory
+                    let name = WasmtimeHelper::read_identifier_from_wasm(
+                        &mut caller,
+                        name_offset,
+                        name_length,
+                    );
+
+                    // Read the initial value from the memory
+                    let ty = caller
+                        .data()
+                        .contract_analysis
+                        .get_persisted_variable_type(name.as_str())
+                        .expect("failed to get variable type")
+                        .clone();
+                    let value = WasmtimeHelper::read_from_wasm(
+                        &mut caller,
+                        &ty,
+                        value_offset,
+                        value_length,
+                    );
+
+                    // Store the mapping of variable name to identifier
+                    caller
+                        .data_mut()
+                        .identifier_map
+                        .insert(identifier, name.clone());
+
+                    // TODO: Call into the contract context to create the variable
+                },
+            )
+            .unwrap();
+
+        linker
+            .func_wrap(
+                "clarity",
+                "get_variable",
+                |caller: Caller<'_, ClarityWasmContext>,
+                 identifier: i32,
+                 _return_offset: i32,
+                 _return_length: i32| {
+                    let var_name = caller
+                        .data()
+                        .identifier_map
+                        .get(&identifier)
+                        .expect("failed to get variable name");
+                },
+            )
+            .unwrap();
+
+        linker
+            .func_wrap(
+                "clarity",
+                "set_variable",
+                |_: Caller<'_, ClarityWasmContext>,
+                 identifier: i32,
+                 _return_offset: i32,
+                 _return_length: i32| {
+                    println!("var-set: {identifier}");
+                },
+            )
+            .unwrap();
+
+        // Create a log function for debugging.
+        linker
+            .func_wrap(
+                "",
+                "log",
+                |_: Caller<'_, ClarityWasmContext>, param: i64| {
+                    println!("log: {param}");
+                },
+            )
+            .unwrap();
 
         let instance = linker.instantiate(store.as_context_mut(), &module).unwrap();
 
-        WasmtimeHelper {
+        let mut helper = WasmtimeHelper {
             module,
             instance,
             store: Box::new(store),
-            contract_analysis,
+        };
+
+        // Run the top-level expressions
+        helper.call_top_level();
+
+        helper
+    }
+
+    /// Read an identifier (string) from the WASM memory at `offset` with `length`.
+    fn read_identifier_from_wasm(
+        caller: &mut Caller<'_, ClarityWasmContext>,
+        offset: i32,
+        length: i32,
+    ) -> String {
+        // Get the memory from the caller
+        let memory = caller
+            .get_export("memory")
+            .and_then(|export| export.into_memory())
+            .expect("instance memory export");
+
+        let mut buffer: Vec<u8> = vec![0; length as usize];
+        memory
+            .read(caller, offset as usize, &mut buffer)
+            .expect("failed to read variable name");
+        String::from_utf8(buffer).expect("failed to convert memory contents to string")
+    }
+
+    /// Read a value from the WASM memory at `offset` with `length` given the provided
+    /// Clarity `TypeSignature`.
+    fn read_from_wasm(
+        caller: &mut Caller<'_, ClarityWasmContext>,
+        ty: &TypeSignature,
+        offset: i32,
+        length: i32,
+    ) -> Value {
+        // Get the memory from the caller
+        let memory = caller
+            .get_export("memory")
+            .and_then(|export| export.into_memory())
+            .expect("instance memory export");
+
+        match ty {
+            TypeSignature::UIntType => {
+                assert!(
+                    length == 16,
+                    "expected uint length to be 16 bytes, found {length}"
+                );
+                let mut buffer: [u8; 8] = [0; 8];
+                memory
+                    .read(caller.borrow_mut(), offset as usize, &mut buffer)
+                    .expect("failed to read int");
+                let high = u64::from_le_bytes(buffer) as u128;
+                memory
+                    .read(caller.borrow_mut(), (offset + 8) as usize, &mut buffer)
+                    .expect("failed to read int");
+                let low = u64::from_le_bytes(buffer) as u128;
+                Value::UInt((high << 64) | low)
+            }
+            TypeSignature::IntType => {
+                assert!(
+                    length == 16,
+                    "expected int length to be 16 bytes, found {length}"
+                );
+                let mut buffer: [u8; 8] = [0; 8];
+                memory
+                    .read(caller.borrow_mut(), offset as usize, &mut buffer)
+                    .expect("failed to read int");
+                let high = u64::from_le_bytes(buffer) as u128;
+                memory
+                    .read(caller.borrow_mut(), (offset + 8) as usize, &mut buffer)
+                    .expect("failed to read int");
+                let low = u64::from_le_bytes(buffer) as u128;
+                Value::Int(((high << 64) | low) as i128)
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                type_length,
+            ))) => {
+                assert!(
+                    type_length
+                        >= &BufferLength::try_from(length as u32).expect("invalid buffer length"),
+                    "expected string length to be less than the type length"
+                );
+                let mut buffer: Vec<u8> = vec![0; length as usize];
+                memory
+                    .read(caller, offset as usize, &mut buffer)
+                    .expect("failed to read variable name");
+                Value::string_ascii_from_bytes(buffer)
+                    .expect("failed to convert memory contents to string")
+            }
+            _ => panic!("unsupported type"),
         }
     }
 
@@ -217,16 +455,32 @@ impl WasmtimeHelper {
         }
     }
 
+    /// Runs the top-level expressions in a clarity contract, by calling the
+    /// `.top-level` function.
+    pub fn call_top_level(&mut self) {
+        let func = self
+            .instance
+            .get_func(self.store.as_context_mut(), ".top-level")
+            .expect(".top-level function was not found in the generated WASM binary.");
+        let mut results = [];
+
+        func.call(self.store.as_context_mut(), &[], &mut results)
+            .unwrap();
+    }
+
     /// Calls the specified public Clarity function in the generated contract WASM binary.
     pub fn call_public_function(&mut self, name: &str, params: &[Val]) -> ClarityWasmResult {
         let fn_type = self
+            .store
+            .data()
             .contract_analysis
             .get_public_function_type(name)
-            .expect("Function not found");
+            .expect("Function not found")
+            .clone();
 
         eprintln!("Clarity function type: {:?}", &fn_type);
 
-        let func_type = Self::generate_wasmtime_func_signature(fn_type);
+        let func_type = Self::generate_wasmtime_func_signature(&fn_type);
 
         let func = self
             .instance
@@ -241,7 +495,7 @@ impl WasmtimeHelper {
 
         eprint!("Params: {:?}, Results: {:?}", params, results);
 
-        Self::map_wasm_result(fn_type, &results)
+        Self::map_wasm_result(&fn_type, &results)
     }
 
     /// Experimental
@@ -253,8 +507,10 @@ impl WasmtimeHelper {
 
         let func_type = func.ty(self.store.as_context_mut());*/
 
-        for expr in self.contract_analysis.expressions.iter() {
+        for expr in self.store.data().contract_analysis.expressions.iter() {
             let expr_type = self
+                .store
+                .data()
                 .contract_analysis
                 .type_map
                 .as_ref()

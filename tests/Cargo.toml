@@ -11,3 +11,6 @@ path = "./src/lib.rs"
 clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
 clar2wasm = { path = "../clar2wasm" }
 wasmtime = "11.0.1"
+sha2 = "0.10.7"
+chrono = "0.4.20"
+rusqlite = "0.24.2"

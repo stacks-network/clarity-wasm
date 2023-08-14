@@ -10,7 +10,8 @@
     "Secp",
     "shamt",
     "Sqrti",
-    "Trunc"
+    "Trunc",
+    "unmarshalling"
   ],
   "rust-analyzer.linkedProjects": [
     "./clar2wasm/Cargo.toml"

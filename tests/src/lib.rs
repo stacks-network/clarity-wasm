@@ -1,3 +1,4 @@
+mod datastore;
 mod util;
 
 #[cfg(test)]
@@ -178,6 +179,28 @@ mod tests {
             if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
                 assert_eq!(high, 0);
                 assert_eq!(low, 42);
+            }
+        } else {
+            panic!("Unexpected result received from WASM function call.");
+        }
+    }
+
+    #[test]
+    fn var_get() {
+        let mut helper = WasmtimeHelper::new("var-get");
+
+        if let ClarityWasmResult::Response {
+            indicator,
+            ok_value,
+            err_value,
+        } = helper.call_public_function("simple", &[])
+        {
+            assert_eq!(indicator, 1);
+            assert!(ok_value.is_some());
+            assert!(err_value.is_none());
+            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+                assert_eq!(high, 0);
+                assert_eq!(low, 123);
             }
         } else {
             panic!("Unexpected result received from WASM function call.");

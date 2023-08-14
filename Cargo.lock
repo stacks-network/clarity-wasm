@@ -350,8 +350,11 @@ dependencies = [
 name = "clar2wasm-tests"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clar2wasm",
  "clarity",
+ "rusqlite",
+ "sha2 0.10.7",
  "wasmtime",
 ]
 
