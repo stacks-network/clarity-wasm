@@ -1,0 +1,26 @@
+# Compiles the standard library to a WASM binary
+[tasks.stdlib-build]
+description = "Compiles the standard library into WASM binary format"
+category = "Standard Library"
+command = "wat2wasm"
+args = [
+    "./src/standard/standard.wat",
+    "-o",
+    "./src/standard/standard.wasm",
+    "--debug-names"
+]
+
+# Runs wasm-validate on the compiled standard library
+[tasks.stdlib-validate]
+description = "Validates the standard library WASM binary"
+category = "Standard Library"
+command = "wasm-validate"
+args = ["./src/standard/standard.wasm"]
+dependencies = ["stdlib-build"]
+
+# Extends the built-in build task to also build and validate the standard library
+[tasks.build]
+dependencies = [
+    "stdlib-build",
+    "stdlib-validate"
+]

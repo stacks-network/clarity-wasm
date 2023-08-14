@@ -11,5 +11,8 @@
     "shamt",
     "Sqrti",
     "Trunc"
+  ],
+  "rust-analyzer.linkedProjects": [
+    "./clar2wasm/Cargo.toml"
   ]
 }

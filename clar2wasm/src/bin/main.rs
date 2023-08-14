@@ -1,5 +1,5 @@
 use clap::Parser;
-use clar2wasm;
+use clar2wasm::{CompileError};
 use clarity::{
     types::StacksEpochId,
     vm::{
@@ -48,24 +48,26 @@ fn main() {
     let cost_track = LimitedCostTracker::new_free();
 
     // Pass the source code to the compiler.
-    let (diagnostics, result) = clar2wasm::compile(
+    let result = clar2wasm::compile(
         &source,
         &contract_id,
         cost_track,
         clarity_version,
         epoch,
         &mut datastore,
-    );
-    for diagnostic in diagnostics.iter() {
-        eprintln!("{diagnostic}");
-    }
-
-    let mut module = match result {
-        Ok(module) => module,
-        Err(_) => {
-            std::process::exit(1);
+    ).unwrap_or_else(|err| {
+        match err {
+            CompileError::Generic { diagnostics } => {
+                for diagnostic in diagnostics.iter() {
+                    eprintln!("{diagnostic}");
+                };
+                std::process::exit(1);
+            }
+            
         }
-    };
+    });
+
+    let mut module = result.module;
 
     // Write the compiled WebAssembly to a file.
     let output = args.output.unwrap_or_else(|| {
