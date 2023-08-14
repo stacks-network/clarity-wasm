@@ -14,7 +14,7 @@ use wasmtime::{Linker, Engine, Module, Store, Instance, AsContextMut, Val, FuncT
 use clar2wasm::compile;
 
 #[derive(Debug, PartialEq)]
-pub enum ClarityWasmResult<'a> {
+pub enum ClarityWasmResult {
     Int { high: i64, low: i64 },
     UInt{ high: i64, low: i64 },
     Bool { value: i32 },
@@ -23,7 +23,7 @@ pub enum ClarityWasmResult<'a> {
     StringAscii { pointer: i32, length: i32 },
     StringUtf8 { pointer: i32, length: i32 },
     List { pointer: i32, length: i32 },
-    Tuple { values: &'a [Self] },
+    Tuple { values: Vec<Self> },
     Optional { indicator: i32, value: Option<Box<Self>> },
     Response { indicator: i32, ok_value: Option<Box<Self>>, err_value: Option<Box<Self>> },
     NoType
@@ -122,7 +122,7 @@ impl WasmtimeHelper {
     }
 
     /// Maps the result from a WASM function call given the provided Clarity `FunctionType`.
-    fn map_wasm_result<'a>(fn_sig: &FunctionType, result: &[Val]) -> ClarityWasmResult<'a> {
+    fn map_wasm_result(fn_sig: &FunctionType, result: &[Val]) -> ClarityWasmResult {
         match fn_sig {
             FunctionType::Fixed(func) => {
                 let (result, _) = Self::map_wasm_value(&func.returns, 0, result);
@@ -133,7 +133,7 @@ impl WasmtimeHelper {
     }
 
     /// Maps an individual value in a WASM function call result.
-    fn map_wasm_value<'a>(type_sig: &TypeSignature, index: usize, buffer: &[Val]) ->  (ClarityWasmResult<'a>, usize) {
+    fn map_wasm_value<'a>(type_sig: &TypeSignature, index: usize, buffer: &[Val]) ->  (ClarityWasmResult, usize) {
         match type_sig {
             TypeSignature::IntType => {
                 let upper = buffer[index].unwrap_i64();
