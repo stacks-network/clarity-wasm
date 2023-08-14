@@ -37,7 +37,7 @@ pub enum CompileError {
     Generic { diagnostics: Vec<Diagnostic> },
 }
 
-pub fn compile<'a>(
+pub fn compile(
     source: &str,
     contract_id: &QualifiedContractIdentifier,
     mut cost_track: LimitedCostTracker,
@@ -75,16 +75,14 @@ pub fn compile<'a>(
 
     let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
-        Ok(module) => {
-            return Ok(CompileResult {
-                diagnostics,
-                module,
-                contract_analysis: contract_analysis.clone(),
-            })
-        }
+        Ok(module) => Ok(CompileResult {
+            diagnostics,
+            module,
+            contract_analysis: contract_analysis.clone(),
+        }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            return Err(CompileError::Generic { diagnostics });
+            Err(CompileError::Generic { diagnostics })
         }
-    };
+    }
 }

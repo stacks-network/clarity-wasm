@@ -314,27 +314,27 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .module
                 .funcs
                 .by_name(&format!("add-{type_suffix}"))
-                .expect(&format!("function not found: add-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: add-{type_suffix}")),
             NativeFunctions::Subtract => self
                 .module
                 .funcs
                 .by_name(&format!("sub-{type_suffix}"))
-                .expect(&format!("function not found: sub-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: sub-{type_suffix}")),
             NativeFunctions::Multiply => self
                 .module
                 .funcs
                 .by_name(&format!("mul-{type_suffix}"))
-                .expect(&format!("function not found: mul-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: mul-{type_suffix}")),
             NativeFunctions::Divide => self
                 .module
                 .funcs
                 .by_name(&format!("div-{type_suffix}"))
-                .expect(&format!("function not found: div-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: div-{type_suffix}")),
             NativeFunctions::Modulo => self
                 .module
                 .funcs
                 .by_name(&format!("mod-{type_suffix}"))
-                .expect(&format!("function not found: mod-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: mod-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return Err(builder);
@@ -540,7 +540,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .module
             .funcs
             .by_name("memcpy")
-            .expect(&format!("function not found: memcpy"));
+            .expect("function not found: memcpy");
 
         // Copy the lhs to the new sequence
         builder.local_get(offset).call(memcpy);

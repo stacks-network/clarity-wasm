@@ -11,7 +11,7 @@ use std::fs;
 
 /// clar2wasm is a compiler for generating WebAssembly from Clarity.
 #[derive(Parser)]
-#[command(name = "clar2wasm", version = option_env!("CARGO_PKG_VERSION").expect("Unable to detect version"))]
+#[command(name = "clar2wasm", version = env!("CARGO_PKG_VERSION"))]
 struct Args {
     /// Clarity source file to compile
     input: String,
