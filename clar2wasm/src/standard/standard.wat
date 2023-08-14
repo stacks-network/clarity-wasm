@@ -7,8 +7,16 @@
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
 
+    ;; Functions imported for host interface
+    ;; define_variable(var_id: i32, name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
+    (import "clarity" "define_variable" (func $define_variable (param i32 i32 i32 i32 i32)))
+    ;; get_variable(var_id: i32, return_val: (offset: i32, length: i32))
+    (import "clarity" "get_variable" (func $get_variable (param i32 i32 i32)))
+    ;; set_variable(var_id: i32, value: (offset: i32, length: i32))
+    (import "clarity" "set_variable" (func $set_variable (param i32 i32 i32)))
+
     (global $stack-pointer (mut i32) (i32.const 0))
-    (memory $memory 1)
+    (memory (export "memory") 1)
 
     ;; The error code is one of:
         ;; 0: overflow

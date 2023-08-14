@@ -8,7 +8,7 @@ use clarity::vm::{
     SymbolicExpression,
 };
 use walrus::{
-    ir::{BinaryOp, Block, InstrSeqType},
+    ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -29,6 +29,10 @@ pub struct WasmGenerator {
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
     stack_pointer: GlobalId,
+    /// Map identifier names to identifier numbers.
+    identifiers: HashMap<String, i32>,
+    /// Next identifier, used for contract constants, variables, and maps.
+    next_identifier: i32,
 
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
@@ -88,6 +92,8 @@ impl WasmGenerator {
             stack_pointer: global_id,
             locals: HashMap::new(),
             stack_size: 0,
+            identifiers: HashMap::new(),
+            next_identifier: 0,
         }
     }
 
@@ -108,6 +114,13 @@ impl WasmGenerator {
         if let Some(err) = self.error {
             return Err(err);
         }
+
+        // Set the stack-pointer global at the end of the top-level function to
+        // start just after the literals in memory.
+        current_function
+            .func_body()
+            .i32_const(self.literal_memory_end as i32)
+            .global_set(self.stack_pointer);
 
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
@@ -256,6 +269,22 @@ impl WasmGenerator {
         (offset, len)
     }
 
+    /// Adds a new string literal into the memory for an identifier
+    fn add_identifier_string_literal(&mut self, name: &clarity::vm::ClarityName) -> (u32, u32) {
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let offset = self.literal_memory_end;
+        let len = name.len() as u32;
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory: memory.id(),
+                location: walrus::ActiveDataLocation::Absolute(offset),
+            }),
+            name.as_bytes().to_vec(),
+        );
+        self.literal_memory_end += name.len() as u32;
+        (offset, len)
+    }
+
     /// Push a new local onto the stack, adjusting the stack pointer and
     /// tracking the current function's stack size accordingly.
     pub fn create_stack_local<'b>(
@@ -264,11 +293,12 @@ impl WasmGenerator {
         stack_pointer: GlobalId,
         // module: &mut Module,
         ty: &TypeSignature,
-    ) -> (InstrSeqBuilder<'b>, LocalId) {
+    ) -> (InstrSeqBuilder<'b>, LocalId, i32) {
         let size = match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => 16,
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
                 length,
-            ))) => u32::from(length.clone()),
+            ))) => u32::from(length.clone()) as i32,
             _ => unimplemented!("Unsupported type for stack local"),
         };
 
@@ -281,12 +311,96 @@ impl WasmGenerator {
         //       prelude with a constant instead of incrementing it for each local.
         // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
         builder
-            .i32_const(size as i32)
+            .i32_const(size)
             .binop(BinaryOp::I32Add)
             .global_set(stack_pointer);
-        self.stack_size += size as i32;
+        self.stack_size += size;
 
-        (builder, offset)
+        (builder, offset, size)
+    }
+
+    /// Write the value on the top of the stack, which has type `ty`, to the
+    /// memory, at offset stored in local variable, `offset`.
+    fn write_to_memory<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        offset: LocalId,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, i32) {
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let size = match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => {
+                // Stack: TOP | Low | High | ...
+                // Save the high/low to locals.
+                let high = self.module.locals.add(ValType::I64);
+                let low = self.module.locals.add(ValType::I64);
+                builder.local_set(low).local_set(high);
+
+                // Store the high/low to memory.
+                builder.local_get(offset).local_get(high).store(
+                    memory.id(),
+                    StoreKind::I64 { atomic: false },
+                    MemArg {
+                        align: 8,
+                        offset: 0,
+                    },
+                );
+                builder.local_get(offset).local_get(low).store(
+                    memory.id(),
+                    StoreKind::I64 { atomic: false },
+                    MemArg {
+                        align: 8,
+                        offset: 8,
+                    },
+                );
+                16
+            }
+            _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
+        };
+        (builder, size)
+    }
+
+    /// Read a value from memory at offset stored in local variable `offset`,
+    /// with type `ty`, and load it onto the top of the stack.
+    fn read_from_memory<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        offset: LocalId,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, i32) {
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let size = match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => {
+                // Memory: Offset -> | Low | High |
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I64 { atomic: false },
+                    MemArg {
+                        align: 8,
+                        offset: 0,
+                    },
+                );
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I64 { atomic: false },
+                    MemArg {
+                        align: 8,
+                        offset: 8,
+                    },
+                );
+                16
+            }
+            _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
+        };
+        (builder, size)
+    }
+
+    /// Return a unique identifier, used to identify a contract constant,
+    /// variable or map.
+    fn get_next_identifier(&mut self) -> i32 {
+        let id = self.next_identifier;
+        self.next_identifier += 1;
+        id
     }
 }
 
@@ -460,6 +574,65 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         }
     }
 
+    fn traverse_define_data_var<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+        _data_type: &'a SymbolicExpression,
+        initial: &'a SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let var_id = self.get_next_identifier();
+        self.identifiers.insert(name.to_string(), var_id);
+
+        // Store the identifier as a string literal in the memory
+        let (name_offset, name_length) = self.add_identifier_string_literal(name);
+
+        // The initial value can be placed on the top of the memory, since at
+        // the top-level, we have not set up the stack yet.
+        let ty = self.get_expr_type(initial).clone();
+        let offset = self.module.locals.add(ValType::I32);
+        builder
+            .i32_const(self.literal_memory_end as i32)
+            .local_set(offset);
+
+        // Traverse the initial value for the data variable (result is on stack)
+        builder = self.traverse_expr(builder, initial)?;
+
+        // Write the initial value to the memory, to be read by the host.
+        let size;
+        (builder, size) = self.write_to_memory(builder, offset, &ty);
+
+        // Increment the literal memory end
+        // FIXME: These initial values do not need to be saved in the literal
+        //        memory forever... we just need them once, when .top-level
+        //        is called.
+        self.literal_memory_end += size as u32;
+
+        // Push the variable identifier onto the stack
+        builder.i32_const(var_id);
+
+        // Push the name onto the stack
+        builder
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        // Push the offset onto the stack
+        builder.local_get(offset);
+
+        // Push the size onto the stack
+        builder.i32_const(size);
+
+        // Call the host interface function, `define_variable`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_variable")
+                .expect("function not found"),
+        );
+        Ok(builder)
+    }
+
     fn traverse_ok<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -529,7 +702,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // Create a new sequence to hold the result on the stack
         let ty = self.get_expr_type(expr).clone();
         let offset;
-        (builder, offset) = self.create_stack_local(builder, self.stack_pointer, &ty);
+        (builder, offset, _) = self.create_stack_local(builder, self.stack_pointer, &ty);
 
         // Traverse the lhs, leaving it on the stack (offset, size)
         builder = self.traverse_expr(builder, lhs)?;
@@ -564,6 +737,44 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         // Return the new sequence (offset, size)
         builder.local_get(offset).local_get(size);
+
+        Ok(builder)
+    }
+
+    fn visit_var_get<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the identifier for this variable
+        let var_id = *self
+            .identifiers
+            .get(&name.to_string())
+            .expect("variable not found: {name}");
+
+        // Create a new sequence to hold the result on the stack
+        let ty = self.get_expr_type(expr).clone();
+        let (offset, size);
+        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the variable identifier onto the stack
+        builder.i32_const(var_id);
+
+        // Push the offset and size to the stack
+        builder.local_get(offset).i32_const(size);
+
+        // Call the host interface function, `get_variable`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("get_variable")
+                .expect("function not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the stack.
+        (builder, _) = self.read_from_memory(builder, offset, &ty);
 
         Ok(builder)
     }

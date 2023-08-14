@@ -88,4 +88,15 @@ The types indicated above that are represented by a pointer to the stack need to
 
 Certain Clarity operations are implemented as functions in [_standard.wat_](src/standard/standard.wat). This text format is then used during the build process to generate _standard.wasm_ which gets loaded into `clar2wasm`. Any operations that are cleaner to implement as a function call instead of directly generating Wasm instructions go into this library. For example, you can find the Clarity-style implementation of arithmetic operations in this library. These need to be written out manually because WebAssembly only supports 64-bit integers. The library implements 128-bit arithmetic, with the overflow checks that Clarity requires.
 
+### Host Interface
+
+When executing the compiled Clarity code, it needs to interact with the host - for example reading/writing to the MARF, emitting events, etc. We define a host interface that the generated Wasm code can call to perform these operations. Since these functions are type-agnostic, values are passed back and forth on the stack. The host function is responsible for marshalling/unmarshalling values to/from the Wasm format as needed (see ABI section above). These functions are imported by the standard library module, and it is the responsibility of the host to provide implementations of them.
+
+| Clarity Operation | Host Function | Inputs | Outputs |
+| --- | --- | --- | --- |
+| `var-get` | `get_variable` | - ` var_name`: string (offset: i32, length: i32) | - |
+|  |  | - `result`: stack pointer (offset: i32, length: i32) |  |
+| `var-set` | `set_variable` | - `var_name`: string (offset: i32, length: i32) | - |
+|  |  | - `value`: stack pointer (offset: i32, length: i32) |  |
+
 ## Contribute
