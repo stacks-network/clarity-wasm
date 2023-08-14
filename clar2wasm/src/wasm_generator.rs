@@ -226,6 +226,7 @@ impl<'a> WasmGenerator {
         builder
     }
 
+    /// Gets the result type of the given `SymbolicExpression`.
     fn get_expr_type(&self, expr: &SymbolicExpression) -> &TypeSignature {
         self.contract_analysis
             .type_map
