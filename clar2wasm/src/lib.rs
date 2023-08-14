@@ -29,12 +29,12 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
 pub struct CompileResult {
     pub diagnostics: Vec<Diagnostic>,
     pub module: Module,
-    pub contract_analysis: ContractAnalysis
+    pub contract_analysis: ContractAnalysis,
 }
 
 #[derive(Debug)]
 pub enum CompileError {
-    Generic { diagnostics: Vec<Diagnostic> }
+    Generic { diagnostics: Vec<Diagnostic> },
 }
 
 pub fn compile<'a>(
@@ -75,10 +75,13 @@ pub fn compile<'a>(
 
     let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
-        Ok(module) => return Ok(CompileResult { 
-            diagnostics, 
-            module, 
-            contract_analysis: contract_analysis.clone() }),
+        Ok(module) => {
+            return Ok(CompileResult {
+                diagnostics,
+                module,
+                contract_analysis: contract_analysis.clone(),
+            })
+        }
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
             return Err(CompileError::Generic { diagnostics });

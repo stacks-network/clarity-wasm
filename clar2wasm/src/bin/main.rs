@@ -1,5 +1,5 @@
 use clap::Parser;
-use clar2wasm::{CompileError};
+use clar2wasm::CompileError;
 use clarity::{
     types::StacksEpochId,
     vm::{
@@ -55,15 +55,13 @@ fn main() {
         clarity_version,
         epoch,
         &mut datastore,
-    ).unwrap_or_else(|err| {
-        match err {
-            CompileError::Generic { diagnostics } => {
-                for diagnostic in diagnostics.iter() {
-                    eprintln!("{diagnostic}");
-                };
-                std::process::exit(1);
+    )
+    .unwrap_or_else(|err| match err {
+        CompileError::Generic { diagnostics } => {
+            for diagnostic in diagnostics.iter() {
+                eprintln!("{diagnostic}");
             }
-            
+            std::process::exit(1);
         }
     });
 
