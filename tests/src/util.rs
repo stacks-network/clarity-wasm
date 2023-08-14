@@ -9,9 +9,7 @@ use clarity::vm::{
     types::{FunctionType, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature},
     ClarityVersion, ContractName,
 };
-use wasmtime::{
-    AsContextMut, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType,
-};
+use wasmtime::{AsContextMut, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType};
 
 #[derive(Debug, PartialEq)]
 pub enum ClarityWasmResult {

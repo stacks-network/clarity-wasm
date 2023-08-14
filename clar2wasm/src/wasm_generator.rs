@@ -60,7 +60,7 @@ enum FunctionKind {
     ReadOnly,
 }
 
-impl<'a> WasmGenerator {
+impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
@@ -92,7 +92,7 @@ impl<'a> WasmGenerator {
     }
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
-        let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
+        let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
@@ -118,7 +118,7 @@ impl<'a> WasmGenerator {
         Ok(self.module)
     }
 
-    fn traverse_define_function<'b>(
+    fn traverse_define_function(
         &mut self,
         name: &clarity::vm::ClarityName,
         body: &SymbolicExpression,
@@ -539,7 +539,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         let memcpy = self
             .module
             .funcs
-            .by_name(&format!("memcpy"))
+            .by_name("memcpy")
             .expect(&format!("function not found: memcpy"));
 
         // Copy the lhs to the new sequence

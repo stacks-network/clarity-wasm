@@ -8,10 +8,8 @@ fn add(c: &mut Criterion) {
         let engine = Engine::default();
         let mut store = Store::new(&engine, ());
         let module = Module::new(&engine, standard_lib).unwrap();
-        let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-        let add = instance
-            .get_func(&mut store.borrow_mut(), "add-int")
-            .unwrap();
+        let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+        let add = instance.get_func(store.borrow_mut(), "add-int").unwrap();
 
         b.iter(|| {
             let mut results = [Val::I64(0), Val::I64(0)];
@@ -31,15 +29,13 @@ fn mul(c: &mut Criterion) {
         let engine = Engine::default();
         let mut store = Store::new(&engine, ());
         let module = Module::new(&engine, standard_lib).unwrap();
-        let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-        let mul = instance
-            .get_func(&mut store.borrow_mut(), "mul-uint")
-            .unwrap();
+        let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+        let mul = instance.get_func(store.borrow_mut(), "mul-uint").unwrap();
 
         b.iter(|| {
             let mut results = [Val::I64(0), Val::I64(0)];
             mul.call(
-                &mut store.borrow_mut(),
+                store.borrow_mut(),
                 &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(-1)],
                 &mut results,
             )

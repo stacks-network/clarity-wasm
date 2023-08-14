@@ -58,7 +58,7 @@ pub fn compile<'a>(
 
     // Run the analysis passes
     let contract_analysis = match run_analysis(
-        &contract_id,
+        contract_id,
         &mut ast.expressions,
         &mut analysis_db,
         false,
