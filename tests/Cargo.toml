@@ -19,3 +19,7 @@ criterion = "0.5.1"
 [[bench]]
 name = "benchmark"
 harness = false
+
+[dev-dependencies]
+assert_cmd = "2.0.12"
+wasmparser = "0.110.0"
