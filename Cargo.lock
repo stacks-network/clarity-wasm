@@ -343,6 +343,7 @@ dependencies = [
  "regex",
  "walrus",
  "wasmtime",
+ "wat",
 ]
 
 [[package]]
