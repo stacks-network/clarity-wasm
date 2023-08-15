@@ -7,10 +7,8 @@ fn test_add_uint() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let add = instance
-        .get_func(&mut store.borrow_mut(), "add-uint")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let add = instance.get_func(store.borrow_mut(), "add-uint").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -69,10 +67,8 @@ fn test_add_int() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let add = instance
-        .get_func(&mut store.borrow_mut(), "add-int")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let add = instance.get_func(store.borrow_mut(), "add-int").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -171,10 +167,8 @@ fn test_sub_uint() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let sub = instance
-        .get_func(&mut store.borrow_mut(), "sub-uint")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let sub = instance.get_func(store.borrow_mut(), "sub-uint").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -240,10 +234,8 @@ fn test_sub_int() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let sub = instance
-        .get_func(&mut store.borrow_mut(), "sub-int")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let sub = instance.get_func(store.borrow_mut(), "sub-int").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -308,10 +300,8 @@ fn test_mul_uint() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let mul = instance
-        .get_func(&mut store.borrow_mut(), "mul-uint")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let mul = instance.get_func(store.borrow_mut(), "mul-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -469,10 +459,8 @@ fn test_mul_int() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let mul = instance
-        .get_func(&mut store.borrow_mut(), "mul-int")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let mul = instance.get_func(store.borrow_mut(), "mul-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -549,10 +537,8 @@ fn test_div_uint() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let div = instance
-        .get_func(&mut store.borrow_mut(), "div-uint")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let div = instance.get_func(store.borrow_mut(), "div-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -620,10 +606,8 @@ fn test_div_int() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let div = instance
-        .get_func(&mut store.borrow_mut(), "div-int")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let div = instance.get_func(store.borrow_mut(), "div-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -688,10 +672,8 @@ fn test_mod_uint() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let modulo = instance
-        .get_func(&mut store.borrow_mut(), "mod-uint")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let modulo = instance.get_func(store.borrow_mut(), "mod-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 % 2 = 0
@@ -765,10 +747,8 @@ fn test_mod_int() {
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
     let module = Module::new(&engine, standard_lib).unwrap();
-    let instance = Instance::new(&mut store.borrow_mut(), &module, &[]).unwrap();
-    let modulo = instance
-        .get_func(&mut store.borrow_mut(), "mod-int")
-        .unwrap();
+    let instance = Instance::new(store.borrow_mut(), &module, &[]).unwrap();
+    let modulo = instance.get_func(store.borrow_mut(), "mod-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 7 % 4 = 3

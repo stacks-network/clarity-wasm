@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
+use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
 use clarity::vm::database::ClarityBackingStore;
 use clarity::vm::diagnostic::Diagnostic;
@@ -26,6 +26,17 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
     runtime: 5_000_000_000,
 };
 
+pub struct CompileResult {
+    pub diagnostics: Vec<Diagnostic>,
+    pub module: Module,
+    pub contract_analysis: ContractAnalysis,
+}
+
+#[derive(Debug)]
+pub enum CompileError {
+    Generic { diagnostics: Vec<Diagnostic> },
+}
+
 pub fn compile(
     source: &str,
     contract_id: &QualifiedContractIdentifier,
@@ -33,13 +44,13 @@ pub fn compile(
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
     datastore: &mut dyn ClarityBackingStore,
-) -> (Vec<Diagnostic>, Result<Module, ()>) {
+) -> Result<CompileResult, CompileError> {
     // Parse the contract
     let (mut ast, mut diagnostics, success) =
         build_ast_with_diagnostics(contract_id, source, &mut cost_track, clarity_version, epoch);
 
     if !success {
-        return (diagnostics, Err(()));
+        return Err(CompileError::Generic { diagnostics });
     }
 
     // Create a new analysis database
@@ -47,7 +58,7 @@ pub fn compile(
 
     // Run the analysis passes
     let contract_analysis = match run_analysis(
-        &contract_id,
+        contract_id,
         &mut ast.expressions,
         &mut analysis_db,
         false,
@@ -58,16 +69,20 @@ pub fn compile(
         Ok(contract_analysis) => contract_analysis,
         Err((e, _)) => {
             diagnostics.push(Diagnostic::err(&e.err));
-            return (diagnostics, Err(()));
+            return Err(CompileError::Generic { diagnostics });
         }
     };
 
-    let generator = WasmGenerator::new(contract_analysis);
+    let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
-        Ok(module) => return (diagnostics, Ok(module)),
+        Ok(module) => Ok(CompileResult {
+            diagnostics,
+            module,
+            contract_analysis: contract_analysis.clone(),
+        }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            return (diagnostics, Err(()));
+            Err(CompileError::Generic { diagnostics })
         }
-    };
+    }
 }

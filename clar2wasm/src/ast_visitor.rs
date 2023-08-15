@@ -52,7 +52,7 @@ pub trait ASTVisitor<'a> {
         match &expr.expr {
             AtomValue(value) => self.visit_atom_value(builder, expr, value),
             Atom(name) => self.visit_atom(builder, expr, name),
-            List(exprs) => self.traverse_list(builder, expr, &exprs),
+            List(exprs) => self.traverse_list(builder, expr, exprs),
             LiteralValue(value) => self.visit_literal_value(builder, expr, value),
             Field(field) => self.visit_field(builder, expr, field),
             TraitReference(name, trait_def) => {
@@ -155,7 +155,7 @@ pub trait ASTVisitor<'a> {
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         DefineFunctions::Trait => {
-                            let params = if args.len() >= 1 { &args[1..] } else { &[] };
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
                             self.traverse_define_trait(
                                 builder,
                                 expr,
@@ -200,7 +200,7 @@ pub trait ASTVisitor<'a> {
                     use clarity::vm::functions::NativeFunctions::*;
                     builder = match native_function {
                         Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
-                            self.traverse_arithmetic(builder, expr, native_function, &args)
+                            self.traverse_arithmetic(builder, expr, native_function, args)
                         }
                         BitwiseXor => self.traverse_binary_bitwise(
                             builder,
@@ -210,12 +210,12 @@ pub trait ASTVisitor<'a> {
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
-                            self.traverse_comparison(builder, expr, native_function, &args)
+                            self.traverse_comparison(builder, expr, native_function, args)
                         }
                         And | Or => {
-                            self.traverse_lazy_logical(builder, expr, native_function, &args)
+                            self.traverse_lazy_logical(builder, expr, native_function, args)
                         }
-                        Not => self.traverse_logical(builder, expr, native_function, &args),
+                        Not => self.traverse_logical(builder, expr, native_function, args),
                         ToInt | ToUInt => self.traverse_int_cast(
                             builder,
                             expr,
@@ -231,7 +231,7 @@ pub trait ASTVisitor<'a> {
                         Let => {
                             let bindings = match_pairs(args.get(0).unwrap_or(&DEFAULT_EXPR))
                                 .unwrap_or_default();
-                            let params = if args.len() >= 1 { &args[1..] } else { &[] };
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
                             self.traverse_let(builder, expr, &bindings, params)
                         }
                         ElementAt | ElementAtAlias => self.traverse_element_at(
@@ -252,7 +252,7 @@ pub trait ASTVisitor<'a> {
                                 .unwrap_or(&DEFAULT_EXPR)
                                 .match_atom()
                                 .unwrap_or(&DEFAULT_NAME);
-                            let params = if args.len() >= 1 { &args[1..] } else { &[] };
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
                             self.traverse_map(builder, expr, name, params)
                         }
                         Fold => {
@@ -295,7 +295,7 @@ pub trait ASTVisitor<'a> {
                         Len => {
                             self.traverse_len(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
                         }
-                        ListCons => self.traverse_list_cons(builder, expr, &args),
+                        ListCons => self.traverse_list_cons(builder, expr, args),
                         FetchVar => self.traverse_var_get(
                             builder,
                             expr,
@@ -401,7 +401,7 @@ pub trait ASTVisitor<'a> {
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        Begin => self.traverse_begin(builder, expr, &args),
+                        Begin => self.traverse_begin(builder, expr, args),
                         Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => self
                             .traverse_hash(
                                 builder,
@@ -768,7 +768,7 @@ pub trait ASTVisitor<'a> {
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         BitwiseAnd | BitwiseOr | BitwiseNot | BitwiseXor2 => {
-                            self.traverse_bitwise(builder, expr, native_function, &args)
+                            self.traverse_bitwise(builder, expr, native_function, args)
                         }
                         BitwiseLShift | BitwiseRShift => self.traverse_bit_shift(
                             builder,
@@ -1288,7 +1288,7 @@ pub trait ASTVisitor<'a> {
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, val) in key {
+        for val in key.values() {
             builder = self.traverse_expr(builder, val)?;
         }
         self.visit_map_get(builder, expr, name, key)
@@ -1312,10 +1312,10 @@ pub trait ASTVisitor<'a> {
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, key_val) in key {
+        for key_val in key.values() {
             builder = self.traverse_expr(builder, key_val)?;
         }
-        for (_, val_val) in value {
+        for val_val in value.values() {
             builder = self.traverse_expr(builder, val_val)?;
         }
         self.visit_map_set(builder, expr, name, key, value)
@@ -1340,10 +1340,10 @@ pub trait ASTVisitor<'a> {
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, key_val) in key {
+        for key_val in key.values() {
             builder = self.traverse_expr(builder, key_val)?;
         }
-        for (_, val_val) in value {
+        for val_val in value.values() {
             builder = self.traverse_expr(builder, val_val)?;
         }
         self.visit_map_insert(builder, expr, name, key, value)
@@ -1367,7 +1367,7 @@ pub trait ASTVisitor<'a> {
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, val) in key {
+        for val in key.values() {
             builder = self.traverse_expr(builder, val)?;
         }
         self.visit_map_delete(builder, expr, name, key)
@@ -1389,7 +1389,7 @@ pub trait ASTVisitor<'a> {
         expr: &'a SymbolicExpression,
         values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, val) in values {
+        for val in values.values() {
             builder = self.traverse_expr(builder, val)?;
         }
         self.visit_tuple(builder, expr, values)
@@ -1990,6 +1990,7 @@ pub trait ASTVisitor<'a> {
         Ok(builder)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn traverse_match_response<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -2008,6 +2009,7 @@ pub trait ASTVisitor<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn visit_match_response<'b>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
@@ -2350,7 +2352,7 @@ pub trait ASTVisitor<'a> {
         bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
         body: &'a [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for (_, val) in bindings {
+        for val in bindings.values() {
             builder = self.traverse_expr(builder, val)?;
         }
         for expr in body {
@@ -2900,7 +2902,7 @@ pub fn traverse<'a, 'b>(
     Ok(builder)
 }
 
-fn match_tuple<'b>(
+fn match_tuple(
     expr: &SymbolicExpression,
 ) -> Option<HashMap<Option<&ClarityName>, &SymbolicExpression>> {
     if let Some(list) = expr.match_list() {
@@ -2927,9 +2929,7 @@ fn match_tuple<'b>(
     None
 }
 
-fn match_pairs<'b>(
-    expr: &SymbolicExpression,
-) -> Option<HashMap<&ClarityName, &SymbolicExpression>> {
+fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &SymbolicExpression>> {
     let list = expr.match_list()?;
     let mut tuple_map = HashMap::new();
     for pair_list in list {
@@ -2939,10 +2939,10 @@ fn match_pairs<'b>(
         }
         tuple_map.insert(pair[0].match_atom()?, &pair[1]);
     }
-    return Some(tuple_map);
+    Some(tuple_map)
 }
 
-fn match_pairs_list<'a>(list: &'a [SymbolicExpression]) -> Option<Vec<TypedVar<'a>>> {
+fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
     let mut vars = Vec::new();
     for pair_list in list {
         let pair = pair_list.match_list()?;
@@ -2951,10 +2951,10 @@ fn match_pairs_list<'a>(list: &'a [SymbolicExpression]) -> Option<Vec<TypedVar<'
         }
         let name = pair[0].match_atom()?;
         vars.push(TypedVar {
-            name: name,
+            name,
             type_expr: &pair[1],
             decl_span: pair[0].span.clone(),
         });
     }
-    return Some(vars);
+    Some(vars)
 }

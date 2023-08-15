@@ -60,7 +60,7 @@ enum FunctionKind {
     ReadOnly,
 }
 
-impl<'a> WasmGenerator {
+impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
@@ -92,7 +92,7 @@ impl<'a> WasmGenerator {
     }
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
-        let expressions = std::mem::replace(&mut self.contract_analysis.expressions, vec![]);
+        let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
@@ -118,7 +118,7 @@ impl<'a> WasmGenerator {
         Ok(self.module)
     }
 
-    fn traverse_define_function<'b>(
+    fn traverse_define_function(
         &mut self,
         name: &clarity::vm::ClarityName,
         body: &SymbolicExpression,
@@ -226,6 +226,7 @@ impl<'a> WasmGenerator {
         builder
     }
 
+    /// Gets the result type of the given `SymbolicExpression`.
     fn get_expr_type(&self, expr: &SymbolicExpression) -> &TypeSignature {
         self.contract_analysis
             .type_map
@@ -313,27 +314,27 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .module
                 .funcs
                 .by_name(&format!("add-{type_suffix}"))
-                .expect(&format!("function not found: add-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: add-{type_suffix}")),
             NativeFunctions::Subtract => self
                 .module
                 .funcs
                 .by_name(&format!("sub-{type_suffix}"))
-                .expect(&format!("function not found: sub-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: sub-{type_suffix}")),
             NativeFunctions::Multiply => self
                 .module
                 .funcs
                 .by_name(&format!("mul-{type_suffix}"))
-                .expect(&format!("function not found: mul-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: mul-{type_suffix}")),
             NativeFunctions::Divide => self
                 .module
                 .funcs
                 .by_name(&format!("div-{type_suffix}"))
-                .expect(&format!("function not found: div-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: div-{type_suffix}")),
             NativeFunctions::Modulo => self
                 .module
                 .funcs
                 .by_name(&format!("mod-{type_suffix}"))
-                .expect(&format!("function not found: mod-{type_suffix}")),
+                .unwrap_or_else(|| panic!("function not found: mod-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return Err(builder);
@@ -487,9 +488,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // (err <val>) is represented by an i32 1, followed by a placeholder
+        // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
-        builder.i32_const(1);
+        builder.i32_const(0);
         let ty = self.get_expr_type(expr);
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
@@ -538,8 +539,8 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         let memcpy = self
             .module
             .funcs
-            .by_name(&format!("memcpy"))
-            .expect(&format!("function not found: memcpy"));
+            .by_name("memcpy")
+            .expect("function not found: memcpy");
 
         // Copy the lhs to the new sequence
         builder.local_get(offset).call(memcpy);

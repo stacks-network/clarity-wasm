@@ -346,6 +346,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clar2wasm-tests"
+version = "0.1.0"
+dependencies = [
+ "clar2wasm",
+ "clarity",
+ "wasmtime",
+]
+
+[[package]]
 name = "clarity"
 version = "0.0.1"
 source = "git+https://github.com/stacks-network/stacks-blockchain.git?branch=master#d15a822b3f0dc581debf8f9121f68b3f3cc39994"

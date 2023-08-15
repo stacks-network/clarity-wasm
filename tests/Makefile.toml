@@ -1,0 +1,19 @@
+[tasks.tests-build]
+category = "Tests"
+script_runner = "@shell"
+script = '''
+mkdir -p ../target/debug/contracts
+ls ./contracts/*.clar | xargs basename -s .clar | xargs -I file ../target/debug/clar2wasm ./contracts/file.clar -o ../target/debug/contracts/file.wasm
+'''
+
+[tasks.tests-verify]
+category = "Tests"
+script_runner = "@shell"
+script = "ls ../target/debug/contracts/*.wasm | xargs -n1 wasm-validate"
+dependencies = ["tests-build"]
+
+[tasks.build]
+dependencies = [
+    "tests-build",
+    "tests-verify"
+]
