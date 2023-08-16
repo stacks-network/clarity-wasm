@@ -1,4 +1,6 @@
+#[cfg(test)]
 mod datastore;
+#[cfg(test)]
 mod util;
 
 #[cfg(test)]

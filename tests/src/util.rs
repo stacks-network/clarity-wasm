@@ -4,24 +4,20 @@ use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use clar2wasm::compile;
-use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::contexts::GlobalContext;
-use clarity::vm::database::ClarityDatabase;
 use clarity::vm::types::{BufferLength, SequenceSubtype, StringSubtype};
 use clarity::vm::{
     analysis::ContractAnalysis,
     costs::LimitedCostTracker,
     database::MemoryBackingStore,
-    types::{FunctionType, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature},
-    ClarityVersion, ContractName,
+    types::{FunctionType, QualifiedContractIdentifier, TypeSignature},
+    ClarityVersion,
 };
-use clarity::vm::{CallStack, ClarityName, ContractContext, Environment, LocalContext, Value};
+use clarity::vm::{ClarityName, ContractContext, Value};
 use wasmtime::{
     AsContextMut, Caller, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType,
 };
-
-use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
 #[derive(Debug, PartialEq)]
 pub enum ClarityWasmResult {
