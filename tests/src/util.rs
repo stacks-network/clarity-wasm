@@ -16,7 +16,7 @@ use clarity::vm::{
     types::{FunctionType, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature},
     ClarityVersion, ContractName,
 };
-use clarity::vm::{CallStack, ContractContext, Environment, LocalContext, Value};
+use clarity::vm::{CallStack, ClarityName, ContractContext, Environment, LocalContext, Value};
 use wasmtime::{
     AsContextMut, Caller, Engine, FuncType, Instance, Linker, Module, Store, Val, ValType,
 };
@@ -70,18 +70,26 @@ pub enum ClarityWasmResult {
     NoType,
 }
 
-pub struct ClarityWasmContext {
-    /// Contract context for runtime execution
-    pub contract_context: ContractContext,
+pub struct ClarityWasmContext<'a, 'b, 'hooks> {
+    /// The global context in which to execute.
+    pub global_context: &'b mut GlobalContext<'a, 'hooks>,
+    /// Context for this contract. This will be filled in when running the
+    /// top-level expressions, then used when calling functions.
+    pub contract_context: &'b mut ContractContext,
     /// The contract analysis for the compiled contract
     pub contract_analysis: ContractAnalysis,
     /// Map an identifier from a contract to an integer id for simple access
     pub identifier_map: HashMap<i32, String>,
 }
 
-impl ClarityWasmContext {
-    pub fn new(contract_context: ContractContext, contract_analysis: ContractAnalysis) -> Self {
+impl<'a, 'b, 'hooks> ClarityWasmContext<'a, 'b, 'hooks> {
+    pub fn new(
+        global_context: &'b mut GlobalContext<'a, 'hooks>,
+        contract_context: &'b mut ContractContext,
+        contract_analysis: ContractAnalysis,
+    ) -> Self {
         ClarityWasmContext {
+            global_context,
             contract_analysis,
             contract_context,
             identifier_map: HashMap::new(),
@@ -92,21 +100,130 @@ impl ClarityWasmContext {
 /// A simple wrapper for WASMTime to help reduce the amount of boilerplate needed
 /// in test code. The wrapper compiles the specified contract using `clar2wasm` and
 /// stores a copy of its contract analysis for type inferrence when calling functions.
-pub struct WasmtimeHelper {
+pub struct WasmtimeHelper<'a, 'b, 'hooks> {
     module: Module,
     instance: Instance,
-    store: Box<Store<ClarityWasmContext>>,
+    store: Box<Store<ClarityWasmContext<'a, 'b, 'hooks>>>,
 }
 
-impl WasmtimeHelper {
-    pub fn new(contract_name: &str) -> Self {
-        let contract_str =
-            std::fs::read_to_string(format!("contracts/{contract_name}.clar")).unwrap();
+/// Generates a WASMTime function signature (both input and return arguments), provided the
+/// given Clarity `FunctionType`.
+fn generate_wasmtime_func_signature(fn_sig: &FunctionType) -> FuncType {
+    let mut params = Vec::<ValType>::new();
+    let mut returns = Vec::<ValType>::new();
 
-        let contract_id = QualifiedContractIdentifier::new(
-            StandardPrincipalData::transient(),
-            ContractName::from(contract_name),
-        );
+    match fn_sig {
+        FunctionType::Fixed(func) => {
+            for arg in func.args.iter() {
+                let mut arg_sig = get_wasmtime_arg(&arg.signature);
+                params.append(&mut arg_sig);
+            }
+
+            let mut returns_sig = get_wasmtime_arg(&func.returns);
+            returns.append(&mut returns_sig);
+        }
+        _ => panic!("Not implemented"),
+    }
+
+    let func_type = FuncType::new(params, returns);
+    eprintln!("Wasmtime FuncType: {:?}", func_type);
+    func_type
+}
+
+/// Creates the type signature expected by WASMTime for the provided Clarity `TypeSignature`.
+fn get_wasmtime_arg(type_sig: &TypeSignature) -> Vec<ValType> {
+    match type_sig {
+        TypeSignature::IntType | TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::BoolType => vec![ValType::I32],
+        TypeSignature::SequenceType(_) => vec![ValType::I32, ValType::I32],
+        TypeSignature::ResponseType(resp) => {
+            let mut sig = vec![ValType::I32; 1];
+            let mut ok_type = get_wasmtime_arg(&resp.0);
+            let mut err_type = get_wasmtime_arg(&resp.1);
+            sig.append(&mut ok_type);
+            sig.append(&mut err_type);
+            sig
+        }
+        TypeSignature::NoType => vec![ValType::I32],
+        _ => panic!("Not implemented"),
+    }
+}
+
+/// Maps the result from a WASM function call given the provided Clarity `FunctionType`.
+fn map_wasm_result(fn_sig: &FunctionType, result: &[Val]) -> ClarityWasmResult {
+    match fn_sig {
+        FunctionType::Fixed(func) => {
+            let (result, _) = map_wasm_value(&func.returns, 0, result);
+            result
+        }
+        _ => panic!("Function type '{:?}' not implemented.", &fn_sig),
+    }
+}
+
+/// Maps an individual value in a WASM function call result.
+fn map_wasm_value(
+    type_sig: &TypeSignature,
+    index: usize,
+    buffer: &[Val],
+) -> (ClarityWasmResult, usize) {
+    match type_sig {
+        TypeSignature::IntType => {
+            let upper = buffer[index].unwrap_i64();
+            let lower = buffer[index + 1].unwrap_i64();
+            (
+                ClarityWasmResult::Int {
+                    high: upper,
+                    low: lower,
+                },
+                2,
+            )
+        }
+        TypeSignature::UIntType => {
+            let upper = buffer[index].unwrap_i64();
+            let lower = buffer[index + 1].unwrap_i64();
+            (
+                ClarityWasmResult::UInt {
+                    high: upper,
+                    low: lower,
+                },
+                2,
+            )
+        }
+        TypeSignature::NoType => (ClarityWasmResult::NoType, 1),
+        TypeSignature::ResponseType(response) => {
+            let (ok, increment_ok) = map_wasm_value(&response.0, index + 1, buffer);
+            let (err, increment_err) =
+                map_wasm_value(&response.1, index + 1 + increment_ok, buffer);
+            (
+                ClarityWasmResult::Response {
+                    indicator: buffer[index].unwrap_i32(),
+                    ok_value: if ok == ClarityWasmResult::NoType {
+                        None
+                    } else {
+                        Some(Box::new(ok))
+                    },
+                    err_value: if err == ClarityWasmResult::NoType {
+                        None
+                    } else {
+                        Some(Box::new(err))
+                    },
+                },
+                index + 1 + increment_ok + increment_err,
+            )
+        }
+        _ => panic!("WASM value type not implemented: {:?}", type_sig),
+    }
+}
+
+impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
+    pub fn new(
+        contract_id: QualifiedContractIdentifier,
+        global_context: &'b mut GlobalContext<'a, 'hooks>,
+        contract_context: &'b mut ContractContext,
+    ) -> Self {
+        let contract_str =
+            std::fs::read_to_string(format!("contracts/{}.clar", contract_id.name)).unwrap();
+
         let cost_tracker = LimitedCostTracker::Free;
         let mut clarity_store = MemoryBackingStore::new();
 
@@ -120,43 +237,9 @@ impl WasmtimeHelper {
         )
         .expect("Failed to compile contract.");
 
-        let mut datastore = Datastore::new();
-        let constants = StacksConstants {
-            burn_start_height: 0,
-            pox_prepare_length: 0,
-            pox_reward_cycle_length: 0,
-            pox_rejection_fraction: 0,
-            epoch_21_start_height: 0,
-        };
-        let burn_datastore = BurnDatastore::new(constants);
-        let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-        conn.begin();
-        conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-        conn.commit();
-        let cost_tracker = LimitedCostTracker::new_free();
-        let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
-            conn,
-            cost_tracker,
-            StacksEpochId::Epoch24,
-        );
-
-        let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-        let context = LocalContext::new();
-        let mut call_stack = CallStack::new();
-        let mut env = Environment::new(
-            &mut global_context,
-            &mut contract_context,
-            &mut call_stack,
-            None,
-            None,
-            None,
-        );
-
         let wasm = compile_result.module.emit_wasm();
         let contract_analysis = compile_result.contract_analysis;
-        let context = ClarityWasmContext::new(contract_context, contract_analysis);
+        let context = ClarityWasmContext::new(global_context, contract_context, contract_analysis);
 
         let engine = Engine::default();
         let module = Module::from_binary(&engine, wasm.as_slice()).unwrap();
@@ -188,6 +271,8 @@ impl WasmtimeHelper {
                         .get_persisted_variable_type(name.as_str())
                         .expect("failed to get variable type")
                         .clone();
+                    let contract = caller.data().contract_context.contract_identifier.clone();
+                    let epoch = caller.data().global_context.epoch_id;
                     let value = WasmtimeHelper::read_from_wasm(
                         &mut caller,
                         &ty,
@@ -201,7 +286,26 @@ impl WasmtimeHelper {
                         .identifier_map
                         .insert(identifier, name.clone());
 
-                    // TODO: Call into the contract context to create the variable
+                    // Create the variable in the global context
+                    let data_type = caller.data_mut().global_context.database.create_variable(
+                        &contract,
+                        name.as_str(),
+                        ty,
+                    );
+
+                    // Store the variable in the global context
+                    caller
+                        .data_mut()
+                        .global_context
+                        .database
+                        .set_variable(&contract, name.as_str(), value, &data_type, &epoch)
+                        .unwrap();
+
+                    caller
+                        .data_mut()
+                        .contract_context
+                        .meta_data_var
+                        .insert(ClarityName::from(name.as_str()), data_type.clone());
                 },
             )
             .unwrap();
@@ -210,15 +314,44 @@ impl WasmtimeHelper {
             .func_wrap(
                 "clarity",
                 "get_variable",
-                |caller: Caller<'_, ClarityWasmContext>,
+                |mut caller: Caller<'_, ClarityWasmContext>,
                  identifier: i32,
-                 _return_offset: i32,
-                 _return_length: i32| {
+                 return_offset: i32,
+                 return_length: i32| {
                     let var_name = caller
                         .data()
                         .identifier_map
                         .get(&identifier)
-                        .expect("failed to get variable name");
+                        .expect("failed to get variable name")
+                        .clone();
+                    let contract = caller.data().contract_context.contract_identifier.clone();
+                    let data_types = caller
+                        .data()
+                        .contract_context
+                        .meta_data_var
+                        .get(var_name.as_str())
+                        .unwrap()
+                        .clone(); // FIXME
+                    let value = caller
+                        .data_mut()
+                        .global_context
+                        .database
+                        .lookup_variable_with_size(
+                            &contract,
+                            var_name.as_str(),
+                            &data_types,
+                            &StacksEpochId::Epoch24,
+                        )
+                        .unwrap()
+                        .value;
+
+                    WasmtimeHelper::write_to_wasm(
+                        &mut caller,
+                        &data_types.value_type,
+                        return_offset,
+                        return_length,
+                        value,
+                    );
                 },
             )
             .unwrap();
@@ -346,113 +479,41 @@ impl WasmtimeHelper {
         }
     }
 
-    /// Generates a WASMTime function signature (both input and return arguments), provided the
-    /// given Clarity `FunctionType`.
-    fn generate_wasmtime_func_signature(fn_sig: &FunctionType) -> FuncType {
-        let mut params = Vec::<ValType>::new();
-        let mut returns = Vec::<ValType>::new();
+    /// Write a value to the Wasm memory at `offset` with `length` given the
+    /// provided Clarity `TypeSignature`.'
+    fn write_to_wasm(
+        caller: &mut Caller<'_, ClarityWasmContext>,
+        ty: &TypeSignature,
+        offset: i32,
+        length: i32,
+        value: Value,
+    ) {
+        let memory = caller
+            .get_export("memory")
+            .and_then(|export| export.into_memory())
+            .expect("instance memory export");
 
-        match fn_sig {
-            FunctionType::Fixed(func) => {
-                for arg in func.args.iter() {
-                    let mut arg_sig = Self::get_wasmtime_arg(&arg.signature);
-                    params.append(&mut arg_sig);
-                }
-
-                let mut returns_sig = Self::get_wasmtime_arg(&func.returns);
-                returns.append(&mut returns_sig);
-            }
-            _ => panic!("Not implemented"),
-        }
-
-        let func_type = FuncType::new(params, returns);
-        eprintln!("Wasmtime FuncType: {:?}", func_type);
-        func_type
-    }
-
-    /// Creates the type signature expected by WASMTime for the provided Clarity `TypeSignature`.
-    fn get_wasmtime_arg(type_sig: &TypeSignature) -> Vec<ValType> {
-        match type_sig {
-            TypeSignature::IntType | TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
-            TypeSignature::BoolType => vec![ValType::I32],
-            TypeSignature::SequenceType(_) => vec![ValType::I32, ValType::I32],
-            TypeSignature::ResponseType(resp) => {
-                let mut sig = vec![ValType::I32; 1];
-                let mut ok_type = Self::get_wasmtime_arg(&resp.0);
-                let mut err_type = Self::get_wasmtime_arg(&resp.1);
-                sig.append(&mut ok_type);
-                sig.append(&mut err_type);
-                sig
-            }
-            TypeSignature::NoType => vec![ValType::I32],
-            _ => panic!("Not implemented"),
-        }
-    }
-
-    /// Maps the result from a WASM function call given the provided Clarity `FunctionType`.
-    fn map_wasm_result(fn_sig: &FunctionType, result: &[Val]) -> ClarityWasmResult {
-        match fn_sig {
-            FunctionType::Fixed(func) => {
-                let (result, _) = Self::map_wasm_value(&func.returns, 0, result);
-                result
-            }
-            _ => panic!("Function type '{:?}' not implemented.", &fn_sig),
-        }
-    }
-
-    /// Maps an individual value in a WASM function call result.
-    fn map_wasm_value(
-        type_sig: &TypeSignature,
-        index: usize,
-        buffer: &[Val],
-    ) -> (ClarityWasmResult, usize) {
-        match type_sig {
+        match ty {
             TypeSignature::IntType => {
-                let upper = buffer[index].unwrap_i64();
-                let lower = buffer[index + 1].unwrap_i64();
-                (
-                    ClarityWasmResult::Int {
-                        high: upper,
-                        low: lower,
-                    },
-                    2,
-                )
+                assert!(
+                    length == 16,
+                    "expected int length to be 16 bytes, found {length}"
+                );
+                let mut buffer: [u8; 8] = [0; 8];
+                let i = value.expect_i128();
+                let high = (i >> 64) as u64;
+                let low = (i & 0xffff_ffff_ffff_ffff) as u64;
+                buffer.copy_from_slice(&high.to_le_bytes());
+                memory
+                    .write(caller.borrow_mut(), offset as usize, &buffer)
+                    .expect("failed to write int");
+                buffer.copy_from_slice(&low.to_le_bytes());
+                memory
+                    .write(caller.borrow_mut(), (offset + 8) as usize, &buffer)
+                    .expect("failed to write int");
             }
-            TypeSignature::UIntType => {
-                let upper = buffer[index].unwrap_i64();
-                let lower = buffer[index + 1].unwrap_i64();
-                (
-                    ClarityWasmResult::UInt {
-                        high: upper,
-                        low: lower,
-                    },
-                    2,
-                )
-            }
-            TypeSignature::NoType => (ClarityWasmResult::NoType, 1),
-            TypeSignature::ResponseType(response) => {
-                let (ok, increment_ok) = Self::map_wasm_value(&response.0, index + 1, buffer);
-                let (err, increment_err) =
-                    Self::map_wasm_value(&response.1, index + 1 + increment_ok, buffer);
-                (
-                    ClarityWasmResult::Response {
-                        indicator: buffer[index].unwrap_i32(),
-                        ok_value: if ok == ClarityWasmResult::NoType {
-                            None
-                        } else {
-                            Some(Box::new(ok))
-                        },
-                        err_value: if err == ClarityWasmResult::NoType {
-                            None
-                        } else {
-                            Some(Box::new(err))
-                        },
-                    },
-                    index + 1 + increment_ok + increment_err,
-                )
-            }
-            _ => panic!("WASM value type not implemented: {:?}", type_sig),
-        }
+            _ => panic!("unsupported type"),
+        };
     }
 
     /// Runs the top-level expressions in a clarity contract, by calling the
@@ -480,7 +541,7 @@ impl WasmtimeHelper {
 
         eprintln!("Clarity function type: {:?}", &fn_type);
 
-        let func_type = Self::generate_wasmtime_func_signature(&fn_type);
+        let func_type = generate_wasmtime_func_signature(&fn_type);
 
         let func = self
             .instance
@@ -495,7 +556,7 @@ impl WasmtimeHelper {
 
         eprint!("Params: {:?}, Results: {:?}", params, results);
 
-        Self::map_wasm_result(&fn_type, &results)
+        map_wasm_result(&fn_type, &results)
     }
 
     /// Experimental
@@ -521,7 +582,7 @@ impl WasmtimeHelper {
             eprintln!("Expression type: {:?}", expr_type);
 
             /*** FOR FUTURE REFERENCE (cylwit)
-            let result_signature = Self::get_wasmtime_arg(expr_type);
+            let result_signature = get_wasmtime_arg(expr_type);
             let mut results = Vec::<Val>::with_capacity(result_signature.len());
             for x in result_signature.iter() {
                 match x {
