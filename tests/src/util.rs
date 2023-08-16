@@ -283,7 +283,7 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .insert(identifier, name.clone());
 
                     // Create the variable in the global context
-                    let data_type = caller.data_mut().global_context.database.create_variable(
+                    let data_types = caller.data_mut().global_context.database.create_variable(
                         &contract,
                         name.as_str(),
                         ty,
@@ -294,14 +294,14 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .data_mut()
                         .global_context
                         .database
-                        .set_variable(&contract, name.as_str(), value, &data_type, &epoch)
+                        .set_variable(&contract, name.as_str(), value, &data_types, &epoch)
                         .unwrap();
 
                     caller
                         .data_mut()
                         .contract_context
                         .meta_data_var
-                        .insert(ClarityName::from(name.as_str()), data_type.clone());
+                        .insert(ClarityName::from(name.as_str()), data_types.clone());
                 },
             )
             .unwrap();
@@ -356,11 +356,49 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
             .func_wrap(
                 "clarity",
                 "set_variable",
-                |_: Caller<'_, ClarityWasmContext>,
+                |mut caller: Caller<'_, ClarityWasmContext>,
                  identifier: i32,
-                 _return_offset: i32,
-                 _return_length: i32| {
-                    println!("var-set: {identifier}");
+                 value_offset: i32,
+                 value_length: i32| {
+                    let var_name = caller
+                        .data()
+                        .identifier_map
+                        .get(&identifier)
+                        .expect("failed to get variable name")
+                        .clone();
+
+                    let ty = caller
+                        .data()
+                        .contract_analysis
+                        .get_persisted_variable_type(var_name.as_str())
+                        .expect("failed to get variable type")
+                        .clone();
+
+                    // Read in the value from the Wasm memory
+                    let value = WasmtimeHelper::read_from_wasm(
+                        &mut caller,
+                        &ty,
+                        value_offset,
+                        value_length,
+                    );
+
+                    let contract = caller.data().contract_context.contract_identifier.clone();
+                    let epoch = caller.data().global_context.epoch_id;
+                    let data_types = caller
+                        .data()
+                        .contract_context
+                        .meta_data_var
+                        .get(var_name.as_str())
+                        .unwrap()
+                        .clone(); // FIXME
+
+                    // Store the variable in the global context
+                    caller
+                        .data_mut()
+                        .global_context
+                        .database
+                        .set_variable(&contract, var_name.as_str(), value, &data_types, &epoch)
+                        .unwrap();
                 },
             )
             .unwrap();

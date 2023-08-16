@@ -778,6 +778,49 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         Ok(builder)
     }
+
+    fn visit_var_set<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &'a SymbolicExpression,
+        name: &'a clarity::vm::ClarityName,
+        value: &'a SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the identifier for this variable
+        let var_id = *self
+            .identifiers
+            .get(&name.to_string())
+            .expect("variable not found: {name}");
+
+        // Create space on the memory stack to write the value
+        let ty = self.get_expr_type(value).clone();
+        let (offset, size);
+        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+
+        // Write the value to the memory (it's already on the stack)
+        (builder, _) = self.write_to_memory(builder, offset, &ty);
+
+        // Push the variable identifier onto the stack
+        builder.i32_const(var_id);
+
+        // Push the offset and size to the stack
+        builder.local_get(offset).i32_const(size);
+
+        // Call the host interface function, `set_variable`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("set_variable")
+                .expect("function not found"),
+        );
+
+        // `var-set` always returns `true`
+        // FIXME: This is commented out now until we add code to drop unused
+        //        values from the stack. See issue #27.
+        // builder.i32_const(1);
+
+        Ok(builder)
+    }
 }
 
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
