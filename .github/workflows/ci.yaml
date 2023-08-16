@@ -16,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --all --all-features
       - run: cargo test --all --all-features -- --nocapture
 
   fmt:
