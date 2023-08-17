@@ -16,7 +16,7 @@
     (import "clarity" "set_variable" (func $set_variable (param i32 i32 i32)))
 
     (global $stack-pointer (mut i32) (i32.const 0))
-    (memory (export "memory") 1)
+    (memory (export "memory") 10)
 
     ;; The error code is one of:
         ;; 0: overflow

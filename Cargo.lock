@@ -353,6 +353,7 @@ dependencies = [
  "chrono",
  "clar2wasm",
  "clarity",
+ "criterion",
  "rusqlite",
  "sha2 0.10.7",
  "wasmtime",
