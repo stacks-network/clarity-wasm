@@ -71,18 +71,48 @@ WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We
 - `int`: pair of `i64`s (upper, lower)
 - `uint`: pair of `i64`s (upper, lower)
 - `bool`: `i32`
-- `principal`: `i32` pointer to stack; stack contains 20 bytes for standard principal followed by an `i32` indicating the length of the contract name, which, if non-zero, is followed by the contract name string.
-- `buff`: `i32` pointer to stack, `i32` length
-- `string-ascii`: `i32` pointer to stack, `i32` length
-- `string-utf8`: `i32` pointer to stack, `i32` length
-- `list`: `i32` pointer to stack, `i32` length
+- `principal`: `i32` offset in call stack; call stack contains 20 bytes for standard principal followed by an `i32` indicating the length of the contract name, which, if non-zero, is followed by the contract name string.
+- `buff`: `i32` offset in call stack, `i32` length
+- `string-ascii`: `i32` offset in call stack, `i32` length
+- `string-utf8`: `i32` offset in call stack, `i32` length
+- `list`: `i32` offset in call stack, `i32` length
 - `tuple`: each value in the tuple concatenated
 - `optional`: `i32` indicator (`0` for `none`, `1` for `some`), followed by value for `some`
 - `response`: `i32` indicator (`0` for `err`, `1` for `ok`) followed by ok value, then err value
 
 ### Memory Management
 
-The types indicated above that are represented by a pointer to the stack need to actually be allocated space on the stack, and then the stack needs to be properly managed for each function. A global `$stack-pointer` is defined in the standard library. This value points to the top of the stack. Function locals are allocated on the top of the stack, and in the function postlude, the stack pointer is set back to its initial position.
+Web Assembly provides a simple linear memory, accessible with load/store operations. This memory is also exported for access from the host. For the Clarity VM, at the base of this memory, starting at offset 0, we are storing literals that do not fit into the scalar types supported by Wasm, for example, string literals. When used in the code, the literals are loaded from a constant offset. During compilation, the top of the literal memory is tracked by the field `literal_memory_end` in the `WasmGenerator` structure.
+
+After the literals, we build a call stack, where function local values that do not fit into scalars are stored. A global variable is defined in the Wasm module to maintain a stack pointer. At the beginning of every function, we insert the function prologue, which saves the current stack pointer to a local variable, which we can call the frame pointer. The frame pointer is the base of the current function's frame, its space in the call stack, and the function's local values can be accessed via offsets from this frame pointer. The stack pointer is then incremented for any space that gets reserved for the current function. Every function also has a function epilogue, which must be called upon exit from the function. The epilogue pops the function's frame from the call stack, since its locals are no longer needed, by setting the stack pointer equal to its frame pointer.
+
+It may be helpful to clarify this with an example. Consider the following Clarity code:
+
+```clarity
+(define-private (do-concat (a (string-ascii 16)) (b (string-ascii 16)))
+  (len (concat a b))
+)
+
+(define-read-only (example)
+  (do-concat "hello " "world")
+)
+```
+
+The `concat` expression in the `do-concat` function creates a new string by concatenating the two input strings. This new string needs to be stored in the call stack, in that function's frame. The type of this expression is `(string-ascii 32)`, so in this case, we need to allocate 32 bytes on the call stack for the result. Before exiting the `do-concat` function, our linear memory will look like this:
+
+```
+stack pointer ->     +-------------------+
+                     |         .         |
+                     |  32 byte string   | <- Frame for do-concat
+                     |         .         |
+frame pointer ->     +-------------------+ <- Frame for example (no space allocated)
+                     |      "hello "     |
+                     |                   | <- Literal memory
+                     |      "world"      |
+0 ->                 +-------------------+
+```
+
+In this diagram, the "frame pointer" is actually the frame pointer for both the `example` function and the `do-concat` function, because `example` does not require any space in its frame.
 
 ### Standard Library
 
