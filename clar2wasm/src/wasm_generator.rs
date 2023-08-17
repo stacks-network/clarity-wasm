@@ -300,7 +300,7 @@ impl WasmGenerator {
 
     /// Push a new local onto the call stack, adjusting the stack pointer and
     /// tracking the current function's frame size accordingly.
-    pub fn create_call_stack_local<'b>(
+    fn create_call_stack_local<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         stack_pointer: GlobalId,
@@ -888,11 +888,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // The result type must match the type of the initial value
         let result_clar_ty = self.get_expr_type(initial);
         let result_ty = clar2wasm_ty(result_clar_ty);
-        let loop_body_ty = InstrSeqType::new(
-            &mut self.module.types,
-            result_ty.as_slice(),
-            result_ty.as_slice(),
-        );
+        let loop_body_ty = InstrSeqType::new(&mut self.module.types, &[], &[]);
 
         // Get the type of the sequence
         let seq_ty = match self.get_expr_type(sequence) {
@@ -941,6 +937,17 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             return Ok(builder);
         }
 
+        // Define local(s) to hold the intermediate result, and initialize them
+        // with the initial value. Not that we are looping in reverse order, to
+        // pop values from the top of the stack.
+        let mut result_locals = Vec::with_capacity(result_ty.len());
+        for local_ty in result_ty.iter().rev() {
+            let local = self.module.locals.add(*local_ty);
+            result_locals.push(local);
+            builder.local_set(local);
+        }
+        result_locals.reverse();
+
         // Define the body of a loop, to loop over the sequence and make the
         // function call.
         builder.loop_(loop_body_ty, |loop_| {
@@ -948,6 +955,11 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
             // Load the element from the sequence
             let elem_size = self.read_from_memory(loop_, offset, elem_ty);
+
+            // Push the locals to the stack
+            for result_local in result_locals.iter() {
+                loop_.local_get(*result_local);
+            }
 
             // Call the function
             loop_.call(
@@ -957,20 +969,30 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                     .expect("function not found"),
             );
 
-            // Increment the offset by the size of the element
+            // Save the result into the locals (in reverse order as we pop)
+            for result_local in result_locals.iter().rev() {
+                loop_.local_set(*result_local);
+            }
+
+            // Increment the offset by the size of the element, leaving the
+            // offset on the top of the stack
             loop_
                 .local_get(offset)
                 .i32_const(elem_size)
                 .binop(BinaryOp::I32Add)
-                .local_set(offset);
+                .local_tee(offset);
 
             // Loop if we haven't reached the end of the sequence
             loop_
-                .local_get(offset)
                 .local_get(end_offset)
                 .binop(BinaryOp::I32LtU)
                 .br_if(loop_id);
         });
+
+        // Push the locals to the stack
+        for result_local in result_locals.iter() {
+            builder.local_get(*result_local);
+        }
 
         Ok(builder)
     }

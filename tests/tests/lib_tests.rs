@@ -594,14 +594,14 @@ fn fold() {
             indicator,
             ok_value,
             err_value,
-        } = helper.call_public_function("fold-add", &[])
+        } = helper.call_public_function("fold-sub", &[])
         {
             assert_eq!(indicator, 1);
             assert!(ok_value.is_some());
             assert!(err_value.is_none());
             if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
                 assert_eq!(high, 0);
-                assert_eq!(low, 10);
+                assert_eq!(low, 2);
             }
         } else {
             panic!("Unexpected result received from WASM function call.");

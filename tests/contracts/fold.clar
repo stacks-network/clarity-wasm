@@ -1,7 +1,7 @@
-(define-private (add (x int) (y int))
-    (+ x y)
+(define-private (sub (x int) (y int))
+    (- x y)
 )
 
-(define-public (fold-add)
-    (ok (fold add (list 1 2 3 4) 0))
+(define-public (fold-sub)
+    (ok (fold sub (list 1 2 3 4) 0))
 )
