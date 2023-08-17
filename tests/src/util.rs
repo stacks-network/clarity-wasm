@@ -121,9 +121,7 @@ fn generate_wasmtime_func_signature(fn_sig: &FunctionType) -> FuncType {
         _ => panic!("Not implemented"),
     }
 
-    let func_type = FuncType::new(params, returns);
-    eprintln!("Wasmtime FuncType: {:?}", func_type);
-    func_type
+    FuncType::new(params, returns)
 }
 
 /// Creates the type signature expected by WASMTime for the provided Clarity `TypeSignature`.
@@ -573,8 +571,6 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
             .expect("Function not found")
             .clone();
 
-        eprintln!("Clarity function type: {:?}", &fn_type);
-
         let func_type = generate_wasmtime_func_signature(&fn_type);
 
         let func = self
@@ -583,12 +579,9 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
             .expect("Provided function name was not found in the generated WASM binary.");
 
         let mut results = vec![Val::I32(0); func_type.results().len()];
-        eprintln!("Results count: {}", results.len());
 
         func.call(self.store.as_context_mut(), params, &mut results)
             .unwrap();
-
-        eprint!("Params: {:?}, Results: {:?}", params, results);
 
         map_wasm_result(&fn_type, &results)
     }

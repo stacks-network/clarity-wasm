@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::BorrowMut, collections::HashMap};
 
 use clarity::vm::{
     analysis::ContractAnalysis,
@@ -62,6 +62,19 @@ enum FunctionKind {
     Public,
     Private,
     ReadOnly,
+}
+
+fn get_type_size(ty: &TypeSignature) -> u32 {
+    match ty {
+        TypeSignature::IntType | TypeSignature::UIntType => 16,
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(length))) => {
+            u32::from(length.clone())
+        }
+        TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
+            list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
+        }
+        _ => unimplemented!("Unsupported type for stack local"),
+    }
 }
 
 impl WasmGenerator {
@@ -291,16 +304,9 @@ impl WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         stack_pointer: GlobalId,
-        // module: &mut Module,
         ty: &TypeSignature,
     ) -> (InstrSeqBuilder<'b>, LocalId, i32) {
-        let size = match ty {
-            TypeSignature::IntType | TypeSignature::UIntType => 16,
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                length,
-            ))) => u32::from(length.clone()) as i32,
-            _ => unimplemented!("Unsupported type for stack local"),
-        };
+        let size = get_type_size(ty) as i32;
 
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
@@ -320,13 +326,15 @@ impl WasmGenerator {
     }
 
     /// Write the value on the top of the stack, which has type `ty`, to the
-    /// memory, at offset stored in local variable, `offset`.
-    fn write_to_memory<'b>(
+    /// memory, at offset stored in local variable, `offset_local`, plus
+    /// constant offset `offset`.
+    fn write_to_memory(
         &mut self,
-        mut builder: InstrSeqBuilder<'b>,
-        offset: LocalId,
+        builder: &mut InstrSeqBuilder,
+        offset_local: LocalId,
+        offset: u32,
         ty: &TypeSignature,
-    ) -> (InstrSeqBuilder<'b>, i32) {
+    ) -> i32 {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let size = match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -337,37 +345,34 @@ impl WasmGenerator {
                 builder.local_set(low).local_set(high);
 
                 // Store the high/low to memory.
-                builder.local_get(offset).local_get(high).store(
+                builder.local_get(offset_local).local_get(high).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
-                    MemArg {
-                        align: 8,
-                        offset: 0,
-                    },
+                    MemArg { align: 8, offset },
                 );
-                builder.local_get(offset).local_get(low).store(
+                builder.local_get(offset_local).local_get(low).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
                     MemArg {
                         align: 8,
-                        offset: 8,
+                        offset: offset + 8,
                     },
                 );
                 16
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         };
-        (builder, size)
+        size
     }
 
     /// Read a value from memory at offset stored in local variable `offset`,
     /// with type `ty`, and load it onto the top of the stack.
-    fn read_from_memory<'b>(
+    fn read_from_memory(
         &mut self,
-        mut builder: InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         offset: LocalId,
         ty: &TypeSignature,
-    ) -> (InstrSeqBuilder<'b>, i32) {
+    ) -> i32 {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let size = match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -392,7 +397,7 @@ impl WasmGenerator {
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         };
-        (builder, size)
+        size
     }
 
     /// Return a unique identifier, used to identify a contract constant,
@@ -600,8 +605,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         builder = self.traverse_expr(builder, initial)?;
 
         // Write the initial value to the memory, to be read by the host.
-        let size;
-        (builder, size) = self.write_to_memory(builder, offset, &ty);
+        let size = self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
         // Increment the literal memory end
         // FIXME: These initial values do not need to be saved in the literal
@@ -774,7 +778,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the stack.
-        (builder, _) = self.read_from_memory(builder, offset, &ty);
+        self.read_from_memory(builder.borrow_mut(), offset, &ty);
 
         Ok(builder)
     }
@@ -798,7 +802,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
 
         // Write the value to the memory (it's already on the stack)
-        (builder, _) = self.write_to_memory(builder, offset, &ty);
+        self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
         // Push the variable identifier onto the stack
         builder.i32_const(var_id);
@@ -818,6 +822,154 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // FIXME: This is commented out now until we add code to drop unused
         //        values from the stack. See issue #27.
         // builder.i32_const(1);
+
+        Ok(builder)
+    }
+
+    fn traverse_list_cons<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &'a SymbolicExpression,
+        list: &'a [SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let ty = self.get_expr_type(expr).clone();
+        let (elem_ty, num_elem) =
+            if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
+                (list_type.get_list_item_type(), list_type.get_max_len())
+            } else {
+                panic!(
+                    "Expected list type for list expression, but found: {:?}",
+                    ty
+                );
+            };
+
+        assert_eq!(num_elem as usize, list.len(), "list size mismatch");
+
+        // Allocate space on the data stack for the entire list
+        let (offset, size);
+        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+
+        // Loop through the expressions in the list and store them onto the
+        // data stack.
+        let mut total_size = 0;
+        for expr in list.iter() {
+            builder = self.traverse_expr(builder, expr)?;
+            let elem_size = self.write_to_memory(builder.borrow_mut(), offset, total_size, elem_ty);
+            total_size += elem_size as u32;
+        }
+        assert_eq!(total_size, size as u32, "list size mismatch");
+
+        // Push the offset and size to the instruction stack
+        builder.local_get(offset).i32_const(size);
+
+        Ok(builder)
+    }
+
+    fn traverse_fold<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &'a SymbolicExpression,
+        func: &'a clarity::vm::ClarityName,
+        sequence: &'a SymbolicExpression,
+        initial: &'a SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Fold takes an initial value, and a sequence, and applies a function
+        // to the output of the previous call, or the initial value in the case
+        // of the first call, and each element of the sequence.
+        // ```
+        // (fold - (list 2 4 6) 0)
+        // ```
+        // is equivalent to
+        // ```
+        // (- 6 (- 4 (- 2 0)))
+        // ```
+
+        // The result type must match the type of the initial value
+        let result_clar_ty = self.get_expr_type(initial);
+        let result_ty = clar2wasm_ty(result_clar_ty);
+        let loop_body_ty = InstrSeqType::new(
+            &mut self.module.types,
+            result_ty.as_slice(),
+            result_ty.as_slice(),
+        );
+
+        // Get the type of the sequence
+        let seq_ty = match self.get_expr_type(sequence) {
+            TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
+            _ => {
+                self.error = Some(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                ));
+                return Err(builder);
+            }
+        };
+
+        let (seq_len, elem_ty) = match &seq_ty {
+            SequenceSubtype::ListType(list_type) => {
+                (list_type.get_max_len(), list_type.get_list_item_type())
+            }
+            _ => unimplemented!("Unsupported sequence type"),
+        };
+
+        // Evaluate the sequence, which will load it onto the memory stack,
+        // leaving the offset and size on the stack.
+        builder = self.traverse_expr(builder, sequence)?;
+
+        // Drop the size, since we don't need it
+        builder.drop();
+
+        // Store the offset into a local
+        let offset = self.module.locals.add(ValType::I32);
+        builder.local_set(offset);
+
+        let elem_size = get_type_size(elem_ty);
+
+        // Store the end of the sequence into a local
+        let end_offset = self.module.locals.add(ValType::I32);
+        builder
+            .local_get(offset)
+            .i32_const((seq_len * elem_size) as i32)
+            .binop(BinaryOp::I32Add)
+            .local_set(end_offset);
+
+        // Evaluate the initial value, so that its result is on the stack
+        builder = self.traverse_expr(builder, initial)?;
+
+        if seq_len == 0 {
+            // If the sequence is empty, just return the initial value
+            return Ok(builder);
+        }
+
+        // Define the body of a loop, to loop over the sequence and make the
+        // function call.
+        builder.loop_(loop_body_ty, |loop_| {
+            let loop_id = loop_.id();
+
+            // Load the element from the sequence
+            let elem_size = self.read_from_memory(loop_, offset, elem_ty);
+
+            // Call the function
+            loop_.call(
+                self.module
+                    .funcs
+                    .by_name(func.as_str())
+                    .expect("function not found"),
+            );
+
+            // Increment the offset by the size of the element
+            loop_
+                .local_get(offset)
+                .i32_const(elem_size)
+                .binop(BinaryOp::I32Add)
+                .local_set(offset);
+
+            // Loop if we haven't reached the end of the sequence
+            loop_
+                .local_get(offset)
+                .local_get(end_offset)
+                .binop(BinaryOp::I32LtU)
+                .br_if(loop_id);
+        });
 
         Ok(builder)
     }

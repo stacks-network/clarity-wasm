@@ -14,3 +14,8 @@ wasmtime = "11.0.1"
 sha2 = "0.10.7"
 chrono = "0.4.20"
 rusqlite = "0.24.2"
+criterion = "0.5.1"
+
+[[bench]]
+name = "benchmark"
+harness = false
