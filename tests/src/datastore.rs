@@ -97,6 +97,12 @@ impl Datastore {
     }
 }
 
+impl Default for Datastore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClarityBackingStore for Datastore {
     fn put_all(&mut self, items: Vec<(String, String)>) {
         for (key, value) in items {

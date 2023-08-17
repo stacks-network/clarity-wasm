@@ -1,7 +1,17 @@
-use clarity::{vm::{types::{QualifiedContractIdentifier, StandardPrincipalData}, ContractName, database::ClarityDatabase, costs::LimitedCostTracker, contexts::GlobalContext, ContractContext, ClarityVersion}, types::StacksEpochId, consts::CHAIN_ID_TESTNET};
-use criterion::{criterion_group, criterion_main, Criterion};
-use clar2wasm_tests::datastore::{Datastore, StacksConstants, BurnDatastore};
+use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clar2wasm_tests::util::WasmtimeHelper;
+use clarity::{
+    consts::CHAIN_ID_TESTNET,
+    types::StacksEpochId,
+    vm::{
+        contexts::GlobalContext,
+        costs::LimitedCostTracker,
+        database::ClarityDatabase,
+        types::{QualifiedContractIdentifier, StandardPrincipalData},
+        ClarityVersion, ContractContext, ContractName,
+    },
+};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 fn fold_add(c: &mut Criterion) {
     c.bench_function("fold_add", |b| {
