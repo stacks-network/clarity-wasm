@@ -498,6 +498,64 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         Ok(builder)
     }
 
+    fn traverse_comparison<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &'a SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let ty = self.get_expr_type(expr);
+        let type_suffix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "string-ascii"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                "string-utf8"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buffer",
+            _ => {
+                self.error = Some(GeneratorError::InternalError(
+                    "invalid type for comparison".to_string(),
+                ));
+                return Err(builder);
+            }
+        };
+        let helper_func = match func {
+            NativeFunctions::CmpLess => self
+                .module
+                .funcs
+                .by_name(&format!("lt-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: lt-{type_suffix}")),
+            NativeFunctions::CmpGreater => self
+                .module
+                .funcs
+                .by_name(&format!("gt-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: gt-{type_suffix}")),
+            NativeFunctions::CmpLeq => self
+                .module
+                .funcs
+                .by_name(&format!("le-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: le-{type_suffix}")),
+            NativeFunctions::CmpGeq => self
+                .module
+                .funcs
+                .by_name(&format!("ge-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: ge-{type_suffix}")),
+            _ => {
+                self.error = Some(GeneratorError::NotImplemented);
+                return Err(builder);
+            }
+        };
+        builder = self.traverse_expr(builder, &operands[0])?;
+        builder = self.traverse_expr(builder, &operands[1])?;
+        builder.call(helper_func);
+
+        Ok(builder)
+    }
+
     fn visit_literal_value<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
