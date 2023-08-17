@@ -36,8 +36,8 @@ pub struct WasmGenerator {
 
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
-    /// Size of the current function's stack.
-    stack_size: i32,
+    /// Size of the current function's stack frame.
+    frame_size: i32,
 }
 
 pub enum GeneratorError {
@@ -73,7 +73,7 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
-        _ => unimplemented!("Unsupported type for stack local"),
+        _ => unimplemented!("Unsupported type: {}", ty),
     }
 }
 
@@ -104,7 +104,7 @@ impl WasmGenerator {
             literal_memory_end: 0,
             stack_pointer: global_id,
             locals: HashMap::new(),
-            stack_size: 0,
+            frame_size: 0,
             identifiers: HashMap::new(),
             next_identifier: 0,
         }
@@ -194,11 +194,11 @@ impl WasmGenerator {
         let mut func_body = func_builder.func_body();
 
         // Function prelude
-        // Store the initial stack offset.
-        let initial_stack_pointer = self.module.locals.add(ValType::I32);
+        // Save the frame pointer in a local variable.
+        let frame_pointer = self.module.locals.add(ValType::I32);
         func_body
             .global_get(self.stack_pointer)
-            .local_set(initial_stack_pointer);
+            .local_set(frame_pointer);
 
         // Setup the locals map for this function, saving the top-level map to
         // restore after.
@@ -226,7 +226,7 @@ impl WasmGenerator {
         // Function postlude
         // Restore the initial stack pointer.
         func_body
-            .local_get(initial_stack_pointer)
+            .local_get(frame_pointer)
             .global_set(self.stack_pointer);
 
         // Restore the top-level locals map.
@@ -298,9 +298,9 @@ impl WasmGenerator {
         (offset, len)
     }
 
-    /// Push a new local onto the stack, adjusting the stack pointer and
-    /// tracking the current function's stack size accordingly.
-    pub fn create_stack_local<'b>(
+    /// Push a new local onto the call stack, adjusting the stack pointer and
+    /// tracking the current function's frame size accordingly.
+    pub fn create_call_stack_local<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         stack_pointer: GlobalId,
@@ -312,7 +312,7 @@ impl WasmGenerator {
         let offset = self.module.locals.add(ValType::I32);
         builder.global_get(stack_pointer).local_tee(offset);
 
-        // TODO: The total stack size can be computed at compile time, so we
+        // TODO: The frame stack size can be computed at compile time, so we
         //       should be able to increment the stack pointer once in the function
         //       prelude with a constant instead of incrementing it for each local.
         // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
@@ -320,14 +320,14 @@ impl WasmGenerator {
             .i32_const(size)
             .binop(BinaryOp::I32Add)
             .global_set(stack_pointer);
-        self.stack_size += size;
+        self.frame_size += size;
 
         (builder, offset, size)
     }
 
-    /// Write the value on the top of the stack, which has type `ty`, to the
-    /// memory, at offset stored in local variable, `offset_local`, plus
-    /// constant offset `offset`.
+    /// Write the value that is on the top of the data stack, which has type
+    /// `ty`, to the memory, at offset stored in local variable,
+    /// `offset_local`, plus constant offset `offset`.
     fn write_to_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -338,7 +338,7 @@ impl WasmGenerator {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let size = match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
-                // Stack: TOP | Low | High | ...
+                // Data stack: TOP | Low | High | ...
                 // Save the high/low to locals.
                 let high = self.module.locals.add(ValType::I64);
                 let low = self.module.locals.add(ValType::I64);
@@ -366,7 +366,7 @@ impl WasmGenerator {
     }
 
     /// Read a value from memory at offset stored in local variable `offset`,
-    /// with type `ty`, and load it onto the top of the stack.
+    /// with type `ty`, and push it onto the top of the data stack.
     fn read_from_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -594,14 +594,15 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
         // The initial value can be placed on the top of the memory, since at
-        // the top-level, we have not set up the stack yet.
+        // the top-level, we have not set up the call stack yet.
         let ty = self.get_expr_type(initial).clone();
         let offset = self.module.locals.add(ValType::I32);
         builder
             .i32_const(self.literal_memory_end as i32)
             .local_set(offset);
 
-        // Traverse the initial value for the data variable (result is on stack)
+        // Traverse the initial value for the data variable (result is on the
+        // data stack)
         builder = self.traverse_expr(builder, initial)?;
 
         // Write the initial value to the memory, to be read by the host.
@@ -613,18 +614,18 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         //        is called.
         self.literal_memory_end += size as u32;
 
-        // Push the variable identifier onto the stack
+        // Push the variable identifier onto the data stack
         builder.i32_const(var_id);
 
-        // Push the name onto the stack
+        // Push the name onto the data stack
         builder
             .i32_const(name_offset as i32)
             .i32_const(name_length as i32);
 
-        // Push the offset onto the stack
+        // Push the offset onto the data stack
         builder.local_get(offset);
 
-        // Push the size onto the stack
+        // Push the size onto the data stack
         builder.i32_const(size);
 
         // Call the host interface function, `define_variable`
@@ -703,12 +704,12 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Create a new sequence to hold the result on the stack
+        // Create a new sequence to hold the result in the stack frame
         let ty = self.get_expr_type(expr).clone();
         let offset;
-        (builder, offset, _) = self.create_stack_local(builder, self.stack_pointer, &ty);
+        (builder, offset, _) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
-        // Traverse the lhs, leaving it on the stack (offset, size)
+        // Traverse the lhs, leaving it on the data stack (offset, size)
         builder = self.traverse_expr(builder, lhs)?;
 
         // Retrieve the memcpy function:
@@ -726,7 +727,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         let end_offset = self.module.locals.add(ValType::I32);
         builder.local_set(end_offset);
 
-        // Traverse the rhs, leaving it on the stack (offset, size)
+        // Traverse the rhs, leaving it on the data stack (offset, size)
         builder = self.traverse_expr(builder, rhs)?;
 
         // Copy the rhs to the new sequence
@@ -757,15 +758,15 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .get(&name.to_string())
             .expect("variable not found: {name}");
 
-        // Create a new sequence to hold the result on the stack
+        // Create a new sequence to hold the result on the call stack
         let ty = self.get_expr_type(expr).clone();
         let (offset, size);
-        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+        (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
-        // Push the variable identifier onto the stack
+        // Push the variable identifier onto the data stack
         builder.i32_const(var_id);
 
-        // Push the offset and size to the stack
+        // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
 
         // Call the host interface function, `get_variable`
@@ -777,7 +778,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         );
 
         // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the stack.
+        // back out, and place the value on the data stack.
         self.read_from_memory(builder.borrow_mut(), offset, &ty);
 
         Ok(builder)
@@ -796,18 +797,18 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .get(&name.to_string())
             .expect("variable not found: {name}");
 
-        // Create space on the memory stack to write the value
+        // Create space on the call stack to write the value
         let ty = self.get_expr_type(value).clone();
         let (offset, size);
-        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+        (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
-        // Write the value to the memory (it's already on the stack)
+        // Write the value to the memory (it's already on the data stack)
         self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
-        // Push the variable identifier onto the stack
+        // Push the variable identifier onto the data stack
         builder.i32_const(var_id);
 
-        // Push the offset and size to the stack
+        // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
 
         // Call the host interface function, `set_variable`
@@ -820,7 +821,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         // `var-set` always returns `true`
         // FIXME: This is commented out now until we add code to drop unused
-        //        values from the stack. See issue #27.
+        //        values from the data stack. See issue #27.
         // builder.i32_const(1);
 
         Ok(builder)
@@ -847,7 +848,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         // Allocate space on the data stack for the entire list
         let (offset, size);
-        (builder, offset, size) = self.create_stack_local(builder, self.stack_pointer, &ty);
+        (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
         // Loop through the expressions in the list and store them onto the
         // data stack.
@@ -859,7 +860,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         }
         assert_eq!(total_size, size as u32, "list size mismatch");
 
-        // Push the offset and size to the instruction stack
+        // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
 
         Ok(builder)
@@ -911,8 +912,8 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             _ => unimplemented!("Unsupported sequence type"),
         };
 
-        // Evaluate the sequence, which will load it onto the memory stack,
-        // leaving the offset and size on the stack.
+        // Evaluate the sequence, which will load it into the call stack,
+        // leaving the offset and size on the data stack.
         builder = self.traverse_expr(builder, sequence)?;
 
         // Drop the size, since we don't need it
@@ -932,7 +933,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .binop(BinaryOp::I32Add)
             .local_set(end_offset);
 
-        // Evaluate the initial value, so that its result is on the stack
+        // Evaluate the initial value, so that its result is on the data stack
         builder = self.traverse_expr(builder, initial)?;
 
         if seq_len == 0 {
