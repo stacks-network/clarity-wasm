@@ -253,13 +253,12 @@ impl WasmGenerator {
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
-    fn get_expr_type(&self, expr: &SymbolicExpression) -> &TypeSignature {
+    fn get_expr_type(&self, expr: &SymbolicExpression) -> Option<&TypeSignature> {
         self.contract_analysis
             .type_map
             .as_ref()
             .expect("type-checker must be called before Wasm generation")
             .get_type(expr)
-            .expect("expression must be typed")
     }
 
     /// Adds a new string literal into the memory, and returns the offset and length.
@@ -407,6 +406,30 @@ impl WasmGenerator {
         self.next_identifier += 1;
         id
     }
+
+    fn traverse_statement_list<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        statements: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        assert!(
+            statements.len() > 1,
+            "statement list must have at least one statement"
+        );
+        // Traverse all but the last statement and drop any unused values.
+        for stmt in &statements[..statements.len() - 1] {
+            builder = self.traverse_expr(builder, stmt)?;
+            // If stmt has a type, and is not the last statement, its value
+            // needs to be discarded.
+            if let Some(ty) = self.get_expr_type(stmt) {
+                drop_value(builder.borrow_mut(), ty);
+            }
+        }
+
+        // Traverse the last statement in the block, whose result is the result
+        // of the `begin` expression.
+        self.traverse_expr(builder, statements.last().unwrap())
+    }
 }
 
 impl<'a> ASTVisitor<'a> for WasmGenerator {
@@ -417,7 +440,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let ty = self.get_expr_type(expr);
+        let ty = self
+            .get_expr_type(expr)
+            .expect("arithmetic expression must be typed");
         let type_suffix = match ty {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -510,7 +535,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         atom: &'a clarity::vm::ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // FIXME: This should also handle constants and keywords
-        let types = clar2wasm_ty(self.get_expr_type(expr));
+        let types = clar2wasm_ty(
+            self.get_expr_type(expr)
+                .expect("atom expression must be typed"),
+        );
         for n in 0..types.len() {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
@@ -595,7 +623,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
 
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
-        let ty = self.get_expr_type(initial).clone();
+        let ty = self
+            .get_expr_type(initial)
+            .expect("initial value expression must be typed")
+            .clone();
         let offset = self.module.locals.add(ValType::I32);
         builder
             .i32_const(self.literal_memory_end as i32)
@@ -638,6 +669,15 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         Ok(builder)
     }
 
+    fn traverse_begin<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &'a SymbolicExpression,
+        statements: &'a [SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.traverse_statement_list(builder, statements)
+    }
+
     fn traverse_ok<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -648,7 +688,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // followed by a placeholder for the err value
         builder.i32_const(1);
         builder = self.traverse_expr(builder, value)?;
-        let ty = self.get_expr_type(expr);
+        let ty = self
+            .get_expr_type(expr)
+            .expect("ok expression must be typed");
         if let TypeSignature::ResponseType(inner_types) = ty {
             let err_types = clar2wasm_ty(&inner_types.1);
             for err_type in err_types.iter() {
@@ -669,7 +711,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
         builder.i32_const(0);
-        let ty = self.get_expr_type(expr);
+        let ty = self
+            .get_expr_type(expr)
+            .expect("err expression must be typed");
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
@@ -705,7 +749,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         rhs: &'a SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // Create a new sequence to hold the result in the stack frame
-        let ty = self.get_expr_type(expr).clone();
+        let ty = self
+            .get_expr_type(expr)
+            .expect("concat expression must be typed")
+            .clone();
         let offset;
         (builder, offset, _) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
@@ -759,7 +806,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .expect("variable not found: {name}");
 
         // Create a new sequence to hold the result on the call stack
-        let ty = self.get_expr_type(expr).clone();
+        let ty = self
+            .get_expr_type(expr)
+            .expect("var-get expression must be typed")
+            .clone();
         let (offset, size);
         (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
@@ -798,7 +848,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
             .expect("variable not found: {name}");
 
         // Create space on the call stack to write the value
-        let ty = self.get_expr_type(value).clone();
+        let ty = self
+            .get_expr_type(value)
+            .expect("var-set value expression must be typed")
+            .clone();
         let (offset, size);
         (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
@@ -820,9 +873,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         );
 
         // `var-set` always returns `true`
-        // FIXME: This is commented out now until we add code to drop unused
-        //        values from the data stack. See issue #27.
-        // builder.i32_const(1);
+        builder.i32_const(1);
 
         Ok(builder)
     }
@@ -833,7 +884,10 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         expr: &'a SymbolicExpression,
         list: &'a [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let ty = self.get_expr_type(expr).clone();
+        let ty = self
+            .get_expr_type(expr)
+            .expect("list expression must be typed")
+            .clone();
         let (elem_ty, num_elem) =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 (list_type.get_list_item_type(), list_type.get_max_len())
@@ -886,12 +940,17 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         // ```
 
         // The result type must match the type of the initial value
-        let result_clar_ty = self.get_expr_type(initial);
+        let result_clar_ty = self
+            .get_expr_type(initial)
+            .expect("fold's initial value expression must be typed");
         let result_ty = clar2wasm_ty(result_clar_ty);
         let loop_body_ty = InstrSeqType::new(&mut self.module.types, &[], &[]);
 
         // Get the type of the sequence
-        let seq_ty = match self.get_expr_type(sequence) {
+        let seq_ty = match self
+            .get_expr_type(sequence)
+            .expect("sequence expression must be typed")
+        {
             TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
             _ => {
                 self.error = Some(GeneratorError::InternalError(
@@ -1013,6 +1072,15 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             ValType::I32, // offset
             ValType::I32, // length
         ],
+        TypeSignature::BoolType => vec![ValType::I32],
         _ => unimplemented!("{:?}", ty),
     }
+}
+
+/// Drop a value of type `ty` from the data stack.
+fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+    let wasm_types = clar2wasm_ty(ty);
+    (0..wasm_types.len()).for_each(|_| {
+        builder.drop();
+    });
 }
