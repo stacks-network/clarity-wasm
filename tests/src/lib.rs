@@ -212,19 +212,18 @@ fn map_wasm_value(
 }
 
 impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
-    pub fn new(
+    /// Creates a new `WasmtimeHelper` using the Clarity in the provided string reference.
+    pub fn new_from_str(
         contract_id: QualifiedContractIdentifier,
         global_context: &'b mut GlobalContext<'a, 'hooks>,
         contract_context: &'b mut ContractContext,
+        contract_text: &str,
     ) -> Self {
-        let contract_str =
-            std::fs::read_to_string(format!("contracts/{}.clar", contract_id.name)).unwrap();
-
         let cost_tracker = LimitedCostTracker::Free;
         let mut clarity_store = MemoryBackingStore::new();
 
         let mut compile_result = compile(
-            contract_str.as_str(),
+            contract_text,
             &contract_id,
             cost_tracker,
             ClarityVersion::Clarity2,
@@ -243,6 +242,53 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
         let mut linker = Linker::new(&engine);
 
         // Link in the host interface functions.
+        Self::link_define_variable_fn(&mut linker);
+        Self::link_get_variable_fn(&mut linker);
+        Self::link_set_variable_fn(&mut linker);
+
+        // Create a log function for debugging.
+        linker
+            .func_wrap(
+                "",
+                "log",
+                |_: Caller<'_, ClarityWasmContext>, param: i64| {
+                    println!("log: {param}");
+                },
+            )
+            .unwrap();
+
+        let instance = linker.instantiate(store.as_context_mut(), &module).unwrap();
+
+        let mut helper = WasmtimeHelper {
+            module,
+            instance,
+            store: Box::new(store),
+        };
+
+        // Run the top-level expressions
+        helper.call_top_level();
+
+        helper
+    }
+
+    /// Creates a new `WasmtimeHelper` using Clarity in the file at the specified path.
+    pub fn new_from_file(
+        contract_id: QualifiedContractIdentifier,
+        global_context: &'b mut GlobalContext<'a, 'hooks>,
+        contract_context: &'b mut ContractContext,
+    ) -> Self {
+        let contract_str =
+            std::fs::read_to_string(format!("contracts/{}.clar", contract_id.name)).unwrap();
+
+        Self::new_from_str(
+            contract_id,
+            global_context,
+            contract_context,
+            contract_str.as_str(),
+        )
+    }
+
+    fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -305,7 +351,9 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
+    }
 
+    fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -351,7 +399,9 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
+    }
 
+    fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -402,30 +452,6 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
-
-        // Create a log function for debugging.
-        linker
-            .func_wrap(
-                "",
-                "log",
-                |_: Caller<'_, ClarityWasmContext>, param: i64| {
-                    println!("log: {param}");
-                },
-            )
-            .unwrap();
-
-        let instance = linker.instantiate(store.as_context_mut(), &module).unwrap();
-
-        let mut helper = WasmtimeHelper {
-            module,
-            instance,
-            store: Box::new(store),
-        };
-
-        // Run the top-level expressions
-        helper.call_top_level();
-
-        helper
     }
 
     /// Read an identifier (string) from the WASM memory at `offset` with `length`.
