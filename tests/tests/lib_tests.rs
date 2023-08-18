@@ -21,13 +21,7 @@ fn add() {
         ContractName::from("add"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -46,7 +40,7 @@ fn add() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -75,13 +69,7 @@ fn call_private_with_args_nested() {
         ContractName::from("call-private-with-args"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -100,7 +88,7 @@ fn call_private_with_args_nested() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -129,13 +117,7 @@ fn call_public() {
         ContractName::from("call-public"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -154,7 +136,7 @@ fn call_public() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -183,13 +165,7 @@ fn call_public_nested() {
         ContractName::from("call-public"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -208,7 +184,7 @@ fn call_public_nested() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -237,13 +213,7 @@ fn call_public_with_args() {
         ContractName::from("call-public-with-args"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -262,7 +232,7 @@ fn call_public_with_args() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         let params = &[Val::I64(0), Val::I64(20), Val::I64(0), Val::I64(22)];
 
@@ -293,13 +263,7 @@ fn call_public_with_args_nested() {
         ContractName::from("call-public-with-args"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -318,7 +282,7 @@ fn call_public_with_args_nested() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -347,13 +311,7 @@ fn define_public_err() {
         ContractName::from("define-public-err"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -372,7 +330,7 @@ fn define_public_err() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -401,13 +359,7 @@ fn define_public_ok() {
         ContractName::from("define-public-ok"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -426,7 +378,7 @@ fn define_public_ok() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -455,13 +407,7 @@ fn var_get() {
         ContractName::from("var-get"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -480,7 +426,7 @@ fn var_get() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -509,13 +455,7 @@ fn var_set() {
         ContractName::from("var-set"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -534,7 +474,7 @@ fn var_set() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,
@@ -563,13 +503,7 @@ fn fold() {
         ContractName::from("fold"),
     );
     let mut datastore = Datastore::new();
-    let constants = StacksConstants {
-        burn_start_height: 0,
-        pox_prepare_length: 0,
-        pox_reward_cycle_length: 0,
-        pox_rejection_fraction: 0,
-        epoch_21_start_height: 0,
-    };
+    let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
@@ -588,7 +522,7 @@ fn fold() {
     global_context.begin();
     {
         let mut helper =
-            WasmtimeHelper::new(contract_id, &mut global_context, &mut contract_context);
+            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
 
         if let ClarityWasmResult::Response {
             indicator,

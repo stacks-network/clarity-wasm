@@ -212,7 +212,7 @@ fn map_wasm_value(
 }
 
 impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
-    pub fn new(
+    pub fn new_from_file(
         contract_id: QualifiedContractIdentifier,
         global_context: &'b mut GlobalContext<'a, 'hooks>,
         contract_context: &'b mut ContractContext,
@@ -243,6 +243,36 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
         let mut linker = Linker::new(&engine);
 
         // Link in the host interface functions.
+        Self::link_define_variable_fn(&mut linker);
+        Self::link_get_variable_fn(&mut linker);
+        Self::link_set_variable_fn(&mut linker);
+
+        // Create a log function for debugging.
+        linker
+            .func_wrap(
+                "",
+                "log",
+                |_: Caller<'_, ClarityWasmContext>, param: i64| {
+                    println!("log: {param}");
+                },
+            )
+            .unwrap();
+
+        let instance = linker.instantiate(store.as_context_mut(), &module).unwrap();
+
+        let mut helper = WasmtimeHelper {
+            module,
+            instance,
+            store: Box::new(store),
+        };
+
+        // Run the top-level expressions
+        helper.call_top_level();
+
+        helper
+    }
+
+    fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -305,7 +335,9 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
+    }
 
+    fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -351,7 +383,9 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
+    }
 
+    fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
         linker
             .func_wrap(
                 "clarity",
@@ -402,30 +436,6 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                 },
             )
             .unwrap();
-
-        // Create a log function for debugging.
-        linker
-            .func_wrap(
-                "",
-                "log",
-                |_: Caller<'_, ClarityWasmContext>, param: i64| {
-                    println!("log: {param}");
-                },
-            )
-            .unwrap();
-
-        let instance = linker.instantiate(store.as_context_mut(), &module).unwrap();
-
-        let mut helper = WasmtimeHelper {
-            module,
-            instance,
-            store: Box::new(store),
-        };
-
-        // Run the top-level expressions
-        helper.call_top_level();
-
-        helper
     }
 
     /// Read an identifier (string) from the WASM memory at `offset` with `length`.

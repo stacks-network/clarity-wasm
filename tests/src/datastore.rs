@@ -43,7 +43,7 @@ pub struct BlockInfo {
     pox_payout_addrs: (Vec<TupleData>, u128),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StacksConstants {
     pub burn_start_height: u32,
     pub pox_prepare_length: u32,
