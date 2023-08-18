@@ -212,12 +212,12 @@ fn map_wasm_value(
 }
 
 impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
-
     /// Creates a new `WasmtimeHelper` using the Clarity in the provided string reference.
-    pub fn new_from_str(contract_id: QualifiedContractIdentifier,
+    pub fn new_from_str(
+        contract_id: QualifiedContractIdentifier,
         global_context: &'b mut GlobalContext<'a, 'hooks>,
         contract_context: &'b mut ContractContext,
-        contract_text: &str
+        contract_text: &str,
     ) -> Self {
         let cost_tracker = LimitedCostTracker::Free;
         let mut clarity_store = MemoryBackingStore::new();
@@ -275,12 +275,17 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
     pub fn new_from_file(
         contract_id: QualifiedContractIdentifier,
         global_context: &'b mut GlobalContext<'a, 'hooks>,
-        contract_context: &'b mut ContractContext
+        contract_context: &'b mut ContractContext,
     ) -> Self {
         let contract_str =
             std::fs::read_to_string(format!("contracts/{}.clar", contract_id.name)).unwrap();
 
-        Self::new_from_str(contract_id, global_context, contract_context, contract_str.as_str())
+        Self::new_from_str(
+            contract_id,
+            global_context,
+            contract_context,
+            contract_str.as_str(),
+        )
     }
 
     fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) {
