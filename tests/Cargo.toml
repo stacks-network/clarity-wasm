@@ -7,13 +7,12 @@ edition = "2021"
 path = "./src/lib.rs"
 
 [dependencies]
-# TODO: switch back to tag after PR is merged
 clarity-vm = { version = "2" }
 clar2wasm = { path = "../clar2wasm" }
 wasmtime = "11.0.1"
 sha2 = "0.10.7"
 chrono = "0.4.20"
-rusqlite = "0.24.2"
+rusqlite = "0.27.0"
 
 [[bench]]
 name = "benchmark"

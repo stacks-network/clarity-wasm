@@ -314,7 +314,6 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .expect("failed to get variable type")
                         .clone();
                     let contract = caller.data().contract_context.contract_identifier.clone();
-                    let epoch = caller.data().global_context.epoch_id;
                     let value = WasmtimeHelper::read_from_wasm(
                         &mut caller,
                         &ty,
@@ -340,7 +339,7 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .data_mut()
                         .global_context
                         .database
-                        .set_variable(&contract, name.as_str(), value, &data_types, &epoch)
+                        .set_variable(&contract, name.as_str(), value, &data_types)
                         .unwrap();
 
                     caller
@@ -380,12 +379,7 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .data_mut()
                         .global_context
                         .database
-                        .lookup_variable_with_size(
-                            &contract,
-                            var_name.as_str(),
-                            &data_types,
-                            &StacksEpochId::Epoch24,
-                        )
+                        .lookup_variable_with_size(&contract, var_name.as_str(), &data_types)
                         .unwrap()
                         .value;
 
@@ -433,7 +427,6 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                     );
 
                     let contract = caller.data().contract_context.contract_identifier.clone();
-                    let epoch = caller.data().global_context.epoch_id;
                     let data_types = caller
                         .data()
                         .contract_context
@@ -447,7 +440,7 @@ impl<'a, 'b, 'hooks> WasmtimeHelper<'a, 'b, 'hooks> {
                         .data_mut()
                         .global_context
                         .database
-                        .set_variable(&contract, var_name.as_str(), value, &data_types, &epoch)
+                        .set_variable(&contract, var_name.as_str(), value, &data_types)
                         .unwrap();
                 },
             )
