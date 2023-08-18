@@ -5,8 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-# TODO: switch back to tag after PR is merged
-clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
+clarity-vm = { version = "2" }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"

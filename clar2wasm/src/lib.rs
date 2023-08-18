@@ -26,6 +26,7 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
     runtime: 5_000_000_000,
 };
 
+#[derive(Debug)]
 pub struct CompileResult {
     pub diagnostics: Vec<Diagnostic>,
     pub module: Module,
