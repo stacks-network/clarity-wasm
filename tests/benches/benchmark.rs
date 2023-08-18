@@ -45,8 +45,11 @@ fn fold_add(c: &mut Criterion) {
 
         global_context.begin();
         {
-            let mut helper =
-                WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
+            let mut helper = WasmtimeHelper::new_from_file(
+                contract_id,
+                &mut global_context,
+                &mut contract_context,
+            );
 
             b.iter(|| {
                 helper.call_public_function("fold-add", &[]);
