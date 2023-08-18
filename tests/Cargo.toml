@@ -8,7 +8,7 @@ path = "./src/lib.rs"
 
 [dependencies]
 # TODO: switch back to tag after PR is merged
-clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
+clarity-vm = { version = "2" }
 clar2wasm = { path = "../clar2wasm" }
 wasmtime = "11.0.1"
 sha2 = "0.10.7"
