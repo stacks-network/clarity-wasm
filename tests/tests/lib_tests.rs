@@ -33,13 +33,7 @@ macro_rules! test_contract {
                 ContractName::from($contract_name),
             );
             let mut datastore = Datastore::new();
-            let constants = StacksConstants {
-                burn_start_height: 0,
-                pox_prepare_length: 0,
-                pox_reward_cycle_length: 0,
-                pox_rejection_fraction: 0,
-                epoch_21_start_height: 0,
-            };
+            let constants = StacksConstants::default();
             let burn_datastore = BurnDatastore::new(constants);
             let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
             conn.begin();
