@@ -5,16 +5,14 @@ use clarity::{
         contexts::GlobalContext,
         costs::LimitedCostTracker,
         database::ClarityDatabase,
-        types::{QualifiedContractIdentifier, StandardPrincipalData},
-        ClarityVersion, ContractContext, ContractName,
+        types::{QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
+        ClarityVersion, ContractContext, ContractName, Value,
     },
 };
 use wasmtime::Val;
 
 use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clar2wasm_tests::{ClarityWasmResult, WasmtimeHelper};
-
-type Res = Option<Box<ClarityWasmResult>>;
+use clar2wasm_tests::WasmtimeHelper;
 
 /// This macro provides a convenient way to test functions inside contracts.
 /// In order, it takes as parameters:
@@ -59,13 +57,10 @@ macro_rules! test_contract {
                     &mut contract_context,
                 );
 
-                if let ClarityWasmResult::Response {
-                    indicator,
-                    ok_value,
-                    err_value,
-                } = helper.call_public_function($contract_func, $params)
+                if let Value::Response(response_data) =
+                    helper.call_public_function($contract_func, $params)
                 {
-                    $test(indicator, ok_value, err_value);
+                    $test(response_data);
                 } else {
                     panic!("Unexpected result received from WASM function call.");
                 }
@@ -80,33 +75,18 @@ macro_rules! test_contract {
     };
 }
 
-test_contract!(
-    test_add,
-    "add",
-    "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 3);
-        }
-    }
-);
+test_contract!(test_add, "add", "simple", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::Int(3));
+});
 
 test_contract!(
     test_call_private_with_args_nested,
     "call-private-with-args",
     "call-it",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 3);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
     }
 );
 
@@ -114,14 +94,9 @@ test_contract!(
     test_call_public,
     "call-public",
     "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 42);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
 
@@ -129,14 +104,9 @@ test_contract!(
     test_call_public_nested,
     "call-public",
     "call-it",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 42);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
 
@@ -145,14 +115,9 @@ test_contract!(
     "call-public-with-args",
     "simple",
     &[Val::I64(0), Val::I64(20), Val::I64(0), Val::I64(22)],
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 42);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
 
@@ -160,14 +125,9 @@ test_contract!(
     test_call_public_with_args_nested,
     "call-public-with-args",
     "call-it",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 3);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
     }
 );
 
@@ -175,14 +135,9 @@ test_contract!(
     test_define_public_err,
     "define-public-err",
     "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 0);
-        assert!(ok_value.is_none());
-        assert!(err_value.is_some());
-        if let ClarityWasmResult::Int { high, low } = *err_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 42);
-        }
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
 
@@ -190,14 +145,9 @@ test_contract!(
     test_define_public_ok,
     "define-public-ok",
     "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 42);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
 
@@ -205,14 +155,9 @@ test_contract!(
     test_var_get,
     "var-get",
     "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 123);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(123));
     }
 );
 
@@ -220,28 +165,13 @@ test_contract!(
     test_var_set,
     "var-set",
     "simple",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0x123);
-            assert_eq!(low, 0x456);
-        }
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(0x123_0000_0000_0000_0456));
     }
 );
 
-test_contract!(
-    test_fold,
-    "fold",
-    "fold-sub",
-    |indicator, ok_value: Res, err_value: Res| {
-        assert_eq!(indicator, 1);
-        assert!(ok_value.is_some());
-        assert!(err_value.is_none());
-        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-            assert_eq!(high, 0);
-            assert_eq!(low, 2);
-        }
-    }
-);
+test_contract!(test_fold, "fold", "fold-sub", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::Int(2));
+});
