@@ -14,532 +14,234 @@ use wasmtime::Val;
 use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clar2wasm_tests::{ClarityWasmResult, WasmtimeHelper};
 
-#[test]
-fn add() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("add"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
+type Res = Option<Box<ClarityWasmResult>>;
 
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|indicator: i32, ok_value: Res, err_value: Res|`, and
+///   that contains all the assertions we want to test.
+macro_rules! test_contract {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        #[test]
+        fn $func() {
+            let contract_id = QualifiedContractIdentifier::new(
+                StandardPrincipalData::transient(),
+                ContractName::from($contract_name),
+            );
+            let mut datastore = Datastore::new();
+            let constants = StacksConstants::default();
+            let burn_datastore = BurnDatastore::new(constants);
+            let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+            conn.begin();
+            conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
+            conn.commit();
+            let cost_tracker = LimitedCostTracker::new_free();
+            let mut global_context = GlobalContext::new(
+                false,
+                CHAIN_ID_TESTNET,
+                conn,
+                cost_tracker,
+                StacksEpochId::Epoch24,
+            );
+            let mut contract_context =
+                ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
 
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 3);
+            global_context.begin();
+
+            {
+                let mut helper = WasmtimeHelper::new_from_file(
+                    contract_id,
+                    &mut global_context,
+                    &mut contract_context,
+                );
+
+                if let ClarityWasmResult::Response {
+                    indicator,
+                    ok_value,
+                    err_value,
+                } = helper.call_public_function($contract_func, $params)
+                {
+                    $test(indicator, ok_value, err_value);
+                } else {
+                    panic!("Unexpected result received from WASM function call.");
+                }
             }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+
+            global_context.commit().unwrap();
         }
-    }
-    global_context.commit().unwrap();
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_contract!($func, $contract_name, $contract_func, &[], $test);
+    };
 }
 
-#[test]
-fn call_private_with_args_nested() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("call-private-with-args"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("call-it", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 3);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_add,
+    "add",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 3);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn call_public() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("call-public"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 42);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_call_private_with_args_nested,
+    "call-private-with-args",
+    "call-it",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 3);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn call_public_nested() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("call-public"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("call-it", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 42);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_call_public,
+    "call-public",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 42);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn call_public_with_args() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("call-public-with-args"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        let params = &[Val::I64(0), Val::I64(20), Val::I64(0), Val::I64(22)];
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", params)
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 42);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_call_public_nested,
+    "call-public",
+    "call-it",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 42);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn call_public_with_args_nested() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("call-public-with-args"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("call-it", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 3);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_call_public_with_args,
+    "call-public-with-args",
+    "simple",
+    &[Val::I64(0), Val::I64(20), Val::I64(0), Val::I64(22)],
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 42);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn define_public_err() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("define-public-err"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 0);
-            assert!(ok_value.is_none());
-            assert!(err_value.is_some());
-            if let ClarityWasmResult::Int { high, low } = *err_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 42);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_call_public_with_args_nested,
+    "call-public-with-args",
+    "call-it",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 3);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn define_public_ok() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("define-public-ok"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 42);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_define_public_err,
+    "define-public-err",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 0);
+        assert!(ok_value.is_none());
+        assert!(err_value.is_some());
+        if let ClarityWasmResult::Int { high, low } = *err_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 42);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn var_get() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("var-get"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 123);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_define_public_ok,
+    "define-public-ok",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 42);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn var_set() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("var-set"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("simple", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0x123);
-                assert_eq!(low, 0x456);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_var_get,
+    "var-get",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 123);
         }
     }
-    global_context.commit().unwrap();
-}
+);
 
-#[test]
-fn fold() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("fold"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        cost_tracker,
-        StacksEpochId::Epoch24,
-    );
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
-    global_context.begin();
-    {
-        let mut helper =
-            WasmtimeHelper::new_from_file(contract_id, &mut global_context, &mut contract_context);
-
-        if let ClarityWasmResult::Response {
-            indicator,
-            ok_value,
-            err_value,
-        } = helper.call_public_function("fold-sub", &[])
-        {
-            assert_eq!(indicator, 1);
-            assert!(ok_value.is_some());
-            assert!(err_value.is_none());
-            if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
-                assert_eq!(high, 0);
-                assert_eq!(low, 2);
-            }
-        } else {
-            panic!("Unexpected result received from WASM function call.");
+test_contract!(
+    test_var_set,
+    "var-set",
+    "simple",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0x123);
+            assert_eq!(low, 0x456);
         }
     }
-    global_context.commit().unwrap();
-}
+);
+
+test_contract!(
+    test_fold,
+    "fold",
+    "fold-sub",
+    |indicator, ok_value: Res, err_value: Res| {
+        assert_eq!(indicator, 1);
+        assert!(ok_value.is_some());
+        assert!(err_value.is_none());
+        if let ClarityWasmResult::Int { high, low } = *ok_value.unwrap() {
+            assert_eq!(high, 0);
+            assert_eq!(low, 2);
+        }
+    }
+);
