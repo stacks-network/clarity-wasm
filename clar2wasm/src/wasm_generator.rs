@@ -505,7 +505,9 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let ty = self.get_expr_type(&operands[0]);
+        let ty = self
+            .get_expr_type(&operands[0])
+            .expect("comparison operands must be typed");
         let type_suffix = match ty {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
