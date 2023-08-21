@@ -180,3 +180,43 @@ test_contract!(test_begin, "begin", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(7));
 });
+
+test_contract!(
+    test_less_than,
+    "cmp-arith",
+    "less-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_greater_than,
+    "cmp-arith",
+    "greater-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_less_or_equal,
+    "cmp-arith",
+    "less-or-equal-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_greater_or_equal,
+    "cmp-arith",
+    "greater-or-equal-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
