@@ -175,3 +175,8 @@ test_contract!(test_fold, "fold", "fold-sub", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(2));
 });
+
+test_contract!(test_begin, "begin", "simple", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::Int(7));
+});
