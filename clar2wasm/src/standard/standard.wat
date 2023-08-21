@@ -614,7 +614,7 @@
         (select
             (i64.gt_u (local.get 1) (local.get 3))
             (i64.gt_s (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 1))
+            (i64.eq (local.get 0) (local.get 2))
         )
     )
 

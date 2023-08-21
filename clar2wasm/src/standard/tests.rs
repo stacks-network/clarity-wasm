@@ -1209,3 +1209,355 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 }
+
+#[test]
+fn test_lt_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let lt = instance.get_func(store.borrow_mut(), "lt-int").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 1 < 1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 < -1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 < 1 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 < -1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 < 0 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -2 < -1 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -2 < -3 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // I128::MIN < -1 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 < I128::MIN is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+}
+
+#[test]
+fn test_gt_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let gt = instance.get_func(store.borrow_mut(), "gt-int").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 1 > 1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 > -1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 > 1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 > -1 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 > 0 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -2 > -1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -2 > -3 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // I128::MIN > -1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 > I128::MIN is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+}
+
+#[test]
+fn test_le_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let le = instance.get_func(store.borrow_mut(), "le-int").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 1 <= 1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 <= -1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 <= 1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 <= -1 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 <= 0 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -2 <= -1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -2 <= -3 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // I128::MIN <= -1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 <= I128::MIN is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+}
+
+#[test]
+fn test_ge_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let ge = instance.get_func(store.borrow_mut(), "ge-int").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 1 >= 1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 >= -1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 >= 1 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 >= -1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // -1 >= 0 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -2 >= -1 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -2 >= -3 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // I128::MIN >= -1 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // -1 >= I128::MIN is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-int failed");
+    assert_eq!(result[0].i32(), Some(1));
+}
