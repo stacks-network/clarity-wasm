@@ -821,3 +821,391 @@ fn test_mod_int() {
         )
         .expect_err("expected divide by zero");
 }
+
+#[test]
+fn test_lt_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let lt = instance.get_func(store.borrow_mut(), "lt-uint").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 0 < 1 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 < 0 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 < 1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 < 4294967296 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 < 4294967297 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967296 < 1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 < 1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967296 < 4294967297 is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 < 4294967296 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 < 4294967297 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+}
+
+#[test]
+fn test_gt_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let gt = instance.get_func(store.borrow_mut(), "gt-uint").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 0 > 1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 > 0 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 > 1 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 > 4294967296 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 > 4294967297 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967296 > 1 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 > 1 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967296 > 4294967297 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 > 4294967296 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 > 4294967297 is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+}
+
+#[test]
+fn test_le_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let le = instance.get_func(store.borrow_mut(), "le-uint").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 0 <= 1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 <= 0 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 <= 1 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 <= 4294967296 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 <= 4294967297 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967296 <= 1 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 <= 1 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967296 <= 4294967297 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 <= 4294967296 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 <= 4294967297 is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+}
+
+#[test]
+fn test_ge_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let ge = instance.get_func(store.borrow_mut(), "ge-uint").unwrap();
+    let mut result = [Val::I32(0)];
+
+    // 0 >= 1 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 >= 0 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 >= 1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 >= 4294967296 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 >= 4294967297 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967296 >= 1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 >= 1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967296 >= 4294967297 is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 4294967297 >= 4294967296 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 4294967297 >= 4294967297 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+}
