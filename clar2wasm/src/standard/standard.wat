@@ -602,6 +602,38 @@
         )
     )
 
+    (func $lt-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.lt_u (local.get 1) (local.get 3))
+            (i64.lt_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $gt-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.gt_u (local.get 1) (local.get 3))
+            (i64.gt_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 1))
+        )
+    )
+
+    (func $le-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.le_u (local.get 1) (local.get 3))
+            (i64.le_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $ge-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.ge_u (local.get 1) (local.get 3))
+            (i64.ge_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
