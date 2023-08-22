@@ -917,6 +917,24 @@ fn test_lt_uint() {
     )
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
+
+    // u128::MAX (-1 if signed) < 1 is false
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 < u128::MAX (-1 if signed) is true
+    lt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
 }
 
 #[test]
@@ -1013,6 +1031,24 @@ fn test_gt_uint() {
         &mut result,
     )
     .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // u128::MAX (-1 if signed) > 1 is true
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 > u128::MAX (-1 if signed) is false
+    gt.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 }
 
@@ -1111,6 +1147,24 @@ fn test_le_uint() {
     )
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
+
+    // u128::MAX (-1 if signed) <= 1 is false
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 1 <= u128::MAX (-1 if signed) is true
+    le.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
 }
 
 #[test]
@@ -1208,6 +1262,24 @@ fn test_ge_uint() {
     )
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
+
+    // u128::MAX (-1 if signed) >= 1 is true
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 1 >= u128::MAX (-1 if signed) is false
+    ge.call(
+        store.borrow_mut(),
+        &[Val::I64(0), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
 }
 
 #[test]
