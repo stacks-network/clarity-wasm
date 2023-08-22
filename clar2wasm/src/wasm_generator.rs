@@ -498,7 +498,7 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
         Ok(builder)
     }
 
-    fn traverse_comparison<'b>(
+    fn visit_comparison<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &'a SymbolicExpression,
@@ -551,8 +551,6 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 return Err(builder);
             }
         };
-        builder = self.traverse_expr(builder, &operands[0])?;
-        builder = self.traverse_expr(builder, &operands[1])?;
         builder.call(helper_func);
 
         Ok(builder)
