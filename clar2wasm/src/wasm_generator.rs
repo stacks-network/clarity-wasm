@@ -479,6 +479,11 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
                 .funcs
                 .by_name(&format!("mod-{type_suffix}"))
                 .unwrap_or_else(|| panic!("function not found: mod-{type_suffix}")),
+            NativeFunctions::Log2 => self
+                .module
+                .funcs
+                .by_name(&format!("log2-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: log2-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return Err(builder);
