@@ -6,6 +6,7 @@
     (type (;2;) (func (param i64 i64 i64 i64) (result i64 i64 i64 i64)))
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
+    (type (;5;) (func (param i64 i64 i64 i64) (result i32)))
 
     ;; Functions imported for host interface
     ;; define_variable(var_id: i32, name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
@@ -569,6 +570,70 @@
         (return (local.get $remainder_hi) (local.get $remainder_lo))
     )
 
+    (func $lt-uint (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.lt_u (local.get 1) (local.get 3))
+            (i64.lt_u (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $gt-uint (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.gt_u (local.get 1) (local.get 3))
+            (i64.gt_u (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $le-uint (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.le_u (local.get 1) (local.get 3))
+            (i64.le_u (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $ge-uint (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.ge_u (local.get 1) (local.get 3))
+            (i64.ge_u (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $lt-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.lt_u (local.get 1) (local.get 3))
+            (i64.lt_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $gt-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.gt_u (local.get 1) (local.get 3))
+            (i64.gt_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $le-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.le_u (local.get 1) (local.get 3))
+            (i64.le_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $ge-int (type 5) (param i64 i64 i64 i64) (result i32)
+        (select
+            (i64.ge_u (local.get 1) (local.get 3))
+            (i64.ge_s (local.get 0) (local.get 2))
+            (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -580,4 +645,12 @@
     (export "div-int" (func $div-int))
     (export "mod-uint" (func $mod-uint))
     (export "mod-int" (func $mod-int))
+    (export "lt-uint" (func $lt-uint))
+    (export "gt-uint" (func $gt-uint))
+    (export "le-uint" (func $le-uint))
+    (export "ge-uint" (func $ge-uint))
+    (export "lt-int" (func $lt-int))
+    (export "gt-int" (func $gt-int))
+    (export "le-int" (func $le-int))
+    (export "ge-int" (func $ge-int))
 )
