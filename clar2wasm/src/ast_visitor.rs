@@ -43,6 +43,11 @@ lazy_static! {
 /// 6. `traverse_expr`: `1`
 /// 7. `visit_literal_value`: `1`
 /// 8. `visit_arithmetic`: `(+ a 1)`
+///
+/// When implementing the `ASTVisitor` trait, the default `traverse_*` methods
+/// should be used when possible, implementing only the `visit_*` methods.
+/// `traverse_*` methods should only be overridden when some action must be
+/// taken before the sub-expressions are visited.
 pub trait ASTVisitor<'a> {
     fn traverse_expr<'b>(
         &mut self,
