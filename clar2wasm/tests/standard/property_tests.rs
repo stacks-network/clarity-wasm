@@ -43,25 +43,51 @@ prop_compose! {
 #[test]
 fn prop_add_uint() {
     let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store); // Ok to borrow_mut since Store<()>
+    let store = RefCell::new(store);
     let add = instance
         .get_func(store.borrow_mut().deref_mut(), "add-uint")
         .unwrap();
 
     proptest!(|(n in int128(), m in int128())| {
-        let mut sum = [Val::I64(0), Val::I64(0)];
-        let res = add.call(
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = add.call(
             store.borrow_mut().deref_mut(),
             &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
-            &mut sum,
+            &mut res,
         );
         match n.unsigned().checked_add(m.unsigned()) {
             Some(rust_result) => {
-                res.expect("call to add-uint failed");
-                let wasm_result = PropInt::from_wasm(sum[0].i64().unwrap(), sum[1].i64().unwrap());
+                call.expect("call to add-uint failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
                 prop_assert_eq!(rust_result, wasm_result.unsigned());
             }
-            None => {res.expect_err("expected overflow");}
+            None => { call.expect_err("expected overflow"); }
+        }
+    })
+}
+
+#[test]
+fn prop_sub_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let sub = instance
+        .get_func(store.borrow_mut().deref_mut(), "sub-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = sub.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        );
+        match n.unsigned().checked_sub(m.unsigned()) {
+            Some(rust_result) => {
+                call.expect("call to add-uint failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+                prop_assert_eq!(rust_result, wasm_result.unsigned());
+            }
+            None => { call.expect_err("expected underflow"); }
         }
     })
 }
