@@ -58,6 +58,30 @@ fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     Ok((instance, store))
 }
 
+struct PropInt(u128);
+
+impl PropInt {
+    const fn new(n: u128) -> Self {
+        Self(n)
+    }
+
+    const fn signed(&self) -> i128 {
+        self.0 as i128
+    }
+
+    const fn unsigned(&self) -> u128 {
+        self.0
+    }
+
+    const fn high(&self) -> i64 {
+        (self.0 >> 64) as i64
+    }
+
+    const fn low(&self) -> i64 {
+        self.0 as i64
+    }
+}
+
 #[test]
 fn test_add_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
