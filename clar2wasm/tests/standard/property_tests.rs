@@ -247,3 +247,56 @@ fn prop_div_int() {
         }
     })
 }
+
+#[test]
+fn prop_mod_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let modulo = instance
+        .get_func(store.borrow_mut().deref_mut(), "mod-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = modulo.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        );
+        match n.unsigned().checked_rem(m.unsigned()) {
+            Some(rust_result) => {
+                call.expect("call to mod-uint failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+                prop_assert_eq!(rust_result, wasm_result.unsigned());
+            }
+            None => { call.expect_err("expected divide by zero"); }
+        }
+    })
+}
+
+#[test]
+fn prop_mod_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let modulo = instance
+        .get_func(store.borrow_mut().deref_mut(), "mod-int")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = modulo.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        );
+        match n.signed().checked_rem(m.signed()) {
+            Some(rust_result) => {
+                call.expect("call to div-int failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+                prop_assert_eq!(rust_result, wasm_result.signed());
+            }
+            None if m.signed() == 0 => { call.expect_err("expected divide by zero"); }
+            None => { call.expect_err("expected overflow"); }
+        }
+    })
+}
