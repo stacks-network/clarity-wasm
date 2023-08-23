@@ -649,6 +649,20 @@
         )
     )
 
+    (func $log2-int (type 3) (param i64 i64) (result i64 i64)
+        (if (i64.le_s (local.get 0) (i64.const 0))
+            (call $runtime-error (i32.const 3)))
+        (i64.const 0)
+        (i64.xor
+            (select
+                (i64.clz (local.get 0))
+                (i64.add (i64.clz (local.get 1)) (i64.const 64))
+                (i64.eqz (local.get 0))
+            )
+            (i64.const 127)
+        )
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -668,4 +682,6 @@
     (export "gt-int" (func $gt-int))
     (export "le-int" (func $le-int))
     (export "ge-int" (func $ge-int))
+    (export "log2-uint" (func $log2-uint))
+    (export "log2-int" (func $log2-int))
 )
