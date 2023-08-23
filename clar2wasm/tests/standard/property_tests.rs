@@ -334,7 +334,45 @@ fn prop_lt_int() {
             store.borrow_mut().deref_mut(),
             &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
             &mut res,
-        ).expect("call to lt-uint failed");
+        ).expect("call to lt-int failed");
         prop_assert_eq!(n.signed() < m.signed(), res[0].i32().unwrap() == 1);
+    })
+}
+
+#[test]
+fn prop_gt_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let gt = instance
+        .get_func(store.borrow_mut().deref_mut(), "gt-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        gt.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to gt-uint failed");
+        prop_assert_eq!(n.unsigned() > m.unsigned(), res[0].i32().unwrap() == 1);
+    })
+}
+
+#[test]
+fn prop_gt_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let gt = instance
+        .get_func(store.borrow_mut().deref_mut(), "gt-int")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        gt.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to gt-int failed");
+        prop_assert_eq!(n.signed() > m.signed(), res[0].i32().unwrap() == 1);
     })
 }
