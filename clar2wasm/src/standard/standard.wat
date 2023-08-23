@@ -639,13 +639,10 @@
         (if (i64.eqz (i64.xor (local.get 0) (local.get 1)))
             (call $runtime-error (i32.const 3)))
         (i64.const 0)
-        (i64.xor
-            (select
-                (i64.clz (local.get 0))
-                (i64.add (i64.clz (local.get 1)) (i64.const 64))
-                (i64.eqz (local.get 0))
-            )
-            (i64.const 127)
+        (select
+            (i64.xor (i64.clz (local.get 1)) (i64.const 63))
+            (i64.xor (i64.clz (local.get 0)) (i64.const 127))
+            (i64.eqz (local.get 0))
         )
     )
 
@@ -653,13 +650,10 @@
         (if (i64.le_s (local.get 0) (i64.const 0))
             (call $runtime-error (i32.const 3)))
         (i64.const 0)
-        (i64.xor
-            (select
-                (i64.clz (local.get 0))
-                (i64.add (i64.clz (local.get 1)) (i64.const 64))
-                (i64.eqz (local.get 0))
-            )
-            (i64.const 127)
+        (select
+            (i64.xor (i64.clz (local.get 1)) (i64.const 63))
+            (i64.xor (i64.clz (local.get 0)) (i64.const 127))
+            (i64.eqz (local.get 0))
         )
     )
 
