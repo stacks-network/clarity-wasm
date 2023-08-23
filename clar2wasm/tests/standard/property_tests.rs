@@ -300,3 +300,41 @@ fn prop_mod_int() {
         }
     })
 }
+
+#[test]
+fn prop_lt_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let lt = instance
+        .get_func(store.borrow_mut().deref_mut(), "lt-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        lt.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to lt-uint failed");
+        prop_assert_eq!(n.unsigned() < m.unsigned(), res[0].i32().unwrap() == 1);
+    })
+}
+
+#[test]
+fn prop_lt_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let lt = instance
+        .get_func(store.borrow_mut().deref_mut(), "lt-int")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        lt.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to lt-uint failed");
+        prop_assert_eq!(n.signed() < m.signed(), res[0].i32().unwrap() == 1);
+    })
+}
