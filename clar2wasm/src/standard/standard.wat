@@ -23,6 +23,7 @@
         ;; 0: overflow
         ;; 1: underflow
         ;; 2: divide by zero
+        ;; 3: log of a number <= 0
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -631,6 +632,20 @@
             (i64.ge_u (local.get 1) (local.get 3))
             (i64.ge_s (local.get 0) (local.get 2))
             (i64.eq (local.get 0) (local.get 2))
+        )
+    )
+
+    (func $log2-uint (type 3) (param i64 i64) (result i64 i64)
+        (if (i64.eqz (i64.xor (local.get 0) (local.get 1)))
+            (call $runtime-error (i32.const 3)))
+        (i64.const 0)
+        (i64.xor
+            (select
+                (i64.clz (local.get 0))
+                (i64.add (i64.clz (local.get 1)) (i64.const 64))
+                (i64.eqz (local.get 0))
+            )
+            (i64.const 127)
         )
     )
 
