@@ -1,3 +1,5 @@
+use std::{cell::RefCell, ops::DerefMut};
+
 use crate::utils::load_stdlib;
 
 use proptest::prelude::*;
@@ -38,14 +40,18 @@ prop_compose! {
     }
 }
 
-proptest! {
-    #[test]
-    fn prop_add_uint(n in int128(), m in int128()) {
-        let (instance, mut store) = load_stdlib().unwrap();
-        let add = instance.get_func(&mut store, "add-uint").unwrap();
+#[test]
+fn prop_add_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store); // Ok to borrow_mut since Store<()>
+    let add = instance
+        .get_func(store.borrow_mut().deref_mut(), "add-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
         let mut sum = [Val::I64(0), Val::I64(0)];
         let res = add.call(
-            &mut store,
+            store.borrow_mut().deref_mut(),
             &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
             &mut sum,
         );
@@ -57,5 +63,5 @@ proptest! {
             }
             None => {res.expect_err("expected overflow");}
         }
-    }
+    })
 }
