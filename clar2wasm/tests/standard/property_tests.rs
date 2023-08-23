@@ -376,3 +376,41 @@ fn prop_gt_int() {
         prop_assert_eq!(n.signed() > m.signed(), res[0].i32().unwrap() == 1);
     })
 }
+
+#[test]
+fn prop_le_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let le = instance
+        .get_func(store.borrow_mut().deref_mut(), "le-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        le.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to le-uint failed");
+        prop_assert_eq!(n.unsigned() <= m.unsigned(), res[0].i32().unwrap() == 1);
+    })
+}
+
+#[test]
+fn prop_le_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let le = instance
+        .get_func(store.borrow_mut().deref_mut(), "le-int")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I32(0)];
+        le.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to le-int failed");
+        prop_assert_eq!(n.signed() <= m.signed(), res[0].i32().unwrap() == 1);
+    })
+}
