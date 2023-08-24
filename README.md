@@ -1,6 +1,6 @@
-       /     /   ▶ clarity-wasm
-      / --- /      Compile Clarity to Wasm.
-     /     /       Generate WebAssembly from your Clarity code for fast and portable execution.
+       / / /     ▶ clarity-wasm
+      | | |        Compile Clarity to Wasm.
+       \ \ \       Generate WebAssembly from your Clarity code for fast and portable execution.
 
 <div align="center">
 
