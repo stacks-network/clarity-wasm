@@ -636,7 +636,7 @@
     )
 
     (func $log2-uint (type 3) (param i64 i64) (result i64 i64)
-        (if (i64.eqz (i64.xor (local.get 0) (local.get 1)))
+        (if (i64.eqz (i64.or (local.get 0) (local.get 1)))
             (call $runtime-error (i32.const 3)))
         (i64.const 0)
         (select
