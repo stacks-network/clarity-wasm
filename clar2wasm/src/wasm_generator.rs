@@ -5,7 +5,7 @@ use clarity::vm::{
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
-    SymbolicExpression,
+    ClarityName, SymbolicExpression,
 };
 use walrus::{
     ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind},
@@ -17,10 +17,10 @@ use crate::ast_visitor::{traverse, ASTVisitor};
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
-pub struct WasmGenerator {
+pub struct WasmGenerator<'a> {
     /// The contract analysis, which contains the expressions and type
     /// information for the contract.
-    contract_analysis: ContractAnalysis,
+    contract_analysis: &'a mut ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
     /// The error that occurred during generation, if any.
@@ -40,6 +40,7 @@ pub struct WasmGenerator {
     frame_size: i32,
 }
 
+#[derive(Debug)]
 pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
@@ -77,8 +78,8 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
     }
 }
 
-impl WasmGenerator {
-    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
+impl<'a> WasmGenerator<'a> {
+    pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
@@ -146,7 +147,7 @@ impl WasmGenerator {
 
     fn traverse_define_function(
         &mut self,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
@@ -282,7 +283,7 @@ impl WasmGenerator {
     }
 
     /// Adds a new string literal into the memory for an identifier
-    fn add_identifier_string_literal(&mut self, name: &clarity::vm::ClarityName) -> (u32, u32) {
+    fn add_identifier_string_literal(&mut self, name: &ClarityName) -> (u32, u32) {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
         let len = name.len() as u32;
@@ -432,7 +433,7 @@ impl WasmGenerator {
     }
 }
 
-impl ASTVisitor for WasmGenerator {
+impl<'a> ASTVisitor for WasmGenerator<'a> {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -693,11 +694,11 @@ impl ASTVisitor for WasmGenerator {
         }
     }
 
-    fn visit_atom<'b>(
+    fn visit_atom<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
-        atom: &clarity::vm::ClarityName,
+        atom: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // FIXME: This should also handle constants and keywords
         let types = clar2wasm_ty(
@@ -721,11 +722,11 @@ impl ASTVisitor for WasmGenerator {
         Ok(builder)
     }
 
-    fn traverse_define_private<'b>(
+    fn traverse_define_private<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
@@ -739,11 +740,11 @@ impl ASTVisitor for WasmGenerator {
         }
     }
 
-    fn traverse_define_read_only<'b>(
+    fn traverse_define_read_only<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
@@ -756,11 +757,11 @@ impl ASTVisitor for WasmGenerator {
         }
     }
 
-    fn traverse_define_public<'b>(
+    fn traverse_define_public<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
@@ -772,11 +773,11 @@ impl ASTVisitor for WasmGenerator {
         }
     }
 
-    fn traverse_define_data_var<'b>(
+    fn traverse_define_data_var<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _data_type: &SymbolicExpression,
         initial: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
@@ -890,11 +891,11 @@ impl ASTVisitor for WasmGenerator {
         self.traverse_expr(builder, value)
     }
 
-    fn visit_call_user_defined<'b>(
+    fn visit_call_user_defined<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _args: &[SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder.call(
@@ -958,11 +959,11 @@ impl ASTVisitor for WasmGenerator {
         Ok(builder)
     }
 
-    fn visit_var_get<'b>(
+    fn visit_var_get<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // Get the identifier for this variable
         let var_id = *self
@@ -999,11 +1000,11 @@ impl ASTVisitor for WasmGenerator {
         Ok(builder)
     }
 
-    fn visit_var_set<'b>(
+    fn visit_var_set<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // Get the identifier for this variable
@@ -1085,11 +1086,11 @@ impl ASTVisitor for WasmGenerator {
         Ok(builder)
     }
 
-    fn traverse_fold<'b>(
+    fn traverse_fold<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        func: &clarity::vm::ClarityName,
+        func: &ClarityName,
         sequence: &SymbolicExpression,
         initial: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
