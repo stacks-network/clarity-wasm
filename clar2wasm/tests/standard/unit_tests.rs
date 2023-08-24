@@ -1591,14 +1591,20 @@ fn test_log2_uint() {
     // log2(u128::MAX) is not an error (-1 if signed)
     log2.call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
         .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(127));
 
     // log2(u64::MAX) is not an error
     log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
         .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(63));
 
     // log2(u128::MAX-u64::MAX) is not an error
     log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
         .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(127));
 }
 
 #[test]
@@ -1618,6 +1624,8 @@ fn test_log2_int() {
     // log2(u64::MAX) is not an error
     log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
         .expect("call to log2-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(63));
 
     // log2(u128::MAX-u64::MAX) is an error
     log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
