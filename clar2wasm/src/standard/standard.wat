@@ -635,10 +635,7 @@
         )
     )
 
-    (func $log2-uint (type 3) (param i64 i64) (result i64 i64)
-        (if (i64.eqz (i64.or (local.get 0) (local.get 1)))
-            (call $runtime-error (i32.const 3)))
-        (i64.const 0)
+    (func $log2 (param i64 i64) (result i64)
         (select
             (i64.xor (i64.clz (local.get 1)) (i64.const 63))
             (i64.xor (i64.clz (local.get 0)) (i64.const 127))
@@ -646,15 +643,18 @@
         )
     )
 
-    (func $log2-int (type 3) (param i64 i64) (result i64 i64)
-        (if (i64.le_s (local.get 0) (i64.const 0))
+    (func $log2-uint (type 3) (param i64 i64) (result i64 i64)
+        (if (i64.eqz (i64.or (local.get 0) (local.get 1)))
             (call $runtime-error (i32.const 3)))
         (i64.const 0)
-        (select
-            (i64.xor (i64.clz (local.get 1)) (i64.const 63))
-            (i64.xor (i64.clz (local.get 0)) (i64.const 127))
-            (i64.eqz (local.get 0))
-        )
+        (call $log2 (local.get 0) (local.get 1))
+    )
+
+    (func $log2-int (type 3) (param i64 i64) (result i64 i64)
+        (if (call $le-int (local.get 0) (local.get 1) (i64.const 0) (i64.const 0))
+            (call $runtime-error (i32.const 3)))
+        (i64.const 0)
+        (call $log2 (local.get 0) (local.get 1))
     )
 
     (export "memcpy" (func $memcpy))
