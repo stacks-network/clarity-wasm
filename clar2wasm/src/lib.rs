@@ -10,7 +10,7 @@ use clarity::{
     vm::{ast::build_ast_with_diagnostics, types::QualifiedContractIdentifier, ClarityVersion},
 };
 use walrus::Module;
-use wasm_generator::WasmGenerator;
+use wasm_generator::{WasmGenerator, GeneratorError};
 
 mod ast_visitor;
 mod wasm_generator;
@@ -57,7 +57,7 @@ pub fn compile(
     let mut analysis_db = AnalysisDatabase::new(datastore);
 
     // Run the analysis passes
-    let contract_analysis = match run_analysis(
+    let mut contract_analysis = match run_analysis(
         contract_id,
         &mut ast.expressions,
         &mut analysis_db,
@@ -73,7 +73,7 @@ pub fn compile(
         }
     };
 
-    let generator = WasmGenerator::new(contract_analysis.clone());
+    let generator = WasmGenerator::new(&mut contract_analysis);
     match generator.generate() {
         Ok(module) => Ok(CompileResult {
             diagnostics,
@@ -85,4 +85,9 @@ pub fn compile(
             Err(CompileError::Generic { diagnostics })
         }
     }
+}
+
+pub fn compile_contract(contract_analysis: &mut ContractAnalysis) -> Result<Module, GeneratorError> {
+    let generator = WasmGenerator::new(contract_analysis);
+    generator.generate()
 }

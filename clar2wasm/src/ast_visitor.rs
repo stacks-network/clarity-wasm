@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use walrus::InstrSeqBuilder;
 
 #[derive(Clone)]
-pub struct TypedVar<'a> {
-    pub name: &'a ClarityName,
-    pub type_expr: &'a SymbolicExpression,
+pub struct TypedVar<'c> {
+    pub name: &'c ClarityName,
+    pub type_expr: &'c SymbolicExpression,
     pub decl_span: Span,
 }
 
@@ -48,11 +48,11 @@ lazy_static! {
 /// should be used when possible, implementing only the `visit_*` methods.
 /// `traverse_*` methods should only be overridden when some action must be
 /// taken before the sub-expressions are visited.
-pub trait ASTVisitor<'a> {
-    fn traverse_expr<'b>(
+pub trait ASTVisitor {
+    fn traverse_expr<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         match &expr.expr {
             AtomValue(value) => self.visit_atom_value(builder, expr, value),
@@ -68,11 +68,11 @@ pub trait ASTVisitor<'a> {
 
     // AST level traverse/visit methods
 
-    fn traverse_list<'b>(
+    fn traverse_list<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        list: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        list: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if let Some((function_name, args)) = list.split_first() {
             if let Some(function_name) = function_name.match_atom() {
@@ -792,56 +792,56 @@ pub trait ASTVisitor<'a> {
         self.visit_list(builder, expr, list)
     }
 
-    fn visit_list<'b>(
+    fn visit_list<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _list: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _list: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn visit_atom_value<'b>(
+    fn visit_atom_value<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _value: &Value,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn visit_atom<'b>(
+    fn visit_atom<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _atom: &'a ClarityName,
+        _expr: &'c SymbolicExpression,
+        _atom: &'c ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn visit_literal_value<'b>(
+    fn visit_literal_value<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _value: &Value,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn visit_field<'b>(
+    fn visit_field<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _field: &TraitIdentifier,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn visit_trait_reference<'b>(
+    fn visit_trait_reference<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
         _trait_def: &TraitDefinition,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
@@ -849,122 +849,122 @@ pub trait ASTVisitor<'a> {
 
     // Higher level traverse/visit methods
 
-    fn traverse_define_constant<'b>(
+    fn traverse_define_constant<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_define_constant(builder, expr, name, value)
     }
 
-    fn visit_define_constant<'b>(
+    fn visit_define_constant<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_private<'b>(
+    fn traverse_define_private<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        parameters: Option<Vec<TypedVar<'a>>>,
-        body: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        parameters: Option<Vec<TypedVar<'c>>>,
+        body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, body)?;
         self.visit_define_private(builder, expr, name, parameters, body)
     }
 
-    fn visit_define_private<'b>(
+    fn visit_define_private<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _parameters: Option<Vec<TypedVar<'a>>>,
-        _body: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _parameters: Option<Vec<TypedVar<'c>>>,
+        _body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_read_only<'b>(
+    fn traverse_define_read_only<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        parameters: Option<Vec<TypedVar<'a>>>,
-        body: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        parameters: Option<Vec<TypedVar<'c>>>,
+        body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, body)?;
         self.visit_define_read_only(builder, expr, name, parameters, body)
     }
 
-    fn visit_define_read_only<'b>(
+    fn visit_define_read_only<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _parameters: Option<Vec<TypedVar<'a>>>,
-        _body: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _parameters: Option<Vec<TypedVar<'c>>>,
+        _body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_public<'b>(
+    fn traverse_define_public<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        parameters: Option<Vec<TypedVar<'a>>>,
-        body: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        parameters: Option<Vec<TypedVar<'c>>>,
+        body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, body)?;
         self.visit_define_public(builder, expr, name, parameters, body)
     }
 
-    fn visit_define_public<'b>(
+    fn visit_define_public<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _parameters: Option<Vec<TypedVar<'a>>>,
-        _body: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _parameters: Option<Vec<TypedVar<'c>>>,
+        _body: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_nft<'b>(
+    fn traverse_define_nft<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        nft_type: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        nft_type: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_define_nft(builder, expr, name, nft_type)
     }
 
-    fn visit_define_nft<'b>(
+    fn visit_define_nft<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _nft_type: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _nft_type: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_ft<'b>(
+    fn traverse_define_ft<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        supply: Option<&'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        supply: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if let Some(supply_expr) = supply {
             builder = self.traverse_expr(builder, supply_expr)?;
@@ -973,125 +973,125 @@ pub trait ASTVisitor<'a> {
         self.visit_define_ft(builder, expr, name, supply)
     }
 
-    fn visit_define_ft<'b>(
+    fn visit_define_ft<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _supply: Option<&'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _supply: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_map<'b>(
+    fn traverse_define_map<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        key_type: &'a SymbolicExpression,
-        value_type: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        key_type: &'c SymbolicExpression,
+        value_type: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_define_map(builder, expr, name, key_type, value_type)
     }
 
-    fn visit_define_map<'b>(
+    fn visit_define_map<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _key_type: &'a SymbolicExpression,
-        _value_type: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _key_type: &'c SymbolicExpression,
+        _value_type: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_data_var<'b>(
+    fn traverse_define_data_var<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        data_type: &'a SymbolicExpression,
-        initial: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        data_type: &'c SymbolicExpression,
+        initial: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, initial)?;
         self.visit_define_data_var(builder, expr, name, data_type, initial)
     }
 
-    fn visit_define_data_var<'b>(
+    fn visit_define_data_var<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _data_type: &'a SymbolicExpression,
-        _initial: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _data_type: &'c SymbolicExpression,
+        _initial: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_define_trait<'b>(
+    fn traverse_define_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        functions: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        functions: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_define_trait(builder, expr, name, functions)
     }
 
-    fn visit_define_trait<'b>(
+    fn visit_define_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _functions: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _functions: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_use_trait<'b>(
+    fn traverse_use_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
         trait_identifier: &TraitIdentifier,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_use_trait(builder, expr, name, trait_identifier)
     }
 
-    fn visit_use_trait<'b>(
+    fn visit_use_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
         _trait_identifier: &TraitIdentifier,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_impl_trait<'b>(
+    fn traverse_impl_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         trait_identifier: &TraitIdentifier,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_impl_trait(builder, expr, trait_identifier)
     }
 
-    fn visit_impl_trait<'b>(
+    fn visit_impl_trait<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _trait_identifier: &TraitIdentifier,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_arithmetic<'b>(
+    fn traverse_arithmetic<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        operands: &'a [SymbolicExpression],
+        operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in operands {
             builder = self.traverse_expr(builder, operand)?;
@@ -1099,23 +1099,23 @@ pub trait ASTVisitor<'a> {
         self.visit_arithmetic(builder, expr, func, operands)
     }
 
-    fn visit_arithmetic<'b>(
+    fn visit_arithmetic<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        _operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_binary_bitwise<'b>(
+    fn traverse_binary_bitwise<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        lhs: &'a SymbolicExpression,
-        rhs: &'a SymbolicExpression,
+        lhs: &'c SymbolicExpression,
+        rhs: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in &[lhs, rhs] {
             builder = self.traverse_expr(builder, operand)?;
@@ -1123,23 +1123,23 @@ pub trait ASTVisitor<'a> {
         self.visit_binary_bitwise(builder, expr, func, lhs, rhs)
     }
 
-    fn visit_binary_bitwise<'b>(
+    fn visit_binary_bitwise<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _lhs: &'a SymbolicExpression,
-        _rhs: &'a SymbolicExpression,
+        _lhs: &'c SymbolicExpression,
+        _rhs: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_comparison<'b>(
+    fn traverse_comparison<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        operands: &'a [SymbolicExpression],
+        operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in operands {
             builder = self.traverse_expr(builder, operand)?;
@@ -1147,22 +1147,22 @@ pub trait ASTVisitor<'a> {
         self.visit_comparison(builder, expr, func, operands)
     }
 
-    fn visit_comparison<'b>(
+    fn visit_comparison<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        _operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_lazy_logical<'b>(
+    fn traverse_lazy_logical<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         function: NativeFunctions,
-        operands: &'a [SymbolicExpression],
+        operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in operands {
             builder = self.traverse_expr(builder, operand)?;
@@ -1170,22 +1170,22 @@ pub trait ASTVisitor<'a> {
         self.visit_lazy_logical(builder, expr, function, operands)
     }
 
-    fn visit_lazy_logical<'b>(
+    fn visit_lazy_logical<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _function: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        _operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_logical<'b>(
+    fn traverse_logical<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         function: NativeFunctions,
-        operands: &'a [SymbolicExpression],
+        operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in operands {
             builder = self.traverse_expr(builder, operand)?;
@@ -1193,42 +1193,42 @@ pub trait ASTVisitor<'a> {
         self.visit_logical(builder, expr, function, operands)
     }
 
-    fn visit_logical<'b>(
+    fn visit_logical<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _function: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        _operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_int_cast<'b>(
+    fn traverse_int_cast<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_int_cast(builder, expr, input)
     }
 
-    fn visit_int_cast<'b>(
+    fn visit_int_cast<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_if<'b>(
+    fn traverse_if<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        cond: &'a SymbolicExpression,
-        then_expr: &'a SymbolicExpression,
-        else_expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        cond: &'c SymbolicExpression,
+        then_expr: &'c SymbolicExpression,
+        else_expr: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for &expr in &[cond, then_expr, else_expr] {
             builder = self.traverse_expr(builder, expr)?;
@@ -1236,62 +1236,62 @@ pub trait ASTVisitor<'a> {
         self.visit_if(builder, expr, cond, then_expr, else_expr)
     }
 
-    fn visit_if<'b>(
+    fn visit_if<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _cond: &'a SymbolicExpression,
-        _then_expr: &'a SymbolicExpression,
-        _else_expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _cond: &'c SymbolicExpression,
+        _then_expr: &'c SymbolicExpression,
+        _else_expr: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_var_get<'b>(
+    fn traverse_var_get<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_var_get(builder, expr, name)
     }
 
-    fn visit_var_get<'b>(
+    fn visit_var_get<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_var_set<'b>(
+    fn traverse_var_set<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_var_set(builder, expr, name, value)
     }
 
-    fn visit_var_set<'b>(
+    fn visit_var_set<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_map_get<'b>(
+    fn traverse_map_get<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for val in key.values() {
             builder = self.traverse_expr(builder, val)?;
@@ -1299,23 +1299,23 @@ pub trait ASTVisitor<'a> {
         self.visit_map_get(builder, expr, name, key)
     }
 
-    fn visit_map_get<'b>(
+    fn visit_map_get<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_map_set<'b>(
+    fn traverse_map_set<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
-        value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
+        value: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for key_val in key.values() {
             builder = self.traverse_expr(builder, key_val)?;
@@ -1326,24 +1326,24 @@ pub trait ASTVisitor<'a> {
         self.visit_map_set(builder, expr, name, key, value)
     }
 
-    fn visit_map_set<'b>(
+    fn visit_map_set<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
-        _value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
+        _value: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_map_insert<'b>(
+    fn traverse_map_insert<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
-        value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
+        value: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for key_val in key.values() {
             builder = self.traverse_expr(builder, key_val)?;
@@ -1354,23 +1354,23 @@ pub trait ASTVisitor<'a> {
         self.visit_map_insert(builder, expr, name, key, value)
     }
 
-    fn visit_map_insert<'b>(
+    fn visit_map_insert<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
-        _value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
+        _value: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_map_delete<'b>(
+    fn traverse_map_delete<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for val in key.values() {
             builder = self.traverse_expr(builder, val)?;
@@ -1378,21 +1378,21 @@ pub trait ASTVisitor<'a> {
         self.visit_map_delete(builder, expr, name, key)
     }
 
-    fn visit_map_delete<'b>(
+    fn visit_map_delete<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _key: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_tuple<'b>(
+    fn traverse_tuple<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        values: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for val in values.values() {
             builder = self.traverse_expr(builder, val)?;
@@ -1400,63 +1400,63 @@ pub trait ASTVisitor<'a> {
         self.visit_tuple(builder, expr, values)
     }
 
-    fn visit_tuple<'b>(
+    fn visit_tuple<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _values: &HashMap<Option<&'c ClarityName>, &'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_get<'b>(
+    fn traverse_get<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        key: &'a ClarityName,
-        tuple: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        key: &'c ClarityName,
+        tuple: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, tuple)?;
         self.visit_get(builder, expr, key, tuple)
     }
 
-    fn visit_get<'b>(
+    fn visit_get<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _key: &'a ClarityName,
-        _tuple: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _key: &'c ClarityName,
+        _tuple: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_merge<'b>(
+    fn traverse_merge<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        tuple1: &'a SymbolicExpression,
-        tuple2: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        tuple1: &'c SymbolicExpression,
+        tuple2: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, tuple1)?;
         builder = self.traverse_expr(builder, tuple2)?;
         self.visit_merge(builder, expr, tuple1, tuple2)
     }
 
-    fn visit_merge<'b>(
+    fn visit_merge<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _tuple1: &'a SymbolicExpression,
-        _tuple2: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _tuple1: &'c SymbolicExpression,
+        _tuple2: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_begin<'b>(
+    fn traverse_begin<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        statements: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        statements: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for stmt in statements {
             builder = self.traverse_expr(builder, stmt)?;
@@ -1464,108 +1464,108 @@ pub trait ASTVisitor<'a> {
         self.visit_begin(builder, expr, statements)
     }
 
-    fn visit_begin<'b>(
+    fn visit_begin<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _statements: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _statements: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_hash<'b>(
+    fn traverse_hash<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        value: &'a SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_hash(builder, expr, func, value)
     }
 
-    fn visit_hash<'b>(
+    fn visit_hash<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _value: &'a SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_secp256k1_recover<'b>(
+    fn traverse_secp256k1_recover<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        hash: &'a SymbolicExpression,
-        signature: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        hash: &'c SymbolicExpression,
+        signature: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, hash)?;
         builder = self.traverse_expr(builder, signature)?;
         self.visit_secp256k1_recover(builder, expr, hash, signature)
     }
 
-    fn visit_secp256k1_recover<'b>(
+    fn visit_secp256k1_recover<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _hash: &SymbolicExpression,
-        _signature: &SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _hash: &'c SymbolicExpression,
+        _signature: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_secp256k1_verify<'b>(
+    fn traverse_secp256k1_verify<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        hash: &'a SymbolicExpression,
-        signature: &'a SymbolicExpression,
-        public_key: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        hash: &'c SymbolicExpression,
+        signature: &'c SymbolicExpression,
+        public_key: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, hash)?;
         builder = self.traverse_expr(builder, signature)?;
         self.visit_secp256k1_verify(builder, expr, hash, signature, public_key)
     }
 
-    fn visit_secp256k1_verify<'b>(
+    fn visit_secp256k1_verify<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _hash: &SymbolicExpression,
-        _signature: &SymbolicExpression,
-        _public_key: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _hash: &'c SymbolicExpression,
+        _signature: &'c SymbolicExpression,
+        _public_key: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_print<'b>(
+    fn traverse_print<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_print(builder, expr, value)
     }
 
-    fn visit_print<'b>(
+    fn visit_print<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_static_contract_call<'b>(
+    fn traverse_static_contract_call<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        contract_identifier: &'a QualifiedContractIdentifier,
-        function_name: &'a ClarityName,
-        args: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        contract_identifier: &'c QualifiedContractIdentifier,
+        function_name: &'c ClarityName,
+        args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for arg in args.iter() {
             builder = self.traverse_expr(builder, arg)?;
@@ -1573,24 +1573,24 @@ pub trait ASTVisitor<'a> {
         self.visit_static_contract_call(builder, expr, contract_identifier, function_name, args)
     }
 
-    fn visit_static_contract_call<'b>(
+    fn visit_static_contract_call<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _contract_identifier: &'a QualifiedContractIdentifier,
-        _function_name: &'a ClarityName,
-        _args: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _contract_identifier: &'c QualifiedContractIdentifier,
+        _function_name: &'c ClarityName,
+        _args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_dynamic_contract_call<'b>(
+    fn traverse_dynamic_contract_call<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        trait_ref: &'a SymbolicExpression,
-        function_name: &'a ClarityName,
-        args: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        trait_ref: &'c SymbolicExpression,
+        function_name: &'c ClarityName,
+        args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, trait_ref)?;
         for arg in args.iter() {
@@ -1599,383 +1599,383 @@ pub trait ASTVisitor<'a> {
         self.visit_dynamic_contract_call(builder, expr, trait_ref, function_name, args)
     }
 
-    fn visit_dynamic_contract_call<'b>(
+    fn visit_dynamic_contract_call<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _trait_ref: &'a SymbolicExpression,
-        _function_name: &'a ClarityName,
-        _args: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _trait_ref: &'c SymbolicExpression,
+        _function_name: &'c ClarityName,
+        _args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_as_contract<'b>(
+    fn traverse_as_contract<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        inner: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        inner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, inner)?;
         self.visit_as_contract(builder, expr, inner)
     }
 
-    fn visit_as_contract<'b>(
+    fn visit_as_contract<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _inner: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _inner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_contract_of<'b>(
+    fn traverse_contract_of<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        name: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, name)?;
         self.visit_contract_of(builder, expr, name)
     }
 
-    fn visit_contract_of<'b>(
+    fn visit_contract_of<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _name: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_principal_of<'b>(
+    fn traverse_principal_of<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        public_key: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        public_key: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, public_key)?;
         self.visit_principal_of(builder, expr, public_key)
     }
 
-    fn visit_principal_of<'b>(
+    fn visit_principal_of<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _public_key: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _public_key: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_at_block<'b>(
+    fn traverse_at_block<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        block: &'a SymbolicExpression,
-        inner: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        block: &'c SymbolicExpression,
+        inner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, block)?;
         builder = self.traverse_expr(builder, inner)?;
         self.visit_at_block(builder, expr, block, inner)
     }
 
-    fn visit_at_block<'b>(
+    fn visit_at_block<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _block: &'a SymbolicExpression,
-        _inner: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _block: &'c SymbolicExpression,
+        _inner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_get_block_info<'b>(
+    fn traverse_get_block_info<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        prop_name: &'a ClarityName,
-        block: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        prop_name: &'c ClarityName,
+        block: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, block)?;
         self.visit_get_block_info(builder, expr, prop_name, block)
     }
 
-    fn visit_get_block_info<'b>(
+    fn visit_get_block_info<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _prop_name: &'a ClarityName,
-        _block: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _prop_name: &'c ClarityName,
+        _block: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_err<'b>(
+    fn traverse_err<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_err(builder, expr, value)
     }
 
-    fn visit_err<'b>(
+    fn visit_err<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ok<'b>(
+    fn traverse_ok<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_ok(builder, expr, value)
     }
 
-    fn visit_ok<'b>(
+    fn visit_ok<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_some<'b>(
+    fn traverse_some<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_some(builder, expr, value)
     }
 
-    fn visit_some<'b>(
+    fn visit_some<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_default_to<'b>(
+    fn traverse_default_to<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        default: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        default: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, default)?;
         builder = self.traverse_expr(builder, value)?;
         self.visit_default_to(builder, expr, default, value)
     }
 
-    fn visit_default_to<'b>(
+    fn visit_default_to<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _default: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _default: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_unwrap<'b>(
+    fn traverse_unwrap<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
-        throws: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
+        throws: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         builder = self.traverse_expr(builder, throws)?;
         self.visit_unwrap(builder, expr, input, throws)
     }
 
-    fn visit_unwrap<'b>(
+    fn visit_unwrap<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
-        _throws: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
+        _throws: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_unwrap_err<'b>(
+    fn traverse_unwrap_err<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
-        throws: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
+        throws: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         builder = self.traverse_expr(builder, throws)?;
         self.visit_unwrap_err(builder, expr, input, throws)
     }
 
-    fn visit_unwrap_err<'b>(
+    fn visit_unwrap_err<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
-        _throws: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
+        _throws: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_is_ok<'b>(
+    fn traverse_is_ok<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_is_ok(builder, expr, value)
     }
 
-    fn visit_is_ok<'b>(
+    fn visit_is_ok<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_is_none<'b>(
+    fn traverse_is_none<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_is_none(builder, expr, value)
     }
 
-    fn visit_is_none<'b>(
+    fn visit_is_none<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_is_err<'b>(
+    fn traverse_is_err<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_is_err(builder, expr, value)
     }
 
-    fn visit_is_err<'b>(
+    fn visit_is_err<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_is_some<'b>(
+    fn traverse_is_some<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_is_some(builder, expr, value)
     }
 
-    fn visit_is_some<'b>(
+    fn visit_is_some<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_filter<'b>(
+    fn traverse_filter<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        func: &'a ClarityName,
-        sequence: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        func: &'c ClarityName,
+        sequence: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         self.visit_filter(builder, expr, func, sequence)
     }
 
-    fn visit_filter<'b>(
+    fn visit_filter<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _func: &'a ClarityName,
-        _sequence: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _func: &'c ClarityName,
+        _sequence: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_unwrap_panic<'b>(
+    fn traverse_unwrap_panic<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_unwrap_panic(builder, expr, input)
     }
 
-    fn visit_unwrap_panic<'b>(
+    fn visit_unwrap_panic<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_unwrap_err_panic<'b>(
+    fn traverse_unwrap_err_panic<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_unwrap_err_panic(builder, expr, input)
     }
 
-    fn visit_unwrap_err_panic<'b>(
+    fn visit_unwrap_err_panic<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_match_option<'b>(
+    fn traverse_match_option<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
-        some_name: &'a ClarityName,
-        some_branch: &'a SymbolicExpression,
-        none_branch: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
+        some_name: &'c ClarityName,
+        some_branch: &'c SymbolicExpression,
+        none_branch: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         builder = self.traverse_expr(builder, some_branch)?;
@@ -1983,28 +1983,28 @@ pub trait ASTVisitor<'a> {
         self.visit_match_option(builder, expr, input, some_name, some_branch, none_branch)
     }
 
-    fn visit_match_option<'b>(
+    fn visit_match_option<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
-        _some_name: &'a ClarityName,
-        _some_branch: &'a SymbolicExpression,
-        _none_branch: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
+        _some_name: &'c ClarityName,
+        _some_branch: &'c SymbolicExpression,
+        _none_branch: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn traverse_match_response<'b>(
+    fn traverse_match_response<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
-        ok_name: &'a ClarityName,
-        ok_branch: &'a SymbolicExpression,
-        err_name: &'a ClarityName,
-        err_branch: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
+        ok_name: &'c ClarityName,
+        ok_branch: &'c SymbolicExpression,
+        err_name: &'c ClarityName,
+        err_branch: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         builder = self.traverse_expr(builder, ok_branch)?;
@@ -2015,90 +2015,90 @@ pub trait ASTVisitor<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn visit_match_response<'b>(
+    fn visit_match_response<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
-        _ok_name: &'a ClarityName,
-        _ok_branch: &'a SymbolicExpression,
-        _err_name: &'a ClarityName,
-        _err_branch: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
+        _ok_name: &'c ClarityName,
+        _ok_branch: &'c SymbolicExpression,
+        _err_name: &'c ClarityName,
+        _err_branch: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_try<'b>(
+    fn traverse_try<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_try(builder, expr, input)
     }
 
-    fn visit_try<'b>(
+    fn visit_try<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_asserts<'b>(
+    fn traverse_asserts<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        cond: &'a SymbolicExpression,
-        thrown: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        cond: &'c SymbolicExpression,
+        thrown: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, cond)?;
         builder = self.traverse_expr(builder, thrown)?;
         self.visit_asserts(builder, expr, cond, thrown)
     }
 
-    fn visit_asserts<'b>(
+    fn visit_asserts<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _cond: &'a SymbolicExpression,
-        _thrown: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _cond: &'c SymbolicExpression,
+        _thrown: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_stx_burn<'b>(
+    fn traverse_stx_burn<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        amount: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        amount: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, amount)?;
         builder = self.traverse_expr(builder, sender)?;
         self.visit_stx_burn(builder, expr, amount, sender)
     }
 
-    fn visit_stx_burn<'b>(
+    fn visit_stx_burn<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _amount: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _amount: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_stx_transfer<'b>(
+    fn traverse_stx_transfer<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        amount: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
-        recipient: &'a SymbolicExpression,
-        memo: Option<&'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        amount: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
+        recipient: &'c SymbolicExpression,
+        memo: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, amount)?;
         builder = self.traverse_expr(builder, sender)?;
@@ -2109,69 +2109,69 @@ pub trait ASTVisitor<'a> {
         self.visit_stx_transfer(builder, expr, amount, sender, recipient, memo)
     }
 
-    fn visit_stx_transfer<'b>(
+    fn visit_stx_transfer<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _amount: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
-        _recipient: &'a SymbolicExpression,
-        _memo: Option<&'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _amount: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
+        _recipient: &'c SymbolicExpression,
+        _memo: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_stx_get_balance<'b>(
+    fn traverse_stx_get_balance<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        owner: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, owner)?;
         self.visit_stx_get_balance(builder, expr, owner)
     }
 
-    fn visit_stx_get_balance<'b>(
+    fn visit_stx_get_balance<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _owner: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ft_burn<'b>(
+    fn traverse_ft_burn<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        amount: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        amount: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, amount)?;
         builder = self.traverse_expr(builder, sender)?;
         self.visit_ft_burn(builder, expr, token, amount, sender)
     }
 
-    fn visit_ft_burn<'b>(
+    fn visit_ft_burn<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _amount: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _amount: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ft_transfer<'b>(
+    fn traverse_ft_transfer<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        amount: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
-        recipient: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        amount: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
+        recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, amount)?;
         builder = self.traverse_expr(builder, sender)?;
@@ -2179,113 +2179,113 @@ pub trait ASTVisitor<'a> {
         self.visit_ft_transfer(builder, expr, token, amount, sender, recipient)
     }
 
-    fn visit_ft_transfer<'b>(
+    fn visit_ft_transfer<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _amount: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
-        _recipient: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _amount: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
+        _recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ft_get_balance<'b>(
+    fn traverse_ft_get_balance<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        owner: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, owner)?;
         self.visit_ft_get_balance(builder, expr, token, owner)
     }
 
-    fn visit_ft_get_balance<'b>(
+    fn visit_ft_get_balance<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _owner: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ft_get_supply<'b>(
+    fn traverse_ft_get_supply<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         self.visit_ft_get_supply(builder, expr, token)
     }
 
-    fn visit_ft_get_supply<'b>(
+    fn visit_ft_get_supply<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_ft_mint<'b>(
+    fn traverse_ft_mint<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        amount: &'a SymbolicExpression,
-        recipient: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        amount: &'c SymbolicExpression,
+        recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, amount)?;
         builder = self.traverse_expr(builder, recipient)?;
         self.visit_ft_mint(builder, expr, token, amount, recipient)
     }
 
-    fn visit_ft_mint<'b>(
+    fn visit_ft_mint<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _amount: &'a SymbolicExpression,
-        _recipient: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _amount: &'c SymbolicExpression,
+        _recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_nft_burn<'b>(
+    fn traverse_nft_burn<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        identifier: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        identifier: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, identifier)?;
         builder = self.traverse_expr(builder, sender)?;
         self.visit_nft_burn(builder, expr, token, identifier, sender)
     }
 
-    fn visit_nft_burn<'b>(
+    fn visit_nft_burn<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _identifier: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _identifier: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_nft_transfer<'b>(
+    fn traverse_nft_transfer<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        identifier: &'a SymbolicExpression,
-        sender: &'a SymbolicExpression,
-        recipient: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        identifier: &'c SymbolicExpression,
+        sender: &'c SymbolicExpression,
+        recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, identifier)?;
         builder = self.traverse_expr(builder, sender)?;
@@ -2293,69 +2293,69 @@ pub trait ASTVisitor<'a> {
         self.visit_nft_transfer(builder, expr, token, identifier, sender, recipient)
     }
 
-    fn visit_nft_transfer<'b>(
+    fn visit_nft_transfer<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _identifier: &'a SymbolicExpression,
-        _sender: &'a SymbolicExpression,
-        _recipient: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _identifier: &'c SymbolicExpression,
+        _sender: &'c SymbolicExpression,
+        _recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_nft_mint<'b>(
+    fn traverse_nft_mint<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        identifier: &'a SymbolicExpression,
-        recipient: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        identifier: &'c SymbolicExpression,
+        recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, identifier)?;
         builder = self.traverse_expr(builder, recipient)?;
         self.visit_nft_mint(builder, expr, token, identifier, recipient)
     }
 
-    fn visit_nft_mint<'b>(
+    fn visit_nft_mint<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _identifier: &'a SymbolicExpression,
-        _recipient: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _identifier: &'c SymbolicExpression,
+        _recipient: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_nft_get_owner<'b>(
+    fn traverse_nft_get_owner<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        token: &'a ClarityName,
-        identifier: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        token: &'c ClarityName,
+        identifier: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, identifier)?;
         self.visit_nft_get_owner(builder, expr, token, identifier)
     }
 
-    fn visit_nft_get_owner<'b>(
+    fn visit_nft_get_owner<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _token: &'a ClarityName,
-        _identifier: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _token: &'c ClarityName,
+        _identifier: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_let<'b>(
+    fn traverse_let<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
-        body: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        bindings: &HashMap<&'c ClarityName, &'c SymbolicExpression>,
+        body: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for val in bindings.values() {
             builder = self.traverse_expr(builder, val)?;
@@ -2366,22 +2366,22 @@ pub trait ASTVisitor<'a> {
         self.visit_let(builder, expr, bindings, body)
     }
 
-    fn visit_let<'b>(
+    fn visit_let<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
-        _body: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _bindings: &HashMap<&'c ClarityName, &'c SymbolicExpression>,
+        _body: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_map<'b>(
+    fn traverse_map<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        func: &'a ClarityName,
-        sequences: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        func: &'c ClarityName,
+        sequences: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for sequence in sequences {
             builder = self.traverse_expr(builder, sequence)?;
@@ -2389,173 +2389,173 @@ pub trait ASTVisitor<'a> {
         self.visit_map(builder, expr, func, sequences)
     }
 
-    fn visit_map<'b>(
+    fn visit_map<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _func: &'a ClarityName,
-        _sequences: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _func: &'c ClarityName,
+        _sequences: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_fold<'b>(
+    fn traverse_fold<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        func: &'a ClarityName,
-        sequence: &'a SymbolicExpression,
-        initial: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        func: &'c ClarityName,
+        sequence: &'c SymbolicExpression,
+        initial: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         builder = self.traverse_expr(builder, initial)?;
         self.visit_fold(builder, expr, func, sequence, initial)
     }
 
-    fn visit_fold<'b>(
+    fn visit_fold<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _func: &'a ClarityName,
-        _sequence: &'a SymbolicExpression,
-        _initial: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _func: &'c ClarityName,
+        _sequence: &'c SymbolicExpression,
+        _initial: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_append<'b>(
+    fn traverse_append<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        list: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        list: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, list)?;
         builder = self.traverse_expr(builder, value)?;
         self.visit_append(builder, expr, list, value)
     }
 
-    fn visit_append<'b>(
+    fn visit_append<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _list: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _list: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_concat<'b>(
+    fn traverse_concat<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        lhs: &'a SymbolicExpression,
-        rhs: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        lhs: &'c SymbolicExpression,
+        rhs: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, lhs)?;
         builder = self.traverse_expr(builder, rhs)?;
         self.visit_concat(builder, expr, lhs, rhs)
     }
 
-    fn visit_concat<'b>(
+    fn visit_concat<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _lhs: &'a SymbolicExpression,
-        _rhs: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _lhs: &'c SymbolicExpression,
+        _rhs: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_as_max_len<'b>(
+    fn traverse_as_max_len<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        sequence: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        sequence: &'c SymbolicExpression,
         length: u128,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         self.visit_as_max_len(builder, expr, sequence, length)
     }
 
-    fn visit_as_max_len<'b>(
+    fn visit_as_max_len<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _sequence: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _sequence: &'c SymbolicExpression,
         _length: u128,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_len<'b>(
+    fn traverse_len<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        sequence: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        sequence: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         self.visit_len(builder, expr, sequence)
     }
 
-    fn visit_len<'b>(
+    fn visit_len<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _sequence: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _sequence: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_element_at<'b>(
+    fn traverse_element_at<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        sequence: &'a SymbolicExpression,
-        index: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        sequence: &'c SymbolicExpression,
+        index: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         builder = self.traverse_expr(builder, index)?;
         self.visit_element_at(builder, expr, sequence, index)
     }
 
-    fn visit_element_at<'b>(
+    fn visit_element_at<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _sequence: &'a SymbolicExpression,
-        _index: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _sequence: &'c SymbolicExpression,
+        _index: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_index_of<'b>(
+    fn traverse_index_of<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        sequence: &'a SymbolicExpression,
-        item: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        sequence: &'c SymbolicExpression,
+        item: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         builder = self.traverse_expr(builder, item)?;
         self.visit_element_at(builder, expr, sequence, item)
     }
 
-    fn visit_index_of<'b>(
+    fn visit_index_of<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _sequence: &'a SymbolicExpression,
-        _item: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _sequence: &'c SymbolicExpression,
+        _item: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_list_cons<'b>(
+    fn traverse_list_cons<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        args: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for arg in args.iter() {
             builder = self.traverse_expr(builder, arg)?;
@@ -2563,21 +2563,21 @@ pub trait ASTVisitor<'a> {
         self.visit_list_cons(builder, expr, args)
     }
 
-    fn visit_list_cons<'b>(
+    fn visit_list_cons<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _args: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_call_user_defined<'b>(
+    fn traverse_call_user_defined<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
-        args: &'a [SymbolicExpression],
+        expr: &'c SymbolicExpression,
+        name: &'c ClarityName,
+        args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for arg in args.iter() {
             builder = self.traverse_expr(builder, arg)?;
@@ -2585,80 +2585,80 @@ pub trait ASTVisitor<'a> {
         self.visit_call_user_defined(builder, expr, name, args)
     }
 
-    fn visit_call_user_defined<'b>(
+    fn visit_call_user_defined<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _name: &'a ClarityName,
-        _args: &'a [SymbolicExpression],
+        _expr: &'c SymbolicExpression,
+        _name: &'c ClarityName,
+        _args: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_buff_cast<'b>(
+    fn traverse_buff_cast<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_buff_cast(builder, expr, input)
     }
 
-    fn visit_buff_cast<'b>(
+    fn visit_buff_cast<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_is_standard<'b>(
+    fn traverse_is_standard<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        value: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, value)?;
         self.visit_is_standard(builder, expr, value)
     }
 
-    fn visit_is_standard<'b>(
+    fn visit_is_standard<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _value: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _value: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_principal_destruct<'b>(
+    fn traverse_principal_destruct<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        principal: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        principal: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, principal)?;
         self.visit_principal_destruct(builder, expr, principal)
     }
 
-    fn visit_principal_destruct<'b>(
+    fn visit_principal_destruct<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _principal: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _principal: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_principal_construct<'b>(
+    fn traverse_principal_construct<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        buff1: &'a SymbolicExpression,
-        buff20: &'a SymbolicExpression,
-        contract: Option<&'a SymbolicExpression>,
+        expr: &'c SymbolicExpression,
+        buff1: &'c SymbolicExpression,
+        buff20: &'c SymbolicExpression,
+        contract: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, buff1)?;
         builder = self.traverse_expr(builder, buff20)?;
@@ -2668,81 +2668,81 @@ pub trait ASTVisitor<'a> {
         self.visit_principal_construct(builder, expr, buff1, buff20, contract)
     }
 
-    fn visit_principal_construct<'b>(
+    fn visit_principal_construct<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _buff1: &'a SymbolicExpression,
-        _buff20: &'a SymbolicExpression,
-        _contract: Option<&'a SymbolicExpression>,
+        _expr: &'c SymbolicExpression,
+        _buff1: &'c SymbolicExpression,
+        _buff20: &'c SymbolicExpression,
+        _contract: Option<&'c SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_string_to_int<'b>(
+    fn traverse_string_to_int<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_string_to_int(builder, expr, input)
     }
 
-    fn visit_string_to_int<'b>(
+    fn visit_string_to_int<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_int_to_string<'b>(
+    fn traverse_int_to_string<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_int_to_string(builder, expr, input)
     }
 
-    fn visit_int_to_string<'b>(
+    fn visit_int_to_string<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_stx_get_account<'b>(
+    fn traverse_stx_get_account<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        owner: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, owner)?;
         self.visit_stx_get_account(builder, expr, owner)
     }
 
-    fn visit_stx_get_account<'b>(
+    fn visit_stx_get_account<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _owner: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _owner: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_slice<'b>(
+    fn traverse_slice<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        seq: &'a SymbolicExpression,
-        left: &'a SymbolicExpression,
-        right: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        seq: &'c SymbolicExpression,
+        left: &'c SymbolicExpression,
+        right: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, seq)?;
         builder = self.traverse_expr(builder, left)?;
@@ -2750,85 +2750,85 @@ pub trait ASTVisitor<'a> {
         self.visit_slice(builder, expr, seq, left, right)
     }
 
-    fn visit_slice<'b>(
+    fn visit_slice<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _seq: &'a SymbolicExpression,
-        _left: &'a SymbolicExpression,
-        _right: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _seq: &'c SymbolicExpression,
+        _left: &'c SymbolicExpression,
+        _right: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_get_burn_block_info<'b>(
+    fn traverse_get_burn_block_info<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        prop_name: &'a ClarityName,
-        block: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        prop_name: &'c ClarityName,
+        block: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, block)?;
         self.visit_get_burn_block_info(builder, expr, prop_name, block)
     }
 
-    fn visit_get_burn_block_info<'b>(
+    fn visit_get_burn_block_info<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _prop_name: &'a ClarityName,
-        _block: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _prop_name: &'c ClarityName,
+        _block: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_to_consensus_buff<'b>(
+    fn traverse_to_consensus_buff<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         self.visit_to_consensus_buff(builder, expr, input)
     }
 
-    fn visit_to_consensus_buff<'b>(
+    fn visit_to_consensus_buff<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_from_consensus_buff<'b>(
+    fn traverse_from_consensus_buff<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        type_expr: &'a SymbolicExpression,
-        input: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        type_expr: &'c SymbolicExpression,
+        input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, type_expr)?;
         builder = self.traverse_expr(builder, input)?;
         self.visit_from_consensus_buff(builder, expr, type_expr, input)
     }
 
-    fn visit_from_consensus_buff<'b>(
+    fn visit_from_consensus_buff<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _type_expr: &'a SymbolicExpression,
-        _input: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _type_expr: &'c SymbolicExpression,
+        _input: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_bitwise<'b>(
+    fn traverse_bitwise<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        operands: &'a [SymbolicExpression],
+        operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         for operand in operands {
             builder = self.traverse_expr(builder, operand)?;
@@ -2836,23 +2836,23 @@ pub trait ASTVisitor<'a> {
         self.visit_bitwise(builder, expr, func, operands)
     }
 
-    fn visit_bitwise<'b>(
+    fn visit_bitwise<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _operands: &'a [SymbolicExpression],
+        _operands: &'c [SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_replace_at<'b>(
+    fn traverse_replace_at<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
-        sequence: &'a SymbolicExpression,
-        index: &'a SymbolicExpression,
-        element: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
+        sequence: &'c SymbolicExpression,
+        index: &'c SymbolicExpression,
+        element: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, sequence)?;
         builder = self.traverse_expr(builder, index)?;
@@ -2860,46 +2860,46 @@ pub trait ASTVisitor<'a> {
         self.visit_replace_at(builder, expr, sequence, element, index)
     }
 
-    fn visit_replace_at<'b>(
+    fn visit_replace_at<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
-        _sequence: &'a SymbolicExpression,
-        _index: &'a SymbolicExpression,
-        _element: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
+        _sequence: &'c SymbolicExpression,
+        _index: &'c SymbolicExpression,
+        _element: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 
-    fn traverse_bit_shift<'b>(
+    fn traverse_bit_shift<'b, 'c>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
-        expr: &'a SymbolicExpression,
+        expr: &'c SymbolicExpression,
         func: NativeFunctions,
-        input: &'a SymbolicExpression,
-        shamt: &'a SymbolicExpression,
+        input: &'c SymbolicExpression,
+        shamt: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder = self.traverse_expr(builder, input)?;
         builder = self.traverse_expr(builder, shamt)?;
         self.visit_bit_shift(builder, expr, func, input, shamt)
     }
 
-    fn visit_bit_shift<'b>(
+    fn visit_bit_shift<'b, 'c>(
         &mut self,
         builder: InstrSeqBuilder<'b>,
-        _expr: &'a SymbolicExpression,
+        _expr: &'c SymbolicExpression,
         _func: NativeFunctions,
-        _input: &'a SymbolicExpression,
-        _shamt: &'a SymbolicExpression,
+        _input: &'c SymbolicExpression,
+        _shamt: &'c SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
 }
 
 pub fn traverse<'a, 'b>(
-    visitor: &mut impl ASTVisitor<'a>,
+    visitor: &'a mut impl ASTVisitor,
     mut builder: InstrSeqBuilder<'b>,
-    exprs: &'a [SymbolicExpression],
+    exprs: &[SymbolicExpression],
 ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
     for expr in exprs {
         builder = visitor.traverse_expr(builder, expr)?;
@@ -2947,7 +2947,7 @@ fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &Symbo
     Some(tuple_map)
 }
 
-fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
+fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar>> {
     let mut vars = Vec::new();
     for pair_list in list {
         let pair = pair_list.match_list()?;
