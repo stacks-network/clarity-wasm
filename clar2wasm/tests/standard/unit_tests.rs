@@ -1577,3 +1577,57 @@ fn test_ge_int() {
     .expect("call to ge-int failed");
     assert_eq!(result[0].i32(), Some(1));
 }
+
+#[test]
+fn test_log2_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let log2 = instance.get_func(&mut store, "log2-uint").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // log2(0) is an error
+    log2.call(&mut store, &[Val::I64(0), Val::I64(0)], &mut result)
+        .expect_err("expected log of 0 error");
+
+    // log2(u128::MAX) is not an error (-1 if signed)
+    log2.call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
+        .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(127));
+
+    // log2(u64::MAX) is not an error
+    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
+        .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(63));
+
+    // log2(u128::MAX-u64::MAX) is not an error
+    log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
+        .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(127));
+}
+
+#[test]
+fn test_log2_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let log2 = instance.get_func(&mut store, "log2-int").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // log2(0) is an error
+    log2.call(&mut store, &[Val::I64(0), Val::I64(0)], &mut result)
+        .expect_err("expected log of 0 error");
+
+    // log2(-1) is an error
+    log2.call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
+        .expect_err("expected log of negative number error");
+
+    // log2(u64::MAX) is not an error
+    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
+        .expect("call to log2-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(63));
+
+    // log2(u128::MAX-u64::MAX) is an error
+    log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
+        .expect_err("expected log of negative number error");
+}

@@ -452,3 +452,55 @@ fn prop_ge_int() {
         prop_assert_eq!(n.signed() >= m.signed(), res[0].i32().unwrap() == 1);
     })
 }
+
+#[test]
+fn prop_log2_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let log2 = instance
+        .get_func(store.borrow_mut().deref_mut(), "log2-uint")
+        .unwrap();
+
+    proptest!(|(n in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = log2.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into()],
+            &mut res,
+        );
+        match n.unsigned().checked_ilog2() {
+            Some(rust_result) => {
+                call.expect("call to log2-uint failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+                prop_assert_eq!(rust_result as u128, wasm_result.unsigned());
+            }
+            None => { call.expect_err("expected log2 of 0"); }
+        }
+    })
+}
+
+#[test]
+fn prop_log2_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let log2 = instance
+        .get_func(store.borrow_mut().deref_mut(), "log2-int")
+        .unwrap();
+
+    proptest!(|(n in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = log2.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into()],
+            &mut res,
+        );
+        match n.signed().checked_ilog2() {
+            Some(rust_result) => {
+                call.expect("call to log2-int failed");
+                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+                prop_assert_eq!(rust_result as i128, wasm_result.signed());
+            }
+            None => { call.expect_err("expected log2 of negative number or 0"); }
+        }
+    })
+}

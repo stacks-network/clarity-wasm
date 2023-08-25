@@ -2,11 +2,11 @@
 ;; builtins, to be called from the generated Wasm code.
 (module
     (type (;0;) (func (param i32)))
-    (type (;1;) (func (param i64 i64 i64 i64) (result i64 i64)))
-    (type (;2;) (func (param i64 i64 i64 i64) (result i64 i64 i64 i64)))
+    (type (;1;) (func (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)))
+    (type (;2;) (func (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64 i64 i64)))
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
-    (type (;5;) (func (param i64 i64 i64 i64) (result i32)))
+    (type (;5;) (func (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)))
 
     ;; Functions imported for host interface
     ;; define_variable(var_id: i32, name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
@@ -23,6 +23,7 @@
         ;; 0: overflow
         ;; 1: underflow
         ;; 2: divide by zero
+        ;; 3: log of a number <= 0
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -570,68 +571,90 @@
         (return (local.get $remainder_hi) (local.get $remainder_lo))
     )
 
-    (func $lt-uint (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $lt-uint (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.lt_u (local.get 1) (local.get 3))
-            (i64.lt_u (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.lt_u (local.get $a_lo) (local.get $b_lo))
+            (i64.lt_u (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $gt-uint (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $gt-uint (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.gt_u (local.get 1) (local.get 3))
-            (i64.gt_u (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.gt_u (local.get $a_lo) (local.get $b_lo))
+            (i64.gt_u (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $le-uint (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $le-uint (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.le_u (local.get 1) (local.get 3))
-            (i64.le_u (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.le_u (local.get $a_lo) (local.get $b_lo))
+            (i64.le_u (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $ge-uint (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $ge-uint (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.ge_u (local.get 1) (local.get 3))
-            (i64.ge_u (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.ge_u (local.get $a_lo) (local.get $b_lo))
+            (i64.ge_u (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $lt-int (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $lt-int (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.lt_u (local.get 1) (local.get 3))
-            (i64.lt_s (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.lt_u (local.get $a_lo) (local.get $b_lo))
+            (i64.lt_s (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $gt-int (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $gt-int (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.gt_u (local.get 1) (local.get 3))
-            (i64.gt_s (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.gt_u (local.get $a_lo) (local.get $b_lo))
+            (i64.gt_s (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $le-int (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $le-int (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.le_u (local.get 1) (local.get 3))
-            (i64.le_s (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.le_u (local.get $a_lo) (local.get $b_lo))
+            (i64.le_s (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (func $ge-int (type 5) (param i64 i64 i64 i64) (result i32)
+    (func $ge-int (type 5) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i32)
         (select
-            (i64.ge_u (local.get 1) (local.get 3))
-            (i64.ge_s (local.get 0) (local.get 2))
-            (i64.eq (local.get 0) (local.get 2))
+            (i64.ge_u (local.get $a_lo) (local.get $b_lo))
+            (i64.ge_s (local.get $a_hi) (local.get $b_hi))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
+    )
+
+    (func $log2 (param $hi i64) (param $lo i64) (result i64)
+        (select
+            (i64.xor (i64.clz (local.get $lo)) (i64.const 63))
+            (i64.xor (i64.clz (local.get $hi)) (i64.const 127))
+            (i64.eqz (local.get $hi))
+        )
+    )
+
+    (func $log2-uint (type 3) (param $hi i64) (param $lo i64) (result i64 i64)
+        (if (i64.eqz (i64.or (local.get $hi) (local.get $lo)))
+            (call $runtime-error (i32.const 3)))
+        (i64.const 0)
+        (call $log2 (local.get $hi) (local.get $lo))
+    )
+
+    (func $log2-int (type 3) (param $hi i64) (param $lo i64) (result i64 i64)
+        (if (call $le-int (local.get $hi) (local.get $lo) (i64.const 0) (i64.const 0))
+            (call $runtime-error (i32.const 3)))
+        (i64.const 0)
+        (call $log2 (local.get $hi) (local.get $lo))
     )
 
     (export "memcpy" (func $memcpy))
@@ -653,4 +676,6 @@
     (export "gt-int" (func $gt-int))
     (export "le-int" (func $le-int))
     (export "ge-int" (func $ge-int))
+    (export "log2-uint" (func $log2-uint))
+    (export "log2-int" (func $log2-int))
 )
