@@ -562,9 +562,9 @@
         ;; If the result should be negative, negate it
         (if (i32.wrap_i64 (local.get $sign_dividend))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $remainder_hi) (local.get $remainder_lo))
-                (local.set $remainder_lo)
+                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $remainder_lo) (local.get $remainder_hi))
                 (local.set $remainder_hi)
+                (local.set $remainder_lo)
             )
         )
 
@@ -651,7 +651,7 @@
     )
 
     (func $log2-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
-        (if (call $le-int (local.get $hi) (local.get $lo) (i64.const 0) (i64.const 0))
+        (if (call $le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
             (call $runtime-error (i32.const 3)))
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
