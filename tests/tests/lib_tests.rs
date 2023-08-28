@@ -114,7 +114,7 @@ test_contract!(
     test_call_public_with_args,
     "call-public-with-args",
     "simple",
-    &[Val::I64(0), Val::I64(20), Val::I64(0), Val::I64(22)],
+    &[Val::I64(20), Val::I64(0), Val::I64(22), Val::I64(0)],
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(42));
