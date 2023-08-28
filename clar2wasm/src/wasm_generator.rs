@@ -569,13 +569,13 @@ impl<'a> ASTVisitor<'a> for WasmGenerator {
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         match value {
             clarity::vm::Value::Int(i) => {
-                builder.i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
                 builder.i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
+                builder.i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
                 Ok(builder)
             }
             clarity::vm::Value::UInt(u) => {
-                builder.i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
                 builder.i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
+                builder.i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
                 Ok(builder)
             }
             clarity::vm::Value::Sequence(SequenceData::String(s)) => {
