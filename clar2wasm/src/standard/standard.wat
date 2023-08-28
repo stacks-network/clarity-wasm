@@ -24,6 +24,7 @@
         ;; 1: underflow
         ;; 2: divide by zero
         ;; 3: log of a number <= 0
+        ;; 4: sqrti of a negative number
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -706,7 +707,7 @@
                     (local.set $hi)
 
                     ;; c += d
-                    (call $add-int128 (local.get $c_hi)  (local.get $c_lo) (local.get $d_hi) (local.get $d_lo))
+                    (call $add-int128 (local.get $c_hi) (local.get $c_lo) (local.get $d_hi) (local.get $d_lo))
                     (local.set $c_lo)
                     (local.set $c_hi)
                 )
@@ -728,6 +729,13 @@
         )
 
         (local.get $c_hi) (local.get $c_lo)
+    )
+
+    (func $sqrti-int (type 3) (param $hi i64) (param $lo i64) (result i64 i64)
+        (if (i64.lt_s (local.get $hi) (i64.const 0))
+            (call $runtime-error (i32.const 4))
+        )
+        (call $sqrti-uint (local.get $hi) (local.get $lo))
     )
 
     (export "memcpy" (func $memcpy))
@@ -752,4 +760,5 @@
     (export "log2-uint" (func $log2-uint))
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
+    (export "sqrti-int" (func $sqrti-int))
 )
