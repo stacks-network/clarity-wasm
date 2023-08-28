@@ -504,3 +504,50 @@ fn prop_log2_int() {
         }
     })
 }
+
+#[test]
+fn prop_sqrti_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let sqrti = instance
+        .get_func(store.borrow_mut().deref_mut(), "sqrti-uint")
+        .unwrap();
+
+    proptest!(|(n in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        sqrti.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into()],
+            &mut res,
+        ).expect("call to sqrti-uint failed");
+        let rust_result = num_integer::Roots::sqrt(&n.unsigned());
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned())
+    })
+}
+
+#[test]
+fn prop_sqrti_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let sqrti = instance
+        .get_func(store.borrow_mut().deref_mut(), "sqrti-int")
+        .unwrap();
+
+    proptest!(|(n in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        let call = sqrti.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into()],
+            &mut res,
+        );
+        if n.signed() > 0 {
+            call.expect("call to sqrti-int failed");
+            let rust_result = num_integer::Roots::sqrt(&n.signed());
+            let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+            prop_assert_eq!(rust_result, wasm_result.signed())
+        } else {
+            call.expect_err("expected sqrti of negative number");
+        }
+    })
+}
