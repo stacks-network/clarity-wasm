@@ -799,7 +799,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 < 4294967296 is true
+    // 1 < 0x1_0000_0000_0000_0000 is true
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
@@ -808,7 +808,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 < 4294967297 is true
+    // 1 < 0x1_0000_0000_0000_0001 is true
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -817,7 +817,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967296 < 1 is false
+    // 0x1_0000_0000_0000_0000 < 1 is false
     lt.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -826,7 +826,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 < 1 is false
+    // 0x1_0000_0000_0000_0001 < 1 is false
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -835,7 +835,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967296 < 4294967297 is true
+    // 0x1_0000_0000_0000_0000 < 0x1_0000_0000_0000_0001 is true
     lt.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -844,7 +844,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 < 4294967296 is false
+    // 0x1_0000_0000_0000_0001 < 0x1_0000_0000_0000_0000 is false
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
@@ -853,7 +853,7 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 < 4294967297 is false
+    // 0x1_0000_0000_0000_0001 < 0x1_0000_0000_0000_0001 is false
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -914,7 +914,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 > 4294967296 is false
+    // 1 > 0x1_0000_0000_0000_0000 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
@@ -923,7 +923,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 > 4294967297 is false
+    // 1 > 0x1_0000_0000_0000_0001 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -932,7 +932,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967296 > 1 is true
+    // 0x1_0000_0000_0000_0000 > 1 is true
     gt.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -941,7 +941,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 > 1 is true
+    // 0x1_0000_0000_0000_0001 > 1 is true
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -950,7 +950,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967296 > 4294967297 is false
+    // 0x1_0000_0000_0000_0000 > 0x1_0000_0000_0000_0001 is false
     gt.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -959,7 +959,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 > 4294967296 is true
+    // 0x1_0000_0000_0000_0001 > 0x1_0000_0000_0000_0000 is true
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
@@ -968,7 +968,7 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 > 4294967297 is false
+    // 0x1_0000_0000_0000_0001 > 0x1_0000_0000_0000_0001 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1029,7 +1029,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 <= 4294967296 is true
+    // 1 <= 0x1_0000_0000_0000_0000 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
@@ -1038,7 +1038,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 <= 4294967297 is true
+    // 1 <= 0x1_0000_0000_0000_0001 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -1047,7 +1047,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967296 <= 1 is false
+    // 0x1_0000_0000_0000_0000 <= 1 is false
     le.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1056,7 +1056,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 <= 1 is false
+    // 0x1_0000_0000_0000_0001 <= 1 is false
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1065,7 +1065,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967296 <= 4294967297 is true
+    // 0x1_0000_0000_0000_0000 <= 0x1_0000_0000_0000_0001 is true
     le.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1074,7 +1074,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 <= 4294967296 is false
+    // 0x1_0000_0000_0000_0001 <= 0x1_0000_0000_0000_0000 is false
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
@@ -1083,7 +1083,7 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 <= 4294967297 is true
+    // 0x1_0000_0000_0000_0001 <= 0x1_0000_0000_0000_0001 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1144,7 +1144,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 >= 4294967296 is false
+    // 1 >= 0x1_0000_0000_0000_0000 is false
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
@@ -1153,7 +1153,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 >= 4294967297 is false
+    // 1 >= 0x1_0000_0000_0000_0001 is false
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -1162,7 +1162,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967296 >= 1 is true
+    // 0x1_0000_0000_0000_0000 >= 1 is true
     ge.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1171,7 +1171,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 >= 1 is true
+    // 0x1_0000_0000_0000_0001 >= 1 is true
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1180,7 +1180,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967296 >= 4294967297 is false
+    // 0x1_0000_0000_0000_0000 >= 0x1_0000_0000_0000_0001 is false
     ge.call(
         &mut store,
         &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1189,7 +1189,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 >= 4294967296 is true
+    // 0x1_0000_0000_0000_0001 >= 0x1_0000_0000_0000_0000 is true
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
@@ -1198,7 +1198,7 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 >= 4294967297 is true
+    // 0x1_0000_0000_0000_0001 >= 0x1_0000_0000_0000_0001 is true
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
