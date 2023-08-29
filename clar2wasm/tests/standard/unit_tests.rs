@@ -52,7 +52,7 @@ fn test_add_uint() {
     // 1 + 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff = Overflow
     add.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut sum,
     )
     .expect_err("expected overflow");
