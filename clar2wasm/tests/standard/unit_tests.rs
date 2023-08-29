@@ -15,8 +15,8 @@ fn test_add_uint() {
         &mut sum,
     )
     .expect("call to add-uint failed");
-    assert_eq!(sum[1].i64(), Some(0));
     assert_eq!(sum[0].i64(), Some(0));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // 1 + 2 = 3
     add.call(
