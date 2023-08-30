@@ -1631,3 +1631,85 @@ fn test_log2_int() {
     log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
         .expect_err("expected log of negative number error");
 }
+
+#[test]
+fn test_sqrti_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let sqrti = instance.get_func(&mut store, "sqrti-uint").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // sqrti(0) = 0
+    sqrti
+        .call(&mut store, &[Val::I64(0), Val::I64(0)], &mut result)
+        .expect("call to sqrti-uint failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(1) = 1
+    sqrti
+        .call(&mut store, &[Val::I64(1), Val::I64(0)], &mut result)
+        .expect("call to sqrti-uint failed");
+    assert_eq!(result[0].i64(), Some(1));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(0xffff_ffff_ffff_ffff) = 0xffff_ffff
+    sqrti
+        .call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
+        .expect("call to sqrti-uint failed");
+    assert_eq!(result[0].i64(), Some(0xffff_ffff));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(0x1_0000_0000_0000_0000) = 0x1_0000_0000
+    sqrti
+        .call(&mut store, &[Val::I64(0), Val::I64(1)], &mut result)
+        .expect("call to sqrti-uint failed");
+    assert_eq!(result[0].i64(), Some(0x1_0000_0000));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(u128::MAX)  = 0xffff_ffff_ffff_ffff
+    sqrti
+        .call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
+        .expect("call to sqrti-uint failed");
+    assert_eq!(result[0].i64(), Some(-1));
+    assert_eq!(result[1].i64(), Some(0));
+}
+
+#[test]
+fn test_sqrti_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let sqrti = instance.get_func(&mut store, "sqrti-int").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // sqrti(0) = 0
+    sqrti
+        .call(&mut store, &[Val::I64(0), Val::I64(0)], &mut result)
+        .expect("call to sqrti-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(1) = 1
+    sqrti
+        .call(&mut store, &[Val::I64(1), Val::I64(0)], &mut result)
+        .expect("call to sqrti-int failed");
+    assert_eq!(result[0].i64(), Some(1));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(0xffff_ffff_ffff_ffff) = 0xffff_ffff
+    sqrti
+        .call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
+        .expect("call to sqrti-int failed");
+    assert_eq!(result[0].i64(), Some(0xffff_ffff));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(0x1_0000_0000_0000_0000) = 0x1_0000_0000
+    sqrti
+        .call(&mut store, &[Val::I64(0), Val::I64(1)], &mut result)
+        .expect("call to sqrti-int failed");
+    assert_eq!(result[0].i64(), Some(0x1_0000_0000));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // sqrti(-1) is error
+    sqrti
+        .call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
+        .expect_err("expected sqrti of negative integer");
+}
