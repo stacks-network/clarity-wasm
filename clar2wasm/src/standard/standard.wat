@@ -66,21 +66,13 @@
 
     ;; This function can be used to add either signed or unsigned integers
     (func $add-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $sum_lo i64)
-        (local $sum_hi i64)
-        (local $carry i64)
-
         ;; Add the lower 64 bits
-        (local.set $sum_lo (i64.add (local.get $a_lo) (local.get $b_lo)))
-
-        ;; Check for carry
-        (local.set $carry (i64.extend_i32_u (i64.lt_u (local.get $sum_lo) (local.get $a_lo))))
+        (local.tee $b_lo (i64.add (local.get $a_lo) (local.get $b_lo))) ;; $b_lo now contains the result lower bits
 
         ;; Add the upper 64 bits, accounting for any carry from the lower bits
-        (local.set $sum_hi (i64.add (i64.add (local.get $a_hi) (local.get $b_hi)) (local.get $carry)))
-
-        ;; Return the result
-        (return (local.get $sum_lo) (local.get $sum_hi))
+        (i64.add
+            (i64.extend_i32_u (i64.gt_u (local.get $a_lo) (local.get $b_lo)))   ;; carry
+            (i64.add (local.get $a_hi) (local.get $b_hi)))                      ;; upper 64 bits
     )
 
     (func $add-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
@@ -108,25 +100,16 @@
     )
 
     (func $add-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $sum_hi i64)
-        (local $sum_lo i64)
+        (call $add-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+        (local.set $a_hi) ;; storing the result in place of first operand
+        (local.set $a_lo)
 
-        (local.get $a_lo)
-        (local.get $a_hi)
-        (local.get $b_lo)
-        (local.get $b_hi)
-        (call $add-int128)
-
-        (local.set $sum_hi)
-        (local.set $sum_lo)
-
-        ;; Check for overflow
-        (if (i64.lt_u (local.get $sum_hi) (local.get $a_hi))
+        ;; overflow condition: sum (a) < operand (b)
+        (if (call $lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
             (call $runtime-error (i32.const 0))
         )
 
-        ;; Return the result
-        (return (local.get $sum_lo) (local.get $sum_hi))
+        (local.get $a_lo) (local.get $a_hi)
     )
 
     ;; This function can be used to subtract either signed or unsigned integers
