@@ -29,10 +29,8 @@ pub struct WasmGenerator<'a> {
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
     stack_pointer: GlobalId,
-    /// Map identifier names to identifier numbers.
-    identifiers: HashMap<String, i32>,
-    /// Next identifier, used for contract constants, variables, and maps.
-    next_identifier: i32,
+    /// Map strings saved in the literal memory to their offset.
+    literal_memory_offet: HashMap<String, u32>,
 
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
@@ -106,8 +104,7 @@ impl<'a> WasmGenerator<'a> {
             stack_pointer: global_id,
             locals: HashMap::new(),
             frame_size: 0,
-            identifiers: HashMap::new(),
-            next_identifier: 0,
+            literal_memory_offet: HashMap::new(),
         }
     }
 
@@ -264,6 +261,12 @@ impl<'a> WasmGenerator<'a> {
 
     /// Adds a new string literal into the memory, and returns the offset and length.
     fn add_string_literal(&mut self, s: &CharType) -> (u32, u32) {
+        // If this string has already been saved in the literal memory,
+        // just return the offset and length.
+        if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
+            return (*offset, name.len() as u32);
+        }
+
         let data = match s {
             CharType::ASCII(s) => s.data.clone(),
             CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
@@ -279,11 +282,22 @@ impl<'a> WasmGenerator<'a> {
             data.clone(),
         );
         self.literal_memory_end += data.len() as u32;
+
+        // Save the offset in the literal memory for this string
+        self.literal_memory_offet
+            .insert(name.to_string(), offset as u32);
+
         (offset, len)
     }
 
     /// Adds a new string literal into the memory for an identifier
-    fn add_identifier_string_literal(&mut self, name: &ClarityName) -> (u32, u32) {
+    fn add_identifier_string_literal(&mut self, name: &clarity::vm::ClarityName) -> (u32, u32) {
+        // If this identifier has already been saved in the literal memory,
+        // just return the offset and length.
+        if let Some(offset) = self.literal_memory_offet.get(name.as_str()) {
+            return (*offset, name.len() as u32);
+        }
+
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
         let len = name.len() as u32;
@@ -295,6 +309,11 @@ impl<'a> WasmGenerator<'a> {
             name.as_bytes().to_vec(),
         );
         self.literal_memory_end += name.len() as u32;
+
+        // Save the offset in the literal memory for this identifier
+        self.literal_memory_offet
+            .insert(name.to_string(), offset as u32);
+
         (offset, len)
     }
 
@@ -781,9 +800,6 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         _data_type: &SymbolicExpression,
         initial: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let var_id = self.get_next_identifier();
-        self.identifiers.insert(name.to_string(), var_id);
-
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -965,11 +981,12 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         expr: &SymbolicExpression,
         name: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Get the identifier for this variable
-        let var_id = *self
-            .identifiers
-            .get(&name.to_string())
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = self
+            .literal_memory_offet
+            .get(name.as_str())
             .expect("variable not found: {name}");
+        let id_length = name.len();
 
         // Create a new sequence to hold the result on the call stack
         let ty = self
@@ -979,8 +996,8 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         let (offset, size);
         (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
+        // Push the identifier offset and length onto the data stack
+        builder.i32_const(id_offset as i32).i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
@@ -1007,11 +1024,12 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         name: &ClarityName,
         value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Get the identifier for this variable
-        let var_id = *self
-            .identifiers
-            .get(&name.to_string())
-            .expect("variable not found: {name}");
+         // Get the offset and length for this identifier in the literal memory
+         let id_offset = self
+         .literal_memory_offet
+         .get(name.as_str())
+         .expect("variable not found: {name}");
+     let id_length = name.len();
 
         // Create space on the call stack to write the value
         let ty = self
@@ -1024,8 +1042,8 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         // Write the value to the memory (it's already on the data stack)
         self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
+        // Push the identifier offset and length onto the data stack
+        builder.i32_const(id_offset as i32).i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);

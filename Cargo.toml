@@ -1,2 +1,2 @@
 [workspace]
-members = ["clar2wasm"]
+members = ["clar2wasm", "tests"]

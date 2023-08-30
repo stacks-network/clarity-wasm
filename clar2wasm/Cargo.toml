@@ -6,8 +6,8 @@ build = "build.rs"
 
 [dependencies]
 # clarity-vm = { version = "2" }
-clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "feat/clarity-wasm-runtime" }
-# clarity = { path = "../../stacks-blockchain/clarity" }
+# clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "feat/clarity-wasm-runtime" }
+clarity = { path = "../../stacks-blockchain/clarity" }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"
