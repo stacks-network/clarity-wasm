@@ -517,7 +517,7 @@ fn prop_sqrti_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         sqrti.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into()],
+            &[n.low().into(), n.high().into()],
             &mut res,
         ).expect("call to sqrti-uint failed");
         let rust_result = num_integer::Roots::sqrt(&n.unsigned());
@@ -538,7 +538,7 @@ fn prop_sqrti_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = sqrti.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into()],
+            &[n.low().into(), n.high().into()],
             &mut res,
         );
         if n.signed() > 0 {

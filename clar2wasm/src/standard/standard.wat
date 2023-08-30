@@ -641,17 +641,18 @@
         (i64.const 0)
     )
 
-    (func $sqrti-uint (type 3) (param $hi i64) (param $lo i64) (result i64 i64)
+    (func $sqrti-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         ;; https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Binary_numeral_system_(base_2)
         (local $d_lo i64) (local $d_hi i64)
         (local $c_lo i64) (local $c_hi i64)
         (local $tmp_lo i64) (local $tmp_hi i64)
 
-        (if (i64.eqz (i64.or (local.get $hi) (local.get $lo)))
+        (if (i64.eqz (i64.or (local.get $lo) (local.get $hi)))
             (return (i64.const 0) (i64.const 0))
         )
 
-        (local.set $c_lo (i64.const 0)) (local.set $c_hi (i64.const 0))
+        (local.set $c_lo (i64.const 0))
+        (local.set $c_hi (i64.const 0))
 
         ;; computing d
         (if (i64.eqz (local.get $hi))
@@ -685,9 +686,9 @@
 
         (loop $loop_res
             ;; tmp = c + d
-            (call $add-int128 (local.get $c_hi) (local.get $c_lo) (local.get $d_hi) (local.get $d_lo))
-            (local.set $tmp_lo)
+            (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
             (local.set $tmp_hi)
+            (local.set $tmp_lo)
 
             ;; c = c >> 1
             (local.set $c_lo 
@@ -699,17 +700,17 @@
             (local.set $c_hi (i64.shr_u (local.get $c_hi) (i64.const 1)))
 
             ;; if n >= tmp
-            (if (call $ge-uint (local.get $hi) (local.get $lo) (local.get $tmp_hi) (local.get $tmp_lo))
+            (if (call $ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
                 (then
                     ;; n -= tmp
-                    (call $sub-int128 (local.get $hi) (local.get $lo) (local.get $tmp_hi) (local.get $tmp_lo))
-                    (local.set $lo)
+                    (call $sub-int128 (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
                     (local.set $hi)
+                    (local.set $lo)
 
                     ;; c += d
-                    (call $add-int128 (local.get $c_hi) (local.get $c_lo) (local.get $d_hi) (local.get $d_lo))
-                    (local.set $c_lo)
+                    (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
                     (local.set $c_hi)
+                    (local.set $c_lo)
                 )
             )
 
@@ -728,14 +729,14 @@
             )
         )
 
-        (local.get $c_hi) (local.get $c_lo)
+        (local.get $c_lo) (local.get $c_hi)
     )
 
-    (func $sqrti-int (type 3) (param $hi i64) (param $lo i64) (result i64 i64)
+    (func $sqrti-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
             (call $runtime-error (i32.const 4))
         )
-        (call $sqrti-uint (local.get $hi) (local.get $lo))
+        (call $sqrti-uint (local.get $lo) (local.get $hi))
     )
 
     (export "memcpy" (func $memcpy))
