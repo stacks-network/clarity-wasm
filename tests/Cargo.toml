@@ -7,8 +7,9 @@ edition = "2021"
 path = "./src/lib.rs"
 
 [dependencies]
-clarity-vm = { version = "2" }
+# clarity-vm = { version = "2" }
 # clarity = { git = "https://github.com/stacks-network/stacks-blockchain.git", branch = "master" }
+clarity = { path = "../../stacks-blockchain/clarity" }
 clar2wasm = { path = "../clar2wasm" }
 wasmtime = "12.0.0"
 sha2 = "0.10.7"

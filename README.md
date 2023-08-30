@@ -80,11 +80,28 @@ WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We
 - `optional`: `i32` indicator (`0` for `none`, `1` for `some`), followed by value for `some`
 - `response`: `i32` indicator (`0` for `err`, `1` for `ok`) followed by ok value, then err value
 
+When the return value of a function requires memory space, this space should be allocated by the caller and the offset for that space should be passed to the callee, following the arguments. For example, we can look at the following function:
+
+```clarity
+(define-read-only (get-boolean-string (b bool))
+  (if b "true" "false")
+)
+```
+
+This function takes a `bool` and returns a `(string-ascii 5)`. The generated Wasm function would take as arguments:
+- `I32` representing the boolean
+- `I32` representing the offset of the return value's memory space
+- `I32` representing the length of the return value's memory space
+
+For consistency with other types, the Wasm function would still return these two `I32`s for offset and length of the return value, even though that is not necessary for the caller.
+
 ### Memory Management
 
 Web Assembly provides a simple linear memory, accessible with load/store operations. This memory is also exported for access from the host. For the Clarity VM, at the base of this memory, starting at offset 0, we are storing literals that do not fit into the scalar types supported by Wasm, for example, string literals. When used in the code, the literals are loaded from a constant offset. During compilation, the top of the literal memory is tracked by the field `literal_memory_end` in the `WasmGenerator` structure.
 
-After the literals, we build a call stack, where function local values that do not fit into scalars are stored. A global variable is defined in the Wasm module to maintain a stack pointer. At the beginning of every function, we insert the function prologue, which saves the current stack pointer to a local variable, which we can call the frame pointer. The frame pointer is the base of the current function's frame, its space in the call stack, and the function's local values can be accessed via offsets from this frame pointer. The stack pointer is then incremented for any space that gets reserved for the current function. Every function also has a function epilogue, which must be called upon exit from the function. The epilogue pops the function's frame from the call stack, since its locals are no longer needed, by setting the stack pointer equal to its frame pointer.
+After the literals, space may be allocated for passing arguments into the contract being called. Simple arguments are passed directly to the function, but those that require stack space (see [ABI](#abi)) will be written to this location. If the return value from the contract call requires stack space, then this will follow the arguments' space.
+
+After this argument space, we build a call stack, where function local values that do not fit into scalars are stored. A global variable is defined in the Wasm module to maintain a stack pointer. At the beginning of every function, we insert the function prologue, which saves the current stack pointer to a local variable, which we can call the frame pointer. The frame pointer is the base of the current function's frame, its space in the call stack, and the function's local values can be accessed via offsets from this frame pointer. The stack pointer is then incremented for any space that gets reserved for the current function. Every function also has a function epilogue, which must be called upon exit from the function. The epilogue pops the function's frame from the call stack, since its locals are no longer needed, by setting the stack pointer equal to its frame pointer.
 
 It may be helpful to clarify this with an example. Consider the following Clarity code:
 
@@ -93,8 +110,8 @@ It may be helpful to clarify this with an example. Consider the following Clarit
   (len (concat a b))
 )
 
-(define-read-only (example)
-  (do-concat "hello " "world")
+(define-read-only (hello (to (string-ascii 16)))
+  (do-concat "hello " to)
 )
 ```
 
@@ -106,9 +123,9 @@ stack pointer ->     +-------------------+
                      |  32 byte string   | <- Frame for do-concat
                      |         .         |
 frame pointer ->     +-------------------+ <- Frame for example (no space allocated)
-                     |      "hello "     |
-                     |                   | <- Literal memory
-                     |      "world"      |
+                     |         to        | <- Argument memory
+                     +-------------------+
+                     |      "hello "     | <- Literal memory
 0 ->                 +-------------------+
 ```
 
