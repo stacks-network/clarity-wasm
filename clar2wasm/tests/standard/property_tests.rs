@@ -115,3 +115,115 @@ fn prop_sqrti_int() {
         }
     })
 }
+
+#[test]
+fn prop_bit_and() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_and = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-and")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_and.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to bit-and failed");
+		let rust_result = n.unsigned() & m.unsigned();
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+
+    })
+}
+
+#[test]
+fn prop_bit_not() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_not = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-not")
+        .unwrap();
+
+    proptest!(|(n in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_not.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into()],
+            &mut res,
+        ).expect("call to bit-not failed");
+		let rust_result = !n.unsigned();
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+
+    })
+}
+
+#[test]
+fn prop_bit_or() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_or = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-or")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_or.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to bit-or failed");
+		let rust_result = n.unsigned() | m.unsigned();
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+    })
+}
+
+#[test]
+fn prop_bit_shift_left() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_shift_left = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-shift-left")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+		// bit shifts are always mod 128, as per clarity docs
+		let m = (m.unsigned() % 128) as i64;
+
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_shift_left.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), Val::I64(m)],
+            &mut res,
+        ).expect("call to bit-shift-left failed");
+		let rust_result = n.unsigned().wrapping_shl(m as u32);
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+
+    })
+}
+
+#[test]
+fn prop_bit_xor() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_xor = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-xor")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_xor.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &mut res,
+        ).expect("call to bit-xor failed");
+		let rust_result = n.unsigned() ^ m.unsigned();
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+
+    })
+}

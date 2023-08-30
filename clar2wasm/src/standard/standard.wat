@@ -7,6 +7,7 @@
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
+    (type (;6;) (func (param $a_lo i64) (param $a_hi i64) (param $by i64) (result i64 i64)))
 
     ;; Functions imported for host interface
     ;; define_variable(var_id: i32, name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
@@ -213,7 +214,7 @@
         (local.set $b3 (i32.wrap_i64 (i64.shr_u (local.get $b_hi) (i64.const 32))))
 
         ;; Do long multiplication over the chunks
-        ;; Result = a0b0 + 
+        ;; Result = a0b0 +
         ;;         (a1b0 + a0b1) << 32 +
         ;;         (a2b0 + a1b1 + a0b2) << 64 +
         ;;         (a3b0 + a2b1 + a1b2 + a0b3) << 96
@@ -232,7 +233,7 @@
             )
             (call $runtime-error (i32.const 0))
         )
-        
+
         ;; a0b0
         (local.set $res_lo (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b0))))
 
@@ -381,7 +382,7 @@
         (local.set $current_bit (i64.const 127))
 
         (loop $div_loop
-            ;; Shift the remainder left by one bit, 
+            ;; Shift the remainder left by one bit,
             ;; filling the least significant bit with the next bit of the dividend
             (local.set $remainder_hi (i64.or
                 (i64.shl (local.get $remainder_hi) (i64.const 1))
@@ -656,11 +657,11 @@
 
         ;; computing d
         (if (i64.eqz (local.get $hi))
-            (then 
+            (then
                 ;; since we know $d_hi will be 0, we can use it as tmp value during computation
                 (local.set $d_hi (i64.const 0x4000000000000000))
                 (loop $loop_lo
-                    (local.set $d_hi 
+                    (local.set $d_hi
                         (i64.shr_u
                             (local.tee $d_lo (local.get $d_hi))
                             (i64.const 2)
@@ -693,7 +694,7 @@
             (local.set $tmp_lo)
 
             ;; c = c >> 1
-            (local.set $c_lo 
+            (local.set $c_lo
                 (i64.or
                     (i64.shl (local.get $c_hi) (i64.const 63))
                     (i64.shr_u (local.get $c_lo) (i64.const 1))
@@ -717,7 +718,7 @@
             )
 
             ;; d = d >> 2
-            (local.set $d_lo 
+            (local.set $d_lo
                 (i64.or
                     (i64.shl (local.get $d_hi) (i64.const 62))
                     (i64.shr_u (local.get $d_lo) (i64.const 2))
@@ -726,7 +727,7 @@
             (local.set $d_hi (i64.shr_u (local.get $d_hi) (i64.const 2)))
 
             ;; branch if (d != 0)
-            (br_if $loop_res 
+            (br_if $loop_res
                 (i64.ne (i64.or (local.get $d_lo) (local.get $d_hi)) (i64.const 0))
             )
         )
@@ -740,6 +741,69 @@
         )
         (call $sqrti-uint (local.get $lo) (local.get $hi))
     )
+
+	(func $bit-and (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+        (local $and_lo i64)
+        (local $and_hi i64)
+        (local.set $and_lo (i64.and (local.get $a_lo) (local.get $b_lo)))
+        (local.set $and_hi (i64.and (local.get $a_hi) (local.get $b_hi)))
+        (return (local.get $and_hi) (local.get $and_lo))
+    )
+
+	(func $bit-not (type 3) (param $a_hi i64) (param $a_lo i64) (result i64 i64)
+        (local $not_lo i64)
+        (local $not_hi i64)
+		;; wasm does not have bitwise negation, but xoring with -1 is equivalent
+        (local.set $not_lo (i64.xor (local.get $a_lo) (i64.const -1)))
+        (local.set $not_hi (i64.xor (local.get $a_hi) (i64.const -1)))
+        (return (local.get $not_hi) (local.get $not_lo))
+    )
+
+	(func $bit-or (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+        (local $and_lo i64)
+        (local $and_hi i64)
+        (local.set $and_lo (i64.or (local.get $a_lo) (local.get $b_lo)))
+        (local.set $and_hi (i64.or (local.get $a_hi) (local.get $b_hi)))
+        (return (local.get $and_hi) (local.get $and_lo))
+    )
+
+	(func $bit-xor (type 1) (param $a_hi i64) (param $a_lo i64) (param $b_hi i64) (param $b_lo i64) (result i64 i64)
+        (local $xor_lo i64)
+        (local $xor_hi i64)
+        (local.set $xor_lo (i64.xor (local.get $a_lo) (local.get $b_lo)))
+        (local.set $xor_hi (i64.xor (local.get $a_hi) (local.get $b_hi)))
+        (return (local.get $xor_hi) (local.get $xor_lo))
+    )
+
+	(func $bit-shift-left (type 6) (param $a_hi i64) (param $a_lo i64) (param $by i64) (result i64 i64)
+		  (local $shift_hi i64)
+		  (local $shift_lo i64)
+		  (local $overflow i64)
+
+
+		  ;; case when not shifting at all
+		  (if (i64.eq (local.get $by)
+					  (i64.const 0))
+			  (return (local.get $a_hi)
+					  (local.get $a_lo)))
+
+		  ;; case when completely discarding low bits
+		  (if (i64.gt_u (local.get $by) (i64.const 63))
+			  (return
+				(i64.shl (local.get $a_lo)
+						 (i64.sub (local.get $by)
+								  (i64.const 64)))
+				(i64.const 0)))
+
+		  ;; all other cases
+		  (local.set $overflow (i64.shr_u (local.get $a_lo)
+										  (i64.sub (i64.const 64)
+												   (local.get $by))))
+		  ;; do the shifting, or-ing the overflow from lo into hi
+		  (local.set $shift_lo (i64.shl (local.get $a_lo) (local.get $by)))
+		  (local.set $shift_hi (i64.or (i64.shl (local.get $a_hi) (local.get $by))
+									   (local.get $overflow)))
+		  (return (local.get $shift_hi) (local.get $shift_lo)))
 
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
@@ -764,4 +828,9 @@
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
     (export "sqrti-int" (func $sqrti-int))
+    (export "bit-and" (func $bit-and))
+    (export "bit-not" (func $bit-not))
+    (export "bit-or" (func $bit-or))
+    (export "bit-xor" (func $bit-xor))
+    (export "bit-shift-left" (func $bit-shift-left))
 )
