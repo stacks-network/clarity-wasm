@@ -13,7 +13,7 @@ impl PropInt {
         Self(n)
     }
 
-    const fn from_wasm(high: i64, low: i64) -> Self {
+    const fn from_wasm(low: i64, high: i64) -> Self {
         Self(((high as u64) as u128) << 64 | ((low as u64) as u128))
     }
 
@@ -52,7 +52,7 @@ fn prop_add_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = add.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.unsigned().checked_add(m.unsigned()) {
@@ -78,7 +78,7 @@ fn prop_add_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = add.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.signed().checked_add(m.signed()) {
@@ -104,7 +104,7 @@ fn prop_sub_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = sub.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.unsigned().checked_sub(m.unsigned()) {
@@ -130,7 +130,7 @@ fn prop_sub_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = sub.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.signed().checked_sub(m.signed()) {
@@ -156,7 +156,7 @@ fn prop_mul_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = mul.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.unsigned().checked_mul(m.unsigned()) {
@@ -182,7 +182,7 @@ fn prop_mul_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = mul.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.signed().checked_mul(m.signed()) {
@@ -208,7 +208,7 @@ fn prop_div_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = div.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.unsigned().checked_div(m.unsigned()) {
@@ -234,7 +234,7 @@ fn prop_div_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = div.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.signed().checked_div(m.signed()) {
@@ -260,7 +260,7 @@ fn prop_mod_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = modulo.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.unsigned().checked_rem(m.unsigned()) {
@@ -286,7 +286,7 @@ fn prop_mod_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = modulo.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         );
         match n.signed().checked_rem(m.signed()) {
@@ -313,7 +313,7 @@ fn prop_lt_uint() {
         let mut res = [Val::I32(0)];
         lt.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to lt-uint failed");
         prop_assert_eq!(n.unsigned() < m.unsigned(), res[0].i32().unwrap() == 1);
@@ -332,7 +332,7 @@ fn prop_lt_int() {
         let mut res = [Val::I32(0)];
         lt.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to lt-int failed");
         prop_assert_eq!(n.signed() < m.signed(), res[0].i32().unwrap() == 1);
@@ -351,7 +351,7 @@ fn prop_gt_uint() {
         let mut res = [Val::I32(0)];
         gt.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to gt-uint failed");
         prop_assert_eq!(n.unsigned() > m.unsigned(), res[0].i32().unwrap() == 1);
@@ -370,7 +370,7 @@ fn prop_gt_int() {
         let mut res = [Val::I32(0)];
         gt.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to gt-int failed");
         prop_assert_eq!(n.signed() > m.signed(), res[0].i32().unwrap() == 1);
@@ -389,7 +389,7 @@ fn prop_le_uint() {
         let mut res = [Val::I32(0)];
         le.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to le-uint failed");
         prop_assert_eq!(n.unsigned() <= m.unsigned(), res[0].i32().unwrap() == 1);
@@ -408,7 +408,7 @@ fn prop_le_int() {
         let mut res = [Val::I32(0)];
         le.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to le-int failed");
         prop_assert_eq!(n.signed() <= m.signed(), res[0].i32().unwrap() == 1);
@@ -427,7 +427,7 @@ fn prop_ge_uint() {
         let mut res = [Val::I32(0)];
         ge.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to ge-uint failed");
         prop_assert_eq!(n.unsigned() >= m.unsigned(), res[0].i32().unwrap() == 1);
@@ -446,7 +446,7 @@ fn prop_ge_int() {
         let mut res = [Val::I32(0)];
         ge.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into(), m.high().into(), m.low().into()],
+            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             &mut res,
         ).expect("call to ge-int failed");
         prop_assert_eq!(n.signed() >= m.signed(), res[0].i32().unwrap() == 1);
@@ -465,7 +465,7 @@ fn prop_log2_uint() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = log2.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into()],
+            &[n.low().into(), n.high().into()],
             &mut res,
         );
         match n.unsigned().checked_ilog2() {
@@ -491,7 +491,7 @@ fn prop_log2_int() {
         let mut res = [Val::I64(0), Val::I64(0)];
         let call = log2.call(
             store.borrow_mut().deref_mut(),
-            &[n.high().into(), n.low().into()],
+            &[n.low().into(), n.high().into()],
             &mut res,
         );
         match n.signed().checked_ilog2() {

@@ -113,13 +113,13 @@ fn map_wasm_result(fn_sig: &FunctionType, result: &[Val]) -> Value {
 fn map_wasm_value(type_sig: &TypeSignature, index: usize, buffer: &[Val]) -> (Value, usize) {
     match type_sig {
         TypeSignature::IntType => {
-            let upper = buffer[index].unwrap_i64();
-            let lower = buffer[index + 1].unwrap_i64();
+            let lower = buffer[index].unwrap_i64();
+            let upper = buffer[index + 1].unwrap_i64();
             (Value::Int(((upper as i128) << 64) | lower as i128), 2)
         }
         TypeSignature::UIntType => {
-            let upper = buffer[index].unwrap_i64();
-            let lower = buffer[index + 1].unwrap_i64();
+            let lower = buffer[index].unwrap_i64();
+            let upper = buffer[index + 1].unwrap_i64();
             (Value::UInt(((upper as u128) << 64) | lower as u128), 2)
         }
         TypeSignature::BoolType => (Value::Bool(buffer[index].unwrap_i32() != 0), 1),

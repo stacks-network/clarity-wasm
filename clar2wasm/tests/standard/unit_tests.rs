@@ -21,29 +21,29 @@ fn test_add_uint() {
     // 1 + 2 = 3
     add.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect("call to add-uint failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(3));
+    assert_eq!(sum[0].i64(), Some(3));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Carry
     // 0xffff_ffff_ffff_ffff + 1 = 0x1_0000_0000_0000_0000
     add.call(
         &mut store,
-        &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect("call to add-uint failed");
-    assert_eq!(sum[0].i64(), Some(1));
-    assert_eq!(sum[1].i64(), Some(0));
+    assert_eq!(sum[0].i64(), Some(0));
+    assert_eq!(sum[1].i64(), Some(1));
 
     // Overflow
     // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff + 1 = Overflow
     add.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect_err("expected overflow");
@@ -52,7 +52,7 @@ fn test_add_uint() {
     // 1 + 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff = Overflow
     add.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut sum,
     )
     .expect_err("expected overflow");
@@ -77,49 +77,49 @@ fn test_add_int() {
     // 1 + 2 = 3
     add.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect("call to add-int failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(3));
+    assert_eq!(sum[0].i64(), Some(3));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Carry
     // 0xffff_ffff_ffff_ffff + 1 = 0x1_0000_0000_0000_0000
     add.call(
         &mut store,
-        &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect("call to add-int failed");
-    assert_eq!(sum[0].i64(), Some(1));
-    assert_eq!(sum[1].i64(), Some(0));
+    assert_eq!(sum[0].i64(), Some(0));
+    assert_eq!(sum[1].i64(), Some(1));
 
     // Overflow in signed 64-bit, but fine in 128-bit
     // 0x7fff_ffff_ffff_ffff + 0x7fff_ffff_ffff_ffff = 0xffff_ffff_ffff_fffe
     add.call(
         &mut store,
         &[
-            Val::I64(0),
             Val::I64(0x7fff_ffff_ffff_ffff),
             Val::I64(0),
             Val::I64(0x7fff_ffff_ffff_ffff),
+            Val::I64(0),
         ],
         &mut sum,
     )
     .expect("call to add-int failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(-2));
+    assert_eq!(sum[0].i64(), Some(-2));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Overflow
     // 0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff + 1 = Overflow
     add.call(
         &mut store,
         &[
-            Val::I64(0x7fff_ffff_ffff_ffff),
             Val::I64(-1),
-            Val::I64(0),
+            Val::I64(0x7fff_ffff_ffff_ffff),
             Val::I64(1),
+            Val::I64(0),
         ],
         &mut sum,
     )
@@ -130,10 +130,10 @@ fn test_add_int() {
     add.call(
         &mut store,
         &[
-            Val::I64(0),
             Val::I64(1),
-            Val::I64(0x7fff_ffff_ffff_ffff),
+            Val::I64(0),
             Val::I64(-1),
+            Val::I64(0x7fff_ffff_ffff_ffff),
         ],
         &mut sum,
     )
@@ -144,8 +144,8 @@ fn test_add_int() {
     add.call(
         &mut store,
         &[
-            Val::I64(-9223372036854775808),
             Val::I64(0),
+            Val::I64(-9223372036854775808),
             Val::I64(-1),
             Val::I64(-1),
         ],
@@ -173,45 +173,45 @@ fn test_sub_uint() {
     // 3 - 2 = 1
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(3), Val::I64(0), Val::I64(2)],
+        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-uint failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(1));
+    assert_eq!(sum[0].i64(), Some(1));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Borrow
     // 0x1_0000_0000_0000_0000 - 1 = 0xffff_ffff_ffff_ffff
     sub.call(
         &mut store,
-        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-uint failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(-1));
+    assert_eq!(sum[0].i64(), Some(-1));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Signed underflow, but fine for unsigned
     // 0x8000_0000_0000_0000_0000_0000_0000_0000 - 1 = 0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff
     sub.call(
         &mut store,
         &[
+            Val::I64(0),
             Val::I64(-9223372036854775808),
-            Val::I64(0),
-            Val::I64(0),
             Val::I64(1),
+            Val::I64(0),
         ],
         &mut sum,
     )
     .expect("call to sub-uint failed");
-    assert_eq!(sum[0].i64(), Some(0x7fff_ffff_ffff_ffff));
-    assert_eq!(sum[1].i64(), Some(-1));
+    assert_eq!(sum[0].i64(), Some(-1));
+    assert_eq!(sum[1].i64(), Some(0x7fff_ffff_ffff_ffff));
 
     // Underflow
     // 1 - 2 = Underflow
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect_err("expected underflow");
@@ -236,17 +236,17 @@ fn test_sub_int() {
     // 3 - 2 = 1
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(3), Val::I64(0), Val::I64(2)],
+        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-int failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(1));
+    assert_eq!(sum[0].i64(), Some(1));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // 1 - 2 = -1
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-int failed");
@@ -257,22 +257,22 @@ fn test_sub_int() {
     // 0x1_0000_0000_0000_0000 - 1 = 0xffff_ffff_ffff_ffff
     sub.call(
         &mut store,
-        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-int failed");
-    assert_eq!(sum[0].i64(), Some(0));
-    assert_eq!(sum[1].i64(), Some(-1));
+    assert_eq!(sum[0].i64(), Some(-1));
+    assert_eq!(sum[1].i64(), Some(0));
 
     // Underflow
     // 0x8000_0000_0000_0000_0000_0000_0000_0000 - 1 = Underflow
     sub.call(
         &mut store,
         &[
+            Val::I64(0),
             Val::I64(-9223372036854775808),
-            Val::I64(0),
-            Val::I64(0),
             Val::I64(1),
+            Val::I64(0),
         ],
         &mut sum,
     )
@@ -301,8 +301,8 @@ fn test_mul_uint() {
         &[
             Val::I64(0),
             Val::I64(0),
-            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(-81985529216486896),
+            Val::I64(0x0123_4567_89ab_cdef),
         ],
         &mut result,
     )
@@ -314,8 +314,8 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
-            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(-81985529216486896),
+            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(0),
             Val::I64(0),
         ],
@@ -328,28 +328,28 @@ fn test_mul_uint() {
     // 1 * 2 = 2
     mul.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect("call to mul-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 0xffff_ffff_ffff_ffff * 0xffff_ffff_ffff_ffff = 0xffff_ffff_ffff_fffe_0000_0000_0000_0001
     mul.call(
         &mut store,
-        &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(-1)],
+        &[Val::I64(-1), Val::I64(0), Val::I64(-1), Val::I64(0)],
         &mut result,
     )
     .expect("call to mul-uint failed");
-    assert_eq!(result[0].i64(), Some(-2));
-    assert_eq!(result[1].i64(), Some(1));
+    assert_eq!(result[0].i64(), Some(1));
+    assert_eq!(result[1].i64(), Some(-2));
 
     // Overflow
     // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = Overflow
     mul.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect_err("expected overflow");
@@ -358,7 +358,7 @@ fn test_mul_uint() {
     // 0x1_0000_0000_0000_0000 * 0x1_0000_0000_0000_0000 = Overflow
     mul.call(
         &mut store,
-        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
         &mut result,
     )
     .expect_err("expected overflow");
@@ -368,10 +368,10 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
-            Val::I64(0x1_0000_0000),
-            Val::I64(0),
             Val::I64(0),
             Val::I64(0x1_0000_0000),
+            Val::I64(0x1_0000_0000),
+            Val::I64(0),
         ],
         &mut result,
     )
@@ -382,10 +382,10 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
-            Val::I64(0),
-            Val::I64(0x1_0000_0000),
             Val::I64(0x1_0000_0000),
             Val::I64(0),
+            Val::I64(0),
+            Val::I64(0x1_0000_0000),
         ],
         &mut result,
     )
@@ -396,10 +396,10 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
+            Val::I64(0),
             Val::I64(0x1_0000_0000),
             Val::I64(0),
             Val::I64(1),
-            Val::I64(0),
         ],
         &mut result,
     )
@@ -410,10 +410,10 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
+            Val::I64(0),
             Val::I64(1),
             Val::I64(0),
             Val::I64(0x1_0000_0000),
-            Val::I64(0),
         ],
         &mut result,
     )
@@ -424,10 +424,10 @@ fn test_mul_uint() {
     mul.call(
         &mut store,
         &[
-            Val::I64(0x1_0000_0000),
             Val::I64(0),
             Val::I64(0x1_0000_0000),
             Val::I64(0),
+            Val::I64(0x1_0000_0000),
         ],
         &mut result,
     )
@@ -456,8 +456,8 @@ fn test_mul_int() {
         &[
             Val::I64(0),
             Val::I64(0),
-            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(-81985529216486896),
+            Val::I64(0x0123_4567_89ab_cdef),
         ],
         &mut result,
     )
@@ -469,8 +469,8 @@ fn test_mul_int() {
     mul.call(
         &mut store,
         &[
-            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(-81985529216486896),
+            Val::I64(0x0123_4567_89ab_cdef),
             Val::I64(0),
             Val::I64(0),
         ],
@@ -483,17 +483,17 @@ fn test_mul_int() {
     // 1 * 2 = 2
     mul.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect("call to mul-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 0xffff_ffff_ffff_ffff * 0xffff_ffff_ffff_ffff = 0xffff_ffff_ffff_fffe_0000_0000_0000_0001
     mul.call(
         &mut store,
-        &[Val::I64(0), Val::I64(-1), Val::I64(0), Val::I64(-1)],
+        &[Val::I64(-1), Val::I64(0), Val::I64(-1), Val::I64(0)],
         &mut result,
     )
     .expect_err("expected overflow");
@@ -502,7 +502,7 @@ fn test_mul_int() {
     // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = Overflow
     mul.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(2)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect_err("expected overflow");
@@ -517,27 +517,27 @@ fn test_div_uint() {
     // 4 / 2 = 2
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+        &[Val::I64(4), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 7 / 4 = 1
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+        &[Val::I64(7), Val::I64(0), Val::I64(4), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(1));
+    assert_eq!(result[0].i64(), Some(1));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 123 / 456 = 0
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(123), Val::I64(0), Val::I64(456)],
+        &[Val::I64(123), Val::I64(0), Val::I64(456), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -547,7 +547,7 @@ fn test_div_uint() {
     // 0 / 0x123_0000_0000_0000_0456 = 0
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0x123), Val::I64(0x456)],
+        &[Val::I64(0), Val::I64(0), Val::I64(0x456), Val::I64(0x123)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -557,7 +557,7 @@ fn test_div_uint() {
     // 0x123_0000_0000_0000_0456 / 0 = DivideByZero
     div.call(
         &mut store,
-        &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+        &[Val::I64(0x456), Val::I64(0x123), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect_err("expected divide by zero");
@@ -565,12 +565,12 @@ fn test_div_uint() {
     // 0x123_0000_0000_0000_0456 / 22 = 0xd_3a2e_8ba2_e8ba_2ebe
     div.call(
         &mut store,
-        &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(22)],
+        &[Val::I64(0x456), Val::I64(0x123), Val::I64(22), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
-    assert_eq!(result[0].i64(), Some(0xd));
-    assert_eq!(result[1].i64(), Some(0x3a2e_8ba2_e8ba_2ebe));
+    assert_eq!(result[0].i64(), Some(0x3a2e_8ba2_e8ba_2ebe));
+    assert_eq!(result[1].i64(), Some(0xd));
 }
 
 #[test]
@@ -582,57 +582,57 @@ fn test_div_int() {
     // 4 / 2 = 2
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+        &[Val::I64(4), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-int failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 
     // -4 / 2 = -2
     div.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-4), Val::I64(0), Val::I64(2)],
+        &[Val::I64(-4), Val::I64(-1), Val::I64(2), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-int failed");
-    assert_eq!(result[0].i64(), Some(-1));
-    assert_eq!(result[1].i64(), Some(-2));
+    assert_eq!(result[0].i64(), Some(-2));
+    assert_eq!(result[1].i64(), Some(-1));
 
     // 4 / -2 = -2
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(4), Val::I64(-1), Val::I64(-2)],
+        &[Val::I64(4), Val::I64(0), Val::I64(-2), Val::I64(-1)],
         &mut result,
     )
     .expect("call to div-int failed");
-    assert_eq!(result[0].i64(), Some(-1));
-    assert_eq!(result[1].i64(), Some(-2));
+    assert_eq!(result[0].i64(), Some(-2));
+    assert_eq!(result[1].i64(), Some(-1));
 
     // -4 / -2 = 2
     div.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-4), Val::I64(-1), Val::I64(-2)],
+        &[Val::I64(-4), Val::I64(-1), Val::I64(-2), Val::I64(-1)],
         &mut result,
     )
     .expect("call to div-int failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 0x8000_0000_0000_0000_0000_0000_0000_0000 / -2 = 0xc000_0000_0000_0000_0000_0000_0000_0000
     div.call(
         &mut store,
         &[
+            Val::I64(0),
             Val::I64(-9223372036854775808),
-            Val::I64(0),
-            Val::I64(0),
             Val::I64(2),
+            Val::I64(0),
         ],
         &mut result,
     )
     .expect("call to div-int failed");
-    assert_eq!(result[0].i64(), Some(-4611686018427387904i64));
-    assert_eq!(result[1].i64(), Some(0));
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(-4611686018427387904i64));
 }
 
 #[test]
@@ -645,7 +645,7 @@ fn test_mod_uint() {
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(4), Val::I64(0), Val::I64(2)],
+            &[Val::I64(4), Val::I64(0), Val::I64(2), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-uint failed");
@@ -656,29 +656,29 @@ fn test_mod_uint() {
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+            &[Val::I64(7), Val::I64(0), Val::I64(4), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(3));
+    assert_eq!(result[0].i64(), Some(3));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 123 % 456 = 123
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(123), Val::I64(0), Val::I64(456)],
+            &[Val::I64(123), Val::I64(0), Val::I64(456), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(123));
+    assert_eq!(result[0].i64(), Some(123));
+    assert_eq!(result[1].i64(), Some(0));
 
     // 0 % 0x123_0000_0000_0000_0456 = 0
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(0), Val::I64(0x123), Val::I64(0x456)],
+            &[Val::I64(0), Val::I64(0), Val::I64(0x456), Val::I64(0x123)],
             &mut result,
         )
         .expect("call to mod-uint failed");
@@ -689,7 +689,7 @@ fn test_mod_uint() {
     modulo
         .call(
             &mut store,
-            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+            &[Val::I64(0x456), Val::I64(0x123), Val::I64(0), Val::I64(0)],
             &mut result,
         )
         .expect_err("expected divide by zero");
@@ -698,12 +698,12 @@ fn test_mod_uint() {
     modulo
         .call(
             &mut store,
-            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(22)],
+            &[Val::I64(0x456), Val::I64(0x123), Val::I64(22), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(2));
+    assert_eq!(result[0].i64(), Some(2));
+    assert_eq!(result[1].i64(), Some(0));
 }
 
 #[test]
@@ -716,51 +716,51 @@ fn test_mod_int() {
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(7), Val::I64(0), Val::I64(4)],
+            &[Val::I64(7), Val::I64(0), Val::I64(4), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-int failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(3));
+    assert_eq!(result[0].i64(), Some(3));
+    assert_eq!(result[1].i64(), Some(0));
 
     // -7 / 4 = -3
     modulo
         .call(
             &mut store,
-            &[Val::I64(-1), Val::I64(-7), Val::I64(0), Val::I64(4)],
+            &[Val::I64(-7), Val::I64(-1), Val::I64(4), Val::I64(0)],
             &mut result,
         )
         .expect("call to mod-int failed");
-    assert_eq!(result[0].i64(), Some(-1));
-    assert_eq!(result[1].i64(), Some(-3));
+    assert_eq!(result[0].i64(), Some(-3));
+    assert_eq!(result[1].i64(), Some(-1));
 
     // 7 / -4 = 3
     modulo
         .call(
             &mut store,
-            &[Val::I64(0), Val::I64(7), Val::I64(-1), Val::I64(-4)],
+            &[Val::I64(7), Val::I64(0), Val::I64(-4), Val::I64(-1)],
             &mut result,
         )
         .expect("call to mod-int failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(3));
+    assert_eq!(result[0].i64(), Some(3));
+    assert_eq!(result[1].i64(), Some(0));
 
     // -7 / -4 = -3
     modulo
         .call(
             &mut store,
-            &[Val::I64(-1), Val::I64(-7), Val::I64(-1), Val::I64(-4)],
+            &[Val::I64(-7), Val::I64(-1), Val::I64(-4), Val::I64(-1)],
             &mut result,
         )
         .expect("call to mod-int failed");
-    assert_eq!(result[0].i64(), Some(-1));
-    assert_eq!(result[1].i64(), Some(-3));
+    assert_eq!(result[0].i64(), Some(-3));
+    assert_eq!(result[1].i64(), Some(-1));
 
     // 0x123_0000_0000_0000_0456 % 0 = DivideByZero
     modulo
         .call(
             &mut store,
-            &[Val::I64(0x123), Val::I64(0x456), Val::I64(0), Val::I64(0)],
+            &[Val::I64(0x456), Val::I64(0x123), Val::I64(0), Val::I64(0)],
             &mut result,
         )
         .expect_err("expected divide by zero");
@@ -775,7 +775,7 @@ fn test_lt_uint() {
     // 0 < 1 is true
     lt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -784,7 +784,7 @@ fn test_lt_uint() {
     // 1 < 0 is false
     lt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -799,43 +799,16 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 < 4294967296 is true
-    lt.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to lt-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 1 < 4294967297 is true
-    lt.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to lt-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 4294967296 < 1 is false
+    // 1 < 0x1_0000_0000_0000_0000 is true
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut result,
     )
     .expect("call to lt-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
+    assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 < 1 is false
-    lt.call(
-        &mut store,
-        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to lt-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 4294967296 < 4294967297 is true
+    // 1 < 0x1_0000_0000_0000_0001 is true
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -844,7 +817,16 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 < 4294967296 is false
+    // 0x1_0000_0000_0000_0000 < 1 is false
+    lt.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 < 1 is false
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -853,7 +835,25 @@ fn test_lt_uint() {
     .expect("call to lt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 < 4294967297 is false
+    // 0x1_0000_0000_0000_0000 < 0x1_0000_0000_0000_0001 is true
+    lt.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 < 0x1_0000_0000_0000_0000 is false
+    lt.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to lt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 < 0x1_0000_0000_0000_0001 is false
     lt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -865,7 +865,7 @@ fn test_lt_uint() {
     // u128::MAX (-1 if signed) < 1 is false
     lt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -890,7 +890,7 @@ fn test_gt_uint() {
     // 0 > 1 is false
     gt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to gt-uint failed");
@@ -899,7 +899,7 @@ fn test_gt_uint() {
     // 1 > 0 is true
     gt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect("call to gt-uint failed");
@@ -908,49 +908,22 @@ fn test_gt_uint() {
     // 1 > 1 is false
     gt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 1 > 4294967296 is false
-    gt.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to gt-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 1 > 4294967297 is false
-    gt.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to gt-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 4294967296 > 1 is true
+    // 1 > 0x1_0000_0000_0000_0000 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut result,
     )
     .expect("call to gt-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
+    assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 > 1 is true
-    gt.call(
-        &mut store,
-        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to gt-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 4294967296 > 4294967297 is false
+    // 1 > 0x1_0000_0000_0000_0001 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -959,7 +932,16 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 > 4294967296 is true
+    // 0x1_0000_0000_0000_0000 > 1 is true
+    gt.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 > 1 is true
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -968,7 +950,25 @@ fn test_gt_uint() {
     .expect("call to gt-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 > 4294967297 is false
+    // 0x1_0000_0000_0000_0000 > 0x1_0000_0000_0000_0001 is false
+    gt.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 > 0x1_0000_0000_0000_0000 is true
+    gt.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to gt-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 > 0x1_0000_0000_0000_0001 is false
     gt.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -980,7 +980,7 @@ fn test_gt_uint() {
     // u128::MAX (-1 if signed) > 1 is true
     gt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -1005,7 +1005,7 @@ fn test_le_uint() {
     // 0 <= 1 is true
     le.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to le-uint failed");
@@ -1014,7 +1014,7 @@ fn test_le_uint() {
     // 1 <= 0 is false
     le.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect("call to le-uint failed");
@@ -1023,49 +1023,22 @@ fn test_le_uint() {
     // 1 <= 1 is true
     le.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 <= 4294967296 is true
-    le.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to le-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 1 <= 4294967297 is true
-    le.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to le-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 4294967296 <= 1 is false
+    // 1 <= 0x1_0000_0000_0000_0000 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut result,
     )
     .expect("call to le-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
+    assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 <= 1 is false
-    le.call(
-        &mut store,
-        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to le-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 4294967296 <= 4294967297 is true
+    // 1 <= 0x1_0000_0000_0000_0001 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -1074,7 +1047,16 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 <= 4294967296 is false
+    // 0x1_0000_0000_0000_0000 <= 1 is false
+    le.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 <= 1 is false
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1083,7 +1065,25 @@ fn test_le_uint() {
     .expect("call to le-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 <= 4294967297 is true
+    // 0x1_0000_0000_0000_0000 <= 0x1_0000_0000_0000_0001 is true
+    le.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 <= 0x1_0000_0000_0000_0000 is false
+    le.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to le-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 <= 0x1_0000_0000_0000_0001 is true
     le.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1095,7 +1095,7 @@ fn test_le_uint() {
     // u128::MAX (-1 if signed) <= 1 is false
     le.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -1120,7 +1120,7 @@ fn test_ge_uint() {
     // 0 >= 1 is false
     ge.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to ge-uint failed");
@@ -1129,7 +1129,7 @@ fn test_ge_uint() {
     // 1 >= 0 is true
     ge.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect("call to ge-uint failed");
@@ -1138,49 +1138,22 @@ fn test_ge_uint() {
     // 1 >= 1 is true
     ge.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 1 >= 4294967296 is false
-    ge.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to ge-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 1 >= 4294967297 is false
-    ge.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to ge-uint failed");
-    assert_eq!(result[0].i32(), Some(0));
-
-    // 4294967296 >= 1 is true
+    // 1 >= 0x1_0000_0000_0000_0000 is false
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut result,
     )
     .expect("call to ge-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
+    assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 >= 1 is true
-    ge.call(
-        &mut store,
-        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
-        &mut result,
-    )
-    .expect("call to ge-uint failed");
-    assert_eq!(result[0].i32(), Some(1));
-
-    // 4294967296 >= 4294967297 is false
+    // 1 >= 0x1_0000_0000_0000_0001 is false
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(1)],
@@ -1189,7 +1162,16 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(0));
 
-    // 4294967297 >= 4294967296 is true
+    // 0x1_0000_0000_0000_0000 >= 1 is true
+    ge.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 >= 1 is true
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(0)],
@@ -1198,7 +1180,25 @@ fn test_ge_uint() {
     .expect("call to ge-uint failed");
     assert_eq!(result[0].i32(), Some(1));
 
-    // 4294967297 >= 4294967297 is true
+    // 0x1_0000_0000_0000_0000 >= 0x1_0000_0000_0000_0001 is false
+    ge.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(0));
+
+    // 0x1_0000_0000_0000_0001 >= 0x1_0000_0000_0000_0000 is true
+    ge.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect("call to ge-uint failed");
+    assert_eq!(result[0].i32(), Some(1));
+
+    // 0x1_0000_0000_0000_0001 >= 0x1_0000_0000_0000_0001 is true
     ge.call(
         &mut store,
         &[Val::I64(1), Val::I64(1), Val::I64(1), Val::I64(1)],
@@ -1210,7 +1210,7 @@ fn test_ge_uint() {
     // u128::MAX (-1 if signed) >= 1 is true
     ge.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-uint failed");
@@ -1235,7 +1235,7 @@ fn test_lt_int() {
     // 1 < 1 is false
     lt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1253,7 +1253,7 @@ fn test_lt_int() {
     // -1 < 1 is true
     lt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1262,7 +1262,7 @@ fn test_lt_int() {
     // 1 < -1 is false
     lt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1280,7 +1280,7 @@ fn test_lt_int() {
     // -2 < -1 is true
     lt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1289,7 +1289,7 @@ fn test_lt_int() {
     // -2 < -3 is false
     lt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-3), Val::I64(-1)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1298,7 +1298,7 @@ fn test_lt_int() {
     // I128::MIN < -1 is true
     lt.call(
         &mut store,
-        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(0), Val::I64(i64::MIN), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1307,7 +1307,7 @@ fn test_lt_int() {
     // -1 < I128::MIN is false
     lt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(i64::MIN)],
         &mut result,
     )
     .expect("call to lt-int failed");
@@ -1323,7 +1323,7 @@ fn test_gt_int() {
     // 1 > 1 is false
     gt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1341,7 +1341,7 @@ fn test_gt_int() {
     // -1 > 1 is false
     gt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1350,7 +1350,7 @@ fn test_gt_int() {
     // 1 > -1 is true
     gt.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1368,7 +1368,7 @@ fn test_gt_int() {
     // -2 > -1 is false
     gt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1377,7 +1377,7 @@ fn test_gt_int() {
     // -2 > -3 is true
     gt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-3), Val::I64(-1)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1386,7 +1386,7 @@ fn test_gt_int() {
     // I128::MIN > -1 is false
     gt.call(
         &mut store,
-        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(0), Val::I64(i64::MIN), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1395,7 +1395,7 @@ fn test_gt_int() {
     // -1 > I128::MIN is true
     gt.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(i64::MIN)],
         &mut result,
     )
     .expect("call to gt-int failed");
@@ -1411,7 +1411,7 @@ fn test_le_int() {
     // 1 <= 1 is true
     le.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1429,7 +1429,7 @@ fn test_le_int() {
     // -1 <= 1 is true
     le.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1438,7 +1438,7 @@ fn test_le_int() {
     // 1 <= -1 is false
     le.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1456,7 +1456,7 @@ fn test_le_int() {
     // -2 <= -1 is true
     le.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1465,7 +1465,7 @@ fn test_le_int() {
     // -2 <= -3 is false
     le.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-3), Val::I64(-1)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1474,7 +1474,7 @@ fn test_le_int() {
     // I128::MIN <= -1 is true
     le.call(
         &mut store,
-        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(0), Val::I64(i64::MIN), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1483,7 +1483,7 @@ fn test_le_int() {
     // -1 <= I128::MIN is false
     le.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(i64::MIN)],
         &mut result,
     )
     .expect("call to le-int failed");
@@ -1499,7 +1499,7 @@ fn test_ge_int() {
     // 1 >= 1 is true
     ge.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1517,7 +1517,7 @@ fn test_ge_int() {
     // -1 >= 1 is false
     ge.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(1)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(1), Val::I64(0)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1526,7 +1526,7 @@ fn test_ge_int() {
     // 1 >= -1 is true
     ge.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(1), Val::I64(0), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1544,7 +1544,7 @@ fn test_ge_int() {
     // -2 >= -1 is false
     ge.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1553,7 +1553,7 @@ fn test_ge_int() {
     // -2 >= -3 is true
     ge.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-2), Val::I64(-1), Val::I64(-3)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-3), Val::I64(-1)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1562,7 +1562,7 @@ fn test_ge_int() {
     // I128::MIN >= -1 is false
     ge.call(
         &mut store,
-        &[Val::I64(i64::MIN), Val::I64(0), Val::I64(-1), Val::I64(-1)],
+        &[Val::I64(0), Val::I64(i64::MIN), Val::I64(-1), Val::I64(-1)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1571,7 +1571,7 @@ fn test_ge_int() {
     // -1 >= I128::MIN is true
     ge.call(
         &mut store,
-        &[Val::I64(-1), Val::I64(-1), Val::I64(i64::MIN), Val::I64(0)],
+        &[Val::I64(-1), Val::I64(-1), Val::I64(0), Val::I64(i64::MIN)],
         &mut result,
     )
     .expect("call to ge-int failed");
@@ -1591,20 +1591,20 @@ fn test_log2_uint() {
     // log2(u128::MAX) is not an error (-1 if signed)
     log2.call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
         .expect("call to log2-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(127));
+    assert_eq!(result[0].i64(), Some(127));
+    assert_eq!(result[1].i64(), Some(0));
 
     // log2(u64::MAX) is not an error
-    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
-        .expect("call to log2-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(63));
-
-    // log2(u128::MAX-u64::MAX) is not an error
     log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
         .expect("call to log2-uint failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(127));
+    assert_eq!(result[0].i64(), Some(63));
+    assert_eq!(result[1].i64(), Some(0));
+
+    // log2(u128::MAX-u64::MAX) is not an error
+    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
+        .expect("call to log2-uint failed");
+    assert_eq!(result[0].i64(), Some(127));
+    assert_eq!(result[1].i64(), Some(0));
 }
 
 #[test]
@@ -1622,12 +1622,12 @@ fn test_log2_int() {
         .expect_err("expected log of negative number error");
 
     // log2(u64::MAX) is not an error
-    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
+    log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
         .expect("call to log2-int failed");
-    assert_eq!(result[0].i64(), Some(0));
-    assert_eq!(result[1].i64(), Some(63));
+    assert_eq!(result[0].i64(), Some(63));
+    assert_eq!(result[1].i64(), Some(0));
 
     // log2(u128::MAX-u64::MAX) is an error
-    log2.call(&mut store, &[Val::I64(-1), Val::I64(0)], &mut result)
+    log2.call(&mut store, &[Val::I64(0), Val::I64(-1)], &mut result)
         .expect_err("expected log of negative number error");
 }
