@@ -657,6 +657,7 @@
         ;; computing d
         (if (i64.eqz (local.get $hi))
             (then 
+                ;; since we know $d_hi will be 0, we can use it as tmp value during computation
                 (local.set $d_hi (i64.const 0x4000000000000000))
                 (loop $loop_lo
                     (local.set $d_hi 
@@ -670,6 +671,7 @@
                 (local.set $d_hi (i64.const 0))
             )
             (else
+                ;; since we know $d_lo will be 0, we can use it as tmp value during computation
                 (local.set $d_lo (i64.const 0x4000000000000000))
                 (loop $loop_hi
                     (local.set $d_lo
