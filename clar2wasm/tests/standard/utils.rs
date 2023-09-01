@@ -79,7 +79,7 @@ impl PropInt {
 
 impl From<PropInt> for u128 {
     fn from(p: PropInt) -> u128 {
-        p.0 as u128
+        p.0
     }
 }
 
@@ -121,8 +121,8 @@ impl FromWasmResult for i128 {
 impl FromWasmResult for bool {
     fn from_wasm_result(v: &[Val]) -> Self {
         match v {
-            &[Val::I32(0), ..] => false,
-            &[Val::I32(1), ..] => true,
+            [Val::I32(0), ..] => false,
+            [Val::I32(1), ..] => true,
             _ => panic!("invalid wasm result"),
         }
     }
@@ -159,7 +159,7 @@ where
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             res_slice,
-        ).expect(&format!("Could not call exported function {name}"));
+        ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
 
         let rust_result = closure(n.into(), m.into());
         let wasm_result = R::from_wasm_result(res_slice);
@@ -192,7 +192,7 @@ where
 
         match closure(n.into(), m.into()) {
             Some(rust_result) => {
-                call.expect(&format!("call to {name} failed"));
+                call.unwrap_or_else(|_| panic!("call to {name} failed"));
                 let wasm_result = R::from_wasm_result(&res);
                 prop_assert_eq!(rust_result, wasm_result);
             },
@@ -221,7 +221,7 @@ where
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into()],
             res_slice,
-        ).expect(&format!("Could not call exported function {name}"));
+        ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
 
         let rust_result = closure(n.into());
         let wasm_result = R::from_wasm_result(res_slice);
@@ -253,7 +253,7 @@ where
 
         match closure(n.into()) {
             Some(rust_result) => {
-                call.expect(&format!("call to {name} failed"));
+                call.unwrap_or_else(|_| panic!("call to {name} failed"));
                 let wasm_result = R::from_wasm_result(&res);
                 prop_assert_eq!(rust_result, wasm_result);
             },
