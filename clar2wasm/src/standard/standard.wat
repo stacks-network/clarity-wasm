@@ -9,14 +9,17 @@
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
 
     ;; Functions imported for host interface
-    ;; define_variable(var_id: i32, name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
-    (import "clarity" "define_variable" (func $define_variable (param i32 i32 i32 i32 i32)))
-    ;; get_variable(var_id: i32, return_val: (offset: i32, length: i32))
-    (import "clarity" "get_variable" (func $get_variable (param i32 i32 i32)))
-    ;; set_variable(var_id: i32, value: (offset: i32, length: i32))
-    (import "clarity" "set_variable" (func $set_variable (param i32 i32 i32)))
+    ;; define_function(kind: i32, name: string (offset: i32, length: i32))
+    (import "clarity" "define_function" (func $define_function (param i32 i32 i32)))
+    ;; define_variable(name: string (offset: i32, length: i32), initial_value: (offset: i32, length: i32))
+    (import "clarity" "define_variable" (func $define_variable (param i32 i32 i32 i32)))
+    ;; get_variable(name: string (offset: i32, length: i32), return_val: (offset: i32, length: i32))
+    (import "clarity" "get_variable" (func $get_variable (param i32 i32 i32 i32)))
+    ;; set_variable(name: string (offset: i32, length: i32), value: (offset: i32, length: i32))
+    (import "clarity" "set_variable" (func $set_variable (param i32 i32 i32 i32)))
 
     (global $stack-pointer (mut i32) (i32.const 0))
+    (export "stack-pointer" (global $stack-pointer))
     (memory (export "memory") 10)
 
     ;; The error code is one of:

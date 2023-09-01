@@ -144,21 +144,29 @@ impl<'a> WasmGenerator<'a> {
 
     fn traverse_define_function(
         &mut self,
+        builder: &mut InstrSeqBuilder,
         name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
         let opt_function_type = match kind {
-            FunctionKind::Private => self.contract_analysis.get_private_function(name.as_str()),
-            FunctionKind::ReadOnly => self
-                .contract_analysis
-                .get_read_only_function_type(name.as_str()),
-            FunctionKind::Public => self
-                .contract_analysis
-                .get_public_function_type(name.as_str()),
+            FunctionKind::ReadOnly => {
+                builder.i32_const(0);
+                self.contract_analysis
+                    .get_read_only_function_type(name.as_str())
+            }
+            FunctionKind::Public => {
+                builder.i32_const(1);
+                self.contract_analysis
+                    .get_public_function_type(name.as_str())
+            }
+            FunctionKind::Private => {
+                builder.i32_const(2);
+                self.contract_analysis.get_private_function(name.as_str())
+            }
         };
         let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
-            fixed
+            fixed.clone()
         } else {
             self.error = Some(GeneratorError::InternalError(match opt_function_type {
                 Some(_) => "expected fixed function type".to_string(),
@@ -166,6 +174,21 @@ impl<'a> WasmGenerator<'a> {
             }));
             return None;
         };
+
+        // Call the host interface to save this function
+        // Arguments are kind (already pushed) and name (offset, length)
+        let (id_offset, id_length) = self.add_identifier_string_literal(name);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Call the host interface function, `define_function`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_function")
+                .expect("define_function not found"),
+        );
 
         let mut locals = HashMap::new();
 
@@ -264,7 +287,7 @@ impl<'a> WasmGenerator<'a> {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
         if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            return (*offset, name.len() as u32);
+            return (*offset, s.to_string().len() as u32);
         }
 
         let data = match s {
@@ -284,8 +307,7 @@ impl<'a> WasmGenerator<'a> {
         self.literal_memory_end += data.len() as u32;
 
         // Save the offset in the literal memory for this string
-        self.literal_memory_offet
-            .insert(name.to_string(), offset as u32);
+        self.literal_memory_offet.insert(s.to_string(), offset);
 
         (offset, len)
     }
@@ -311,8 +333,7 @@ impl<'a> WasmGenerator<'a> {
         self.literal_memory_end += name.len() as u32;
 
         // Save the offset in the literal memory for this identifier
-        self.literal_memory_offet
-            .insert(name.to_string(), offset as u32);
+        self.literal_memory_offet.insert(name.to_string(), offset);
 
         (offset, len)
     }
@@ -417,14 +438,6 @@ impl<'a> WasmGenerator<'a> {
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         };
         size
-    }
-
-    /// Return a unique identifier, used to identify a contract constant,
-    /// variable or map.
-    fn get_next_identifier(&mut self) -> i32 {
-        let id = self.next_identifier;
-        self.next_identifier += 1;
-        id
     }
 
     fn traverse_statement_list<'b>(
@@ -713,7 +726,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         }
     }
 
-    fn visit_atom<'b, 'c>(
+    fn visit_atom<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
@@ -743,14 +756,14 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
 
     fn traverse_define_private<'b, 'c>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if self
-            .traverse_define_function(name, body, FunctionKind::Private)
+            .traverse_define_function(&mut builder, name, body, FunctionKind::Private)
             .is_some()
         {
             Ok(builder)
@@ -761,13 +774,14 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
 
     fn traverse_define_read_only<'b, 'c>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::ReadOnly)
+        if let Some(function_id) =
+            self.traverse_define_function(&mut builder, name, body, FunctionKind::ReadOnly)
         {
             self.module.exports.add(name.as_str(), function_id);
             Ok(builder)
@@ -778,13 +792,15 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
 
     fn traverse_define_public<'b, 'c>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::Public) {
+        if let Some(function_id) =
+            self.traverse_define_function(&mut builder, name, body, FunctionKind::Public)
+        {
             self.module.exports.add(name.as_str(), function_id);
             Ok(builder)
         } else {
@@ -792,7 +808,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         }
     }
 
-    fn traverse_define_data_var<'b, 'c>(
+    fn traverse_define_data_var<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
@@ -826,9 +842,6 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         //        memory forever... we just need them once, when .top-level
         //        is called.
         self.literal_memory_end += size as u32;
-
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
 
         // Push the name onto the data stack
         builder
@@ -907,7 +920,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         self.traverse_expr(builder, value)
     }
 
-    fn visit_call_user_defined<'b, 'c>(
+    fn visit_call_user_defined<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
@@ -975,14 +988,14 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         Ok(builder)
     }
 
-    fn visit_var_get<'b, 'c>(
+    fn visit_var_get<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
         name: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         // Get the offset and length for this identifier in the literal memory
-        let id_offset = self
+        let id_offset = *self
             .literal_memory_offet
             .get(name.as_str())
             .expect("variable not found: {name}");
@@ -997,7 +1010,9 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
         // Push the identifier offset and length onto the data stack
-        builder.i32_const(id_offset as i32).i32_const(id_length as i32);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
@@ -1017,19 +1032,19 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         Ok(builder)
     }
 
-    fn visit_var_set<'b, 'c>(
+    fn visit_var_set<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-         // Get the offset and length for this identifier in the literal memory
-         let id_offset = self
-         .literal_memory_offet
-         .get(name.as_str())
-         .expect("variable not found: {name}");
-     let id_length = name.len();
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("variable not found: {name}");
+        let id_length = name.len();
 
         // Create space on the call stack to write the value
         let ty = self
@@ -1043,7 +1058,9 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
         // Push the identifier offset and length onto the data stack
-        builder.i32_const(id_offset as i32).i32_const(id_length as i32);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
