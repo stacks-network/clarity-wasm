@@ -207,6 +207,57 @@ fn prop_bit_shift_left() {
 }
 
 #[test]
+fn prop_bit_shift_right_uint() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_shift_right_uint = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-shift-right-uint")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+		// bit shifts are always mod 128, as per clarity docs
+		let m = (m.unsigned() % 128) as i64;
+
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_shift_right_uint.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), Val::I64(m)],
+            &mut res,
+        ).expect("call to bit-shift-right-uint failed");
+		let rust_result = n.unsigned().wrapping_shr(m as u32);
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.unsigned());
+
+    })
+}
+
+#[test]
+fn prop_bit_shift_right_int() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let bit_shift_right_int = instance
+        .get_func(store.borrow_mut().deref_mut(), "bit-shift-right-int")
+        .unwrap();
+
+    proptest!(|(n in int128(), m in int128())| {
+		// bit shifts are always mod 128, as per clarity docs
+		let m = (m.unsigned() % 128) as i64;
+
+		println!("BY modded {}", m);
+
+        let mut res = [Val::I64(0), Val::I64(0)];
+        bit_shift_right_int.call(
+            store.borrow_mut().deref_mut(),
+            &[n.high().into(), n.low().into(), Val::I64(m)],
+            &mut res,
+        ).expect("call to bit-shift-right-int failed");
+		let rust_result = n.signed().wrapping_shr(m as u32);
+        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
+        prop_assert_eq!(rust_result, wasm_result.signed());
+    })
+}
+
+#[test]
 fn prop_bit_xor() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);

@@ -780,7 +780,6 @@
 		  (local $shift_lo i64)
 		  (local $overflow i64)
 
-
 		  ;; case when not shifting at all
 		  (if (i64.eq (local.get $by)
 					  (i64.const 0))
@@ -788,7 +787,7 @@
 					  (local.get $a_lo)))
 
 		  ;; case when completely discarding low bits
-		  (if (i64.gt_u (local.get $by) (i64.const 63))
+		  (if (i64.ge_u (local.get $by) (i64.const 64))
 			  (return
 				(i64.shl (local.get $a_lo)
 						 (i64.sub (local.get $by)
@@ -798,12 +797,72 @@
 		  ;; all other cases
 		  (local.set $overflow (i64.shr_u (local.get $a_lo)
 										  (i64.sub (i64.const 64)
-												   (local.get $by))))
+                                                   (local.get $by))))
 		  ;; do the shifting, or-ing the overflow from lo into hi
 		  (local.set $shift_lo (i64.shl (local.get $a_lo) (local.get $by)))
 		  (local.set $shift_hi (i64.or (i64.shl (local.get $a_hi) (local.get $by))
-									   (local.get $overflow)))
+                                       (local.get $overflow)))
 		  (return (local.get $shift_hi) (local.get $shift_lo)))
+
+	(func $bit-shift-right-uint (type 6) (param $a_hi i64) (param $a_lo i64) (param $by i64) (result i64 i64)
+		  (local $shift_hi i64)
+		  (local $shift_lo i64)
+		  (local $overflow i64)
+
+		  ;; case when not shifting at all
+		  (if (i64.eq (local.get $by)
+					  (i64.const 0))
+			  (return (local.get $a_hi)
+					  (local.get $a_lo)))
+
+		  ;; case when completely discarding high bits
+		  (if (i64.ge_u (local.get $by) (i64.const 64))
+			  (return
+				(i64.const 0)
+				(i64.shr_u (local.get $a_hi)
+						   (i64.sub (local.get $by)
+									(i64.const 64)))))
+
+		  ;; all other cases
+		  (local.set $overflow (i64.shl (local.get $a_hi)
+										(i64.sub (i64.const 64)
+												 (local.get $by))))
+		  ;; do the shifting, or-ing the overflow from hi into lo
+		  (local.set $shift_hi (i64.shr_u (local.get $a_hi) (local.get $by)))
+		  (local.set $shift_lo (i64.or (i64.shr_u (local.get $a_lo) (local.get $by))
+                                       (local.get $overflow)))
+		  (return (local.get $shift_hi) (local.get $shift_lo)))
+
+	(func $bit-shift-right-int (type 6) (param $a_hi i64) (param $a_lo i64) (param $by i64) (result i64 i64)
+		  (local $shift_hi i64)
+		  (local $shift_lo i64)
+		  (local $overflow i64)
+
+		  ;; case when not shifting at all
+		  (if (i64.eq (local.get $by)
+					  (i64.const 0))
+			  (return (local.get $a_hi)
+					  (local.get $a_lo)))
+
+		  ;; case when completely discarding high bits
+		  (if (i64.ge_u (local.get $by) (i64.const 64))
+			  (return
+				;; keep the sign by arithmetically shifting out everything
+				(i64.shr_s (local.get $a_hi) (i64.const 63))
+				(i64.shr_s (local.get $a_hi)
+						   (i64.sub (local.get $by)
+									(i64.const 64)))))
+
+		  ;; all other cases
+		  (local.set $overflow (i64.shl (local.get $a_hi)
+										(i64.sub (i64.const 64)
+												 (local.get $by))))
+		  ;; do the shifting, or-ing the overflow from hi into lo
+		  (local.set $shift_hi (i64.shr_s (local.get $a_hi) (local.get $by)))
+		  (local.set $shift_lo (i64.or (i64.shr_u (local.get $a_lo) (local.get $by))
+                                       (local.get $overflow)))
+		  (return (local.get $shift_hi) (local.get $shift_lo)))
+
 
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
@@ -833,4 +892,6 @@
     (export "bit-or" (func $bit-or))
     (export "bit-xor" (func $bit-xor))
     (export "bit-shift-left" (func $bit-shift-left))
+	(export "bit-shift-right-uint" (func $bit-shift-right-uint))
+	(export "bit-shift-right-int" (func $bit-shift-right-int))
 )
