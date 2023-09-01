@@ -24,6 +24,7 @@
         ;; 1: underflow
         ;; 2: divide by zero
         ;; 3: log of a number <= 0
+        ;; 4: sqrti of a negative number
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -640,6 +641,106 @@
         (i64.const 0)
     )
 
+    (func $sqrti-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+        ;; https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Binary_numeral_system_(base_2)
+        (local $d_lo i64) (local $d_hi i64)
+        (local $c_lo i64) (local $c_hi i64)
+        (local $tmp_lo i64) (local $tmp_hi i64)
+
+        (if (i64.eqz (i64.or (local.get $lo) (local.get $hi)))
+            (return (i64.const 0) (i64.const 0))
+        )
+
+        (local.set $c_lo (i64.const 0))
+        (local.set $c_hi (i64.const 0))
+
+        ;; computing d
+        (if (i64.eqz (local.get $hi))
+            (then 
+                ;; since we know $d_hi will be 0, we can use it as tmp value during computation
+                (local.set $d_hi (i64.const 0x4000000000000000))
+                (loop $loop_lo
+                    (local.set $d_hi 
+                        (i64.shr_u
+                            (local.tee $d_lo (local.get $d_hi))
+                            (i64.const 2)
+                        )
+                    )
+                    (br_if $loop_lo (i64.lt_u (local.get $lo) (local.get $d_lo)))
+                )
+                (local.set $d_hi (i64.const 0))
+            )
+            (else
+                ;; since we know $d_lo will be 0, we can use it as tmp value during computation
+                (local.set $d_lo (i64.const 0x4000000000000000))
+                (loop $loop_hi
+                    (local.set $d_lo
+                        (i64.shr_u
+                            (local.tee $d_hi (local.get $d_lo))
+                            (i64.const 2)
+                        )
+                    )
+                    (br_if $loop_hi (i64.lt_u (local.get $hi) (local.get $d_hi)))
+                )
+                (local.set $d_lo (i64.const 0))
+            )
+        )
+
+        (loop $loop_res
+            ;; tmp = c + d
+            (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
+            (local.set $tmp_hi)
+            (local.set $tmp_lo)
+
+            ;; c = c >> 1
+            (local.set $c_lo 
+                (i64.or
+                    (i64.shl (local.get $c_hi) (i64.const 63))
+                    (i64.shr_u (local.get $c_lo) (i64.const 1))
+                )
+            )
+            (local.set $c_hi (i64.shr_u (local.get $c_hi) (i64.const 1)))
+
+            ;; if n >= tmp
+            (if (call $ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
+                (then
+                    ;; n -= tmp
+                    (call $sub-int128 (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
+                    (local.set $hi)
+                    (local.set $lo)
+
+                    ;; c += d
+                    (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
+                    (local.set $c_hi)
+                    (local.set $c_lo)
+                )
+            )
+
+            ;; d = d >> 2
+            (local.set $d_lo 
+                (i64.or
+                    (i64.shl (local.get $d_hi) (i64.const 62))
+                    (i64.shr_u (local.get $d_lo) (i64.const 2))
+                )
+            )
+            (local.set $d_hi (i64.shr_u (local.get $d_hi) (i64.const 2)))
+
+            ;; branch if (d != 0)
+            (br_if $loop_res 
+                (i64.ne (i64.or (local.get $d_lo) (local.get $d_hi)) (i64.const 0))
+            )
+        )
+
+        (local.get $c_lo) (local.get $c_hi)
+    )
+
+    (func $sqrti-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+        (if (i64.lt_s (local.get $hi) (i64.const 0))
+            (call $runtime-error (i32.const 4))
+        )
+        (call $sqrti-uint (local.get $lo) (local.get $hi))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -661,4 +762,6 @@
     (export "ge-int" (func $ge-int))
     (export "log2-uint" (func $log2-uint))
     (export "log2-int" (func $log2-int))
+    (export "sqrti-uint" (func $sqrti-uint))
+    (export "sqrti-int" (func $sqrti-int))
 )
