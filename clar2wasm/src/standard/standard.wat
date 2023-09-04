@@ -783,9 +783,7 @@
           (local $overflow i64)
           (local $by i64)
 
-          (call $mod-uint (local.get $b_lo) (local.get $b_hi) (i64.const 128) (i64.const 0))
-          drop
-          (local.set $by)
+		  (local.set $by (i64.and (local.get $b_lo) (i64.const 127)))
 
           ;; case when not shifting at all
           (if (i64.eq (local.get $by)
@@ -817,9 +815,7 @@
           (local $overflow i64)
           (local $by i64)
 
-          (call $mod-uint (local.get $b_lo) (local.get $b_hi) (i64.const 128) (i64.const 0))
-          drop
-          (local.set $by)
+		  (local.set $by (i64.and (local.get $b_lo) (i64.const 127)))
 
           ;; case when not shifting at all
           (if (i64.eq (local.get $by)
