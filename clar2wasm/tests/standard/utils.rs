@@ -159,7 +159,7 @@ where
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             res_slice,
-        ).expect("call to succeed");
+        ).expect(&format!("Could not call exported function {name}"));
 
 		let rust_result = closure(n.into(), m.into());
 		let wasm_result = R::from_wasm_result(res_slice);
@@ -201,8 +201,7 @@ where
     });
 }
 
-#[allow(unused)]
-pub(crate) fn test_export_one_arg<N, M, R, C>(name: &str, closure: C)
+pub(crate) fn test_export_one_arg<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
     R: FromWasmResult + PartialEq + std::fmt::Debug,
@@ -222,7 +221,7 @@ where
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into()],
             res_slice,
-        ).expect("call to succeed");
+        ).expect(&format("Could not call exported function {name}"));
 
 		let rust_result = closure(n.into());
 		let wasm_result = R::from_wasm_result(res_slice);
