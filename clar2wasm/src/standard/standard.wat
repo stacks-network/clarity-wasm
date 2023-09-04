@@ -742,71 +742,40 @@
     )
 
     (func $bit-and (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $and_lo i64)
-        (local $and_hi i64)
-        (local.set $and_lo (i64.and (local.get $a_lo) (local.get $b_lo)))
-        (local.set $and_hi (i64.and (local.get $a_hi) (local.get $b_hi)))
-        (return (local.get $and_lo) (local.get $and_hi))
+        (i64.and (local.get $a_lo) (local.get $b_lo))
+        (i64.and (local.get $a_hi) (local.get $b_hi))
     )
 
     (func $bit-not (type 3) (param $a_lo i64) (param $a_hi i64) (result i64 i64)
-        (local $not_lo i64)
-        (local $not_hi i64)
-        ;; wasm does not have bitwise negation, but xoring with -1 is equivalent
-        (local.set $not_lo (i64.xor (local.get $a_lo) (i64.const -1)))
-        (local.set $not_hi (i64.xor (local.get $a_hi) (i64.const -1)))
-        (return (local.get $not_lo) (local.get $not_hi))
+          ;; wasm does not have bitwise negation, but xoring with -1 is equivalent
+		  (i64.xor (local.get $a_lo) (i64.const -1))
+          (i64.xor (local.get $a_hi) (i64.const -1))
     )
 
     (func $bit-or (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $and_lo i64)
-        (local $and_hi i64)
-        (local.set $and_lo (i64.or (local.get $a_lo) (local.get $b_lo)))
-        (local.set $and_hi (i64.or (local.get $a_hi) (local.get $b_hi)))
-        (return (local.get $and_lo) (local.get $and_hi))
+		  (i64.or (local.get $a_lo) (local.get $b_lo))
+          (i64.or (local.get $a_hi) (local.get $b_hi))
     )
 
     (func $bit-xor (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $xor_lo i64)
-        (local $xor_hi i64)
-        (local.set $xor_lo (i64.xor (local.get $a_lo) (local.get $b_lo)))
-        (local.set $xor_hi (i64.xor (local.get $a_hi) (local.get $b_hi)))
-        (return (local.get $xor_lo) (local.get $xor_hi))
+		  (i64.xor (local.get $a_lo) (local.get $b_lo))
+		  (i64.xor (local.get $a_hi) (local.get $b_hi))
     )
 
     (func $bit-shift-left (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-          (local $shift_hi i64)
-          (local $shift_lo i64)
-          (local $overflow i64)
-          (local $by i64)
-
-          (call $mod-uint (local.get $b_lo) (local.get $b_hi) (i64.const 128) (i64.const 0))
-          drop
-          (local.set $by)
-
-          ;; case when not shifting at all
-          (if (i64.eq (local.get $by)
-                      (i64.const 0))
-              (return (local.get $a_lo)
-                      (local.get $a_hi)))
-
-          ;; case when completely discarding low bits
-          (if (i64.ge_u (local.get $by) (i64.const 64))
-              (return
-                (i64.const 0)
-                (i64.shl (local.get $a_lo)
-                         (i64.sub (local.get $by)
-                                  (i64.const 64)))))
-
-          ;; all other cases
-          (local.set $overflow (i64.shr_u (local.get $a_lo)
-                                          (i64.sub (i64.const 64)
-                                                   (local.get $by))))
-          ;; do the shifting, or-ing the overflow from lo into hi
-          (local.set $shift_lo (i64.shl (local.get $a_lo) (local.get $by)))
-          (local.set $shift_hi (i64.or (i64.shl (local.get $a_hi) (local.get $by))
-                                       (local.get $overflow)))
-          (return (local.get $shift_lo) (local.get $shift_hi)))
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
+              (then
+               (local.set $b_hi ;; using $b_hi for storing overflow bits
+						  (select
+                           (i64.const 0)
+                           (i64.shr_u (local.get $a_lo) (i64.sub (i64.const 64) (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
+               (i64.shl (local.get $a_lo) (local.get $b_lo))
+               (i64.or (i64.shl (local.get $a_hi) (local.get $b_lo)) (local.get $b_hi)))
+              (else
+               (i64.const 0)
+               (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
 
     (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
           (local $shift_hi i64)
