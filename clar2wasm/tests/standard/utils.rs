@@ -153,18 +153,18 @@ where
 
     proptest!(|(n in int128(), m in int128())| {
         let mut res = [Val::I64(0), Val::I64(0)];
-		let res_slice = R::relevant_slice(&mut res);
+        let res_slice = R::relevant_slice(&mut res);
 
-		fun.call(
+        fun.call(
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
             res_slice,
         ).expect(&format!("Could not call exported function {name}"));
 
-		let rust_result = closure(n.into(), m.into());
-		let wasm_result = R::from_wasm_result(res_slice);
+        let rust_result = closure(n.into(), m.into());
+        let wasm_result = R::from_wasm_result(res_slice);
 
-		prop_assert_eq!(rust_result, wasm_result);
+        prop_assert_eq!(rust_result, wasm_result);
     });
 }
 
@@ -191,13 +191,13 @@ where
         );
 
         match closure(n.into(), m.into()) {
-			Some(rust_result) => {
-				call.expect(&format!("call to {name} failed"));
-				let wasm_result = R::from_wasm_result(&res);
-				prop_assert_eq!(rust_result, wasm_result);
-			},
-			None => { call.expect_err("expected error"); }
-		}
+            Some(rust_result) => {
+                call.expect(&format!("call to {name} failed"));
+                let wasm_result = R::from_wasm_result(&res);
+                prop_assert_eq!(rust_result, wasm_result);
+            },
+            None => { call.expect_err("expected error"); }
+        }
     });
 }
 
@@ -215,18 +215,18 @@ where
 
     proptest!(|(n in int128())| {
         let mut res = [Val::I64(0), Val::I64(0)];
-		let res_slice = R::relevant_slice(&mut res);
+        let res_slice = R::relevant_slice(&mut res);
 
-		fun.call(
+        fun.call(
             store.borrow_mut().deref_mut(),
             &[n.low().into(), n.high().into()],
             res_slice,
-        ).expect(&format("Could not call exported function {name}"));
+        ).expect(&format!("Could not call exported function {name}"));
 
-		let rust_result = closure(n.into());
-		let wasm_result = R::from_wasm_result(res_slice);
+        let rust_result = closure(n.into());
+        let wasm_result = R::from_wasm_result(res_slice);
 
-		prop_assert_eq!(rust_result, wasm_result);
+        prop_assert_eq!(rust_result, wasm_result);
     });
 }
 
@@ -252,12 +252,12 @@ where
         );
 
         match closure(n.into()) {
-			Some(rust_result) => {
-				call.expect(&format!("call to {name} failed"));
-				let wasm_result = R::from_wasm_result(&res);
-				prop_assert_eq!(rust_result, wasm_result);
-			},
-			None => { call.expect_err("expected error"); }
-		}
+            Some(rust_result) => {
+                call.expect(&format!("call to {name} failed"));
+                let wasm_result = R::from_wasm_result(&res);
+                prop_assert_eq!(rust_result, wasm_result);
+            },
+            None => { call.expect_err("expected error"); }
+        }
     });
 }
