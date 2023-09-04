@@ -1,553 +1,117 @@
-use std::{cell::RefCell, ops::DerefMut};
-
-use crate::utils::load_stdlib;
-
-use proptest::prelude::*;
-use wasmtime::Val;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct PropInt(u128);
-
-impl PropInt {
-    const fn new(n: u128) -> Self {
-        Self(n)
-    }
-
-    const fn from_wasm(low: i64, high: i64) -> Self {
-        Self(((high as u64) as u128) << 64 | ((low as u64) as u128))
-    }
-
-    const fn signed(&self) -> i128 {
-        self.0 as i128
-    }
-
-    const fn unsigned(&self) -> u128 {
-        self.0
-    }
-
-    const fn high(&self) -> i64 {
-        (self.0 >> 64) as i64
-    }
-
-    const fn low(&self) -> i64 {
-        self.0 as i64
-    }
-}
-
-prop_compose! {
-    fn int128()(n in any::<u128>()) -> PropInt {
-        PropInt::new(n)
-    }
-}
+use crate::utils;
 
 #[test]
 fn prop_add_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let add = instance
-        .get_func(store.borrow_mut().deref_mut(), "add-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = add.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_add(m.unsigned()) {
-            Some(rust_result) => {
-                call.expect("call to add-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected overflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("add-uint", |a: u128, b: u128| a.checked_add(b))
 }
 
 #[test]
 fn prop_add_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let add = instance
-        .get_func(store.borrow_mut().deref_mut(), "add-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = add.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_add(m.signed()) {
-            Some(rust_result) => {
-                call.expect("call to add-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.signed());
-            }
-            None => { call.expect_err("expected overflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("add-int", |a: i128, b: i128| a.checked_add(b))
 }
 
 #[test]
 fn prop_sub_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let sub = instance
-        .get_func(store.borrow_mut().deref_mut(), "sub-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = sub.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_sub(m.unsigned()) {
-            Some(rust_result) => {
-                call.expect("call to sub-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected underflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("sub-uint", |a: u128, b: u128| a.checked_sub(b))
 }
 
 #[test]
 fn prop_sub_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let sub = instance
-        .get_func(store.borrow_mut().deref_mut(), "sub-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = sub.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_sub(m.signed()) {
-            Some(rust_result) => {
-                call.expect("call to sub-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.signed());
-            }
-            None => { call.expect_err("expected underflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("sub-int", |a: i128, b: i128| a.checked_sub(b))
 }
 
 #[test]
 fn prop_mul_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let mul = instance
-        .get_func(store.borrow_mut().deref_mut(), "mul-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = mul.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_mul(m.unsigned()) {
-            Some(rust_result) => {
-                call.expect("call to mul-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected overflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("mul-uint", |a: u128, b: u128| a.checked_mul(b))
 }
 
 #[test]
 fn prop_mul_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let mul = instance
-        .get_func(store.borrow_mut().deref_mut(), "mul-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = mul.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_mul(m.signed()) {
-            Some(rust_result) => {
-                call.expect("call to mul-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.signed());
-            }
-            None => { call.expect_err("expected overflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("mul-int", |a: i128, b: i128| a.checked_mul(b))
 }
 
 #[test]
 fn prop_div_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let div = instance
-        .get_func(store.borrow_mut().deref_mut(), "div-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = div.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_div(m.unsigned()) {
-            Some(rust_result) => {
-                call.expect("call to div-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected divide by zero"); }
-        }
-    })
+    utils::test_export_two_args_checked("div-uint", |a: u128, b: u128| a.checked_div(b))
 }
 
 #[test]
 fn prop_div_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let div = instance
-        .get_func(store.borrow_mut().deref_mut(), "div-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = div.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_div(m.signed()) {
-            Some(rust_result) => {
-                call.expect("call to div-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.signed());
-            }
-            None => { call.expect_err("expected divide by zero"); }
-        }
-    })
+    utils::test_export_two_args_checked("div-int", |a: i128, b: i128| a.checked_div(b))
 }
 
 #[test]
 fn prop_mod_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let modulo = instance
-        .get_func(store.borrow_mut().deref_mut(), "mod-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = modulo.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_rem(m.unsigned()) {
-            Some(rust_result) => {
-                call.expect("call to mod-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected divide by zero"); }
-        }
-    })
+    utils::test_export_two_args_checked("mod-uint", |a: u128, b: u128| a.checked_rem(b))
 }
 
 #[test]
 fn prop_mod_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let modulo = instance
-        .get_func(store.borrow_mut().deref_mut(), "mod-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = modulo.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_rem(m.signed()) {
-            Some(rust_result) => {
-                call.expect("call to div-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result, wasm_result.signed());
-            }
-            None if m.signed() == 0 => { call.expect_err("expected divide by zero"); }
-            None => { call.expect_err("expected overflow"); }
-        }
-    })
+    utils::test_export_two_args_checked("mod-int", |a: i128, b: i128| a.checked_rem(b))
 }
 
 #[test]
 fn prop_lt_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let lt = instance
-        .get_func(store.borrow_mut().deref_mut(), "lt-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        lt.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to lt-uint failed");
-        prop_assert_eq!(n.unsigned() < m.unsigned(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("lt-uint", |a: u128, b: u128| a < b)
 }
 
 #[test]
 fn prop_lt_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let lt = instance
-        .get_func(store.borrow_mut().deref_mut(), "lt-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        lt.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to lt-int failed");
-        prop_assert_eq!(n.signed() < m.signed(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("lt-int", |a: i128, b: i128| a < b);
 }
 
 #[test]
 fn prop_gt_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let gt = instance
-        .get_func(store.borrow_mut().deref_mut(), "gt-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        gt.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to gt-uint failed");
-        prop_assert_eq!(n.unsigned() > m.unsigned(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("gt-uint", |a: u128, b: u128| a > b);
 }
 
 #[test]
 fn prop_gt_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let gt = instance
-        .get_func(store.borrow_mut().deref_mut(), "gt-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        gt.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to gt-int failed");
-        prop_assert_eq!(n.signed() > m.signed(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("gt-int", |a: i128, b: i128| a > b);
 }
 
 #[test]
 fn prop_le_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let le = instance
-        .get_func(store.borrow_mut().deref_mut(), "le-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        le.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to le-uint failed");
-        prop_assert_eq!(n.unsigned() <= m.unsigned(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("le-uint", |a: u128, b: u128| a <= b);
 }
 
 #[test]
 fn prop_le_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let le = instance
-        .get_func(store.borrow_mut().deref_mut(), "le-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        le.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to le-int failed");
-        prop_assert_eq!(n.signed() <= m.signed(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("le-int", |a: i128, b: i128| a <= b);
 }
 
 #[test]
 fn prop_ge_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let ge = instance
-        .get_func(store.borrow_mut().deref_mut(), "ge-uint")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        ge.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to ge-uint failed");
-        prop_assert_eq!(n.unsigned() >= m.unsigned(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("ge-uint", |a: u128, b: u128| a >= b);
 }
 
 #[test]
 fn prop_ge_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let ge = instance
-        .get_func(store.borrow_mut().deref_mut(), "ge-int")
-        .unwrap();
-
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I32(0)];
-        ge.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        ).expect("call to ge-int failed");
-        prop_assert_eq!(n.signed() >= m.signed(), res[0].i32().unwrap() == 1);
-    })
+    utils::test_export_two_args("ge-int", |a: i128, b: i128| a >= b);
 }
 
 #[test]
 fn prop_log2_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let log2 = instance
-        .get_func(store.borrow_mut().deref_mut(), "log2-uint")
-        .unwrap();
-
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = log2.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            &mut res,
-        );
-        match n.unsigned().checked_ilog2() {
-            Some(rust_result) => {
-                call.expect("call to log2-uint failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result as u128, wasm_result.unsigned());
-            }
-            None => { call.expect_err("expected log2 of 0"); }
-        }
-    })
+    utils::test_export_one_arg_checked("log2-uint", |a: u128| a.checked_ilog2().map(|u| u as u128))
 }
 
 #[test]
 fn prop_log2_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let log2 = instance
-        .get_func(store.borrow_mut().deref_mut(), "log2-int")
-        .unwrap();
-
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = log2.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            &mut res,
-        );
-        match n.signed().checked_ilog2() {
-            Some(rust_result) => {
-                call.expect("call to log2-int failed");
-                let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-                prop_assert_eq!(rust_result as i128, wasm_result.signed());
-            }
-            None => { call.expect_err("expected log2 of negative number or 0"); }
-        }
-    })
+    utils::test_export_one_arg_checked("log2-int", |a: i128| a.checked_ilog2().map(|u| u as i128))
 }
 
 #[test]
 fn prop_sqrti_uint() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let sqrti = instance
-        .get_func(store.borrow_mut().deref_mut(), "sqrti-uint")
-        .unwrap();
-
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        sqrti.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            &mut res,
-        ).expect("call to sqrti-uint failed");
-        let rust_result = num_integer::Roots::sqrt(&n.unsigned());
-        let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-        prop_assert_eq!(rust_result, wasm_result.unsigned())
-    })
+    utils::test_export_one_arg("sqrti-uint", |a: u128| num_integer::Roots::sqrt(&a) as u128)
 }
 
 #[test]
 fn prop_sqrti_int() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-    let sqrti = instance
-        .get_func(store.borrow_mut().deref_mut(), "sqrti-int")
-        .unwrap();
-
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let call = sqrti.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            &mut res,
-        );
-        if n.signed() > 0 {
-            call.expect("call to sqrti-int failed");
-            let rust_result = num_integer::Roots::sqrt(&n.signed());
-            let wasm_result = PropInt::from_wasm(res[0].i64().unwrap(), res[1].i64().unwrap());
-            prop_assert_eq!(rust_result, wasm_result.signed())
+    utils::test_export_one_arg_checked("sqrti-int", |a: i128| {
+        if a > 0 {
+            Some(num_integer::Roots::sqrt(&a))
         } else {
-            call.expect_err("expected sqrti of negative number");
+            None
         }
     })
 }
