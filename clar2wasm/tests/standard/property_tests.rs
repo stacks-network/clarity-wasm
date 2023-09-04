@@ -102,7 +102,7 @@ fn prop_log2_int() {
 
 #[test]
 fn prop_sqrti_uint() {
-    utils::test_export_one_arg("sqrti-uint", |a: u128| num_integer::Roots::sqrt(&a) as u128)
+    utils::test_export_one_arg("sqrti-uint", |a: u128| num_integer::Roots::sqrt(&a))
 }
 
 #[test]
