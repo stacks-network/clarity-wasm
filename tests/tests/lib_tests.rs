@@ -60,6 +60,8 @@ macro_rules! test_contract {
                 if let Value::Response(response_data) =
                     helper.call_public_function($contract_func, $params)
                 {
+                    // https://github.com/rust-lang/rust-clippy/issues/1553
+                    #[allow(clippy::redundant_closure_call)]
                     $test(response_data);
                 } else {
                     panic!("Unexpected result received from WASM function call.");
