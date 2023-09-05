@@ -1,6 +1,8 @@
+use clar2wasm::compile;
 use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clar2wasm_tests::WasmtimeHelper;
 use clarity::vm::ast::ContractAST;
+use clarity::vm::clarity_wasm::{call_function, initialize_contract};
+use clarity::vm::database::MemoryBackingStore;
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -18,49 +20,65 @@ use clarity_repl::repl::{
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn wasm_fold_add_square(c: &mut Criterion) {
-    c.bench_function("wasm_fold_add_square", |b| {
-        let contract_id = QualifiedContractIdentifier::new(
-            StandardPrincipalData::transient(),
-            ContractName::from("fold-bench"),
-        );
-        let mut datastore = Datastore::new();
-        let constants = StacksConstants {
-            burn_start_height: 0,
-            pox_prepare_length: 0,
-            pox_reward_cycle_length: 0,
-            pox_rejection_fraction: 0,
-            epoch_21_start_height: 0,
-        };
-        let burn_datastore = BurnDatastore::new(constants);
-        let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-        conn.begin();
-        conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
-        conn.commit();
-        let cost_tracker = LimitedCostTracker::new_free();
-        let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
-            conn,
-            cost_tracker,
-            StacksEpochId::Epoch24,
-        );
-        let mut contract_context =
-            ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("fold-bench"),
+    );
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+    let cost_tracker = LimitedCostTracker::new_free();
+    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
-        global_context.begin();
-        {
-            let mut helper = WasmtimeHelper::new_from_file(
-                contract_id,
-                &mut global_context,
-                &mut contract_context,
-            );
+    let contract_str = std::fs::read_to_string(format!("contracts/{}.clar", "fold-bench")).unwrap();
+    let mut compile_result = compile(
+        contract_str.as_str(),
+        &contract_id,
+        cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+        &mut clarity_store,
+    )
+    .expect("Failed to compile contract.");
 
+    contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        compile_result.contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+    global_context.begin();
+
+    {
+        initialize_contract(
+            &mut global_context,
+            &mut contract_context,
+            &compile_result.contract_analysis,
+        )
+        .expect("Failed to initialize contract");
+
+        c.bench_function("wasm_fold_add_square", |b| {
             b.iter(|| {
-                helper.call_public_function("fold-add-square", &[]);
-            });
-        }
-        global_context.commit().unwrap();
-    });
+                let _result = call_function(
+                    &mut global_context,
+                    &mut contract_context,
+                    "fold-add-square",
+                    &[],
+                )
+                .expect("Function call failed");
+            })
+        });
+    }
+
+    global_context.commit().unwrap();
 }
 
 fn interp_fold_add_square(c: &mut Criterion) {
@@ -71,7 +89,7 @@ fn interp_fold_add_square(c: &mut Criterion) {
     let contract = ClarityContract {
         name: "fold-bench".to_string(),
         code_source: ClarityCodeSource::ContractInMemory(contract_source.to_string()),
-        clarity_version: ClarityVersion::Clarity2,
+        clarity_version: ClarityVersion::latest(),
         epoch: StacksEpochId::latest(),
         deployer: ContractDeployer::Address(
             "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string(),
