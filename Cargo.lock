@@ -516,7 +516,7 @@ dependencies = [
  "serde_stacker",
  "sha2-asm",
  "slog",
- "stacks-common 0.0.2",
+ "stacks-common",
  "time 0.2.27",
  "wasmtime 12.0.1",
 ]
@@ -524,14 +524,13 @@ dependencies = [
 [[package]]
 name = "clarity-repl"
 version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fbc2179431d853889075f92b984a56c3c988b944ca6682ff840b2792bb155bf"
 dependencies = [
  "ansi_term",
  "atty",
  "bytes",
  "chrono",
- "clarity-vm",
+ "clar2wasm",
+ "clarity",
  "debug_types",
  "futures",
  "getrandom 0.2.10",
@@ -554,29 +553,7 @@ dependencies = [
  "sha3 0.9.1",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "clarity-vm"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90cebf93044798d7729008e9a467b16578aead7f0b3568219a2b20b421b683db"
-dependencies = [
- "integer-sqrt",
- "lazy_static",
- "rand 0.7.3",
- "rand_chacha 0.2.2",
- "regex",
- "rstest",
- "rstest_reuse",
- "rusqlite",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_stacker",
- "sha2-asm",
- "stacks-common 0.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "time 0.2.27",
+ "wasmtime 11.0.1",
 ]
 
 [[package]]
@@ -1549,12 +1526,9 @@ checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
 [[package]]
 name = "hiro-system-kit"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a69a7ca4bddaacbc8180886d378ad8c2b9f74217503002346719b57adbd83124"
 dependencies = [
  "ansi_term",
  "atty",
- "futures",
  "lazy_static",
  "tokio",
 ]
@@ -3084,30 +3058,6 @@ dependencies = [
  "slog",
  "slog-json",
  "slog-term",
- "time 0.2.27",
-]
-
-[[package]]
-name = "stacks-common"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c887baefb047fb7cd1c82d5a62e1deaca4b9ea9c701f965407db6c39a3fc902f"
-dependencies = [
- "chrono",
- "curve25519-dalek",
- "ed25519-dalek",
- "lazy_static",
- "libc",
- "percent-encoding",
- "rand 0.7.3",
- "ripemd",
- "rusqlite",
- "secp256k1",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2 0.10.7",
- "sha3 0.10.8",
  "time 0.2.27",
 ]
 
