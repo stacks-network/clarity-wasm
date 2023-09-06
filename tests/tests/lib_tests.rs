@@ -220,3 +220,63 @@ test_contract!(
         assert_eq!(*response.data, Value::Bool(true));
     }
 );
+
+test_contract!(
+    test_bitwise_and,
+    "bit-and",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
+    }
+);
+
+test_contract!(
+    test_bitwise_not,
+    "bit-not",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(-4));
+    }
+);
+
+test_contract!(
+    test_bitwise_or,
+    "bit-or",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
+    }
+);
+
+test_contract!(
+    test_bitwise_shift_left,
+    "bit-shift-left",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(6));
+    }
+);
+
+test_contract!(
+    test_bitwise_shift_right,
+    "bit-shift-right",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
+    }
+);
+
+test_contract!(
+    test_bitwise_xor,
+    "bit-xor",
+    "assert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(1));
+    }
+);

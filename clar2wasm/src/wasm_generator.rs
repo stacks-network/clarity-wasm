@@ -538,6 +538,95 @@ impl ASTVisitor for WasmGenerator {
         Ok(builder)
     }
 
+    fn traverse_bitwise<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let helper_func = match func {
+            NativeFunctions::BitwiseAnd => self
+                .module
+                .funcs
+                .by_name(&format!("bit-and"))
+                .unwrap_or_else(|| panic!("function not found: bit-and")),
+            NativeFunctions::BitwiseNot => self
+                .module
+                .funcs
+                .by_name(&format!("bit-not"))
+                .unwrap_or_else(|| panic!("function not found: bit-not")),
+            NativeFunctions::BitwiseOr => self
+                .module
+                .funcs
+                .by_name(&format!("bit-or"))
+                .unwrap_or_else(|| panic!("function not found: bit-or")),
+            NativeFunctions::BitwiseXor2 => self
+                .module
+                .funcs
+                .by_name(&format!("bit-xor"))
+                .unwrap_or_else(|| panic!("function not found: bit-xor")),
+            _ => {
+                self.error = Some(GeneratorError::NotImplemented);
+                return Err(builder);
+            }
+        };
+
+        // Start off with operand 0, then loop over the rest, calling the
+        // helper function with a pair of operands, either operand 0 and 1, or
+        // the result of the previous call and the next operand.
+        // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
+        builder = self.traverse_expr(builder, &operands[0])?;
+        for operand in operands.iter().skip(1) {
+            builder = self.traverse_expr(builder, operand)?;
+            builder.call(helper_func);
+        }
+
+        Ok(builder)
+    }
+
+    fn visit_bit_shift<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        func: NativeFunctions,
+        input: &SymbolicExpression,
+        _shamt: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let ty = self
+            .get_expr_type(&input)
+            .expect("comparison operands must be typed");
+        let type_suffix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                self.error = Some(GeneratorError::InternalError(
+                    "invalid type for shift".to_string(),
+                ));
+                return Err(builder);
+            }
+        };
+        let helper_func = match func {
+            NativeFunctions::BitwiseLShift => self
+                .module
+                .funcs
+                .by_name(&format!("bit-shift-left"))
+                .unwrap_or_else(|| panic!("function not found: bit-shift-left")),
+            NativeFunctions::BitwiseRShift => self
+                .module
+                .funcs
+                .by_name(&format!("bit-shift-right-{type_suffix}"))
+                .unwrap_or_else(|| panic!("function not found: bit-shift-right-{type_suffix}")),
+            _ => {
+                self.error = Some(GeneratorError::NotImplemented);
+                return Err(builder);
+            }
+        };
+        builder.call(helper_func);
+
+        Ok(builder)
+    }
+
     fn visit_comparison<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,

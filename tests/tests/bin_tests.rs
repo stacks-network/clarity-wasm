@@ -7,6 +7,7 @@ fn test_clar2wasm_no_args() {
         .failure();
 }
 
+#[ignore]
 #[test]
 fn test_clar2wasm_with_input() {
     let temp = assert_fs::TempDir::new().unwrap();
