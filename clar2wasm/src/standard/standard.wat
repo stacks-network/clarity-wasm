@@ -785,6 +785,7 @@
                (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
 
     (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+		  ;; This is just an inverted version of shift-left, see above
           (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
           (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
               (then
@@ -807,6 +808,7 @@
                (i64.const 0))))
 
     (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+		  ;; This is just shift-right but taking into account the sign (using shr_s when shifting the high bits)
           (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
           (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
               (then
@@ -820,7 +822,7 @@
                (i64.shr_s (local.get $a_hi) (local.get $b_lo)))
               (else
                (i64.shr_s (local.get $a_hi) (i64.sub (local.get $b_lo) (i64.const 64)))
-               ;; keep the sign
+               ;; this keeps the sign from changing
                (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
     (export "memcpy" (func $memcpy))
