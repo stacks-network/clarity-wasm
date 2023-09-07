@@ -784,42 +784,42 @@
                (i64.const 0)
                (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
 
-    (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $shift_by i64) (param $overflow i64) (result i64 i64)
-          (local.set $shift_by (i64.and (local.get $shift_by) (i64.const 0x7f)))
-          (if (result i64 i64) (i64.lt_u (local.get $shift_by) (i64.const 64))
+    (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
               (then
-               (local.set $overflow
+               (local.set $b_hi
                           (select
                            (i64.const 0)
                            (i64.shl (local.get $a_hi)
                                     (i64.sub (i64.const 64)
-                                             (local.get $shift_by)))
-                           (i64.eqz (local.get $shift_by))))
+                                             (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
                (i64.or (i64.shr_u (local.get $a_lo)
-                                  (local.get $shift_by))
-                       (local.get $overflow))
+                                  (local.get $b_lo))
+                       (local.get $b_hi))
                (i64.shr_u (local.get $a_hi)
-                          (local.get $shift_by)))
+                          (local.get $b_lo)))
               (else
                (i64.shr_u (local.get $a_hi)
-                          (i64.sub (local.get $shift_by)
+                          (i64.sub (local.get $b_lo)
                                    (i64.const 64)))
                (i64.const 0))))
 
-    (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $shift_by i64) (param $overflow i64) (result i64 i64)
-          (local.set $shift_by (i64.and (local.get $shift_by) (i64.const 0x7f)))
-          (if (result i64 i64) (i64.lt_u (local.get $shift_by) (i64.const 64))
+    (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
               (then
-               (local.set $overflow
+               (local.set $b_hi
                           (select
                            (i64.const 0)
-                           (i64.shl (local.get $a_hi) (i64.sub (i64.const 64) (local.get $shift_by)))
-                           (i64.eqz (local.get $shift_by))))
-               (i64.or (i64.shr_u (local.get $a_lo) (local.get $shift_by))
-                       (local.get $overflow))
-               (i64.shr_s (local.get $a_hi) (local.get $shift_by)))
+                           (i64.shl (local.get $a_hi) (i64.sub (i64.const 64) (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
+               (i64.or (i64.shr_u (local.get $a_lo) (local.get $b_lo))
+                       (local.get $b_hi))
+               (i64.shr_s (local.get $a_hi) (local.get $b_lo)))
               (else
-               (i64.shr_s (local.get $a_hi) (i64.sub (local.get $shift_by) (i64.const 64)))
+               (i64.shr_s (local.get $a_hi) (i64.sub (local.get $b_lo) (i64.const 64)))
                ;; keep the sign
                (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
