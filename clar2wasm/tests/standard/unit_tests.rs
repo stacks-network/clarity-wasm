@@ -1713,3 +1713,17 @@ fn test_sqrti_int() {
         .call(&mut store, &[Val::I64(-1), Val::I64(-1)], &mut result)
         .expect_err("expected sqrti of negative integer");
 }
+
+#[test]
+fn bit_not_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let bitnot = instance.get_func(&mut store, "bit-not-int").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // bit-not(3) = -4
+    bitnot
+        .call(&mut store, &[Val::I64(3), Val::I64(0)], &mut result)
+        .expect("call to bit-not failed");
+    assert_eq!(result[0].i64(), Some(-4));
+    assert_eq!(result[1].i64(), Some(-1));
+}

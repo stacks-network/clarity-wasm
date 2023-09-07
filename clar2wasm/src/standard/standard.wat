@@ -213,7 +213,7 @@
         (local.set $b3 (i32.wrap_i64 (i64.shr_u (local.get $b_hi) (i64.const 32))))
 
         ;; Do long multiplication over the chunks
-        ;; Result = a0b0 + 
+        ;; Result = a0b0 +
         ;;         (a1b0 + a0b1) << 32 +
         ;;         (a2b0 + a1b1 + a0b2) << 64 +
         ;;         (a3b0 + a2b1 + a1b2 + a0b3) << 96
@@ -232,7 +232,7 @@
             )
             (call $runtime-error (i32.const 0))
         )
-        
+
         ;; a0b0
         (local.set $res_lo (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b0))))
 
@@ -381,7 +381,7 @@
         (local.set $current_bit (i64.const 127))
 
         (loop $div_loop
-            ;; Shift the remainder left by one bit, 
+            ;; Shift the remainder left by one bit,
             ;; filling the least significant bit with the next bit of the dividend
             (local.set $remainder_hi (i64.or
                 (i64.shl (local.get $remainder_hi) (i64.const 1))
@@ -656,11 +656,11 @@
 
         ;; computing d
         (if (i64.eqz (local.get $hi))
-            (then 
+            (then
                 ;; since we know $d_hi will be 0, we can use it as tmp value during computation
                 (local.set $d_hi (i64.const 0x4000000000000000))
                 (loop $loop_lo
-                    (local.set $d_hi 
+                    (local.set $d_hi
                         (i64.shr_u
                             (local.tee $d_lo (local.get $d_hi))
                             (i64.const 2)
@@ -693,7 +693,7 @@
             (local.set $tmp_lo)
 
             ;; c = c >> 1
-            (local.set $c_lo 
+            (local.set $c_lo
                 (i64.or
                     (i64.shl (local.get $c_hi) (i64.const 63))
                     (i64.shr_u (local.get $c_lo) (i64.const 1))
@@ -717,7 +717,7 @@
             )
 
             ;; d = d >> 2
-            (local.set $d_lo 
+            (local.set $d_lo
                 (i64.or
                     (i64.shl (local.get $d_hi) (i64.const 62))
                     (i64.shr_u (local.get $d_lo) (i64.const 2))
@@ -726,7 +726,7 @@
             (local.set $d_hi (i64.shr_u (local.get $d_hi) (i64.const 2)))
 
             ;; branch if (d != 0)
-            (br_if $loop_res 
+            (br_if $loop_res
                 (i64.ne (i64.or (local.get $d_lo) (local.get $d_hi)) (i64.const 0))
             )
         )
@@ -740,6 +740,90 @@
         )
         (call $sqrti-uint (local.get $lo) (local.get $hi))
     )
+
+    (func $bit-and (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+        (i64.and (local.get $a_lo) (local.get $b_lo))
+        (i64.and (local.get $a_hi) (local.get $b_hi))
+    )
+
+    (func $bit-not (type 3) (param $a_lo i64) (param $a_hi i64) (result i64 i64)
+          ;; wasm does not have bitwise negation, but xoring with -1 is equivalent
+          (i64.xor (local.get $a_lo) (i64.const -1))
+          (i64.xor (local.get $a_hi) (i64.const -1))
+    )
+
+    (func $bit-or (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+          (i64.or (local.get $a_lo) (local.get $b_lo))
+          (i64.or (local.get $a_hi) (local.get $b_hi))
+    )
+
+    (func $bit-xor (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+          (i64.xor (local.get $a_lo) (local.get $b_lo))
+          (i64.xor (local.get $a_hi) (local.get $b_hi))
+    )
+
+    (func $bit-shift-left (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+          ;; only b_lo is useful here since we will take the reminder by 128
+          ;; n % 128 == n & 127 == n & 0x7f
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          ;; Two cases when we shift:
+          ;; (1) we shift by a 0 <= shift < 64: we have to split the lower bits into the carried bits and the rest, then we shift
+          ;;     the rest, we shift the higher part and we add the carry to the higher part.
+          ;; (2) we shift by a 64 <= shift < 128: lower bits are automatically 0, and higher bits are the lower bits shifted by (shift - 64).
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
+              (then ;; (1)
+               (local.set $b_hi ;; using $b_hi for storing overflow bits
+                          (select ;; that's a hack to workaround wasm shift by 64 has no effect
+                           (i64.const 0)
+                           (i64.shr_u (local.get $a_lo) (i64.sub (i64.const 64) (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
+               (i64.shl (local.get $a_lo) (local.get $b_lo)) ;; lower_bits <<= shift
+               (i64.or (i64.shl (local.get $a_hi) (local.get $b_lo))
+                       (local.get $b_hi))) ;; higher_bits = (higher_bits << shift) | carry
+              (else ;; (2)
+               (i64.const 0)
+               (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
+
+    (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+		  ;; This is just an inverted version of shift-left, see above
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
+              (then
+               (local.set $b_hi
+                          (select
+                           (i64.const 0)
+                           (i64.shl (local.get $a_hi)
+                                    (i64.sub (i64.const 64)
+                                             (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
+               (i64.or (i64.shr_u (local.get $a_lo)
+                                  (local.get $b_lo))
+                       (local.get $b_hi))
+               (i64.shr_u (local.get $a_hi)
+                          (local.get $b_lo)))
+              (else
+               (i64.shr_u (local.get $a_hi)
+                          (i64.sub (local.get $b_lo)
+                                   (i64.const 64)))
+               (i64.const 0))))
+
+    (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+		  ;; This is just shift-right but taking into account the sign (using shr_s when shifting the high bits)
+          (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
+          (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
+              (then
+               (local.set $b_hi
+                          (select
+                           (i64.const 0)
+                           (i64.shl (local.get $a_hi) (i64.sub (i64.const 64) (local.get $b_lo)))
+                           (i64.eqz (local.get $b_lo))))
+               (i64.or (i64.shr_u (local.get $a_lo) (local.get $b_lo))
+                       (local.get $b_hi))
+               (i64.shr_s (local.get $a_hi) (local.get $b_lo)))
+              (else
+               (i64.shr_s (local.get $a_hi) (i64.sub (local.get $b_lo) (i64.const 64)))
+               ;; this keeps the sign from changing
+               (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
@@ -764,4 +848,16 @@
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
     (export "sqrti-int" (func $sqrti-int))
+    (export "bit-and-uint" (func $bit-and))
+    (export "bit-and-int" (func $bit-and))
+    (export "bit-not-uint" (func $bit-not))
+    (export "bit-not-int" (func $bit-not))
+    (export "bit-or-uint" (func $bit-or))
+    (export "bit-or-int" (func $bit-or))
+    (export "bit-xor-uint" (func $bit-xor))
+    (export "bit-xor-int" (func $bit-xor))
+    (export "bit-shift-left-uint" (func $bit-shift-left))
+    (export "bit-shift-left-int" (func $bit-shift-left))
+    (export "bit-shift-right-uint" (func $bit-shift-right-uint))
+    (export "bit-shift-right-int" (func $bit-shift-right-int))
 )

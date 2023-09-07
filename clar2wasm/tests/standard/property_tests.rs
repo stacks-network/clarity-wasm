@@ -115,3 +115,73 @@ fn prop_sqrti_int() {
         }
     })
 }
+
+#[test]
+fn prop_bit_and_uint() {
+    utils::test_export_two_args("bit-and-uint", |a: u128, b: u128| a & b)
+}
+
+#[test]
+fn prop_bit_and_int() {
+    utils::test_export_two_args("bit-and-int", |a: i128, b: i128| a & b)
+}
+
+#[test]
+fn prop_bit_or_uint() {
+    utils::test_export_two_args("bit-or-uint", |a: u128, b: u128| a | b)
+}
+
+#[test]
+fn prop_bit_or_int() {
+    utils::test_export_two_args("bit-or-int", |a: i128, b: i128| a | b)
+}
+
+#[test]
+fn prop_bit_not_uint() {
+    utils::test_export_one_arg("bit-not-uint", |a: u128| !a)
+}
+
+#[test]
+fn prop_bit_not_int() {
+    utils::test_export_one_arg("bit-not-int", |a: i128| !a)
+}
+
+#[test]
+fn prop_bit_xor_uint() {
+    utils::test_export_two_args("bit-xor-uint", |a: u128, b: u128| a ^ b)
+}
+
+#[test]
+fn prop_bit_xor_int() {
+    utils::test_export_two_args("bit-xor-int", |a: i128, b: i128| a ^ b)
+}
+
+#[test]
+fn prop_bit_shift_left_uint() {
+    utils::test_export_two_args("bit-shift-left-uint", |a: u128, b: u128| {
+        a.wrapping_shl((b % 128) as u32)
+    })
+}
+
+#[test]
+fn prop_bit_shift_left_int() {
+    // NOTE that the two arguments differ in type
+    utils::test_export_two_args("bit-shift-left-int", |a: i128, b: u128| {
+        a.wrapping_shl((b % 128) as u32)
+    })
+}
+
+#[test]
+fn prop_bit_shift_right_uint() {
+    utils::test_export_two_args("bit-shift-right-uint", |a: u128, b: u128| {
+        a.wrapping_shr((b % 128) as u32)
+    })
+}
+
+#[test]
+fn prop_bit_shift_right_int() {
+    // NOTE that the two arguments differ in type
+    utils::test_export_two_args("bit-shift-right-int", |a: i128, b: u128| {
+        a.wrapping_shr((b % 128) as u32)
+    })
+}
