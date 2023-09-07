@@ -748,18 +748,18 @@
 
     (func $bit-not (type 3) (param $a_lo i64) (param $a_hi i64) (result i64 i64)
           ;; wasm does not have bitwise negation, but xoring with -1 is equivalent
-		  (i64.xor (local.get $a_lo) (i64.const -1))
+          (i64.xor (local.get $a_lo) (i64.const -1))
           (i64.xor (local.get $a_hi) (i64.const -1))
     )
 
     (func $bit-or (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-		  (i64.or (local.get $a_lo) (local.get $b_lo))
+          (i64.or (local.get $a_lo) (local.get $b_lo))
           (i64.or (local.get $a_hi) (local.get $b_hi))
     )
 
     (func $bit-xor (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-		  (i64.xor (local.get $a_lo) (local.get $b_lo))
-		  (i64.xor (local.get $a_hi) (local.get $b_hi))
+          (i64.xor (local.get $a_lo) (local.get $b_lo))
+          (i64.xor (local.get $a_hi) (local.get $b_hi))
     )
 
     (func $bit-shift-left (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
@@ -779,7 +779,7 @@
                            (i64.eqz (local.get $b_lo))))
                (i64.shl (local.get $a_lo) (local.get $b_lo)) ;; lower_bits <<= shift
                (i64.or (i64.shl (local.get $a_hi) (local.get $b_lo))
-					   (local.get $b_hi))) ;; higher_bits = (higher_bits << shift) | carry
+                       (local.get $b_hi))) ;; higher_bits = (higher_bits << shift) | carry
               (else ;; (2)
                (i64.const 0)
                (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
@@ -792,19 +792,19 @@
                           (select
                            (i64.const 0)
                            (i64.shl (local.get $a_hi)
-									(i64.sub (i64.const 64)
-											 (local.get $shift_by)))
+                                    (i64.sub (i64.const 64)
+                                             (local.get $shift_by)))
                            (i64.eqz (local.get $shift_by))))
                (i64.or (i64.shr_u (local.get $a_lo)
-								  (local.get $shift_by))
-					   (local.get $overflow))
+                                  (local.get $shift_by))
+                       (local.get $overflow))
                (i64.shr_u (local.get $a_hi)
-						  (local.get $shift_by)))
+                          (local.get $shift_by)))
               (else
                (i64.shr_u (local.get $a_hi)
-						  (i64.sub (local.get $shift_by)
-								   (i64.const 64)))
-			   (i64.const 0))))
+                          (i64.sub (local.get $shift_by)
+                                   (i64.const 64)))
+               (i64.const 0))))
 
     (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $shift_by i64) (param $overflow i64) (result i64 i64)
           (local.set $shift_by (i64.and (local.get $shift_by) (i64.const 0x7f)))
@@ -816,12 +816,12 @@
                            (i64.shl (local.get $a_hi) (i64.sub (i64.const 64) (local.get $shift_by)))
                            (i64.eqz (local.get $shift_by))))
                (i64.or (i64.shr_u (local.get $a_lo) (local.get $shift_by))
-					   (local.get $overflow))
+                       (local.get $overflow))
                (i64.shr_s (local.get $a_hi) (local.get $shift_by)))
               (else
                (i64.shr_s (local.get $a_hi) (i64.sub (local.get $shift_by) (i64.const 64)))
-			   ;; keep the sign
-			   (i64.shr_s (local.get $a_hi) (i64.const 63)))))
+               ;; keep the sign
+               (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))

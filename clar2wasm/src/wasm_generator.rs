@@ -489,36 +489,6 @@ impl ASTVisitor for WasmGenerator {
                 .funcs
                 .by_name(&format!("sqrti-{type_suffix}"))
                 .unwrap_or_else(|| panic!("function not found: sqrti-{type_suffix}")),
-            NativeFunctions::BitwiseAnd => self
-                .module
-                .funcs
-                .by_name(&format!("bit-and-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-and-{type_suffix}")),
-            NativeFunctions::BitwiseNot => self
-                .module
-                .funcs
-                .by_name(&format!("bit-not-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-not-{type_suffix}")),
-            NativeFunctions::BitwiseOr => self
-                .module
-                .funcs
-                .by_name(&format!("bit-or-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-or-{type_suffix}")),
-            NativeFunctions::BitwiseLShift => self
-                .module
-                .funcs
-                .by_name(&format!("bit-shift-left-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-shift-left-{type_suffix}")),
-            NativeFunctions::BitwiseRShift => self
-                .module
-                .funcs
-                .by_name(&format!("bit-shift-right-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-shift-right-{type_suffix}")),
-            NativeFunctions::BitwiseXor2 => self
-                .module
-                .funcs
-                .by_name(&format!("bit-xor-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-xor-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 return Err(builder);
@@ -551,11 +521,6 @@ impl ASTVisitor for WasmGenerator {
                 .funcs
                 .by_name(&format!("bit-and"))
                 .unwrap_or_else(|| panic!("function not found: bit-and")),
-            NativeFunctions::BitwiseNot => self
-                .module
-                .funcs
-                .by_name(&format!("bit-not"))
-                .unwrap_or_else(|| panic!("function not found: bit-not")),
             NativeFunctions::BitwiseOr => self
                 .module
                 .funcs
@@ -624,6 +589,19 @@ impl ASTVisitor for WasmGenerator {
         };
         builder.call(helper_func);
 
+        Ok(builder)
+    }
+
+    fn visit_bitwise_not<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let helper_func = self
+            .module
+            .funcs
+            .by_name(&format!("bit-not"))
+            .unwrap_or_else(|| panic!("function not found: bit-not"));
+        builder.call(helper_func);
         Ok(builder)
     }
 

@@ -772,8 +772,11 @@ pub trait ASTVisitor {
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        BitwiseAnd | BitwiseOr | BitwiseNot | BitwiseXor2 => {
+                        BitwiseAnd | BitwiseOr | BitwiseXor2 => {
                             self.traverse_bitwise(builder, expr, native_function, args)
+                        }
+                        BitwiseNot => {
+                            self.traverse_bitwise_not(builder, args.get(0).unwrap_or(&DEFAULT_EXPR))
                         }
                         BitwiseLShift | BitwiseRShift => self.traverse_bit_shift(
                             builder,
@@ -2842,6 +2845,22 @@ pub trait ASTVisitor {
         _expr: &SymbolicExpression,
         _func: NativeFunctions,
         _operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_bitwise_not<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_bitwise_not(builder)
+    }
+
+    fn visit_bitwise_not<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
