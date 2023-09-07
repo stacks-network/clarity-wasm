@@ -519,17 +519,17 @@ impl ASTVisitor for WasmGenerator {
             NativeFunctions::BitwiseAnd => self
                 .module
                 .funcs
-                .by_name(&format!("bit-and"))
+                .by_name("bit-and")
                 .unwrap_or_else(|| panic!("function not found: bit-and")),
             NativeFunctions::BitwiseOr => self
                 .module
                 .funcs
-                .by_name(&format!("bit-or"))
+                .by_name("bit-or")
                 .unwrap_or_else(|| panic!("function not found: bit-or")),
             NativeFunctions::BitwiseXor2 => self
                 .module
                 .funcs
-                .by_name(&format!("bit-xor"))
+                .by_name("bit-xor")
                 .unwrap_or_else(|| panic!("function not found: bit-xor")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
@@ -559,8 +559,8 @@ impl ASTVisitor for WasmGenerator {
         _shamt: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         let ty = self
-            .get_expr_type(&input)
-            .expect("comparison operands must be typed");
+            .get_expr_type(input)
+            .expect("bit shift operands must be typed");
         let type_suffix = match ty {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -575,7 +575,7 @@ impl ASTVisitor for WasmGenerator {
             NativeFunctions::BitwiseLShift => self
                 .module
                 .funcs
-                .by_name(&format!("bit-shift-left"))
+                .by_name("bit-shift-left")
                 .unwrap_or_else(|| panic!("function not found: bit-shift-left")),
             NativeFunctions::BitwiseRShift => self
                 .module
@@ -599,7 +599,7 @@ impl ASTVisitor for WasmGenerator {
         let helper_func = self
             .module
             .funcs
-            .by_name(&format!("bit-not"))
+            .by_name("bit-not")
             .unwrap_or_else(|| panic!("function not found: bit-not"));
         builder.call(helper_func);
         Ok(builder)
