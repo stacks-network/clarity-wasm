@@ -20,6 +20,7 @@ wat = "1.0.69"
 wasmtime = "11.0.1"
 criterion = "0.5.1"
 proptest = "1.2.0"
+clarity-repl = "1.7.2"
 
 [lib]
 path = "src/lib.rs"
