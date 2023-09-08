@@ -178,148 +178,123 @@
         (return (local.get $diff_lo) (local.get $diff_hi))
     )
 
-    (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $a0 i32)
-        (local $a1 i32)
-        (local $a2 i32)
-        (local $a3 i32)
-        (local $b0 i32)
-        (local $b1 i32)
-        (local $b2 i32)
-        (local $b3 i32)
-        (local $product0 i64)
-        (local $product1 i64)
-        (local $product2 i64)
-        (local $product3 i64)
-        (local $carry i64)
-        (local $res_hi i64)
-        (local $res_lo i64)
-
-        ;; Shortcut if either a or b is zero
-        (if (i32.or
-                (i64.eqz (i64.or (local.get $a_hi) (local.get $a_lo)))
-                (i64.eqz (i64.or (local.get $b_hi) (local.get $b_lo))))
-            (return (i64.const 0) (i64.const 0))
-        )
-
-        ;; Split the operands into 32-bit chunks
-        (local.set $a0 (i32.wrap_i64 (local.get $a_lo)))
-        (local.set $a1 (i32.wrap_i64 (i64.shr_u (local.get $a_lo) (i64.const 32))))
-        (local.set $a2 (i32.wrap_i64 (local.get $a_hi)))
-        (local.set $a3 (i32.wrap_i64 (i64.shr_u (local.get $a_hi) (i64.const 32))))
-        (local.set $b0 (i32.wrap_i64 (local.get $b_lo)))
-        (local.set $b1 (i32.wrap_i64 (i64.shr_u (local.get $b_lo) (i64.const 32))))
-        (local.set $b2 (i32.wrap_i64 (local.get $b_hi)))
-        (local.set $b3 (i32.wrap_i64 (i64.shr_u (local.get $b_hi) (i64.const 32))))
-
-        ;; Do long multiplication over the chunks
-        ;; Result = a0b0 +
-        ;;         (a1b0 + a0b1) << 32 +
-        ;;         (a2b0 + a1b1 + a0b2) << 64 +
-        ;;         (a3b0 + a2b1 + a1b2 + a0b3) << 96
-        ;; The remaining terms are discarded because they are too large to fit in 128 bits
-        ;;         (a3b1 + a2b2 + a1b3) << 128 +
-        ;;         (a3b2 + a2b3) << 160 +
-        ;;         a3b3 << 192
-        ;; We need to make sure these are 0 or report overflow if they are not
-        (if (i32.or
-                (i32.ne (i32.or (local.get $a3) (local.get $b1)) (i32.const 0))
-                (i32.ne (i32.or (local.get $a2) (local.get $b2)) (i32.const 0))
-                (i32.ne (i32.or (local.get $a1) (local.get $b3)) (i32.const 0))
-                (i32.ne (i32.or (local.get $a3) (local.get $b2)) (i32.const 0))
-                (i32.ne (i32.or (local.get $a2) (local.get $b3)) (i32.const 0))
-                (i32.ne (i32.or (local.get $a3) (local.get $b3)) (i32.const 0))
+    (func $mul-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    ;; Adaptation of Hacker's Delight, chapter 8
+    ;; u1 <- $a_lo & 0xffffffff; v1 <- $b_lo & 0xffffffff
+    ;; u2 <- $a_lo >> 32; v2 <- $b_lo >> 32
+    ;; t1 <- v1 * u1
+    ;; t2 <- (u2 * v1) + (t1 >> 32)
+    ;; t3 <- (u1 * v2) + (t2 & 0xffffffff)
+    ;; $res_lo <- (t2 << 32) | (t1 & 0xffffffff)
+    ;; $res_hi <- ($a_lo * b_hi) + ($a_hi * b_lo) + (v2 * u2) + (t2 >> 32) + (t3 >> 32)
+        (local $u2 i64) (local $v2 i64) (local $t1 i64) (local $t2 i64) (local $t3 i64)
+        (i64.or
+            (i64.shl
+                (local.tee $t3 (i64.add
+                    (i64.and
+                        (local.tee $t2 (i64.add 
+                            (i64.shr_u
+                                (local.tee $t1 (i64.mul
+                                    ;; $v2 contains u1 temporarily
+                                    (local.tee $v2 (i64.and (local.get $a_lo) (i64.const 0xffffffff))) 
+                                    ;; $u2 contains v1 temporarily
+                                    (local.tee $u2 (i64.and (local.get $b_lo) (i64.const 0xffffffff))) 
+                                ))
+                                (i64.const 32)
+                            )
+                            (i64.mul
+                                (local.get $u2) ;; contains v1 at that point
+                                (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32))) 
+                            )
+                        ))
+                        (i64.const 0xffffffff)
+                    )
+                    (i64.mul
+                        (local.get $v2) ;; contains u1 at that point
+                        (local.tee $v2 (i64.shr_u (local.get $b_lo) (i64.const 32)))
+                    )
+                ))
+                (i64.const 32)
             )
-            (call $runtime-error (i32.const 0))
+            (i64.and (local.get $t1) (i64.const 0xffffffff))
         )
 
-        ;; a0b0
-        (local.set $res_lo (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b0))))
-
-        ;; (a1b0 + a0b1) << 32
-        ;; a1b0
-        (local.set $product0 (i64.mul (i64.extend_i32_u (local.get $a1)) (i64.extend_i32_u (local.get $b0))))
-        ;; a0b1
-        (local.set $product1 (i64.mul (i64.extend_i32_u (local.get $a1)) (i64.extend_i32_u (local.get $b0))))
-        ;; a1b0 + a0b1
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product1)))
-        ;; check for carry
-        (local.set $carry (i64.extend_i32_u (i64.lt_u (local.get $product0) (local.get $product1))))
-        ;; a1b0 + a0b1 << 32
-        (local.set $res_hi (i64.shr_u (local.get $product0) (i64.const 32)))
-        (local.set $res_hi (i64.add (local.get $res_hi) (i64.shl (local.get $carry) (i64.const 32))))
-        (local.set $res_lo (i64.add (local.get $res_lo) (i64.shl (local.get $product0) (i64.const 32))))
-        ;; check for carry
-        (local.set $carry (i64.extend_i32_u (i64.lt_u (local.get $res_lo) (local.get $product0))))
-        (local.set $res_hi (i64.add (local.get $res_hi) (local.get $carry)))
-
-        ;; (a2b0 + a1b1 + a0b2) << 64
-        ;; a2b0
-        (local.set $product0 (i64.mul (i64.extend_i32_u (local.get $a2)) (i64.extend_i32_u (local.get $b0))))
-        ;; a1b1
-        (local.set $product1 (i64.mul (i64.extend_i32_u (local.get $a1)) (i64.extend_i32_u (local.get $b1))))
-        ;; a0b2
-        (local.set $product2 (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b2))))
-        ;; a2b0 + a1b1 + a0b2
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product1)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $product0) (local.get $product1))
-            (call $runtime-error (i32.const 0))
+        (i64.add
+            (i64.add
+                (i64.add
+                    (i64.add
+                        (i64.mul (local.get $a_lo) (local.get $b_hi))
+                        (i64.mul (local.get $a_hi) (local.get $b_lo))
+                    )
+                    (i64.mul (local.get $v2) (local.get $u2))
+                )
+                (i64.shr_u (local.get $t2) (i64.const 32))
+            )
+            (i64.shr_u (local.get $t3) (i64.const 32))
         )
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product2)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $product0) (local.get $product2))
-            (call $runtime-error (i32.const 0))
-        )
-        ;; res_hi += (a2b0 + a1b1 + a0b2)
-        (local.set $res_hi (i64.add (local.get $res_hi) (local.get $product0)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $res_hi) (local.get $product0))
-            (call $runtime-error (i32.const 0))
-        )
-
-        ;; (a3b0 + a2b1 + a1b2 + a0b3) << 96
-        ;; a3b0
-        (local.set $product0 (i64.mul (i64.extend_i32_u (local.get $a3)) (i64.extend_i32_u (local.get $b0))))
-        ;; a2b1
-        (local.set $product1 (i64.mul (i64.extend_i32_u (local.get $a2)) (i64.extend_i32_u (local.get $b1))))
-        ;; a1b2
-        (local.set $product2 (i64.mul (i64.extend_i32_u (local.get $a1)) (i64.extend_i32_u (local.get $b2))))
-        ;; a0b3
-        (local.set $product3 (i64.mul (i64.extend_i32_u (local.get $a0)) (i64.extend_i32_u (local.get $b3))))
-        ;; a3b0 + a2b1
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product1)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $product0) (local.get $product1))
-            (call $runtime-error (i32.const 0))
-        )
-        ;; a3b0 + a2b1 + a1b2
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product2)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $product0) (local.get $product2))
-            (call $runtime-error (i32.const 0))
-        )
-        ;; a3b0 + a2b1 + a1b2 + a0b3
-        (local.set $product0 (i64.add (local.get $product0) (local.get $product3)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $product0) (local.get $product3))
-            (call $runtime-error (i32.const 0))
-        )
-        ;; check for overflow in upper 32 bits of result
-        (if (i64.ne (i64.shr_u (local.get $product0) (i64.const 32)) (i64.const 0))
-            (call $runtime-error (i32.const 0))
-        )
-        ;; result += (a3b0 + a2b1 + a1b2 + a0b3) << 96
-        (local.set $product0 (i64.shl (local.get $product0) (i64.const 32)))
-        (local.set $res_hi (i64.add (local.get $res_hi) (local.get $product0)))
-        ;; check for carry
-        (if (i64.lt_u (local.get $res_hi) (local.get $product0))
-            (call $runtime-error (i32.const 0))
-        )
-
-        ;; Return the result
-        (return (local.get $res_lo) (local.get $res_hi))
     )
+
+    (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+        (local $lz i32)
+
+        (local.set $lz  ;; lz countains the sum of number of leading zeros of arguments
+            (i32.add 
+                (call $clz-int128 (local.get $a_lo) (local.get $a_hi))
+                (call $clz-int128 (local.get $b_lo) (local.get $b_hi))
+            )
+        )
+
+        (if (i32.ge_u (local.get $lz) (i32.const 128))
+            ;; product cannot overflow if the sum of leading zeros is >= 64
+            (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
+        )
+
+        (if (i32.le_u (local.get $lz) (i32.const 126))
+            ;; product will overflow if the sum of leading zeros is <= 62
+            (call $runtime-error (i32.const 0))
+        )
+
+        ;; Other case might overflow. We compute (a * b/2) and check if result > 2**127
+        ;;    -> if yes, overflow
+        ;;    -> if not, we double the product, and add b one more time if b was odd
+        
+        ;; b / 2
+        (i64.or
+            (i64.shl (local.get $b_hi) (i64.const 63))
+            (i64.shr_u (local.get $b_lo) (i64.const 1))
+        )
+        (i64.shr_u (local.get $b_hi) (i64.const 1))
+
+        ;; a * b/2
+        (call $mul-int128 (local.get $a_lo) (local.get $a_hi))
+        (local.set $a_hi)
+        (local.set $a_lo)
+
+        ;; if result/2 > 2**127, meaning clz == 0 -> overflow
+        (if (i64.eqz (i64.clz (local.get $a_hi)))
+            (call $runtime-error (i32.const 0))
+        )
+
+        ;; res *= 2, meaning res <<= 1
+        (local.set $a_hi
+            (i64.or
+                (i64.shl (local.get $a_hi) (i64.const 1))
+                (i64.shr_u (local.get $a_lo) (i64.const 63))
+            )
+        )
+        (local.set $a_lo (i64.shl (local.get $a_lo) (i64.const 1)))
+
+        ;; if b is odd, we add b
+        (if (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1)))
+            (then
+                (call $add-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+                (local.set $a_hi)
+                (local.set $a_lo)
+            )
+        )
+        (local.get $a_lo) (local.get $a_hi)
+    )
+    
 
     (func $mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $res_hi i64)
@@ -824,6 +799,16 @@
                (i64.shr_s (local.get $a_hi) (i64.sub (local.get $b_lo) (i64.const 64)))
                ;; this keeps the sign from changing
                (i64.shr_s (local.get $a_hi) (i64.const 63)))))
+
+    (func $clz-int128 (param $a_lo i64) (param $a_hi i64) (result i32)
+        (i32.wrap_i64
+            (select
+                (i64.add (i64.const 64) (i64.clz (local.get $a_lo)))
+                (i64.clz (local.get $a_hi))
+                (i64.eqz (local.get $a_hi))
+            )
+        )
+    )
 
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
