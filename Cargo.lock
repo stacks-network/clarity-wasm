@@ -470,6 +470,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "clarity",
+ "clarity-repl 1.7.2",
  "criterion",
  "lazy_static",
  "num-integer",
@@ -489,7 +490,7 @@ dependencies = [
  "chrono",
  "clar2wasm",
  "clarity",
- "clarity-repl",
+ "clarity-repl 1.7.1",
  "criterion",
  "predicates",
  "rusqlite",
@@ -516,7 +517,7 @@ dependencies = [
  "serde_stacker",
  "sha2-asm",
  "slog",
- "stacks-common",
+ "stacks-common 0.0.2",
  "time 0.2.27",
  "wasmtime 12.0.1",
 ]
@@ -534,7 +535,7 @@ dependencies = [
  "debug_types",
  "futures",
  "getrandom 0.2.10",
- "hiro-system-kit",
+ "hiro-system-kit 0.1.0",
  "httparse",
  "integer-sqrt",
  "lazy_static",
@@ -554,6 +555,64 @@ dependencies = [
  "tokio",
  "tokio-util",
  "wasmtime 11.0.1",
+]
+
+[[package]]
+name = "clarity-repl"
+version = "1.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b21c5cf2058527e435fbfb0040dd715190989a020c9ae7bcebce4cf4b3aabb9"
+dependencies = [
+ "ansi_term",
+ "atty",
+ "bytes",
+ "chrono",
+ "clarity-vm",
+ "debug_types",
+ "futures",
+ "getrandom 0.2.10",
+ "hiro-system-kit 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "httparse",
+ "integer-sqrt",
+ "lazy_static",
+ "log",
+ "memchr",
+ "pico-args",
+ "prettytable-rs",
+ "rand 0.7.3",
+ "regex",
+ "reqwest",
+ "rustyline",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.7",
+ "sha3 0.9.1",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "clarity-vm"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90cebf93044798d7729008e9a467b16578aead7f0b3568219a2b20b421b683db"
+dependencies = [
+ "integer-sqrt",
+ "lazy_static",
+ "rand 0.7.3",
+ "rand_chacha 0.2.2",
+ "regex",
+ "rstest",
+ "rstest_reuse",
+ "rusqlite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_stacker",
+ "sha2-asm",
+ "stacks-common 0.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.2.27",
 ]
 
 [[package]]
@@ -1529,6 +1588,19 @@ version = "0.1.0"
 dependencies = [
  "ansi_term",
  "atty",
+ "lazy_static",
+ "tokio",
+]
+
+[[package]]
+name = "hiro-system-kit"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a69a7ca4bddaacbc8180886d378ad8c2b9f74217503002346719b57adbd83124"
+dependencies = [
+ "ansi_term",
+ "atty",
+ "futures",
  "lazy_static",
  "tokio",
 ]
@@ -3058,6 +3130,30 @@ dependencies = [
  "slog",
  "slog-json",
  "slog-term",
+ "time 0.2.27",
+]
+
+[[package]]
+name = "stacks-common"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c887baefb047fb7cd1c82d5a62e1deaca4b9ea9c701f965407db6c39a3fc902f"
+dependencies = [
+ "chrono",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "lazy_static",
+ "libc",
+ "percent-encoding",
+ "rand 0.7.3",
+ "ripemd",
+ "rusqlite",
+ "secp256k1",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.7",
+ "sha3 0.10.8",
  "time 0.2.27",
 ]
 

@@ -16,14 +16,23 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "define_function",
+            |_: Caller<'_, ()>, _kind: i32, _name_offset: i32, _name_length: i32| {
+                println!("define-function");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "define_variable",
             |_: Caller<'_, ()>,
-             identifier: i32,
              _name_offset: i32,
              _name_length: i32,
              _value_offset: i32,
              _value_length: i32| {
-                println!("define-data-var: {identifier}");
+                println!("define-data-var");
             },
         )
         .unwrap();
@@ -32,8 +41,12 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "get_variable",
-            |_: Caller<'_, ()>, identifier: i32, _return_offset: i32, _return_length: i32| {
-                println!("var-get: {identifier}");
+            |_: Caller<'_, ()>,
+             _name_offset: i32,
+             _name_length: i32,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("var-get");
             },
         )
         .unwrap();
@@ -42,8 +55,12 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "set_variable",
-            |_: Caller<'_, ()>, identifier: i32, _return_offset: i32, _return_length: i32| {
-                println!("var-set: {identifier}");
+            |_: Caller<'_, ()>,
+             _name_offset: i32,
+             _name_length: i32,
+             _value_offset: i32,
+             _value_length: i32| {
+                println!("var-set");
             },
         )
         .unwrap();
