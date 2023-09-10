@@ -1269,7 +1269,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             types.extend(clar2wasm_ty(&inner_types.1));
             types
         }
-        TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => vec![
+        TypeSignature::SequenceType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
