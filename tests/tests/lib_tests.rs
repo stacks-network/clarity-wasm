@@ -241,3 +241,18 @@ test_contract!(
         assert_eq!(*response.data, Value::Bool(true));
     }
 );
+
+test_contract!(
+    test_fold_bench,
+    "fold-bench",
+    "fold-add-square",
+    &[
+        Value::list_from((1..=8192).map(Value::Int).collect())
+            .expect("failed to construct list argument"),
+        Value::Int(1)
+    ],
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(183285493761));
+    }
+);
