@@ -245,12 +245,12 @@
         )
 
         (if (i32.ge_u (local.get $lz) (i32.const 128))
-            ;; product cannot overflow if the sum of leading zeros is >= 64
+            ;; product cannot overflow if the sum of leading zeros is >= 128
             (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
         )
 
         (if (i32.le_u (local.get $lz) (i32.const 126))
-            ;; product will overflow if the sum of leading zeros is <= 62
+            ;; product will overflow if the sum of leading zeros is <= 126
             (call $runtime-error (i32.const 0))
         )
 
@@ -287,7 +287,7 @@
         ;; if b is odd, we add b
         (if (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1)))
             (then
-                (call $add-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+                (call $add-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
                 (local.set $a_hi)
                 (local.set $a_lo)
             )

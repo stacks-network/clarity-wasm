@@ -432,6 +432,34 @@ fn test_mul_uint() {
         &mut result,
     )
     .expect_err("expected overflow");
+
+    // 0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_fffe
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(-1),
+            Val::I64(9223372036854775807),
+            Val::I64(2),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect("call to mul-uint failed");
+    assert_eq!(result[0].i64(), Some(-2));
+    assert_eq!(result[1].i64(), Some(-1));
+
+    // 0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 3 = Overflow
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(-1),
+            Val::I64(9223372036854775807),
+            Val::I64(3),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
 }
 
 #[test]
