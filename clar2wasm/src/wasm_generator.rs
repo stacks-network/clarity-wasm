@@ -151,18 +151,17 @@ impl<'a> WasmGenerator<'a> {
             return Err(err);
         }
 
-        // Set the stack-pointer global at the end of the top-level function to
-        // start just after the literals in memory.
-        current_function
-            .func_body()
-            .i32_const(self.literal_memory_end as i32)
-            .global_set(self.stack_pointer);
-
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
+
+        // Update the initial value of the stack-pointer to point beyond the
+        // literal memory.
+        self.module.globals.get_mut(self.stack_pointer).kind = walrus::GlobalKind::Local(
+            walrus::InitExpr::Value(walrus::ir::Value::I32(self.literal_memory_end as i32)),
+        );
 
         Ok(self.module)
     }

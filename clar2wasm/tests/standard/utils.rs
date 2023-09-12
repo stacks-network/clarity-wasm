@@ -71,6 +71,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             "tx_sender",
             |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
                 println!("tx-sender");
+                Ok((0i32, 0i32))
             },
         )
         .unwrap();
@@ -81,6 +82,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             "contract_caller",
             |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
                 println!("tx-sender");
+                Ok((0i32, 0i32))
             },
         )
         .unwrap();
@@ -91,6 +93,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             "tx_sponsor",
             |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
                 println!("tx-sponsor");
+                Ok((0i32, 0i32, 0i32))
             },
         )
         .unwrap();
@@ -98,36 +101,42 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
             println!("block-height");
+            Ok((0i64, 0i64))
         })
         .unwrap();
 
     linker
         .func_wrap("clarity", "burn_block_height", |_: Caller<'_, ()>| {
             println!("burn-block-height");
+            Ok((0i64, 0i64))
         })
         .unwrap();
 
     linker
         .func_wrap("clarity", "stx_liquid_supply", |_: Caller<'_, ()>| {
             println!("stx-liquid-supply");
+            Ok((0i64, 0i64))
         })
         .unwrap();
 
     linker
         .func_wrap("clarity", "is_in_regtest", |_: Caller<'_, ()>| {
             println!("is-in-regtest");
+            Ok(0i32)
         })
         .unwrap();
 
     linker
         .func_wrap("clarity", "is_in_mainnet", |_: Caller<'_, ()>| {
             println!("is-in-mainnet");
+            Ok(0i32)
         })
         .unwrap();
 
     linker
         .func_wrap("clarity", "chain_id", |_: Caller<'_, ()>| {
             println!("chain-id");
+            Ok((0i64, 0i64))
         })
         .unwrap();
 

@@ -408,12 +408,7 @@ test_contract!(
     }
 );
 
-test_contract!(
-    test_none,
-    "none",
-    "ret-none",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::none());
-    }
-);
+test_contract!(test_none, "none", "ret-none", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::none());
+});
