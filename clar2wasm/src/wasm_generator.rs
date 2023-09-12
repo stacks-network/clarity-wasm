@@ -1,12 +1,12 @@
-use std::{borrow::BorrowMut, collections::HashMap};
-
 use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
+    variables::NativeVariables,
     ClarityName, SymbolicExpression,
 };
+use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
     ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
@@ -69,10 +69,35 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(length))) => {
             u32::from(length.clone())
         }
+        TypeSignature::PrincipalType => {
+            // Standard principal is a 1 byte version and a 20 byte Hash160.
+            // Then there is an int32 for the contract name length, followed by
+            // the contract name, which has a max length of 128.
+            1 + 20 + 1 + 128
+        }
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
         _ => unimplemented!("Unsupported type: {}", ty),
+    }
+}
+
+fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
+    match ty {
+        ValType::I32 => builder.i32_const(0),
+        ValType::I64 => builder.i64_const(0),
+        ValType::F32 => builder.f32_const(0.0),
+        ValType::F64 => builder.f64_const(0.0),
+        ValType::V128 => unimplemented!("V128"),
+        ValType::Externref => unimplemented!("Externref"),
+        ValType::Funcref => unimplemented!("Funcref"),
+    };
+}
+
+fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+    let wasm_types = clar2wasm_ty(ty);
+    for wasm_type in wasm_types.iter() {
+        add_placeholder_for_type(builder, *wasm_type);
     }
 }
 
@@ -254,23 +279,6 @@ impl<'a> WasmGenerator<'a> {
         self.locals = top_level_locals;
 
         Some(func_builder.finish(param_locals, &mut self.module.funcs))
-    }
-
-    fn add_placeholder_for_type<'b>(
-        &mut self,
-        mut builder: InstrSeqBuilder<'b>,
-        ty: ValType,
-    ) -> InstrSeqBuilder<'b> {
-        match ty {
-            ValType::I32 => builder.i32_const(0),
-            ValType::I64 => builder.i64_const(0),
-            ValType::F32 => builder.f32_const(0.0),
-            ValType::F64 => builder.f64_const(0.0),
-            ValType::V128 => unimplemented!("V128"),
-            ValType::Externref => unimplemented!("Externref"),
-            ValType::Funcref => unimplemented!("Funcref"),
-        };
-        builder
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
@@ -462,6 +470,159 @@ impl<'a> WasmGenerator<'a> {
         // Traverse the last statement in the block, whose result is the result
         // of the `begin` expression.
         self.traverse_expr(builder, statements.last().unwrap())
+    }
+
+    /// If `name` is a reserved variable, push its value onto the data stack.
+    pub fn lookup_reserved_variable<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        name: &str,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, bool) {
+        if let Some(variable) = NativeVariables::lookup_by_name_at_version(
+            name,
+            &self.contract_analysis.clarity_version,
+        ) {
+            match variable {
+                NativeVariables::TxSender => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `tx_sender`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("tx_sender")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::ContractCaller => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `contract_caller`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("contract_caller")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::TxSponsor => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `tx_sponsor`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("tx_sponsor")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::BlockHeight => {
+                    // Call the host interface function, `block_height`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("block_height")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::BurnBlockHeight => {
+                    // Call the host interface function, `burn_block_height`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("burn_block_height")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::NativeNone => {
+                    add_placeholder_for_clarity_type(&mut builder, ty);
+                    (builder, true)
+                }
+                NativeVariables::NativeTrue => {
+                    builder.i32_const(1);
+                    (builder, true)
+                }
+                NativeVariables::NativeFalse => {
+                    builder.i32_const(0);
+                    (builder, true)
+                }
+                NativeVariables::TotalLiquidMicroSTX => {
+                    // Call the host interface function, `stx_liquid_supply`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("stx_liquid_supply")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::Regtest => {
+                    // Call the host interface function, `is_in_regtest`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("is_in_regtest")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::Mainnet => {
+                    // Call the host interface function, `is_in_mainnet`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("is_in_mainnet")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::ChainId => {
+                    // Call the host interface function, `chain_id`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("chain_id")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+            }
+        } else {
+            (builder, false)
+        }
     }
 }
 
@@ -732,11 +893,25 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         expr: &SymbolicExpression,
         atom: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let is_builtin: bool;
+        let ty = match self.get_expr_type(expr) {
+            Some(ty) => ty.clone(),
+            None => {
+                self.error = Some(GeneratorError::InternalError(
+                    "atom expression must be typed".to_string(),
+                ));
+                return Err(builder);
+            }
+        };
+
+        // Handle builtin variables
+        (builder, is_builtin) = self.lookup_reserved_variable(builder, atom.as_str(), &ty);
+        if is_builtin {
+            return Ok(builder);
+        }
+
         // FIXME: This should also handle constants and keywords
-        let types = clar2wasm_ty(
-            self.get_expr_type(expr)
-                .expect("atom expression must be typed"),
-        );
+        let types = clar2wasm_ty(&ty);
         for n in 0..types.len() {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
@@ -889,7 +1064,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         if let TypeSignature::ResponseType(inner_types) = ty {
             let err_types = clar2wasm_ty(&inner_types.1);
             for err_type in err_types.iter() {
-                builder = self.add_placeholder_for_type(builder, *err_type);
+                add_placeholder_for_type(&mut builder, *err_type);
             }
         } else {
             panic!("expected response type");
@@ -912,7 +1087,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
-                builder = self.add_placeholder_for_type(builder, *ok_type);
+                add_placeholder_for_type(&mut builder, *ok_type);
             }
         } else {
             panic!("expected response type");
@@ -1001,7 +1176,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
             .expect("variable not found: {name}");
         let id_length = name.len();
 
-        // Create a new sequence to hold the result on the call stack
+        // Create a new local to hold the result on the call stack
         let ty = self
             .get_expr_type(expr)
             .expect("var-get expression must be typed")
@@ -1274,6 +1449,15 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
+        TypeSignature::PrincipalType => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::OptionalType(inner_ty) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
         _ => unimplemented!("{:?}", ty),
     }
 }

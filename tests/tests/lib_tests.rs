@@ -5,10 +5,10 @@ use clarity::{
     types::StacksEpochId,
     vm::{
         clarity_wasm::{call_function, initialize_contract},
-        contexts::GlobalContext,
+        contexts::{CallStack, Environment, GlobalContext},
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
-        types::{QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
+        types::{PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
         ClarityVersion, ContractContext, ContractName, Value,
     },
 };
@@ -68,17 +68,22 @@ macro_rules! test_contract {
                 initialize_contract(
                     &mut global_context,
                     &mut contract_context,
+                    None,
                     &compile_result.contract_analysis,
                 )
                 .expect("Failed to initialize contract.");
 
-                let result = call_function(
+                let mut call_stack = CallStack::new();
+                let mut env = Environment::new(
                     &mut global_context,
-                    &mut contract_context,
-                    $contract_func,
-                    $params,
-                )
-                .expect("Function call failed.");
+                    &contract_context,
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                );
+                let result = call_function($contract_func, $params, &mut env)
+                    .expect("Function call failed.");
 
                 if let Value::Response(response_data) = result {
                     $test(response_data);
@@ -294,5 +299,121 @@ test_contract!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(183285493761));
+    }
+);
+
+test_contract!(
+    test_ret_true,
+    "bool",
+    "ret-true",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_ret_false,
+    "bool",
+    "ret-false",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(
+    test_block_height,
+    "block-heights",
+    "block",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_burn_block_height,
+    "block-heights",
+    "burn-block",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_chain_id,
+    "chain-id",
+    "get-chain-id",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(2147483648));
+    }
+);
+
+test_contract!(
+    test_tx_sender,
+    "builtins-principals",
+    "get-tx-sender",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
+test_contract!(
+    test_contract_caller,
+    "builtins-principals",
+    "get-contract-caller",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
+test_contract!(
+    test_tx_sponsor,
+    "builtins-principals",
+    "get-tx-sponsor",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none(),);
+    }
+);
+
+test_contract!(
+    test_is_in_mainnet,
+    "network",
+    "mainnet",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(
+    test_is_in_regtest,
+    "network",
+    "regtest",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(
+    test_none,
+    "none",
+    "ret-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
     }
 );

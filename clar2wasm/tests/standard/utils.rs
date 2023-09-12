@@ -65,6 +65,72 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sender",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_caller",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sponsor",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sponsor");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
+            println!("block-height");
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "burn_block_height", |_: Caller<'_, ()>| {
+            println!("burn-block-height");
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "stx_liquid_supply", |_: Caller<'_, ()>| {
+            println!("stx-liquid-supply");
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_regtest", |_: Caller<'_, ()>| {
+            println!("is-in-regtest");
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_mainnet", |_: Caller<'_, ()>| {
+            println!("is-in-mainnet");
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "chain_id", |_: Caller<'_, ()>| {
+            println!("chain-id");
+        })
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |_: Caller<'_, ()>, param: i64| {
