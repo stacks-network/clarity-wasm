@@ -185,53 +185,41 @@
     ;; t1 <- v1 * u1
     ;; t2 <- (u2 * v1) + (t1 >> 32)
     ;; t3 <- (u1 * v2) + (t2 & 0xffffffff)
-    ;; $res_lo <- (t2 << 32) | (t1 & 0xffffffff)
+    ;; $res_lo <- (t3 << 32) | (t1 & 0xffffffff)
     ;; $res_hi <- ($a_lo * b_hi) + ($a_hi * b_lo) + (v2 * u2) + (t2 >> 32) + (t3 >> 32)
         (local $u2 i64) (local $v2 i64) (local $t1 i64) (local $t2 i64) (local $t3 i64)
-        (i64.or
-            (i64.shl
-                (local.tee $t3 (i64.add
-                    (i64.and
-                        (local.tee $t2 (i64.add 
-                            (i64.shr_u
-                                (local.tee $t1 (i64.mul
-                                    ;; $v2 contains u1 temporarily
-                                    (local.tee $v2 (i64.and (local.get $a_lo) (i64.const 0xffffffff))) 
-                                    ;; $u2 contains v1 temporarily
-                                    (local.tee $u2 (i64.and (local.get $b_lo) (i64.const 0xffffffff))) 
-                                ))
-                                (i64.const 32)
-                            )
-                            (i64.mul
-                                (local.get $u2) ;; contains v1 at that point
-                                (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32))) 
-                            )
-                        ))
-                        (i64.const 0xffffffff)
-                    )
-                    (i64.mul
-                        (local.get $v2) ;; contains u1 at that point
-                        (local.tee $v2 (i64.shr_u (local.get $b_lo) (i64.const 32)))
-                    )
-                ))
-                (i64.const 32)
-            )
-            (i64.and (local.get $t1) (i64.const 0xffffffff))
-        )
 
-        (i64.add
-            (i64.add
-                (i64.add
-                    (i64.add
-                        (i64.mul (local.get $a_lo) (local.get $b_hi))
-                        (i64.mul (local.get $a_hi) (local.get $b_lo))
-                    )
-                    (i64.mul (local.get $v2) (local.get $u2))
-                )
-                (i64.shr_u (local.get $t2) (i64.const 32))
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;; res_lo ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        (local.tee $t1
+            (i64.mul 
+                ;; $v2 contains u1 temporarily
+                (local.tee $v2 (i64.and (local.get $a_lo) (i64.const 0xffffffff))) 
+                ;; $u2 contains v1 temporarily
+                (local.tee $u2 (i64.and (local.get $b_lo) (i64.const 0xffffffff))) 
             )
-            (i64.shr_u (local.get $t3) (i64.const 32))
         )
+        (i64.shr_u (i64.const 32))              ;; (t1 >> 32)
+        (i64.mul                                ;; (u2 * v1)
+            (local.get $u2) ;; contains v1 at that point
+            (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32))) 
+        )
+        (local.tee $t2 i64.add)                 ;; (u2 * v1) + (t1 >> 32)
+        (i64.and (i64.const 0xffffffff))        ;; (t2 & 0xffffffff)
+        (i64.mul                                ;; (u1 * v2)
+            (local.get $v2) ;; contains u1 at that point
+            (local.tee $v2 (i64.shr_u (local.get $b_lo) (i64.const 32)))
+        )
+        (local.tee $t3 i64.add)                 ;; (u1 * v2) + (t2 & 0xffffffff)
+        (i64.shl (i64.const 32))                ;; (t3 << 32)
+        (i64.and (local.get $t1) (i64.const 0xffffffff))
+        i64.or                                  ;; (t2 << 32) | (t1 & 0xffffffff)
+
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;; res_hi ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        (i64.mul (local.get $a_lo) (local.get $b_hi))
+        (i64.add (i64.mul (local.get $a_hi) (local.get $b_lo)))
+        (i64.add (i64.mul (local.get $v2) (local.get $u2)))
+        (i64.add (i64.shr_u (local.get $t2) (i64.const 32)))
+        (i64.add (i64.shr_u (local.get $t3) (i64.const 32)))
     )
 
     (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
