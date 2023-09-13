@@ -203,13 +203,13 @@
             (local.get $u2) ;; contains v1 at that point
             (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32))) 
         )
-        (local.tee $t2 i64.add)                 ;; (u2 * v1) + (t1 >> 32)
+        (local.tee $t2 (i64.add))               ;; (u2 * v1) + (t1 >> 32)
         (i64.and (i64.const 0xffffffff))        ;; (t2 & 0xffffffff)
         (i64.mul                                ;; (u1 * v2)
             (local.get $v2) ;; contains u1 at that point
             (local.tee $v2 (i64.shr_u (local.get $b_lo) (i64.const 32)))
         )
-        (local.tee $t3 i64.add)                 ;; (u1 * v2) + (t2 & 0xffffffff)
+        (local.tee $t3 (i64.add))               ;; (u1 * v2) + (t2 & 0xffffffff)
         (i64.shl (i64.const 32))                ;; (t3 << 32)
         (i64.and (local.get $t1) (i64.const 0xffffffff))
         i64.or                                  ;; (t2 << 32) | (t1 & 0xffffffff)
