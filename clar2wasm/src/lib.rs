@@ -47,7 +47,7 @@ pub fn compile(
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
     datastore: &mut dyn ClarityBackingStore,
-) -> Result<CompileResult, CompileError> {
+) -> Result<CompileResult, Box<CompileError>> {
     // Parse the contract
     let (mut ast, mut diagnostics, success) = build_ast_with_diagnostics(
         contract_id,
@@ -58,10 +58,10 @@ pub fn compile(
     );
 
     if !success {
-        return Err(CompileError::Generic {
+        return Err(Box::new(CompileError::Generic {
             diagnostics,
             cost_tracker,
-        });
+        }));
     }
 
     // Create a new analysis database
@@ -80,10 +80,10 @@ pub fn compile(
         Ok(contract_analysis) => contract_analysis,
         Err((e, cost_track)) => {
             diagnostics.push(Diagnostic::err(&e.err));
-            return Err(CompileError::Generic {
+            return Err(Box::new(CompileError::Generic {
                 diagnostics,
                 cost_tracker: cost_track,
-            });
+            }));
         }
     };
 
@@ -96,10 +96,10 @@ pub fn compile(
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            Err(CompileError::Generic {
+            Err(Box::new(CompileError::Generic {
                 diagnostics,
                 cost_tracker: contract_analysis.cost_track.take().unwrap(),
-            })
+            }))
         }
     }
 }
