@@ -57,7 +57,10 @@ fn main() {
         &mut datastore,
     )
     .unwrap_or_else(|err| match err {
-        CompileError::Generic { diagnostics, cost_tracker: _ } => {
+        CompileError::Generic {
+            diagnostics,
+            cost_tracker: _,
+        } => {
             for diagnostic in diagnostics.iter() {
                 eprintln!("{diagnostic}");
             }
