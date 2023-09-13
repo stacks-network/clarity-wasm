@@ -18,40 +18,49 @@
 
 ## Quick-start
 
+### Clone the repository
+
+This repository includes the stacks-blockchain as a submodule, to keep in sync with the proper version of the clarity crate defined there. To clone this repo and its submodule, use:
+
+```sh
+git clone --recurse-submodules https://github.com/stacks-network/clarity-wasm.git
+```
+
 ### Command line tool
 
 Install the command line tool, `clar2wasm` with:
 
 ```sh
-cargo clar2wasm-install
+cargo install --path clar2wasm
 ```
 
 Once installed, try compiling one of our examples:
 
 ```sh
-clar2wasm examples/define-read-only-0.clar
+clar2wasm tests/contracts/define-read-only-0.clar
 ```
 
-This will generate a wasm file, `examples/define-read-only-0.wasm`, from the Clarity source code.
+This will generate a wasm file, `tests/contracts/define-read-only-0.wasm`, from the Clarity source code.
 
 You can view the text format of the generated Wasm by using a tool like [`wasm2wat`](https://github.com/WebAssembly/wabt):
 
 ```sh
-wasm2wat examples/define-read-only-0.wasm
+wasm2wat tests/contracts/define-read-only-0.wasm
 ```
 
-The output should look something like this:
+The output should contain the definition of the `simple` function:
 
 ```wasm
-(module
-  (type (;0;) (func))
-  (type (;1;) (func (result i64)))
-  (func $simple (type 1) (result i64)
-    i64.const 42)
-  (func (;1;) (type 0)
-    return)
-  (export "simple" (func $simple))
-  (export ".top-level" (func 1)))
+  (func $simple (type 2) (result i64 i64)
+    (local i32)
+    global.get 0
+    local.set 0
+    block (result i64 i64)  ;; label = @1
+      i64.const 42
+      i64.const 0
+    end
+    local.get 0
+    global.set 0)
 ```
 
 ### Crate
