@@ -19,7 +19,7 @@ wasmtime = "11.0.1"
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
-clarity-repl = "1.7.2"
+clar2wasm-tests = { path = "../tests" }
 
 [lib]
 path = "src/lib.rs"

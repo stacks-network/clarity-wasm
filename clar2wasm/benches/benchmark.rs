@@ -1,8 +1,17 @@
-use clarity::vm::Value;
-use clarity_repl::clarity::stacks_common::types::StacksEpochId;
-use clarity_repl::{
-    clarity::{ast::ContractAST, ClarityVersion},
-    repl::{ClarityCodeSource, ClarityContract, ContractDeployer, Session, SessionSettings},
+use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clarity::{
+    consts::CHAIN_ID_TESTNET,
+    types::StacksEpochId,
+    vm::{
+        analysis::{run_analysis, AnalysisDatabase},
+        ast::build_ast_with_diagnostics,
+        contexts::GlobalContext,
+        costs::LimitedCostTracker,
+        database::{ClarityDatabase, MemoryBackingStore},
+        eval_all,
+        types::{QualifiedContractIdentifier, StandardPrincipalData},
+        CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
+    },
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::borrow::BorrowMut;
@@ -73,6 +82,81 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sender",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+                Ok((0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_caller",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+                Ok((0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sponsor",
+            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+                println!("tx-sponsor");
+                Ok((0i32, 0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
+            println!("block-height");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "burn_block_height", |_: Caller<'_, ()>| {
+            println!("burn-block-height");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "stx_liquid_supply", |_: Caller<'_, ()>| {
+            println!("stx-liquid-supply");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_regtest", |_: Caller<'_, ()>| {
+            println!("is-in-regtest");
+            Ok(0i32)
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_mainnet", |_: Caller<'_, ()>| {
+            println!("is-in-mainnet");
+            Ok(0i32)
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "chain_id", |_: Caller<'_, ()>| {
+            println!("chain-id");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |_: Caller<'_, ()>, param: i64| {
@@ -115,50 +199,100 @@ fn rust_add(c: &mut Criterion) {
 }
 
 fn clarity_add(c: &mut Criterion) {
-    // Setup the session with the Clarity contract first
-    let mut session = Session::new(SessionSettings::default());
-    let contract_source = r#"
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("clarity-add"),
+    );
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+    let mut cost_tracker = LimitedCostTracker::new_free();
+    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+    let contract_str = r#"
 (define-read-only (add (x int) (y int))
     (+ x y)
 )
     "#
     .to_string();
 
-    let contract = ClarityContract {
-        name: "add".to_string(),
-        code_source: ClarityCodeSource::ContractInMemory(contract_source),
-        clarity_version: ClarityVersion::Clarity2,
-        epoch: StacksEpochId::latest(),
-        deployer: ContractDeployer::Address(
-            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string(),
-        ),
-    };
+    // Parse the contract
+    let (mut ast, _, success) = build_ast_with_diagnostics(
+        &contract_id,
+        &contract_str,
+        &mut cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+    );
 
-    let mut ast: Option<ContractAST> = None;
-    session
-        .deploy_contract(&contract, None, false, None, &mut ast)
-        .unwrap();
-    session
-        .eval(
-            "(contract-call? 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.add add 42 12345)"
-                .to_string(),
+    if !success {
+        panic!("Failed to parse contract");
+    }
+
+    // Create a new analysis database
+    let mut analysis_db = AnalysisDatabase::new(&mut clarity_store);
+
+    // Run the analysis passes
+    let mut contract_analysis = run_analysis(
+        &contract_id,
+        &mut ast.expressions,
+        &mut analysis_db,
+        false,
+        cost_tracker,
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+    )
+    .expect("Failed to run analysis");
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+
+    global_context.begin();
+
+    {
+        // Initialize the contract
+        eval_all(
+            &ast.expressions,
+            &mut contract_context,
+            &mut global_context,
             None,
-            false,
         )
-        .unwrap();
+        .expect("Failed to interpret the contract");
 
-    c.bench_function("add: clarity", |b| {
-        b.iter(|| {
-            session
-                .eval(
-                    "(contract-call? 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.add add 42 12345)"
-                        .to_string(),
-                    None,
-                    false,
-                )
-                .unwrap();
-        })
-    });
+        let func = contract_context
+            .lookup_function("add")
+            .expect("failed to lookup function");
+
+        let mut call_stack = CallStack::new();
+        let mut env = Environment::new(
+            &mut global_context,
+            &contract_context,
+            &mut call_stack,
+            Some(StandardPrincipalData::transient().into()),
+            Some(StandardPrincipalData::transient().into()),
+            None,
+        );
+
+        c.bench_function("add: clarity", |b| {
+            b.iter(|| {
+                let _result = func
+                    .execute_apply(&[Value::Int(42), Value::Int(12345)], &mut env)
+                    .expect("Function call failed");
+            })
+        });
+    }
+
+    global_context.commit().unwrap();
 }
 
 use walrus::{FunctionBuilder, ModuleConfig, ValType};
@@ -230,7 +364,9 @@ fn add_externfunc(c: &mut Criterion) {
                 let result = match a.data().downcast_ref::<Value>() {
                     Some(Value::Int(int_a)) => {
                         if let Some(Value::Int(int_b)) = b.data().downcast_ref::<Value>() {
-                            Some(ExternRef::new(Value::Int(int_a.checked_add(*int_b).unwrap())))
+                            Some(ExternRef::new(Value::Int(
+                                int_a.checked_add(*int_b).unwrap(),
+                            )))
                         } else {
                             panic!("Value type mismatch");
                         }
