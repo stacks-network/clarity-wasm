@@ -625,7 +625,7 @@ impl<'a> WasmGenerator<'a> {
     }
 }
 
-impl<'a> ASTVisitor for WasmGenerator<'a> {
+impl ASTVisitor for WasmGenerator {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -928,7 +928,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         Ok(builder)
     }
 
-    fn traverse_define_private<'b, 'c>(
+    fn traverse_define_private<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
@@ -946,7 +946,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         }
     }
 
-    fn traverse_define_read_only<'b, 'c>(
+    fn traverse_define_read_only<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
@@ -964,7 +964,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         }
     }
 
-    fn traverse_define_public<'b, 'c>(
+    fn traverse_define_public<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
@@ -1295,7 +1295,7 @@ impl<'a> ASTVisitor for WasmGenerator<'a> {
         Ok(builder)
     }
 
-    fn traverse_fold<'b, 'c>(
+    fn traverse_fold<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
