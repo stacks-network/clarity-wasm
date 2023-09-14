@@ -1,12 +1,12 @@
-use std::{borrow::BorrowMut, collections::HashMap};
-
 use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
-    SymbolicExpression,
+    variables::NativeVariables,
+    ClarityName, SymbolicExpression,
 };
+use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
     ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
@@ -17,10 +17,10 @@ use crate::ast_visitor::{traverse, ASTVisitor};
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
-pub struct WasmGenerator {
+pub struct WasmGenerator<'a> {
     /// The contract analysis, which contains the expressions and type
     /// information for the contract.
-    contract_analysis: ContractAnalysis,
+    contract_analysis: &'a mut ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
     /// The error that occurred during generation, if any.
@@ -29,10 +29,8 @@ pub struct WasmGenerator {
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
     stack_pointer: GlobalId,
-    /// Map identifier names to identifier numbers.
-    identifiers: HashMap<String, i32>,
-    /// Next identifier, used for contract constants, variables, and maps.
-    next_identifier: i32,
+    /// Map strings saved in the literal memory to their offset.
+    literal_memory_offet: HashMap<String, u32>,
 
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
@@ -40,6 +38,7 @@ pub struct WasmGenerator {
     frame_size: i32,
 }
 
+#[derive(Debug)]
 pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
@@ -70,6 +69,12 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(length))) => {
             u32::from(length.clone())
         }
+        TypeSignature::PrincipalType => {
+            // Standard principal is a 1 byte version and a 20 byte Hash160.
+            // Then there is an int32 for the contract name length, followed by
+            // the contract name, which has a max length of 128.
+            1 + 20 + 1 + 128
+        }
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
@@ -77,8 +82,27 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
     }
 }
 
-impl WasmGenerator {
-    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
+fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
+    match ty {
+        ValType::I32 => builder.i32_const(0),
+        ValType::I64 => builder.i64_const(0),
+        ValType::F32 => builder.f32_const(0.0),
+        ValType::F64 => builder.f64_const(0.0),
+        ValType::V128 => unimplemented!("V128"),
+        ValType::Externref => unimplemented!("Externref"),
+        ValType::Funcref => unimplemented!("Funcref"),
+    };
+}
+
+fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+    let wasm_types = clar2wasm_ty(ty);
+    for wasm_type in wasm_types.iter() {
+        add_placeholder_for_type(builder, *wasm_type);
+    }
+}
+
+impl<'a> WasmGenerator<'a> {
+    pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
@@ -105,8 +129,7 @@ impl WasmGenerator {
             stack_pointer: global_id,
             locals: HashMap::new(),
             frame_size: 0,
-            identifiers: HashMap::new(),
-            next_identifier: 0,
+            literal_memory_offet: HashMap::new(),
         }
     }
 
@@ -128,39 +151,46 @@ impl WasmGenerator {
             return Err(err);
         }
 
-        // Set the stack-pointer global at the end of the top-level function to
-        // start just after the literals in memory.
-        current_function
-            .func_body()
-            .i32_const(self.literal_memory_end as i32)
-            .global_set(self.stack_pointer);
-
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
+        // Update the initial value of the stack-pointer to point beyond the
+        // literal memory.
+        self.module.globals.get_mut(self.stack_pointer).kind = walrus::GlobalKind::Local(
+            walrus::InitExpr::Value(walrus::ir::Value::I32(self.literal_memory_end as i32)),
+        );
+
         Ok(self.module)
     }
 
     fn traverse_define_function(
         &mut self,
-        name: &clarity::vm::ClarityName,
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
         let opt_function_type = match kind {
-            FunctionKind::Private => self.contract_analysis.get_private_function(name.as_str()),
-            FunctionKind::ReadOnly => self
-                .contract_analysis
-                .get_read_only_function_type(name.as_str()),
-            FunctionKind::Public => self
-                .contract_analysis
-                .get_public_function_type(name.as_str()),
+            FunctionKind::ReadOnly => {
+                builder.i32_const(0);
+                self.contract_analysis
+                    .get_read_only_function_type(name.as_str())
+            }
+            FunctionKind::Public => {
+                builder.i32_const(1);
+                self.contract_analysis
+                    .get_public_function_type(name.as_str())
+            }
+            FunctionKind::Private => {
+                builder.i32_const(2);
+                self.contract_analysis.get_private_function(name.as_str())
+            }
         };
         let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
-            fixed
+            fixed.clone()
         } else {
             self.error = Some(GeneratorError::InternalError(match opt_function_type {
                 Some(_) => "expected fixed function type".to_string(),
@@ -168,6 +198,21 @@ impl WasmGenerator {
             }));
             return None;
         };
+
+        // Call the host interface to save this function
+        // Arguments are kind (already pushed) and name (offset, length)
+        let (id_offset, id_length) = self.add_identifier_string_literal(name);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Call the host interface function, `define_function`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_function")
+                .expect("define_function not found"),
+        );
 
         let mut locals = HashMap::new();
 
@@ -235,23 +280,6 @@ impl WasmGenerator {
         Some(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    fn add_placeholder_for_type<'b>(
-        &mut self,
-        mut builder: InstrSeqBuilder<'b>,
-        ty: ValType,
-    ) -> InstrSeqBuilder<'b> {
-        match ty {
-            ValType::I32 => builder.i32_const(0),
-            ValType::I64 => builder.i64_const(0),
-            ValType::F32 => builder.f32_const(0.0),
-            ValType::F64 => builder.f64_const(0.0),
-            ValType::V128 => unimplemented!("V128"),
-            ValType::Externref => unimplemented!("Externref"),
-            ValType::Funcref => unimplemented!("Funcref"),
-        };
-        builder
-    }
-
     /// Gets the result type of the given `SymbolicExpression`.
     fn get_expr_type(&self, expr: &SymbolicExpression) -> Option<&TypeSignature> {
         self.contract_analysis
@@ -263,6 +291,12 @@ impl WasmGenerator {
 
     /// Adds a new string literal into the memory, and returns the offset and length.
     fn add_string_literal(&mut self, s: &CharType) -> (u32, u32) {
+        // If this string has already been saved in the literal memory,
+        // just return the offset and length.
+        if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
+            return (*offset, s.to_string().len() as u32);
+        }
+
         let data = match s {
             CharType::ASCII(s) => s.data.clone(),
             CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
@@ -278,11 +312,21 @@ impl WasmGenerator {
             data.clone(),
         );
         self.literal_memory_end += data.len() as u32;
+
+        // Save the offset in the literal memory for this string
+        self.literal_memory_offet.insert(s.to_string(), offset);
+
         (offset, len)
     }
 
     /// Adds a new string literal into the memory for an identifier
     fn add_identifier_string_literal(&mut self, name: &clarity::vm::ClarityName) -> (u32, u32) {
+        // If this identifier has already been saved in the literal memory,
+        // just return the offset and length.
+        if let Some(offset) = self.literal_memory_offet.get(name.as_str()) {
+            return (*offset, name.len() as u32);
+        }
+
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
         let len = name.len() as u32;
@@ -294,6 +338,10 @@ impl WasmGenerator {
             name.as_bytes().to_vec(),
         );
         self.literal_memory_end += name.len() as u32;
+
+        // Save the offset in the literal memory for this identifier
+        self.literal_memory_offet.insert(name.to_string(), offset);
+
         (offset, len)
     }
 
@@ -399,14 +447,6 @@ impl WasmGenerator {
         size
     }
 
-    /// Return a unique identifier, used to identify a contract constant,
-    /// variable or map.
-    fn get_next_identifier(&mut self) -> i32 {
-        let id = self.next_identifier;
-        self.next_identifier += 1;
-        id
-    }
-
     fn traverse_statement_list<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -430,9 +470,162 @@ impl WasmGenerator {
         // of the `begin` expression.
         self.traverse_expr(builder, statements.last().unwrap())
     }
+
+    /// If `name` is a reserved variable, push its value onto the data stack.
+    pub fn lookup_reserved_variable<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        name: &str,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, bool) {
+        if let Some(variable) = NativeVariables::lookup_by_name_at_version(
+            name,
+            &self.contract_analysis.clarity_version,
+        ) {
+            match variable {
+                NativeVariables::TxSender => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `tx_sender`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("tx_sender")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::ContractCaller => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `contract_caller`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("contract_caller")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::TxSponsor => {
+                    // Create a new local to hold the result on the call stack
+                    let (offset, size);
+                    (builder, offset, size) = self.create_call_stack_local(
+                        builder,
+                        self.stack_pointer,
+                        &TypeSignature::PrincipalType,
+                    );
+
+                    // Push the offset and size to the data stack
+                    builder.local_get(offset).i32_const(size);
+
+                    // Call the host interface function, `tx_sponsor`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("tx_sponsor")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::BlockHeight => {
+                    // Call the host interface function, `block_height`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("block_height")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::BurnBlockHeight => {
+                    // Call the host interface function, `burn_block_height`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("burn_block_height")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::NativeNone => {
+                    add_placeholder_for_clarity_type(&mut builder, ty);
+                    (builder, true)
+                }
+                NativeVariables::NativeTrue => {
+                    builder.i32_const(1);
+                    (builder, true)
+                }
+                NativeVariables::NativeFalse => {
+                    builder.i32_const(0);
+                    (builder, true)
+                }
+                NativeVariables::TotalLiquidMicroSTX => {
+                    // Call the host interface function, `stx_liquid_supply`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("stx_liquid_supply")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::Regtest => {
+                    // Call the host interface function, `is_in_regtest`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("is_in_regtest")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::Mainnet => {
+                    // Call the host interface function, `is_in_mainnet`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("is_in_mainnet")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+                NativeVariables::ChainId => {
+                    // Call the host interface function, `chain_id`
+                    builder.call(
+                        self.module
+                            .funcs
+                            .by_name("chain_id")
+                            .expect("function not found"),
+                    );
+                    (builder, true)
+                }
+            }
+        } else {
+            (builder, false)
+        }
+    }
 }
 
-impl ASTVisitor for WasmGenerator {
+impl ASTVisitor for WasmGenerator<'_> {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -697,13 +890,27 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
-        atom: &clarity::vm::ClarityName,
+        atom: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        let is_builtin: bool;
+        let ty = match self.get_expr_type(expr) {
+            Some(ty) => ty.clone(),
+            None => {
+                self.error = Some(GeneratorError::InternalError(
+                    "atom expression must be typed".to_string(),
+                ));
+                return Err(builder);
+            }
+        };
+
+        // Handle builtin variables
+        (builder, is_builtin) = self.lookup_reserved_variable(builder, atom.as_str(), &ty);
+        if is_builtin {
+            return Ok(builder);
+        }
+
         // FIXME: This should also handle constants and keywords
-        let types = clar2wasm_ty(
-            self.get_expr_type(expr)
-                .expect("atom expression must be typed"),
-        );
+        let types = clar2wasm_ty(&ty);
         for n in 0..types.len() {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
@@ -723,14 +930,14 @@ impl ASTVisitor for WasmGenerator {
 
     fn traverse_define_private<'b>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if self
-            .traverse_define_function(name, body, FunctionKind::Private)
+            .traverse_define_function(&mut builder, name, body, FunctionKind::Private)
             .is_some()
         {
             Ok(builder)
@@ -741,13 +948,14 @@ impl ASTVisitor for WasmGenerator {
 
     fn traverse_define_read_only<'b>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::ReadOnly)
+        if let Some(function_id) =
+            self.traverse_define_function(&mut builder, name, body, FunctionKind::ReadOnly)
         {
             self.module.exports.add(name.as_str(), function_id);
             Ok(builder)
@@ -758,13 +966,15 @@ impl ASTVisitor for WasmGenerator {
 
     fn traverse_define_public<'b>(
         &mut self,
-        builder: InstrSeqBuilder<'b>,
+        mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        if let Some(function_id) = self.traverse_define_function(name, body, FunctionKind::Public) {
+        if let Some(function_id) =
+            self.traverse_define_function(&mut builder, name, body, FunctionKind::Public)
+        {
             self.module.exports.add(name.as_str(), function_id);
             Ok(builder)
         } else {
@@ -776,13 +986,10 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _data_type: &SymbolicExpression,
         initial: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let var_id = self.get_next_identifier();
-        self.identifiers.insert(name.to_string(), var_id);
-
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -809,9 +1016,6 @@ impl ASTVisitor for WasmGenerator {
         //        memory forever... we just need them once, when .top-level
         //        is called.
         self.literal_memory_end += size as u32;
-
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
 
         // Push the name onto the data stack
         builder
@@ -859,7 +1063,7 @@ impl ASTVisitor for WasmGenerator {
         if let TypeSignature::ResponseType(inner_types) = ty {
             let err_types = clar2wasm_ty(&inner_types.1);
             for err_type in err_types.iter() {
-                builder = self.add_placeholder_for_type(builder, *err_type);
+                add_placeholder_for_type(&mut builder, *err_type);
             }
         } else {
             panic!("expected response type");
@@ -882,7 +1086,7 @@ impl ASTVisitor for WasmGenerator {
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
-                builder = self.add_placeholder_for_type(builder, *ok_type);
+                add_placeholder_for_type(&mut builder, *ok_type);
             }
         } else {
             panic!("expected response type");
@@ -894,7 +1098,7 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         _args: &[SymbolicExpression],
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         builder.call(
@@ -962,15 +1166,16 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Get the identifier for this variable
-        let var_id = *self
-            .identifiers
-            .get(&name.to_string())
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
             .expect("variable not found: {name}");
+        let id_length = name.len();
 
-        // Create a new sequence to hold the result on the call stack
+        // Create a new local to hold the result on the call stack
         let ty = self
             .get_expr_type(expr)
             .expect("var-get expression must be typed")
@@ -978,8 +1183,10 @@ impl ASTVisitor for WasmGenerator {
         let (offset, size);
         (builder, offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
 
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
@@ -1003,14 +1210,15 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        name: &clarity::vm::ClarityName,
+        name: &ClarityName,
         value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Get the identifier for this variable
-        let var_id = *self
-            .identifiers
-            .get(&name.to_string())
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
             .expect("variable not found: {name}");
+        let id_length = name.len();
 
         // Create space on the call stack to write the value
         let ty = self
@@ -1023,8 +1231,10 @@ impl ASTVisitor for WasmGenerator {
         // Write the value to the memory (it's already on the data stack)
         self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
-        // Push the variable identifier onto the data stack
-        builder.i32_const(var_id);
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
 
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(size);
@@ -1089,7 +1299,7 @@ impl ASTVisitor for WasmGenerator {
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
-        func: &clarity::vm::ClarityName,
+        func: &ClarityName,
         sequence: &SymbolicExpression,
         initial: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
@@ -1233,11 +1443,20 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             types.extend(clar2wasm_ty(&inner_types.1));
             types
         }
-        TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => vec![
+        TypeSignature::SequenceType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
+        TypeSignature::PrincipalType => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::OptionalType(inner_ty) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
         _ => unimplemented!("{:?}", ty),
     }
 }

@@ -10,7 +10,7 @@ use clarity::{
     vm::{ast::build_ast_with_diagnostics, types::QualifiedContractIdentifier, ClarityVersion},
 };
 use walrus::Module;
-use wasm_generator::WasmGenerator;
+use wasm_generator::{GeneratorError, WasmGenerator};
 
 mod ast_visitor;
 mod wasm_generator;
@@ -34,55 +34,79 @@ pub struct CompileResult {
 
 #[derive(Debug)]
 pub enum CompileError {
-    Generic { diagnostics: Vec<Diagnostic> },
+    Generic {
+        diagnostics: Vec<Diagnostic>,
+        cost_tracker: Box<LimitedCostTracker>,
+    },
 }
 
 pub fn compile(
     source: &str,
     contract_id: &QualifiedContractIdentifier,
-    mut cost_track: LimitedCostTracker,
+    mut cost_tracker: LimitedCostTracker,
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
     datastore: &mut dyn ClarityBackingStore,
 ) -> Result<CompileResult, CompileError> {
     // Parse the contract
-    let (mut ast, mut diagnostics, success) =
-        build_ast_with_diagnostics(contract_id, source, &mut cost_track, clarity_version, epoch);
+    let (mut ast, mut diagnostics, success) = build_ast_with_diagnostics(
+        contract_id,
+        source,
+        &mut cost_tracker,
+        clarity_version,
+        epoch,
+    );
 
     if !success {
-        return Err(CompileError::Generic { diagnostics });
+        return Err(CompileError::Generic {
+            diagnostics,
+            cost_tracker: Box::new(cost_tracker),
+        });
     }
 
     // Create a new analysis database
     let mut analysis_db = AnalysisDatabase::new(datastore);
 
     // Run the analysis passes
-    let contract_analysis = match run_analysis(
+    let mut contract_analysis = match run_analysis(
         contract_id,
         &mut ast.expressions,
         &mut analysis_db,
         false,
-        cost_track,
+        cost_tracker,
         epoch,
         clarity_version,
     ) {
         Ok(contract_analysis) => contract_analysis,
-        Err((e, _)) => {
+        Err((e, cost_track)) => {
             diagnostics.push(Diagnostic::err(&e.err));
-            return Err(CompileError::Generic { diagnostics });
+            return Err(CompileError::Generic {
+                diagnostics,
+                cost_tracker: Box::new(cost_track),
+            });
         }
     };
 
-    let generator = WasmGenerator::new(contract_analysis.clone());
+    let generator = WasmGenerator::new(&mut contract_analysis);
     match generator.generate() {
         Ok(module) => Ok(CompileResult {
             diagnostics,
             module,
-            contract_analysis: contract_analysis.clone(),
+            contract_analysis,
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            Err(CompileError::Generic { diagnostics })
+            Err(CompileError::Generic {
+                diagnostics,
+                cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
+            })
         }
     }
+}
+
+pub fn compile_contract(
+    contract_analysis: &mut ContractAnalysis,
+) -> Result<Module, GeneratorError> {
+    let generator = WasmGenerator::new(contract_analysis);
+    generator.generate()
 }

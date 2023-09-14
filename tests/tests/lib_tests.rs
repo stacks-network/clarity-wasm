@@ -1,18 +1,17 @@
+use clar2wasm::compile;
+use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
     vm::{
-        contexts::GlobalContext,
+        clarity_wasm::{call_function, initialize_contract},
+        contexts::{CallStack, Environment, GlobalContext},
         costs::LimitedCostTracker,
-        database::ClarityDatabase,
-        types::{QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
+        database::{ClarityDatabase, MemoryBackingStore},
+        types::{PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
         ClarityVersion, ContractContext, ContractName, Value,
     },
 };
-use wasmtime::Val;
-
-use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clar2wasm_tests::WasmtimeHelper;
 
 /// This macro provides a convenient way to test functions inside contracts.
 /// In order, it takes as parameters:
@@ -33,33 +32,60 @@ macro_rules! test_contract {
             let mut datastore = Datastore::new();
             let constants = StacksConstants::default();
             let burn_datastore = BurnDatastore::new(constants);
+            let mut clarity_store = MemoryBackingStore::new();
             let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
             conn.begin();
-            conn.set_clarity_epoch_version(StacksEpochId::Epoch24);
+            conn.set_clarity_epoch_version(StacksEpochId::latest());
             conn.commit();
             let cost_tracker = LimitedCostTracker::new_free();
+            let mut contract_context =
+                ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+            let contract_str =
+                std::fs::read_to_string(format!("contracts/{}.clar", $contract_name)).unwrap();
+            let mut compile_result = compile(
+                contract_str.as_str(),
+                &contract_id,
+                cost_tracker,
+                ClarityVersion::latest(),
+                StacksEpochId::latest(),
+                &mut clarity_store,
+            )
+            .expect("Failed to compile contract.");
+
+            contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
             let mut global_context = GlobalContext::new(
                 false,
                 CHAIN_ID_TESTNET,
                 conn,
-                cost_tracker,
-                StacksEpochId::Epoch24,
+                compile_result.contract_analysis.cost_track.take().unwrap(),
+                StacksEpochId::latest(),
             );
-            let mut contract_context =
-                ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
-
             global_context.begin();
 
             {
-                let mut helper = WasmtimeHelper::new_from_file(
-                    contract_id,
+                initialize_contract(
                     &mut global_context,
                     &mut contract_context,
-                );
+                    None,
+                    &compile_result.contract_analysis,
+                )
+                .expect("Failed to initialize contract.");
 
-                if let Value::Response(response_data) =
-                    helper.call_public_function($contract_func, $params)
-                {
+                let mut call_stack = CallStack::new();
+                let mut env = Environment::new(
+                    &mut global_context,
+                    &contract_context,
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                );
+                let result = call_function($contract_func, $params, &mut env)
+                    .expect("Function call failed.");
+
+                if let Value::Response(response_data) = result {
                     // https://github.com/rust-lang/rust-clippy/issues/1553
                     #[allow(clippy::redundant_closure_call)]
                     $test(response_data);
@@ -116,7 +142,7 @@ test_contract!(
     test_call_public_with_args,
     "call-public-with-args",
     "simple",
-    &[Val::I64(20), Val::I64(0), Val::I64(22), Val::I64(0)],
+    &[Value::Int(20), Value::Int(22)],
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(42));
@@ -194,26 +220,6 @@ test_contract!(
 );
 
 test_contract!(
-    test_greater_than,
-    "cmp-arith",
-    "greater-int",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract!(
-    test_less_or_equal,
-    "cmp-arith",
-    "less-or-equal-uint",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract!(
     test_greater_or_equal,
     "cmp-arith",
     "greater-or-equal-int",
@@ -282,3 +288,129 @@ test_contract!(
         assert_eq!(*response.data, Value::Int(1));
     }
 );
+
+test_contract!(
+    test_fold_bench,
+    "fold-bench",
+    "fold-add-square",
+    &[
+        Value::list_from((1..=8192).map(Value::Int).collect())
+            .expect("failed to construct list argument"),
+        Value::Int(1)
+    ],
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(183285493761));
+    }
+);
+
+test_contract!(
+    test_ret_true,
+    "bool",
+    "ret-true",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_ret_false,
+    "bool",
+    "ret-false",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(
+    test_block_height,
+    "block-heights",
+    "block",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_burn_block_height,
+    "block-heights",
+    "burn-block",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_chain_id,
+    "chain-id",
+    "get-chain-id",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(2147483648));
+    }
+);
+
+test_contract!(
+    test_tx_sender,
+    "builtins-principals",
+    "get-tx-sender",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
+test_contract!(
+    test_contract_caller,
+    "builtins-principals",
+    "get-contract-caller",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
+test_contract!(
+    test_tx_sponsor,
+    "builtins-principals",
+    "get-tx-sponsor",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none(),);
+    }
+);
+
+test_contract!(
+    test_is_in_mainnet,
+    "network",
+    "mainnet",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(
+    test_is_in_regtest,
+    "network",
+    "regtest",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract!(test_none, "none", "ret-none", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::none());
+});

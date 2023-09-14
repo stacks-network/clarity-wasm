@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-clarity-vm = { version = "2" }
+clarity = { path = "../stacks-blockchain/clarity" }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"
@@ -15,10 +15,11 @@ lazy_static = "1.4.0"
 wat = "1.0.69"
 
 [dev-dependencies]
-wasmtime = "11.0.1"
+wasmtime = "12.0.1"
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
+clar2wasm-tests = { path = "../tests" }
 
 [lib]
 path = "src/lib.rs"

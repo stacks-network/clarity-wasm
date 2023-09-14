@@ -16,14 +16,19 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "define_function",
+            |_kind: i32, _name_offset: i32, _name_length: i32| {
+                println!("define-function");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "define_variable",
-            |_: Caller<'_, ()>,
-             identifier: i32,
-             _name_offset: i32,
-             _name_length: i32,
-             _value_offset: i32,
-             _value_length: i32| {
-                println!("define-data-var: {identifier}");
+            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+                println!("define-data-var");
             },
         )
         .unwrap();
@@ -32,8 +37,8 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "get_variable",
-            |_: Caller<'_, ()>, identifier: i32, _return_offset: i32, _return_length: i32| {
-                println!("var-get: {identifier}");
+            |_name_offset: i32, _name_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("var-get");
             },
         )
         .unwrap();
@@ -42,15 +47,90 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "set_variable",
-            |_: Caller<'_, ()>, identifier: i32, _return_offset: i32, _return_length: i32| {
-                println!("var-set: {identifier}");
+            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+                println!("var-set");
             },
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sender",
+            |_return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+                Ok((0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_caller",
+            |_return_offset: i32, _return_length: i32| {
+                println!("tx-sender");
+                Ok((0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sponsor",
+            |_return_offset: i32, _return_length: i32| {
+                println!("tx-sponsor");
+                Ok((0i32, 0i32, 0i32))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
+            println!("block-height");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "burn_block_height", |_: Caller<'_, ()>| {
+            println!("burn-block-height");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "stx_liquid_supply", |_: Caller<'_, ()>| {
+            println!("stx-liquid-supply");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_regtest", |_: Caller<'_, ()>| {
+            println!("is-in-regtest");
+            Ok(0i32)
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "is_in_mainnet", |_: Caller<'_, ()>| {
+            println!("is-in-mainnet");
+            Ok(0i32)
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "chain_id", |_: Caller<'_, ()>| {
+            println!("chain-id");
+            Ok((0i64, 0i64))
+        })
+        .unwrap();
+
     // Create a log function for debugging.
     linker
-        .func_wrap("", "log", |_: Caller<'_, ()>, param: i64| {
+        .func_wrap("", "log", |param: i64| {
             println!("log: {param}");
         })
         .unwrap();

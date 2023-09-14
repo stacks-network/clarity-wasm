@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use walrus::InstrSeqBuilder;
 
 #[derive(Clone)]
-pub struct TypedVar<'a> {
-    pub name: &'a ClarityName,
-    pub type_expr: &'a SymbolicExpression,
+pub struct TypedVar<'c> {
+    pub name: &'c ClarityName,
+    pub type_expr: &'c SymbolicExpression,
     pub decl_span: Span,
 }
 
@@ -2966,7 +2966,7 @@ fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &Symbo
     Some(tuple_map)
 }
 
-fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
+fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar>> {
     let mut vars = Vec::new();
     for pair_list in list {
         let pair = pair_list.match_list()?;
