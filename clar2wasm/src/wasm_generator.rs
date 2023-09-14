@@ -625,7 +625,7 @@ impl<'a> WasmGenerator<'a> {
     }
 }
 
-impl ASTVisitor for WasmGenerator {
+impl ASTVisitor for WasmGenerator<'_> {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
