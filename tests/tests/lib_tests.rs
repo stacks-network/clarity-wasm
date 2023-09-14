@@ -86,6 +86,8 @@ macro_rules! test_contract {
                     .expect("Function call failed.");
 
                 if let Value::Response(response_data) = result {
+                    // https://github.com/rust-lang/rust-clippy/issues/1553
+                    #[allow(clippy::redundant_closure_call)]
                     $test(response_data);
                 } else {
                     panic!("Unexpected result received from WASM function call.");
