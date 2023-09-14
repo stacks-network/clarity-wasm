@@ -17,7 +17,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "define_function",
-            |_: Caller<'_, ()>, _kind: i32, _name_offset: i32, _name_length: i32| {
+            |_kind: i32, _name_offset: i32, _name_length: i32| {
                 println!("define-function");
             },
         )
@@ -27,11 +27,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "define_variable",
-            |_: Caller<'_, ()>,
-             _name_offset: i32,
-             _name_length: i32,
-             _value_offset: i32,
-             _value_length: i32| {
+            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
                 println!("define-data-var");
             },
         )
@@ -41,11 +37,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "get_variable",
-            |_: Caller<'_, ()>,
-             _name_offset: i32,
-             _name_length: i32,
-             _return_offset: i32,
-             _return_length: i32| {
+            |_name_offset: i32, _name_length: i32, _return_offset: i32, _return_length: i32| {
                 println!("var-get");
             },
         )
@@ -55,11 +47,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "set_variable",
-            |_: Caller<'_, ()>,
-             _name_offset: i32,
-             _name_length: i32,
-             _value_offset: i32,
-             _value_length: i32| {
+            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
                 println!("var-set");
             },
         )
@@ -69,7 +57,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "tx_sender",
-            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+            |_return_offset: i32, _return_length: i32| {
                 println!("tx-sender");
                 Ok((0i32, 0i32))
             },
@@ -80,7 +68,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "contract_caller",
-            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+            |_return_offset: i32, _return_length: i32| {
                 println!("tx-sender");
                 Ok((0i32, 0i32))
             },
@@ -91,7 +79,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "tx_sponsor",
-            |_: Caller<'_, ()>, _return_offset: i32, _return_length: i32| {
+            |_return_offset: i32, _return_length: i32| {
                 println!("tx-sponsor");
                 Ok((0i32, 0i32, 0i32))
             },
@@ -142,7 +130,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 
     // Create a log function for debugging.
     linker
-        .func_wrap("", "log", |_: Caller<'_, ()>, param: i64| {
+        .func_wrap("", "log", |param: i64| {
             println!("log: {param}");
         })
         .unwrap();
