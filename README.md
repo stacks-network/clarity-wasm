@@ -26,6 +26,12 @@ This repository includes the stacks-blockchain as a submodule, to keep in sync w
 git clone --recurse-submodules https://github.com/stacks-network/clarity-wasm.git
 ```
 
+If you have cloned this repository without the `--recurse-submodules` flag, you can use:
+
+```sh
+git submodule update --init --recursive
+```
+
 ### Command line tool
 
 Install the command line tool, `clar2wasm` with:
