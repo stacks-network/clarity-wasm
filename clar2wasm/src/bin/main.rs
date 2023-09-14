@@ -56,7 +56,7 @@ fn main() {
         epoch,
         &mut datastore,
     )
-    .unwrap_or_else(|err| match *err {
+    .unwrap_or_else(|err| match err {
         CompileError::Generic {
             diagnostics,
             cost_tracker: _,

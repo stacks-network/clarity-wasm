@@ -36,7 +36,7 @@ pub struct CompileResult {
 pub enum CompileError {
     Generic {
         diagnostics: Vec<Diagnostic>,
-        cost_tracker: LimitedCostTracker,
+        cost_tracker: Box<LimitedCostTracker>,
     },
 }
 
@@ -47,7 +47,7 @@ pub fn compile(
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
     datastore: &mut dyn ClarityBackingStore,
-) -> Result<CompileResult, Box<CompileError>> {
+) -> Result<CompileResult, CompileError> {
     // Parse the contract
     let (mut ast, mut diagnostics, success) = build_ast_with_diagnostics(
         contract_id,
@@ -58,10 +58,10 @@ pub fn compile(
     );
 
     if !success {
-        return Err(Box::new(CompileError::Generic {
+        return Err(CompileError::Generic {
             diagnostics,
-            cost_tracker,
-        }));
+            cost_tracker: Box::new(cost_tracker),
+        });
     }
 
     // Create a new analysis database
@@ -80,10 +80,10 @@ pub fn compile(
         Ok(contract_analysis) => contract_analysis,
         Err((e, cost_track)) => {
             diagnostics.push(Diagnostic::err(&e.err));
-            return Err(Box::new(CompileError::Generic {
+            return Err(CompileError::Generic {
                 diagnostics,
-                cost_tracker: cost_track,
-            }));
+                cost_tracker: Box::new(cost_track),
+            });
         }
     };
 
@@ -96,10 +96,10 @@ pub fn compile(
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            Err(Box::new(CompileError::Generic {
+            Err(CompileError::Generic {
                 diagnostics,
-                cost_tracker: contract_analysis.cost_track.take().unwrap(),
-            }))
+                cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
+            })
         }
     }
 }
