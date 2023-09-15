@@ -145,6 +145,20 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         })
         .unwrap();
 
+    linker
+        .func_wrap("clarity", "enter_as_contract", |_: Caller<'_, ()>| {
+            println!("as-contract: enter");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "exit_as_contract", |_: Caller<'_, ()>| {
+            println!("as-contract: exit");
+            Ok(())
+        })
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
