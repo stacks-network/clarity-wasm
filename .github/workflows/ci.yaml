@@ -21,9 +21,7 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --all --all-features
-      - run: |
-          cargo test --manifest-path=clar2wasm/Cargo.toml --all-features -- --nocapture
-          cargo test --manifest-path=tests/Cargo.toml --all-features -- --nocapture
+      - run: cargo test --all-features -- --nocapture
 
   fmt:
     name: Rustfmt
@@ -35,9 +33,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: |
-          cargo fmt --manifest-path=clar2wasm/Cargo.toml  -- --check
-          cargo fmt --manifest-path=tests/Cargo.toml -- --check
+      - run: cargo fmt -- --check
 
   clippy:
     name: Clippy
@@ -49,6 +45,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: |
-          cargo clippy --manifest-path=clar2wasm/Cargo.toml --no-deps --all-features --all-targets -- -D warnings
-          cargo clippy --manifest-path=tests/Cargo.toml --no-deps --all-features --all-targets -- -D warnings
+      - run: cargo clippy --no-deps --all-features --all-targets -- -D warnings

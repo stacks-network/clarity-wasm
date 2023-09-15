@@ -1,20 +1,4 @@
 {
-  "cSpell.words": [
-    "binop",
-    "clar",
-    "Externref",
-    "Funcref",
-    "funcs",
-    "Keccak",
-    "secp",
-    "Secp",
-    "shamt",
-    "Sqrti",
-    "Trunc",
-    "unmarshalling"
-  ],
-  "rust-analyzer.linkedProjects": [
-    "./clar2wasm/Cargo.toml"
-  ],
   "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.features": "all"
 }
