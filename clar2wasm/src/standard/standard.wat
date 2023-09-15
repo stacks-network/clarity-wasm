@@ -24,6 +24,8 @@
                                                          (param $name_length i32)
                                                          (param $value_offset i32)
                                                          (param $value_length i32)))
+    (import "clarity" "enter_as_contract" (func $enter_as_contract))
+    (import "clarity" "exit_as_contract" (func $exit_as_contract))
     (import "clarity" "tx_sender" (func $tx_sender (param $return_offset i32)
                                                    (param $return_length i32)
                                                    (result i32 i32)))

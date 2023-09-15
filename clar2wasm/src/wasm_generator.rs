@@ -1430,6 +1430,34 @@ impl ASTVisitor for WasmGenerator<'_> {
 
         Ok(builder)
     }
+
+    fn traverse_as_contract<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        inner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Call the host interface function, `enter_as_contract`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("enter_as_contract")
+                .expect("enter_as_contract not found"),
+        );
+
+        // Traverse the inner expression
+        builder = self.traverse_expr(builder, inner)?;
+
+        // Call the host interface function, `exit_as_contract`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("exit_as_contract")
+                .expect("exit_as_contract not found"),
+        );
+
+        Ok(builder)
+    }
 }
 
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {

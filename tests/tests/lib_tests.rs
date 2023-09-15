@@ -414,3 +414,35 @@ test_contract!(test_none, "none", "ret-none", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::none());
 });
+
+test_contract!(
+    test_as_contract_sender,
+    "as-contract",
+    "check-sender",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier {
+                issuer: StandardPrincipalData::transient(),
+                name: "as-contract".into()
+            }))
+        );
+    }
+);
+
+test_contract!(
+    test_as_contract_caller,
+    "as-contract",
+    "check-caller",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier {
+                issuer: StandardPrincipalData::transient(),
+                name: "as-contract".into()
+            }))
+        );
+    }
+);
