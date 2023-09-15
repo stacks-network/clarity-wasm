@@ -132,13 +132,50 @@ impl FromWasmResult for bool {
     }
 }
 
-prop_compose! {
-    pub(crate) fn int128()(n in any::<u128>()) -> PropInt {
-        PropInt::new(n)
-    }
+macro_rules! propints {
+    ($(($name: ident, $range: ty)),+ $(,)?) => {
+        $(
+            fn $name() -> proptest::strategy::BoxedStrategy<crate::utils::PropInt> {
+                any::<$range>().prop_map(|n| crate::utils::PropInt::new(n as u128)).boxed()
+            }
+        )+
+    };
 }
 
-pub(crate) fn test_export_two_args<N, M, R, C>(name: &str, closure: C)
+propints! {
+    // unsigned
+    (tiny_uint128, u8),
+    (small_uint128, u16),
+    (medium_uint128, u32),
+    (large_uint128, u64),
+    (huge_uint128, u128),
+    //signed
+    (tiny_int128, i8),
+    (small_int128, i16),
+    (medium_int128, i32),
+    (large_int128, i64),
+    (huge_int128, i128),
+}
+
+type PropIntStrategy = fn() -> BoxedStrategy<PropInt>;
+
+const UNSIGNED_STRATEGIES: [PropIntStrategy; 5] = [
+    tiny_uint128,
+    small_uint128,
+    medium_uint128,
+    large_uint128,
+    huge_uint128,
+];
+
+const SIGNED_STRATEGIES: [PropIntStrategy; 5] = [
+    tiny_int128,
+    small_int128,
+    medium_int128,
+    large_int128,
+    huge_int128,
+];
+
+fn test_export_two_args<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
     M: From<PropInt>,
@@ -151,24 +188,48 @@ where
         .get_func(store.borrow_mut().deref_mut(), name)
         .unwrap();
 
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let res_slice = R::relevant_slice(&mut res);
+    for st_a in strategies {
+        for st_b in strategies {
+            proptest!(|(n in st_a(), m in st_b())| {
+                let mut res = [Val::I64(0), Val::I64(0)];
+                let res_slice = R::relevant_slice(&mut res);
 
-        fun.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            res_slice,
-        ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
+                fun.call(
+                    store.borrow_mut().deref_mut(),
+                    &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
+                    res_slice,
+                ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
 
-        let rust_result = closure(n.into(), m.into());
-        let wasm_result = R::from_wasm_result(res_slice);
+                let rust_result = closure(n.into(), m.into());
+                let wasm_result = R::from_wasm_result(res_slice);
 
-        prop_assert_eq!(rust_result, wasm_result);
-    });
+                prop_assert_eq!(rust_result, wasm_result);
+            });
+        }
+    }
 }
 
-pub(crate) fn test_export_two_args_checked<N, M, R, C>(name: &str, closure: C)
+pub(crate) fn test_export_two_unsigned_args<N, M, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    M: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N, M) -> R,
+{
+    test_export_two_args(&UNSIGNED_STRATEGIES, name, closure)
+}
+
+pub(crate) fn test_export_two_signed_args<N, M, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    M: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N, M) -> R,
+{
+    test_export_two_args(&SIGNED_STRATEGIES, name, closure)
+}
+
+fn test_export_two_args_checked<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
     M: From<PropInt>,
@@ -181,27 +242,51 @@ where
         .get_func(store.borrow_mut().deref_mut(), name)
         .unwrap();
 
-    proptest!(|(n in int128(), m in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
+    for st_a in strategies {
+        for st_b in strategies {
+            proptest!(|(n in st_a(), m in st_b())| {
+                let mut res = [Val::I64(0), Val::I64(0)];
 
-        let call = fun.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
-            &mut res,
-        );
+                let call = fun.call(
+                    store.borrow_mut().deref_mut(),
+                    &[n.low().into(), n.high().into(), m.low().into(), m.high().into()],
+                    &mut res,
+                );
 
-        match closure(n.into(), m.into()) {
-            Some(rust_result) => {
-                call.unwrap_or_else(|_| panic!("call to {name} failed"));
-                let wasm_result = R::from_wasm_result(&res);
-                prop_assert_eq!(rust_result, wasm_result);
-            },
-            None => { call.expect_err("expected error"); }
+                match closure(n.into(), m.into()) {
+                    Some(rust_result) => {
+                        call.unwrap_or_else(|_| panic!("call to {name} failed"));
+                        let wasm_result = R::from_wasm_result(&res);
+                        prop_assert_eq!(rust_result, wasm_result);
+                    },
+                    None => { call.expect_err("expected error"); }
+                }
+            });
         }
-    });
+    }
 }
 
-pub(crate) fn test_export_one_arg<N, R, C>(name: &str, closure: C)
+pub(crate) fn test_export_two_unsigned_args_checked<N, M, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    M: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N, M) -> Option<R>,
+{
+    test_export_two_args_checked(&UNSIGNED_STRATEGIES, name, closure)
+}
+
+pub(crate) fn test_export_two_signed_args_checked<N, M, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    M: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N, M) -> Option<R>,
+{
+    test_export_two_args_checked(&SIGNED_STRATEGIES, name, closure)
+}
+
+fn test_export_one_arg<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
     R: FromWasmResult + PartialEq + std::fmt::Debug,
@@ -213,24 +298,44 @@ where
         .get_func(store.borrow_mut().deref_mut(), name)
         .unwrap();
 
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
-        let res_slice = R::relevant_slice(&mut res);
+    for st in strategies {
+        proptest!(|(n in st())| {
+            let mut res = [Val::I64(0), Val::I64(0)];
+            let res_slice = R::relevant_slice(&mut res);
 
-        fun.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            res_slice,
-        ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
+            fun.call(
+                store.borrow_mut().deref_mut(),
+                &[n.low().into(), n.high().into()],
+                res_slice,
+            ).unwrap_or_else(|_| panic!("Could not call exported function {name}"));
 
-        let rust_result = closure(n.into());
-        let wasm_result = R::from_wasm_result(res_slice);
+            let rust_result = closure(n.into());
+            let wasm_result = R::from_wasm_result(res_slice);
 
-        prop_assert_eq!(rust_result, wasm_result);
-    });
+            prop_assert_eq!(rust_result, wasm_result);
+        });
+    }
 }
 
-pub(crate) fn test_export_one_arg_checked<N, R, C>(name: &str, closure: C)
+pub(crate) fn test_export_one_unsigned_arg<N, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N) -> R,
+{
+    test_export_one_arg(&UNSIGNED_STRATEGIES, name, closure)
+}
+
+pub(crate) fn test_export_one_signed_arg<N, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N) -> R,
+{
+    test_export_one_arg(&SIGNED_STRATEGIES, name, closure)
+}
+
+fn test_export_one_arg_checked<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
     R: FromWasmResult + PartialEq + std::fmt::Debug,
@@ -242,22 +347,42 @@ where
         .get_func(store.borrow_mut().deref_mut(), name)
         .unwrap();
 
-    proptest!(|(n in int128())| {
-        let mut res = [Val::I64(0), Val::I64(0)];
+    for st in strategies {
+        proptest!(|(n in st())| {
+            let mut res = [Val::I64(0), Val::I64(0)];
 
-        let call = fun.call(
-            store.borrow_mut().deref_mut(),
-            &[n.low().into(), n.high().into()],
-            &mut res,
-        );
+            let call = fun.call(
+                store.borrow_mut().deref_mut(),
+                &[n.low().into(), n.high().into()],
+                &mut res,
+            );
 
-        match closure(n.into()) {
-            Some(rust_result) => {
-                call.unwrap_or_else(|_| panic!("call to {name} failed"));
-                let wasm_result = R::from_wasm_result(&res);
-                prop_assert_eq!(rust_result, wasm_result);
-            },
-            None => { call.expect_err("expected error"); }
-        }
-    });
+            match closure(n.into()) {
+                Some(rust_result) => {
+                    call.unwrap_or_else(|_| panic!("call to {name} failed"));
+                    let wasm_result = R::from_wasm_result(&res);
+                    prop_assert_eq!(rust_result, wasm_result);
+                },
+                None => { call.expect_err("expected error"); }
+            }
+        });
+    }
+}
+
+pub(crate) fn test_export_one_unsigned_arg_checked<N, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N) -> Option<R>,
+{
+    test_export_one_arg_checked(&UNSIGNED_STRATEGIES, name, closure)
+}
+
+pub(crate) fn test_export_one_signed_arg_checked<N, R, C>(name: &str, closure: C)
+where
+    N: From<PropInt>,
+    R: FromWasmResult + PartialEq + std::fmt::Debug,
+    C: Fn(N) -> Option<R>,
+{
+    test_export_one_arg_checked(&SIGNED_STRATEGIES, name, closure)
 }
