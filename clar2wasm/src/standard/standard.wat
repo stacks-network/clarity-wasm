@@ -223,28 +223,31 @@
     )
 
     (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $lz i32)
+        (local $tmp i32)
 
-        (local.set $lz  ;; lz countains the sum of number of leading zeros of arguments
+        (local.set $tmp  ;; lz countains the sum of number of leading zeros of arguments
             (i32.add 
                 (call $clz-int128 (local.get $a_lo) (local.get $a_hi))
                 (call $clz-int128 (local.get $b_lo) (local.get $b_hi))
             )
         )
 
-        (if (i32.ge_u (local.get $lz) (i32.const 128))
+        (if (i32.ge_u (local.get $tmp) (i32.const 128))
             ;; product cannot overflow if the sum of leading zeros is >= 128
             (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
         )
 
-        (if (i32.le_u (local.get $lz) (i32.const 126))
+        (if (i32.le_u (local.get $tmp) (i32.const 126))
             ;; product will overflow if the sum of leading zeros is <= 126
             (call $runtime-error (i32.const 0))
         )
 
         ;; Other case might overflow. We compute (a * b/2) and check if result > 2**127
         ;;    -> if yes, overflow
-        ;;    -> if not, we double the product, and add b one more time if b was odd
+        ;;    -> if not, we double the product, and add a one more time if b was odd
+        
+        ;; tmp is 1 if b was odd else 0
+        (local.set $tmp (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1))))
         
         ;; b / 2
         (i64.or
@@ -255,32 +258,33 @@
 
         ;; a * b/2
         (call $mul-int128 (local.get $a_lo) (local.get $a_hi))
-        (local.set $a_hi)
-        (local.set $a_lo)
+        ;; b contains the result from now on
+        (local.set $b_hi)
+        (local.set $b_lo)
 
         ;; if result/2 > 2**127, meaning clz == 0 -> overflow
-        (if (i64.eqz (i64.clz (local.get $a_hi)))
+        (if (i64.eqz (i64.clz (local.get $b_hi)))
             (call $runtime-error (i32.const 0))
         )
 
         ;; res *= 2, meaning res <<= 1
-        (local.set $a_hi
+        (local.set $b_hi
             (i64.or
-                (i64.shl (local.get $a_hi) (i64.const 1))
-                (i64.shr_u (local.get $a_lo) (i64.const 63))
+                (i64.shl (local.get $b_hi) (i64.const 1))
+                (i64.shr_u (local.get $b_lo) (i64.const 63))
             )
         )
-        (local.set $a_lo (i64.shl (local.get $a_lo) (i64.const 1)))
+        (local.set $b_lo (i64.shl (local.get $b_lo) (i64.const 1)))
 
-        ;; if b is odd, we add b
-        (if (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1)))
+        ;; if b is odd ($tmp), we add a
+        (if (local.get $tmp)
             (then
-                (call $add-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
-                (local.set $a_hi)
-                (local.set $a_lo)
+                (call $add-uint (local.get $b_lo) (local.get $b_hi) (local.get $a_lo) (local.get $a_hi))
+                (local.set $b_hi)
+                (local.set $b_lo)
             )
         )
-        (local.get $a_lo) (local.get $a_hi)
+        (local.get $b_lo) (local.get $b_hi)
     )
     
 
