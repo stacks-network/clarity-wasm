@@ -526,7 +526,7 @@ fn test_mul_int() {
     )
     .expect_err("expected overflow");
 
-    // Overflow
+    // Overflow on unsigned multiplication
     // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = -2
     mul.call(
         &mut store,
