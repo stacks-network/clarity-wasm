@@ -112,11 +112,7 @@ fn prop_sqrti_uint() {
 #[test]
 fn prop_sqrti_int() {
     utils::test_export_one_signed_arg_checked("sqrti-int", |a: i128| {
-        if a > 0 {
-            Some(num_integer::Roots::sqrt(&a))
-        } else {
-            None
-        }
+        (a >= 0).then(|| num_integer::Roots::sqrt(&a))
     })
 }
 
