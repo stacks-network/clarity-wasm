@@ -289,34 +289,59 @@
     
 
     (func $mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $expected_sign i64)
+        (local $sign i32)
 
-        ;; Shortcut if either a or b is zero
-        (if (i32.or
-                (i64.eqz (i64.or (local.get $a_lo) (local.get $a_hi)))
-                (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi))))
-            (return (i64.const 0) (i64.const 0))
+        ;; take the absolute value of the operands, and compute the expected sign in 3 steps:
+        ;; 1. Absolute value of a
+        (select
+            (i64.sub (i64.const 0) (local.get $a_lo))
+            (local.get $a_lo)
+            (local.tee $sign (i64.lt_s (local.get $a_hi) (i64.const 0))) ;; sign is the sign bit of a
         )
-
-        ;; compute the expected sign of the product
-        (local.set $expected_sign 
-            (i64.xor 
-                (i64.shr_s (local.get $a_hi) (i64.const 63)) 
-                (i64.shr_s (local.get $b_hi) (i64.const 63))
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            (local.get $a_hi)
+            (local.get $sign)
+        )
+        ;; 2. Absolute value of b
+        (select
+            (i64.sub (i64.const 0) (local.get $b_lo))
+            (local.get $b_lo)
+            (local.tee $sign (i64.lt_s (local.get $b_hi) (i64.const 0))) ;; sign is sign bit of b now
+        )
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $b_hi) (i64.extend_i32_u (i64.ne (local.get $b_lo) (i64.const 0)))))
+            (local.get $b_hi)
+            (local.get $sign) 
+        )
+        ;; 3. Compute expected sign
+        (local.set $sign
+            (i32.xor 
+                (i64.lt_s (local.get $a_hi) (i64.const 0)) ;; sign of a 
+                (local.get $sign) ;; sign is sign of b
             )
-        )
+        ) 
 
-        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+        (call $mul-uint)
         (local.set $a_hi)
         (local.set $a_lo)
 
-        ;; Check for overflow into sign bit
-        (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (local.get $expected_sign))
+        ;; Sign bit should be 0, otherwise there is an overflow
+        (if (i64.lt_s (local.get $a_hi) (i64.const 0))
             (call $runtime-error (i32.const 0))
         )
-
-        ;; Return the result
-        (return (local.get $a_lo) (local.get $a_hi))
+        
+        ;; Return the result and adapt with sign bit
+        (select
+            (i64.sub (i64.const 0) (local.get $a_lo))
+            (local.get $a_lo)
+            (local.get $sign)
+        )
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            (local.get $a_hi)
+            (local.get $sign)
+        )
     )
 
     (func $div-int128 (type 2) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64 i64 i64)
