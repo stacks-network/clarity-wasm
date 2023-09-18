@@ -17,6 +17,7 @@ use clarity::{
     },
 };
 use criterion::{criterion_group, criterion_main, Criterion};
+use pprof::criterion::{PProfProfiler, Output};
 
 fn wasm_fold_add_square(c: &mut Criterion) {
     let contract_id = QualifiedContractIdentifier::new(
@@ -196,9 +197,9 @@ fn interp_fold_add_square(c: &mut Criterion) {
     global_context.commit().unwrap();
 }
 
-criterion_group!(
-    fold_add_square,
-    wasm_fold_add_square,
-    interp_fold_add_square
-);
+criterion_group!{
+    name = fold_add_square;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = wasm_fold_add_square, interp_fold_add_square
+}
 criterion_main!(fold_add_square);
