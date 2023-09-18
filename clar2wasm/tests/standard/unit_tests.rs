@@ -474,7 +474,7 @@ fn test_mul_int() {
         &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(0)],
         &mut result,
     )
-    .expect("call to mul-uint failed");
+    .expect("call to mul-int failed");
     assert_eq!(result[0].i64(), Some(0));
     assert_eq!(result[1].i64(), Some(0));
 
@@ -489,7 +489,7 @@ fn test_mul_int() {
         ],
         &mut result,
     )
-    .expect("call to mul-uint failed");
+    .expect("call to mul-int failed");
     assert_eq!(result[0].i64(), Some(0));
     assert_eq!(result[1].i64(), Some(0));
 
@@ -504,7 +504,7 @@ fn test_mul_int() {
         ],
         &mut result,
     )
-    .expect("call to mul-uint failed");
+    .expect("call to mul-int failed");
     assert_eq!(result[0].i64(), Some(0));
     assert_eq!(result[1].i64(), Some(0));
 
@@ -514,7 +514,7 @@ fn test_mul_int() {
         &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
         &mut result,
     )
-    .expect("call to mul-uint failed");
+    .expect("call to mul-int failed");
     assert_eq!(result[0].i64(), Some(2));
     assert_eq!(result[1].i64(), Some(0));
 
@@ -527,13 +527,15 @@ fn test_mul_int() {
     .expect_err("expected overflow");
 
     // Overflow
-    // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = Overflow
+    // 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff * 2 = -2
     mul.call(
         &mut store,
         &[Val::I64(-1), Val::I64(-1), Val::I64(2), Val::I64(0)],
         &mut result,
     )
-    .expect_err("expected overflow");
+    .expect("call to mul-int failed");
+    assert_eq!(result[0].i64(), Some(-2));
+    assert_eq!(result[1].i64(), Some(-1));
 }
 
 #[test]
