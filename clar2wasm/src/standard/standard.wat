@@ -225,7 +225,7 @@
     (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $tmp i32)
 
-        (local.set $tmp  ;; lz countains the sum of number of leading zeros of arguments
+        (local.set $tmp  ;; tmp contains the sum of number of leading zeros of arguments
             (i32.add 
                 (call $clz-int128 (local.get $a_lo) (local.get $a_hi))
                 (call $clz-int128 (local.get $b_lo) (local.get $b_hi))
