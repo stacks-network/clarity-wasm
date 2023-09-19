@@ -30,6 +30,12 @@
     (import "clarity" "stx_account" (func $stx_account (param $principal_offset i32)
                                                        (param $principal_length i32)
                                                        (result i64 i64 i64 i64 i64 i64)))
+    (import "clarity" "stx_burn" (func $stx_burn (param $amount_lo i64)
+                                                 (param $amount_hi i64)
+                                                 (param $principal_offset i32)
+                                                 (param $principal_length i32)
+                                                 (result i32 i32 i64 i64)))
+
 
     (import "clarity" "tx_sender" (func $tx_sender (param $return_offset i32)
                                                    (param $return_length i32)

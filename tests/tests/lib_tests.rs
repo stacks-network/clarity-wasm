@@ -82,6 +82,21 @@ macro_rules! test_contract {
                     Some(StandardPrincipalData::transient().into()),
                     None,
                 );
+
+                // Give an account an initial balance
+                let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+                let amount = 1_000_000_000;
+                let mut snapshot = env
+                    .global_context
+                    .database
+                    .get_stx_balance_snapshot(&recipient);
+                snapshot.credit(amount);
+                snapshot.save();
+                env.global_context
+                    .database
+                    .increment_ustx_liquid_supply(amount)
+                    .unwrap();
+
                 let result = call_function($contract_func, $params, &mut env)
                     .expect("Function call failed.");
 
@@ -478,5 +493,45 @@ test_contract!(
             }
             _ => panic!("Unexpected result received from WASM function call."),
         }
+    }
+);
+
+test_contract!(
+    test_stx_burn_ok,
+    "tokens",
+    "test-stx-burn-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err1,
+    "tokens",
+    "test-stx-burn-err1",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err3,
+    "tokens",
+    "test-stx-burn-err3",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err4,
+    "tokens",
+    "test-stx-burn-err4",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
     }
 );
