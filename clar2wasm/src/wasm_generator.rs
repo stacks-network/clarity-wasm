@@ -2,7 +2,10 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
-    types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
+    types::{
+        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+        TypeSignature,
+    },
     variables::NativeVariables,
     ClarityName, SymbolicExpression,
 };
@@ -341,6 +344,43 @@ impl<'a> WasmGenerator<'a> {
 
         // Save the offset in the literal memory for this identifier
         self.literal_memory_offet.insert(name.to_string(), offset);
+
+        (offset, len)
+    }
+
+    /// Adds a new literal into the memory, and returns the offset and length.
+    fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
+        let data = match value {
+            clarity::vm::Value::Principal(p) => match p {
+                PrincipalData::Standard(standard) => {
+                    let mut data = vec![standard.0];
+                    data.extend_from_slice(&standard.1);
+                    let contract_length = 0i32.to_le_bytes();
+                    data.extend_from_slice(&contract_length);
+                    data
+                }
+                PrincipalData::Contract(contract) => {
+                    let mut data = vec![contract.issuer.0];
+                    data.extend_from_slice(&contract.issuer.1);
+                    let contract_length = (contract.name.len() as i32).to_le_bytes();
+                    data.extend_from_slice(&contract_length);
+                    data.extend_from_slice(contract.name.as_bytes());
+                    data
+                }
+            },
+            _ => unimplemented!("Unsupported literal: {}", value),
+        };
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let offset = self.literal_memory_end;
+        let len = data.len() as u32;
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory: memory.id(),
+                location: walrus::ActiveDataLocation::Absolute(offset),
+            }),
+            data.clone(),
+        );
+        self.literal_memory_end += data.len() as u32;
 
         (offset, len)
     }
@@ -875,6 +915,12 @@ impl ASTVisitor for WasmGenerator<'_> {
             }
             clarity::vm::Value::Sequence(SequenceData::String(s)) => {
                 let (offset, len) = self.add_string_literal(s);
+                builder.i32_const(offset as i32);
+                builder.i32_const(len as i32);
+                Ok(builder)
+            }
+            clarity::vm::Value::Principal(_p) => {
+                let (offset, len) = self.add_literal(value);
                 builder.i32_const(offset as i32);
                 builder.i32_const(len as i32);
                 Ok(builder)
@@ -1487,8 +1533,8 @@ impl ASTVisitor for WasmGenerator<'_> {
         builder.call(
             self.module
                 .funcs
-                .by_name("stx_get_account")
-                .expect("stx_get_account not found"),
+                .by_name("stx_account")
+                .expect("stx_account not found"),
         );
         Ok(builder)
     }
@@ -1785,6 +1831,13 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
         TypeSignature::OptionalType(inner_ty) => {
             let mut types = vec![ValType::I32];
             types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
+        TypeSignature::TupleType(inner_types) => {
+            let mut types = vec![];
+            for inner_type in inner_types.get_type_map().values() {
+                types.extend(clar2wasm_ty(inner_type));
+            }
             types
         }
         _ => unimplemented!("{:?}", ty),

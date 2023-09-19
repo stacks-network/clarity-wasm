@@ -26,6 +26,13 @@
                                                          (param $value_length i32)))
     (import "clarity" "enter_as_contract" (func $enter_as_contract))
     (import "clarity" "exit_as_contract" (func $exit_as_contract))
+    (import "clarity" "stx_get_balance" (func $stx_get_balance (param $principal_offset i32)
+                                                               (param $principal_length i32)
+                                                               (result i64 i64)))
+    (import "clarity" "stx_account" (func $stx_account (param $principal_offset i32)
+                                                       (param $principal_length i32)
+                                                       (result i64 i64 i64 i64 i64 i64)))
+
     (import "clarity" "tx_sender" (func $tx_sender (param $return_offset i32)
                                                    (param $return_length i32)
                                                    (result i32 i32)))

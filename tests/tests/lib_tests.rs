@@ -446,3 +446,37 @@ test_contract!(
         );
     }
 );
+
+test_contract!(
+    test_stx_get_balance,
+    "tokens",
+    "test-stx-get-balance",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_stx_account,
+    "tokens",
+    "test-stx-account",
+    |response: ResponseData| {
+        assert!(response.committed);
+        match *response.data {
+            Value::Tuple(tuple_data) => {
+                assert_eq!(tuple_data.data_map.len(), 3);
+                assert_eq!(tuple_data.data_map.get("locked").unwrap(), &Value::UInt(0));
+                assert_eq!(
+                    tuple_data.data_map.get("unlocked").unwrap(),
+                    &Value::UInt(0)
+                );
+                assert_eq!(
+                    tuple_data.data_map.get("unlock-height").unwrap(),
+                    &Value::UInt(0)
+                );
+            }
+            _ => panic!("Unexpected result received from WASM function call."),
+        }
+    }
+);
