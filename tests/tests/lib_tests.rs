@@ -535,3 +535,63 @@ test_contract!(
         assert_eq!(*response.data, Value::UInt(4));
     }
 );
+
+test_contract!(
+    test_stx_transfer_ok,
+    "tokens",
+    "test-stx-transfer-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_memo_ok,
+    "tokens",
+    "test-stx-transfer-memo-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err1,
+    "tokens",
+    "test-stx-transfer-err1",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err2,
+    "tokens",
+    "test-stx-transfer-err2",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(2));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err3,
+    "tokens",
+    "test-stx-transfer-err3",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err4,
+    "tokens",
+    "test-stx-transfer-err4",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
+    }
+);

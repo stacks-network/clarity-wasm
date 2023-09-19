@@ -35,6 +35,15 @@
                                                  (param $principal_offset i32)
                                                  (param $principal_length i32)
                                                  (result i32 i32 i64 i64)))
+    (import "clarity" "stx_transfer" (func $stx_transfer (param $amount_lo i64)
+                                                         (param $amount_hi i64)
+                                                         (param $sender_offset i32)
+                                                         (param $sender_length i32)
+                                                         (param $recipient_offset i32)
+                                                         (param $recipient_length i32)
+                                                         (param $memo_offset i32)
+                                                         (param $memo_length i32)
+                                                         (result i32 i32 i64 i64)))
 
 
     (import "clarity" "tx_sender" (func $tx_sender (param $return_offset i32)

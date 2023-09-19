@@ -380,6 +380,7 @@ impl<'a> WasmGenerator<'a> {
                     data
                 }
             },
+            clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
             _ => unimplemented!("Unsupported literal: {}", value),
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
@@ -931,7 +932,8 @@ impl ASTVisitor for WasmGenerator<'_> {
                 builder.i32_const(len as i32);
                 Ok(builder)
             }
-            clarity::vm::Value::Principal(_p) => {
+            clarity::vm::Value::Principal(_)
+            | clarity::vm::Value::Sequence(SequenceData::Buffer(_)) => {
                 let (offset, len) = self.add_literal(value);
                 builder.i32_const(offset as i32);
                 builder.i32_const(len as i32);
@@ -1592,8 +1594,12 @@ impl ASTVisitor for WasmGenerator<'_> {
         _recipient: &SymbolicExpression,
         _memo: Option<&SymbolicExpression>,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount, sender, recipient, and memo are on the stack, so just call
-        // the host interface function, `stx_transfer`
+        // Amount, sender, and recipient are on the stack. If memo is none, we
+        // need to add a placeholder to the stack, then we can call the host
+        // interface function, `stx_transfer`
+        if _memo.is_none() {
+            builder.i32_const(0).i32_const(0);
+        }
         builder.call(
             self.module
                 .funcs
