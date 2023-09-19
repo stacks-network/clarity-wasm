@@ -536,6 +536,75 @@ fn test_mul_int() {
     .expect("call to mul-int failed");
     assert_eq!(result[0].i64(), Some(-2));
     assert_eq!(result[1].i64(), Some(-1));
+
+    // cannot take the absolute value of i128::MIN but should be able to multiply by 1
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(1),
+            Val::I64(0),
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+        ],
+        &mut result,
+    )
+    .expect("call to mul-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0x8000000000000000u64 as i64));
+
+    // cannot take the absolute value of i128::MIN but should be able to multiply by 1 (reverse)
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+            Val::I64(1),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect("call to mul-int failed");
+    assert_eq!(result[0].i64(), Some(0));
+    assert_eq!(result[1].i64(), Some(0x8000000000000000u64 as i64));
+
+    // i128::MIN * 2 overflows
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(2),
+            Val::I64(0),
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // i128::MIN * -1 overflows
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(-1),
+            Val::I64(-1),
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // -1 * i128::MIN overflows
+    mul.call(
+        &mut store,
+        &[
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+            Val::I64(-1),
+            Val::I64(-1),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
 }
 
 #[test]

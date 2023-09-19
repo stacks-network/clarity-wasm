@@ -291,6 +291,16 @@
     (func $mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $sign i32)
 
+        ;; this is a shortcut for a multiplication by 1.
+        ;; also, it prevents us from dealing with the infamous abs(i128::MIN), and 
+        ;; the only operation that would work on that number would be (i128::MIN * 1)
+        (if (i64.eqz (i64.or (local.get $a_hi) (i64.xor (local.get $a_lo) (i64.const 1))))
+            (return (local.get $b_lo) (local.get $b_hi))
+        )
+        (if (i64.eqz (i64.or (local.get $b_hi) (i64.xor (local.get $b_lo) (i64.const 1))))
+            (return (local.get $a_lo) (local.get $a_hi))
+        )
+
         ;; take the absolute value of the operands, and compute the expected sign in 3 steps:
         ;; 1. Absolute value of a
         (select
