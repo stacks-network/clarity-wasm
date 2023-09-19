@@ -26,6 +26,8 @@ pub struct WasmGenerator<'a> {
     contract_analysis: &'a mut ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
+    /// The builder for generating the `defines` function.
+    define_builder: FunctionBuilder,
     /// The error that occurred during generation, if any.
     error: Option<GeneratorError>,
     /// Offset of the end of the literal memory.
@@ -107,7 +109,7 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
 impl<'a> WasmGenerator<'a> {
     pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
-        let module =
+        let mut module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
 
         // Get the stack-pointer global ID
@@ -124,9 +126,12 @@ impl<'a> WasmGenerator<'a> {
             .map(|global| global.id())
             .expect("Expected to find a global named $stack-pointer");
 
+        let define_builder = FunctionBuilder::new(&mut module.types, &[], &[]);
+
         WasmGenerator {
             contract_analysis,
             module,
+            define_builder,
             error: None,
             literal_memory_end: 0,
             stack_pointer: global_id,
@@ -154,6 +159,12 @@ impl<'a> WasmGenerator<'a> {
             return Err(err);
         }
 
+        // Insert a return instruction at the end of the defines function so
+        // that the defines function always has no return value.
+        self.define_builder.func_body().return_();
+        let defines = self.define_builder.finish(vec![], &mut self.module.funcs);
+        self.module.exports.add(".defines", defines);
+
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
@@ -171,24 +182,24 @@ impl<'a> WasmGenerator<'a> {
 
     fn traverse_define_function(
         &mut self,
-        builder: &mut InstrSeqBuilder,
+        _builder: &mut InstrSeqBuilder,
         name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
         let opt_function_type = match kind {
             FunctionKind::ReadOnly => {
-                builder.i32_const(0);
+                self.define_builder.func_body().i32_const(0);
                 self.contract_analysis
                     .get_read_only_function_type(name.as_str())
             }
             FunctionKind::Public => {
-                builder.i32_const(1);
+                self.define_builder.func_body().i32_const(1);
                 self.contract_analysis
                     .get_public_function_type(name.as_str())
             }
             FunctionKind::Private => {
-                builder.i32_const(2);
+                self.define_builder.func_body().i32_const(2);
                 self.contract_analysis.get_private_function(name.as_str())
             }
         };
@@ -205,12 +216,13 @@ impl<'a> WasmGenerator<'a> {
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
         let (id_offset, id_length) = self.add_identifier_string_literal(name);
-        builder
+        self.define_builder
+            .func_body()
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
         // Call the host interface function, `define_function`
-        builder.call(
+        self.define_builder.func_body().call(
             self.module
                 .funcs
                 .by_name("define_function")
@@ -1039,6 +1051,20 @@ impl ASTVisitor for WasmGenerator<'_> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
+        // Push the name onto the data stack
+        self.define_builder
+            .func_body()
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        // Call the host interface function, `define_variable`
+        self.define_builder.func_body().call(
+            self.module
+                .funcs
+                .by_name("define_variable")
+                .expect("function not found"),
+        );
+
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
         let ty = self
@@ -1078,7 +1104,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         builder.call(
             self.module
                 .funcs
-                .by_name("define_variable")
+                .by_name("set_variable")
                 .expect("function not found"),
         );
         Ok(builder)
