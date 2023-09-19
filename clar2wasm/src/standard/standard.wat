@@ -219,17 +219,17 @@
 
         ;;;;;;;;;;;;;;;;;;;;;;;;;;;; res_lo ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         (local.tee $t1
-            (i64.mul 
+            (i64.mul
                 ;; $v2 contains u1 temporarily
-                (local.tee $v2 (i64.and (local.get $a_lo) (i64.const 0xffffffff))) 
+                (local.tee $v2 (i64.and (local.get $a_lo) (i64.const 0xffffffff)))
                 ;; $u2 contains v1 temporarily
-                (local.tee $u2 (i64.and (local.get $b_lo) (i64.const 0xffffffff))) 
+                (local.tee $u2 (i64.and (local.get $b_lo) (i64.const 0xffffffff)))
             )
         )
         (i64.shr_u (i64.const 32))              ;; (t1 >> 32)
         (i64.mul                                ;; (u2 * v1)
             (local.get $u2) ;; contains v1 at that point
-            (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32))) 
+            (local.tee $u2 (i64.shr_u (local.get $a_lo) (i64.const 32)))
         )
         (local.tee $t2 (i64.add))               ;; (u2 * v1) + (t1 >> 32)
         (i64.and (i64.const 0xffffffff))        ;; (t2 & 0xffffffff)
@@ -251,29 +251,32 @@
     )
 
     (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $lz i32)
+        (local $tmp i32)
 
-        (local.set $lz  ;; lz countains the sum of number of leading zeros of arguments
-            (i32.add 
+        (local.set $tmp  ;; tmp contains the sum of number of leading zeros of arguments
+            (i32.add
                 (call $clz-int128 (local.get $a_lo) (local.get $a_hi))
                 (call $clz-int128 (local.get $b_lo) (local.get $b_hi))
             )
         )
 
-        (if (i32.ge_u (local.get $lz) (i32.const 128))
+        (if (i32.ge_u (local.get $tmp) (i32.const 128))
             ;; product cannot overflow if the sum of leading zeros is >= 128
             (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
         )
 
-        (if (i32.le_u (local.get $lz) (i32.const 126))
+        (if (i32.le_u (local.get $tmp) (i32.const 126))
             ;; product will overflow if the sum of leading zeros is <= 126
             (call $runtime-error (i32.const 0))
         )
 
         ;; Other case might overflow. We compute (a * b/2) and check if result > 2**127
         ;;    -> if yes, overflow
-        ;;    -> if not, we double the product, and add b one more time if b was odd
-        
+        ;;    -> if not, we double the product, and add a one more time if b was odd
+
+        ;; tmp is 1 if b was odd else 0
+        (local.set $tmp (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1))))
+
         ;; b / 2
         (i64.or
             (i64.shl (local.get $b_hi) (i64.const 63))
@@ -283,64 +286,102 @@
 
         ;; a * b/2
         (call $mul-int128 (local.get $a_lo) (local.get $a_hi))
-        (local.set $a_hi)
-        (local.set $a_lo)
+        ;; b contains the result from now on
+        (local.set $b_hi)
+        (local.set $b_lo)
 
-        ;; if result/2 > 2**127, meaning clz == 0 -> overflow
-        (if (i64.eqz (i64.clz (local.get $a_hi)))
+        ;; if result/2 > 2**127 overflow
+        (if (i64.lt_s (local.get $b_hi) (i64.const 0))
             (call $runtime-error (i32.const 0))
         )
 
         ;; res *= 2, meaning res <<= 1
-        (local.set $a_hi
+        (local.set $b_hi
             (i64.or
-                (i64.shl (local.get $a_hi) (i64.const 1))
-                (i64.shr_u (local.get $a_lo) (i64.const 63))
+                (i64.shl (local.get $b_hi) (i64.const 1))
+                (i64.shr_u (local.get $b_lo) (i64.const 63))
             )
         )
-        (local.set $a_lo (i64.shl (local.get $a_lo) (i64.const 1)))
+        (local.set $b_lo (i64.shl (local.get $b_lo) (i64.const 1)))
 
-        ;; if b is odd, we add b
-        (if (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1)))
+        ;; if b is odd ($tmp), we add a
+        (if (local.get $tmp)
             (then
-                (call $add-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
-                (local.set $a_hi)
-                (local.set $a_lo)
+                (call $add-uint (local.get $b_lo) (local.get $b_hi) (local.get $a_lo) (local.get $a_hi))
+                (local.set $b_hi)
+                (local.set $b_lo)
             )
         )
-        (local.get $a_lo) (local.get $a_hi)
+        (local.get $b_lo) (local.get $b_hi)
     )
-    
+
 
     (func $mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $expected_sign i64)
+        (local $sign i32)
 
-        ;; Shortcut if either a or b is zero
-        (if (i32.or
-                (i64.eqz (i64.or (local.get $a_lo) (local.get $a_hi)))
-                (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi))))
-            (return (i64.const 0) (i64.const 0))
+        ;; this is a shortcut for a multiplication by 1.
+        ;; also, it prevents us from dealing with the infamous abs(i128::MIN), and
+        ;; the only operation that would work on that number would be (i128::MIN * 1)
+        (if (i64.eqz (i64.or (local.get $a_hi) (i64.xor (local.get $a_lo) (i64.const 1))))
+            (return (local.get $b_lo) (local.get $b_hi))
+        )
+        (if (i64.eqz (i64.or (local.get $b_hi) (i64.xor (local.get $b_lo) (i64.const 1))))
+            (return (local.get $a_lo) (local.get $a_hi))
         )
 
-        ;; compute the expected sign of the product
-        (local.set $expected_sign 
-            (i64.xor 
-                (i64.shr_s (local.get $a_hi) (i64.const 63)) 
-                (i64.shr_s (local.get $b_hi) (i64.const 63))
+        ;; take the absolute value of the operands, and compute the expected sign in 3 steps:
+        ;; 1. Absolute value of a
+        ;; NOTE: the absolute value algorithm was generated from
+        ;;       `fn abs(a: i128) -> i128 { a.abs() }`
+        (select
+            (i64.sub (i64.const 0) (local.get $a_lo))
+            (local.get $a_lo)
+            (local.tee $sign (i64.lt_s (local.get $a_hi) (i64.const 0))) ;; sign is the sign bit of a
+        )
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            (local.get $a_hi)
+            (local.get $sign)
+        )
+        ;; 2. Absolute value of b
+        (select
+            (i64.sub (i64.const 0) (local.get $b_lo))
+            (local.get $b_lo)
+            (local.tee $sign (i64.lt_s (local.get $b_hi) (i64.const 0))) ;; sign is sign bit of b now
+        )
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $b_hi) (i64.extend_i32_u (i64.ne (local.get $b_lo) (i64.const 0)))))
+            (local.get $b_hi)
+            (local.get $sign)
+        )
+        ;; 3. Compute expected sign
+        (local.set $sign
+            (i32.xor
+                (i64.lt_s (local.get $a_hi) (i64.const 0)) ;; sign of a
+                (local.get $sign) ;; sign is sign of b
             )
         )
 
-        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+        (call $mul-uint)
         (local.set $a_hi)
         (local.set $a_lo)
 
-        ;; Check for overflow into sign bit
-        (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (local.get $expected_sign))
+        ;; Sign bit should be 0, otherwise there is an overflow
+        (if (i64.lt_s (local.get $a_hi) (i64.const 0))
             (call $runtime-error (i32.const 0))
         )
 
-        ;; Return the result
-        (return (local.get $a_lo) (local.get $a_hi))
+        ;; Return the result and adapt with sign bit
+        (select
+            (i64.sub (i64.const 0) (local.get $a_lo))
+            (local.get $a_lo)
+            (local.get $sign)
+        )
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            (local.get $a_hi)
+            (local.get $sign)
+        )
     )
 
     (func $div-int128 (type 2) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64 i64 i64)
