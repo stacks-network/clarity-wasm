@@ -303,6 +303,8 @@
 
         ;; take the absolute value of the operands, and compute the expected sign in 3 steps:
         ;; 1. Absolute value of a
+        ;; NOTE: the absolute value algorithm was generated from
+        ;;       `fn abs(a: i128) -> i128 { a.abs() }`
         (select
             (i64.sub (i64.const 0) (local.get $a_lo))
             (local.get $a_lo)
