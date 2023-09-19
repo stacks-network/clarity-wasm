@@ -262,8 +262,8 @@
         (local.set $b_hi)
         (local.set $b_lo)
 
-        ;; if result/2 > 2**127, meaning clz == 0 -> overflow
-        (if (i64.eqz (i64.clz (local.get $b_hi)))
+        ;; if result/2 > 2**127 overflow
+        (if (i64.lt_s (local.get $b_hi) (i64.const 0))
             (call $runtime-error (i32.const 0))
         )
 
