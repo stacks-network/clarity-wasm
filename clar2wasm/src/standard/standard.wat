@@ -72,7 +72,7 @@
         ;; 1: underflow
         ;; 2: divide by zero
         ;; 3: log of a number <= 0
-        ;; 4: sqrti of a negative number
+        ;; 4: expected a non-negative number
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -883,8 +883,34 @@
         )
     )
 
+    (func $pow-inner (param $a_lo i64) (param $a_hi i64) (param $b i32) (result i64 i64)
+        ;; examples of this algo:
+        ;; 3 ^ 5 => (3 ^ 4) * 3 => (9 ^ 2) * 3 => (81 ^ 1) * 3 => 243
+        ;; 4 ^ 6 => (16 ^ 3) * 1 => (16 ^ 2) * 16 => (256 ^ 1) * 16 => 4096
+        (local $carry_lo i64) (local $carry_hi i64)
+        (local.set $carry_lo (i64.const 1))
+        (local.set $carry_hi (i64.const 0))
+        (loop 
+            (if (i32.eqz (i32.and (local.get $b) (i32.const 1)))
+                (then
+                    (local.set $b (i32.shr_u (local.get $b) (i32.const 1)))
+                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $a_lo) (local.get $a_hi))
+                    (local.set $a_hi)
+                    (local.set $a_lo)
+                )
+                (else
+                    (local.set $b (i32.xor (local.get $b) (i32.const 1)))
+                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
+                    (local.set $carry_hi)
+                    (local.set $carry_lo)
+                )
+            )
+            (br_if 0 (i32.gt_u (local.get $b) (i32.const 1)))
+        )
+        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
+    )
+
     (func $pow-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local $b_wrap i32)
         ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
         (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
             (return (i64.const 1) (i64.const 0))
@@ -906,28 +932,83 @@
             (call $runtime-error (i32.const 0))
         )
 
-        (local.set $b_wrap (i32.wrap_i64 (local.get $b_lo)))
-        ;; b_lo and b_hi will now serve for the carry multiplications
-        ;; no need to set $b_hi, it is 0 already
-        (local.set $b_lo (i64.const 1))
-        (loop 
-            (if (i32.eqz (i32.and (local.get $b_wrap) (i32.const 1)))
-                (then
-                    (local.set $b_wrap (i32.shr_u (local.get $b_wrap) (i32.const 1)))
-                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $a_lo) (local.get $a_hi))
-                    (local.set $a_hi)
-                    (local.set $a_lo)
-                )
-                (else
-                    (local.set $b_wrap (i32.xor (local.get $b_wrap) (i32.const 1)))
-                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
-                    (local.set $b_hi)
-                    (local.set $b_lo)
-                )
-            )
-            (br_if 0 (i32.gt_u (local.get $b_wrap) (i32.const 1)))
+        (call $pow-inner (local.get $a_lo) (local.get $a_hi) (i32.wrap_i64 (local.get $b_lo)))
+    )
+
+    (func $pow-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+        (local $negative i32)
+        ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
+        (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
+            (return (i64.const 1) (i64.const 0))
         )
-        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+
+
+        ;; (a == 0 => 0) & (a == 1 => 1) ==> (a < 2 => a)
+        ;; also, (b == 1 => a)
+        (if (i32.or
+                (i32.and (i64.lt_u (local.get $a_lo) (i64.const 2)) (i64.eqz (local.get $a_hi)))
+                (i64.eqz (i64.or (i64.xor (local.get $b_lo) (i64.const 1)) (local.get $b_hi)))
+            )
+            (return (local.get $a_lo) (local.get $a_hi))
+        )
+
+        ;; otherwise, if b < 0 => runtime error
+        (if (i64.lt_s (local.get $b_hi) (i64.const 0))
+            (call $runtime-error (i32.const 4))
+        )
+
+        ;; if b > 127 -> runtime error: overflow (since the biggest b that doesn't
+        ;; overflow is in 2^127)
+        (if (i32.or 
+                (i64.gt_u (local.get $b_lo) (i64.const 127))
+                (i64.ne (local.get $b_hi) (i64.const 0))
+            )
+            (call $runtime-error (i32.const 0))
+        )
+
+        ;; $pow-inner arguments: abs(a) and $b_lo
+        ;; no need to care about i128::MIN, at this point it will overflow
+        ;; abs($a_lo)
+        (select
+            (i64.sub (i64.const 0) (local.get $a_lo))
+            (local.get $a_lo)
+            (local.tee $negative (i64.lt_s (local.get $a_hi) (i64.const 0)))
+        )
+        ;; abs($a_hi)
+        (select
+            (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            (local.get $a_hi)
+            (local.get $negative)
+        )
+        ;; $b_lo
+        (local.tee $negative (i32.wrap_i64 (local.get $b_lo)))
+
+        ;; $negative is 1 if end result should be negative else 0
+        (local.set $negative 
+            (i32.and (i64.lt_s (local.get $a_hi) (i64.const 0))
+                     (i32.and (local.get $negative) (i32.const 1))
+            )
+        )
+
+        (call $pow-inner)
+        (local.set $a_hi)
+        (local.set $a_lo)
+
+        ;; overflow if result is negative
+        (if (i64.lt_s (local.get $a_hi) (i64.const 0))
+            (call $runtime-error (i32.const 0))
+        )
+
+        (if (result i64 i64) (local.get $negative)
+            (then 
+                (i64.sub (i64.const 0) (local.get $a_lo))
+                (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
+            )
+            (else
+                (local.get $a_lo)
+                (local.get $a_hi)
+            )
+        )
     )
 
     (export "memcpy" (func $memcpy))
@@ -966,4 +1047,5 @@
     (export "bit-shift-right-uint" (func $bit-shift-right-uint))
     (export "bit-shift-right-int" (func $bit-shift-right-int))
     (export "pow-uint" (func $pow-uint))
+    (export "pow-int" (func $pow-int))
 )
