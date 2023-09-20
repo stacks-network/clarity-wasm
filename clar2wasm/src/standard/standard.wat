@@ -883,6 +883,53 @@
         )
     )
 
+    (func $pow-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+        (local $b_wrap i32)
+        ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
+        (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
+            (return (i64.const 1) (i64.const 0))
+        )
+        ;; (a == 0 => 0) & (a == 1 => 1) ==> (a < 2 => a)
+        ;; also, (b == 1 => a)
+        (if (i32.or
+                (i32.and (i64.lt_u (local.get $a_lo) (i64.const 2)) (i64.eqz (local.get $a_hi)))
+                (i64.eqz (i64.or (i64.xor (local.get $b_lo) (i64.const 1)) (local.get $b_hi)))
+            )
+            (return (local.get $a_lo) (local.get $a_hi))
+        )
+        ;; if b > 127 -> runtime error: overflow (since the biggest b that doesn't
+        ;; overflow is in 2^127)
+        (if (i32.or 
+                (i64.gt_u (local.get $b_lo) (i64.const 127))
+                (i64.ne (local.get $b_hi) (i64.const 0))
+            )
+            (call $runtime-error (i32.const 0))
+        )
+
+        (local.set $b_wrap (i32.wrap_i64 (local.get $b_lo)))
+        ;; b_lo and b_hi will now serve for the carry multiplications
+        ;; no need to set $b_hi, it is 0 already
+        (local.set $b_lo (i64.const 1))
+        (loop 
+            (if (i32.eqz (i32.and (local.get $b_wrap) (i32.const 1)))
+                (then
+                    (local.set $b_wrap (i32.shr_u (local.get $b_wrap) (i32.const 1)))
+                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $a_lo) (local.get $a_hi))
+                    (local.set $a_hi)
+                    (local.set $a_lo)
+                )
+                (else
+                    (local.set $b_wrap (i32.xor (local.get $b_wrap) (i32.const 1)))
+                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+                    (local.set $b_hi)
+                    (local.set $b_lo)
+                )
+            )
+            (br_if 0 (i32.gt_u (local.get $b_wrap) (i32.const 1)))
+        )
+        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -918,4 +965,5 @@
     (export "bit-shift-left-int" (func $bit-shift-left))
     (export "bit-shift-right-uint" (func $bit-shift-right-uint))
     (export "bit-shift-right-int" (func $bit-shift-right-int))
+    (export "pow-uint" (func $pow-uint))
 )
