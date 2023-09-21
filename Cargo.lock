@@ -449,6 +449,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "clarity-ab-tester"
+version = "0.1.0"
+dependencies = [
+ "clarity",
+]
+
+[[package]]
 name = "clear_on_drop"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
