@@ -26,8 +26,6 @@ pub struct WasmGenerator<'a> {
     contract_analysis: &'a mut ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
-    /// The builder for generating the `defines` function.
-    define_builder: FunctionBuilder,
     /// The error that occurred during generation, if any.
     error: Option<GeneratorError>,
     /// Offset of the end of the literal memory.
@@ -109,7 +107,7 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
 impl<'a> WasmGenerator<'a> {
     pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
-        let mut module =
+        let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
 
         // Get the stack-pointer global ID
@@ -126,12 +124,9 @@ impl<'a> WasmGenerator<'a> {
             .map(|global| global.id())
             .expect("Expected to find a global named $stack-pointer");
 
-        let define_builder = FunctionBuilder::new(&mut module.types, &[], &[]);
-
         WasmGenerator {
             contract_analysis,
             module,
-            define_builder,
             error: None,
             literal_memory_end: 0,
             stack_pointer: global_id,
@@ -159,12 +154,6 @@ impl<'a> WasmGenerator<'a> {
             return Err(err);
         }
 
-        // Insert a return instruction at the end of the defines function so
-        // that the defines function always has no return value.
-        self.define_builder.func_body().return_();
-        let defines = self.define_builder.finish(vec![], &mut self.module.funcs);
-        self.module.exports.add(".defines", defines);
-
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
@@ -182,24 +171,24 @@ impl<'a> WasmGenerator<'a> {
 
     fn traverse_define_function(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
+        builder: &mut InstrSeqBuilder,
         name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
         let opt_function_type = match kind {
             FunctionKind::ReadOnly => {
-                self.define_builder.func_body().i32_const(0);
+                builder.i32_const(0);
                 self.contract_analysis
                     .get_read_only_function_type(name.as_str())
             }
             FunctionKind::Public => {
-                self.define_builder.func_body().i32_const(1);
+                builder.i32_const(1);
                 self.contract_analysis
                     .get_public_function_type(name.as_str())
             }
             FunctionKind::Private => {
-                self.define_builder.func_body().i32_const(2);
+                builder.i32_const(2);
                 self.contract_analysis.get_private_function(name.as_str())
             }
         };
@@ -216,13 +205,12 @@ impl<'a> WasmGenerator<'a> {
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
         let (id_offset, id_length) = self.add_identifier_string_literal(name);
-        self.define_builder
-            .func_body()
+        builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
         // Call the host interface function, `define_function`
-        self.define_builder.func_body().call(
+        builder.call(
             self.module
                 .funcs
                 .by_name("define_function")
@@ -1054,13 +1042,12 @@ impl ASTVisitor for WasmGenerator<'_> {
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
         // Push the name onto the data stack
-        self.define_builder
-            .func_body()
+        builder
             .i32_const(name_offset as i32)
             .i32_const(name_length as i32);
 
         // Call the host interface function, `define_variable`
-        self.define_builder.func_body().call(
+        builder.call(
             self.module
                 .funcs
                 .by_name("define_variable")
@@ -1107,6 +1094,63 @@ impl ASTVisitor for WasmGenerator<'_> {
             self.module
                 .funcs
                 .by_name("set_variable")
+                .expect("function not found"),
+        );
+        Ok(builder)
+    }
+
+    fn traverse_define_ft<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        supply: Option<&SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Store the identifier as a string literal in the memory
+        let (name_offset, name_length) = self.add_identifier_string_literal(name);
+
+        // Push the name onto the data stack
+        builder
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        // Push the supply to the stack, as an optional uint
+        // (first i32 indicates some/none)
+        if let Some(supply) = supply {
+            builder.i32_const(1);
+            builder = self.traverse_expr(builder, supply)?;
+        } else {
+            builder.i32_const(0).i64_const(0).i64_const(0);
+        }
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_ft")
+                .expect("function not found"),
+        );
+        Ok(builder)
+    }
+
+    fn traverse_define_nft<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        _nft_type: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Store the identifier as a string literal in the memory
+        let (name_offset, name_length) = self.add_identifier_string_literal(name);
+
+        // Push the name onto the data stack
+        builder
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_nft")
                 .expect("function not found"),
         );
         Ok(builder)

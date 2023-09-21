@@ -5,10 +5,13 @@ use clarity::{
     types::StacksEpochId,
     vm::{
         clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, Environment, GlobalContext},
+        contexts::{CallStack, GlobalContext},
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
-        types::{PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData},
+        types::{
+            PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
+            TypeSignature,
+        },
         ClarityVersion, ContractContext, ContractName, Value,
     },
 };
@@ -73,32 +76,31 @@ macro_rules! test_contract {
                 )
                 .expect("Failed to initialize contract.");
 
+                // Give an account an initial balance
+                let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+                let amount = 1_000_000_000;
+                let mut snapshot = global_context.database.get_stx_balance_snapshot(&recipient);
+                snapshot.credit(amount);
+                snapshot.save();
+                global_context
+                    .database
+                    .increment_ustx_liquid_supply(amount)
+                    .unwrap();
+
+                // Initialize a call stack
                 let mut call_stack = CallStack::new();
-                let mut env = Environment::new(
+
+                let result = call_function(
+                    $contract_func,
+                    $params,
                     &mut global_context,
                     &contract_context,
                     &mut call_stack,
                     Some(StandardPrincipalData::transient().into()),
                     Some(StandardPrincipalData::transient().into()),
                     None,
-                );
-
-                // Give an account an initial balance
-                let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
-                let amount = 1_000_000_000;
-                let mut snapshot = env
-                    .global_context
-                    .database
-                    .get_stx_balance_snapshot(&recipient);
-                snapshot.credit(amount);
-                snapshot.save();
-                env.global_context
-                    .database
-                    .increment_ustx_liquid_supply(amount)
-                    .unwrap();
-
-                let result = call_function($contract_func, $params, &mut env)
-                    .expect("Function call failed.");
+                )
+                .expect("Function call failed.");
 
                 if let Value::Response(response_data) = result {
                     // https://github.com/rust-lang/rust-clippy/issues/1553
@@ -464,7 +466,7 @@ test_contract!(
 
 test_contract!(
     test_stx_get_balance,
-    "tokens",
+    "stx-funcs",
     "test-stx-get-balance",
     |response: ResponseData| {
         assert!(response.committed);
@@ -474,7 +476,7 @@ test_contract!(
 
 test_contract!(
     test_stx_account,
-    "tokens",
+    "stx-funcs",
     "test-stx-account",
     |response: ResponseData| {
         assert!(response.committed);
@@ -498,7 +500,7 @@ test_contract!(
 
 test_contract!(
     test_stx_burn_ok,
-    "tokens",
+    "stx-funcs",
     "test-stx-burn-ok",
     |response: ResponseData| {
         assert!(response.committed);
@@ -508,7 +510,7 @@ test_contract!(
 
 test_contract!(
     test_stx_burn_err1,
-    "tokens",
+    "stx-funcs",
     "test-stx-burn-err1",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -518,7 +520,7 @@ test_contract!(
 
 test_contract!(
     test_stx_burn_err3,
-    "tokens",
+    "stx-funcs",
     "test-stx-burn-err3",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -528,7 +530,7 @@ test_contract!(
 
 test_contract!(
     test_stx_burn_err4,
-    "tokens",
+    "stx-funcs",
     "test-stx-burn-err4",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -538,7 +540,7 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_ok,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-ok",
     |response: ResponseData| {
         assert!(response.committed);
@@ -548,7 +550,7 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_memo_ok,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-memo-ok",
     |response: ResponseData| {
         assert!(response.committed);
@@ -558,7 +560,7 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_err1,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-err1",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -568,7 +570,7 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_err2,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-err2",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -578,7 +580,7 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_err3,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-err3",
     |response: ResponseData| {
         assert!(!response.committed);
@@ -588,10 +590,132 @@ test_contract!(
 
 test_contract!(
     test_stx_transfer_err4,
-    "tokens",
+    "stx-funcs",
     "test-stx-transfer-err4",
     |response: ResponseData| {
         assert!(!response.committed);
         assert_eq!(*response.data, Value::UInt(4));
     }
 );
+
+#[test]
+fn test_define_ft() {
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("define-tokens"),
+    );
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+    let cost_tracker = LimitedCostTracker::new_free();
+    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+    let contract_str = std::fs::read_to_string("contracts/define-tokens.clar").unwrap();
+    let mut compile_result = compile(
+        contract_str.as_str(),
+        &contract_id,
+        cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+        &mut clarity_store,
+    )
+    .expect("Failed to compile contract.");
+
+    contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        compile_result.contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+    global_context.begin();
+
+    {
+        initialize_contract(
+            &mut global_context,
+            &mut contract_context,
+            None,
+            &compile_result.contract_analysis,
+        )
+        .expect("Failed to initialize contract.");
+
+        let ft_metadata = contract_context
+            .meta_ft
+            .get("foo")
+            .expect("FT 'foo' not found");
+        assert_eq!(ft_metadata.total_supply, None);
+
+        let ft_metadata = contract_context
+            .meta_ft
+            .get("bar")
+            .expect("FT 'bar' not found");
+        assert_eq!(ft_metadata.total_supply, Some(1000000u128));
+    }
+
+    global_context.commit().unwrap();
+}
+
+#[test]
+fn test_define_nft() {
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("define-tokens"),
+    );
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+    let cost_tracker = LimitedCostTracker::new_free();
+    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+    let contract_str = std::fs::read_to_string("contracts/define-tokens.clar").unwrap();
+    let mut compile_result = compile(
+        contract_str.as_str(),
+        &contract_id,
+        cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+        &mut clarity_store,
+    )
+    .expect("Failed to compile contract.");
+
+    contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        compile_result.contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+    global_context.begin();
+
+    {
+        initialize_contract(
+            &mut global_context,
+            &mut contract_context,
+            None,
+            &compile_result.contract_analysis,
+        )
+        .expect("Failed to initialize contract.");
+
+        let nft_metadata = contract_context
+            .meta_nft
+            .get("baz")
+            .expect("NFT 'baz' not found");
+        assert_eq!(nft_metadata.key_type, TypeSignature::UIntType);
+    }
+
+    global_context.commit().unwrap();
+}
