@@ -2,7 +2,10 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
-    types::{CharType, FunctionType, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
+    types::{
+        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+        TypeSignature,
+    },
     variables::NativeVariables,
     ClarityName, SymbolicExpression,
 };
@@ -23,6 +26,8 @@ pub struct WasmGenerator<'a> {
     contract_analysis: &'a mut ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
+    /// The builder for generating the `defines` function.
+    define_builder: FunctionBuilder,
     /// The error that occurred during generation, if any.
     error: Option<GeneratorError>,
     /// Offset of the end of the literal memory.
@@ -104,7 +109,7 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
 impl<'a> WasmGenerator<'a> {
     pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
-        let module =
+        let mut module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
 
         // Get the stack-pointer global ID
@@ -121,9 +126,12 @@ impl<'a> WasmGenerator<'a> {
             .map(|global| global.id())
             .expect("Expected to find a global named $stack-pointer");
 
+        let define_builder = FunctionBuilder::new(&mut module.types, &[], &[]);
+
         WasmGenerator {
             contract_analysis,
             module,
+            define_builder,
             error: None,
             literal_memory_end: 0,
             stack_pointer: global_id,
@@ -151,6 +159,12 @@ impl<'a> WasmGenerator<'a> {
             return Err(err);
         }
 
+        // Insert a return instruction at the end of the defines function so
+        // that the defines function always has no return value.
+        self.define_builder.func_body().return_();
+        let defines = self.define_builder.finish(vec![], &mut self.module.funcs);
+        self.module.exports.add(".defines", defines);
+
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
@@ -168,24 +182,24 @@ impl<'a> WasmGenerator<'a> {
 
     fn traverse_define_function(
         &mut self,
-        builder: &mut InstrSeqBuilder,
+        _builder: &mut InstrSeqBuilder,
         name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
     ) -> Option<FunctionId> {
         let opt_function_type = match kind {
             FunctionKind::ReadOnly => {
-                builder.i32_const(0);
+                self.define_builder.func_body().i32_const(0);
                 self.contract_analysis
                     .get_read_only_function_type(name.as_str())
             }
             FunctionKind::Public => {
-                builder.i32_const(1);
+                self.define_builder.func_body().i32_const(1);
                 self.contract_analysis
                     .get_public_function_type(name.as_str())
             }
             FunctionKind::Private => {
-                builder.i32_const(2);
+                self.define_builder.func_body().i32_const(2);
                 self.contract_analysis.get_private_function(name.as_str())
             }
         };
@@ -202,12 +216,13 @@ impl<'a> WasmGenerator<'a> {
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
         let (id_offset, id_length) = self.add_identifier_string_literal(name);
-        builder
+        self.define_builder
+            .func_body()
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
         // Call the host interface function, `define_function`
-        builder.call(
+        self.define_builder.func_body().call(
             self.module
                 .funcs
                 .by_name("define_function")
@@ -341,6 +356,44 @@ impl<'a> WasmGenerator<'a> {
 
         // Save the offset in the literal memory for this identifier
         self.literal_memory_offet.insert(name.to_string(), offset);
+
+        (offset, len)
+    }
+
+    /// Adds a new literal into the memory, and returns the offset and length.
+    fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
+        let data = match value {
+            clarity::vm::Value::Principal(p) => match p {
+                PrincipalData::Standard(standard) => {
+                    let mut data = vec![standard.0];
+                    data.extend_from_slice(&standard.1);
+                    let contract_length = 0i32.to_le_bytes();
+                    data.extend_from_slice(&contract_length);
+                    data
+                }
+                PrincipalData::Contract(contract) => {
+                    let mut data = vec![contract.issuer.0];
+                    data.extend_from_slice(&contract.issuer.1);
+                    let contract_length = (contract.name.len() as i32).to_le_bytes();
+                    data.extend_from_slice(&contract_length);
+                    data.extend_from_slice(contract.name.as_bytes());
+                    data
+                }
+            },
+            clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
+            _ => unimplemented!("Unsupported literal: {}", value),
+        };
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let offset = self.literal_memory_end;
+        let len = data.len() as u32;
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory: memory.id(),
+                location: walrus::ActiveDataLocation::Absolute(offset),
+            }),
+            data.clone(),
+        );
+        self.literal_memory_end += data.len() as u32;
 
         (offset, len)
     }
@@ -879,6 +932,13 @@ impl ASTVisitor for WasmGenerator<'_> {
                 builder.i32_const(len as i32);
                 Ok(builder)
             }
+            clarity::vm::Value::Principal(_)
+            | clarity::vm::Value::Sequence(SequenceData::Buffer(_)) => {
+                let (offset, len) = self.add_literal(value);
+                builder.i32_const(offset as i32);
+                builder.i32_const(len as i32);
+                Ok(builder)
+            }
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
                 Err(builder)
@@ -993,6 +1053,20 @@ impl ASTVisitor for WasmGenerator<'_> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
+        // Push the name onto the data stack
+        self.define_builder
+            .func_body()
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        // Call the host interface function, `define_variable`
+        self.define_builder.func_body().call(
+            self.module
+                .funcs
+                .by_name("define_variable")
+                .expect("function not found"),
+        );
+
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
         let ty = self
@@ -1032,7 +1106,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         builder.call(
             self.module
                 .funcs
-                .by_name("define_variable")
+                .by_name("set_variable")
                 .expect("function not found"),
         );
         Ok(builder)
@@ -1458,6 +1532,312 @@ impl ASTVisitor for WasmGenerator<'_> {
 
         Ok(builder)
     }
+
+    fn visit_stx_get_balance<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _owner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Owner is on the stack, so just call the host interface function,
+        // `stx_get_balance`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stx_get_balance")
+                .expect("stx_get_balance not found"),
+        );
+        Ok(builder)
+    }
+
+    fn visit_stx_get_account<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _owner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Owner is on the stack, so just call the host interface function,
+        // `stx_get_account`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stx_account")
+                .expect("stx_account not found"),
+        );
+        Ok(builder)
+    }
+
+    fn visit_stx_burn<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _amount: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Amount and sender are on the stack, so just call the host interface
+        // function, `stx_burn`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stx_burn")
+                .expect("stx_burn not found"),
+        );
+        Ok(builder)
+    }
+
+    fn visit_stx_transfer<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _amount: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+        _recipient: &SymbolicExpression,
+        _memo: Option<&SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Amount, sender, and recipient are on the stack. If memo is none, we
+        // need to add a placeholder to the stack, then we can call the host
+        // interface function, `stx_transfer`
+        if _memo.is_none() {
+            builder.i32_const(0).i32_const(0);
+        }
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stx_transfer")
+                .expect("stx_transfer not found"),
+        );
+        Ok(builder)
+    }
+
+    fn visit_ft_get_supply<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Push the token name onto the stack, then call the host interface
+        // function `ft_get_supply`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("ft_get_supply")
+                .expect("ft_get_supply not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_ft_get_balance<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _owner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Owner is on the stack, but we need to push the token name onto the
+        // stack, then we can call the host interface function `ft_get_balance`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("ft_get_balance")
+                .expect("ft_get_balance not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_ft_burn<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _amount: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Amount and sender are on the stack, but we need to push the token
+        // name onto the stack, then we can call the host interface function
+        // `ft_burn`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("ft_burn")
+                .expect("ft_burn not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_ft_mint<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _amount: &SymbolicExpression,
+        _recipient: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Amount and recipient are on the stack, but we need to push the token
+        // name onto the stack, then we can call the host interface function
+        // `ft_mint`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("ft_mint")
+                .expect("ft_mint not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_ft_transfer<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _amount: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+        _recipient: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Amount, sender, and recipient are on the stack, but we need to push
+        // the token name onto the stack, then we can call the host interface
+        // function `ft_transfer`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("ft_transfer")
+                .expect("ft_transfer not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_nft_get_owner<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _identifier: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Identifier is on the stack, but we need to push the token name onto
+        // the stack, then we can call the host interface function
+        // `nft_get_owner`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("nft_get_owner")
+                .expect("nft_get_owner not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_nft_burn<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _identifier: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Identifier and sender are on the stack, but we need to push the
+        // token name onto the stack, then we can call the host interface
+        // function `nft_burn`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("nft_burn")
+                .expect("nft_burn not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_nft_mint<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _identifier: &SymbolicExpression,
+        _recipient: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Identifier and recipient are on the stack, but we need to push the
+        // token name onto the stack, then we can call the host interface
+        // function `nft_mint`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("nft_mint")
+                .expect("nft_mint not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn visit_nft_transfer<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        token: &ClarityName,
+        _identifier: &SymbolicExpression,
+        _sender: &SymbolicExpression,
+        _recipient: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Identifier, sender, and recipient are on the stack, but we need to
+        // push the token name onto the stack, then we can call the host
+        // interface function `nft_transfer`
+        let (id_offset, id_length) = self.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("nft_transfer")
+                .expect("nft_transfer not found"),
+        );
+
+        Ok(builder)
+    }
 }
 
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
@@ -1483,6 +1863,13 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
         TypeSignature::OptionalType(inner_ty) => {
             let mut types = vec![ValType::I32];
             types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
+        TypeSignature::TupleType(inner_types) => {
+            let mut types = vec![];
+            for inner_type in inner_types.get_type_map().values() {
+                types.extend(clar2wasm_ty(inner_type));
+            }
             types
         }
         _ => unimplemented!("{:?}", ty),

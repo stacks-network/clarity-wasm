@@ -82,6 +82,21 @@ macro_rules! test_contract {
                     Some(StandardPrincipalData::transient().into()),
                     None,
                 );
+
+                // Give an account an initial balance
+                let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+                let amount = 1_000_000_000;
+                let mut snapshot = env
+                    .global_context
+                    .database
+                    .get_stx_balance_snapshot(&recipient);
+                snapshot.credit(amount);
+                snapshot.save();
+                env.global_context
+                    .database
+                    .increment_ustx_liquid_supply(amount)
+                    .unwrap();
+
                 let result = call_function($contract_func, $params, &mut env)
                     .expect("Function call failed.");
 
@@ -444,5 +459,139 @@ test_contract!(
                 name: "as-contract".into()
             }))
         );
+    }
+);
+
+test_contract!(
+    test_stx_get_balance,
+    "tokens",
+    "test-stx-get-balance",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract!(
+    test_stx_account,
+    "tokens",
+    "test-stx-account",
+    |response: ResponseData| {
+        assert!(response.committed);
+        match *response.data {
+            Value::Tuple(tuple_data) => {
+                assert_eq!(tuple_data.data_map.len(), 3);
+                assert_eq!(tuple_data.data_map.get("locked").unwrap(), &Value::UInt(0));
+                assert_eq!(
+                    tuple_data.data_map.get("unlocked").unwrap(),
+                    &Value::UInt(0)
+                );
+                assert_eq!(
+                    tuple_data.data_map.get("unlock-height").unwrap(),
+                    &Value::UInt(0)
+                );
+            }
+            _ => panic!("Unexpected result received from WASM function call."),
+        }
+    }
+);
+
+test_contract!(
+    test_stx_burn_ok,
+    "tokens",
+    "test-stx-burn-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err1,
+    "tokens",
+    "test-stx-burn-err1",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err3,
+    "tokens",
+    "test-stx-burn-err3",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract!(
+    test_stx_burn_err4,
+    "tokens",
+    "test-stx-burn-err4",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_ok,
+    "tokens",
+    "test-stx-transfer-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_memo_ok,
+    "tokens",
+    "test-stx-transfer-memo-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err1,
+    "tokens",
+    "test-stx-transfer-err1",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err2,
+    "tokens",
+    "test-stx-transfer-err2",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(2));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err3,
+    "tokens",
+    "test-stx-transfer-err3",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract!(
+    test_stx_transfer_err4,
+    "tokens",
+    "test-stx-transfer-err4",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
     }
 );

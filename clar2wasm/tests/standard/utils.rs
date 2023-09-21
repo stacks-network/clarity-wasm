@@ -27,7 +27,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "define_variable",
-            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+            |_name_offset: i32, _name_length: i32| {
                 println!("define-data-var");
             },
         )
@@ -140,6 +140,54 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             println!("as-contract: exit");
             Ok(())
         })
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_get_balance",
+            |_caller: Caller<'_, ()>, _principal_offset: i32, _principal_length: i32| {
+                Ok((0i64, 0i64))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_account",
+            |_caller: Caller<'_, ()>, _principal_offset: i32, _principal_length: i32| {
+                Ok((0i64, 0i64, 0i64, 0i64, 0i64, 0i64))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_burn",
+            |_caller: Caller<'_, ()>,
+             _amount_lo: i64,
+             _amount_hi: i64,
+             _principal_offset: i32,
+             _principal_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_transfer",
+            |_caller: Caller<'_, ()>,
+             _amount_lo: i64,
+             _amount_hi: i64,
+             _from_offset: i32,
+             _from_length: i32,
+             _to_offset: i32,
+             _to_length: i32,
+             _memo_offset: i32,
+             _memo_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
         .unwrap();
 
     // Create a log function for debugging.
