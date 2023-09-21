@@ -595,3 +595,26 @@ test_contract!(
         assert_eq!(*response.data, Value::UInt(4));
     }
 );
+
+test_contract!(
+    test_pow_int,
+    "power",
+    "with-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(230539333248));
+    }
+);
+
+test_contract!(
+    test_pow_uint,
+    "power",
+    "with-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(311973482284542371301330321821976049)
+        );
+    }
+);
