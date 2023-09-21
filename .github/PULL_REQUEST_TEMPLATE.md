@@ -10,8 +10,7 @@ Describe the changes that where made in this pull request. When possible start w
 4. Link to relevant issues and documentation
 5. Provide examples of use cases with code samples and applicable acceptance criteria
 
-Example:
-As a Blockstack developer, I would like to encrypt files using the app private key. This is needed because storing unencrypted files is unacceptable. This pull request adds the `encryptContent` function which will take a string and encrypt it using the app private key.
+Example: As a Stacks developer, I would like to encrypt files using the app private key. This is needed because storing unencrypted files is unacceptable. This pull request adds the `encryptContent` function which will take a string and encrypt it using the app private key.
 
 ```
 encryptContent('my data')
@@ -23,28 +22,28 @@ encryptContent('my data')
 For details refer to issue #123
 
 ## Type of Change
+
 <!-- Explain or annotate the nature of your changes, see examples below -->
+
 - New feature
 - Bug fix
 - API reference/documentation update
-- Other 
+- Other
 
 ## Does this introduce a breaking change?
-List the APIs or describe the functionality that this PR breaks.
-Workarounds for or expected timeline for deprecation
+
+List the APIs or describe the functionality that this PR breaks. Workarounds for or expected timeline for deprecation
 
 ## Are documentation updates required?
-<!-- 
+
+<!--
   DOCUMENTATION
-  Consider if this PR makes changes that require documentation updates:
-    - API changes
-    - Renamed methods
+  Consider if this PR makes changes that require README updates:
+    - ABI changes
+    - Memory management
     - Change in instructions inside tutorials/guides
     - etc...
-
-   The best way to find these is by searching inside the docs at https://github.com/blockstack/docs
 -->
-- [ ] Link to documentation updates: 
 
 ## Testing information
 
@@ -57,8 +56,8 @@ Provide context on how tests should be performed.
 5. Things to watch out for when testing
 
 ## Checklist
+
 - [ ] Code is commented where needed
 - [ ] Unit test coverage for new or modified code paths
-- [ ] `npm run test` passes
+- [ ] `cargo test` passes
 - [ ] Changelog is updated
-- [ ] Tag 1 of @person1 or @person2
