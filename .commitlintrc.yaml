@@ -1,0 +1,11 @@
+rules:
+  type:
+    level: warn
+    options:
+      - feat
+      - fix
+      - task
+      - chore
+      - refactor
+  description-empty:
+    level: warn
