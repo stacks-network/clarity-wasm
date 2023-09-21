@@ -1767,3 +1767,13 @@ test_multi_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_print,
+    "print",
+    "print-hello",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(12345));
+    }
+);

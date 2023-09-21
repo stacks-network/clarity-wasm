@@ -107,6 +107,16 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "print",
+            |_value_offset: i32, _value_length: i32| {
+                println!("print");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "tx_sender",
             |_return_offset: i32, _return_length: i32| {
                 println!("tx-sender");

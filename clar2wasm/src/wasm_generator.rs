@@ -3200,7 +3200,36 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
+        // Traverse the value, leaving it on the data stack
+        self.traverse_expr(builder, value)?;
+
+        // Create space on the call stack to write the value
+        let ty = self
+            .get_expr_type(value)
+            .expect("print value expression must be typed")
+            .clone();
+        let (offset, size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
+
+        // Write the value to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(offset).i32_const(size);
+
+        // Call the host interface function, `print`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("print")
+                .expect("function not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the data stack.
+        self.read_from_memory(builder, offset, 0, &ty);
+
+        Ok(())
     }
 
     fn traverse_unwrap(

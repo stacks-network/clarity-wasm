@@ -36,6 +36,8 @@
                                                          (param $name_length i32)
                                                          (param $value_offset i32)
                                                          (param $value_length i32)))
+    (import "clarity" "print" (func $print (param $value_offset i32)
+                                           (param $value_length i32)))
     (import "clarity" "enter_as_contract" (func $enter_as_contract))
     (import "clarity" "exit_as_contract" (func $exit_as_contract))
     (import "clarity" "stx_get_balance" (func $stx_get_balance (param $principal_offset i32)
