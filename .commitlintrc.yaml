@@ -9,3 +9,10 @@ rules:
       - refactor
   description-empty:
     level: warn
+  scope:
+    level: error
+    options:
+      - clar2wasm
+      - stdlib
+      - ab-testing
+      - ci
