@@ -77,7 +77,7 @@ The output should contain the definition of the `simple` function:
 
 ### Top-Level Expressions
 
-Any top-level expressions from a Clarity contract are added into a `.top-level` function that is exported from the generated Wasm module. This function should be called once during contract deployment.
+Any top-level expressions from a Clarity contract are added into a `.top-level` function that is exported from the generated Wasm module. This function should be called only once, during contract deployment. This top-level code also includes calls to the host-interface functions to register definitions in the contract.
 
 ### ABI
 
@@ -104,6 +104,7 @@ When the return value of a function requires memory space, this space should be 
 ```
 
 This function takes a `bool` and returns a `(string-ascii 5)`. The generated Wasm function would take as arguments:
+
 - `I32` representing the boolean
 - `I32` representing the offset of the return value's memory space
 - `I32` representing the length of the return value's memory space
@@ -113,6 +114,8 @@ For consistency with other types, the Wasm function would still return these two
 ### Memory Management
 
 Web Assembly provides a simple linear memory, accessible with load/store operations. This memory is also exported for access from the host. For the Clarity VM, at the base of this memory, starting at offset 0, we are storing literals that do not fit into the scalar types supported by Wasm, for example, string literals. When used in the code, the literals are loaded from a constant offset. During compilation, the top of the literal memory is tracked by the field `literal_memory_end` in the `WasmGenerator` structure.
+
+Constants defined in the contract (with `define-constant`) are also stored in this literal memory space. The values for the constants are written into the preallocated memory inside of the `.top-level` function.
 
 After the literals, space may be allocated for passing arguments into the contract being called. Simple arguments are passed directly to the function, but those that require stack space (see [ABI](#abi)) will be written to this location. If the return value from the contract call requires stack space, then this will follow the arguments' space.
 

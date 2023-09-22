@@ -719,3 +719,52 @@ fn test_define_nft() {
 
     global_context.commit().unwrap();
 }
+
+test_contract!(
+    test_int_constant,
+    "constant",
+    "get-int-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(1));
+    }
+);
+
+test_contract!(
+    test_large_uint_constant,
+    "constant",
+    "get-large-uint-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(338770000845734292516042252062085074415)
+        );
+    }
+);
+
+test_contract!(
+    test_string_constant,
+    "constant",
+    "get-string-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes(b"hello world".to_vec()).unwrap()
+        );
+    }
+);
+
+test_contract!(
+    test_bytes_constant,
+    "constant",
+    "get-bytes-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(vec![0x12, 0x34, 0x56, 0x78]).unwrap()
+        );
+    }
+);

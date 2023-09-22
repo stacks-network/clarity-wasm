@@ -7,7 +7,7 @@ use clarity::vm::{
         TypeSignature,
     },
     variables::NativeVariables,
-    ClarityName, SymbolicExpression,
+    ClarityName, SymbolicExpression, SymbolicExpressionType,
 };
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
@@ -34,6 +34,8 @@ pub struct WasmGenerator<'a> {
     stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
     literal_memory_offet: HashMap<String, u32>,
+    /// Map constants to an offset in the literal memory.
+    constants: HashMap<String, u32>,
 
     /// The locals for the current function.
     locals: HashMap<String, LocalId>,
@@ -66,6 +68,7 @@ enum FunctionKind {
     ReadOnly,
 }
 
+/// Return the number of bytes required to store a value of the type `ty`.
 fn get_type_size(ty: &TypeSignature) -> u32 {
     match ty {
         TypeSignature::IntType | TypeSignature::UIntType => 16,
@@ -81,10 +84,30 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(length)) => {
+            u32::from(length.clone())
+        }
         _ => unimplemented!("Unsupported type: {}", ty),
     }
 }
 
+/// Return true if the value of the given type stays in memory, and false if
+/// it is stored on the data stack.
+fn is_in_memory_type(ty: &TypeSignature) -> bool {
+    match ty {
+        TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => true,
+        TypeSignature::IntType
+        | TypeSignature::UIntType
+        | TypeSignature::NoType
+        | TypeSignature::BoolType
+        | TypeSignature::TupleType(_)
+        | TypeSignature::OptionalType(_)
+        | TypeSignature::ResponseType(_) => false,
+        _ => todo!("Unsupported type: {}", ty),
+    }
+}
+
+/// Push a placeholder value for Wasm type `ty` onto the data stack.
 fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
     match ty {
         ValType::I32 => builder.i32_const(0),
@@ -97,6 +120,7 @@ fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
     };
 }
 
+/// Push a placeholder value for Clarity type `ty` onto the data stack.
 fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     let wasm_types = clar2wasm_ty(ty);
     for wasm_type in wasm_types.iter() {
@@ -130,9 +154,10 @@ impl<'a> WasmGenerator<'a> {
             error: None,
             literal_memory_end: 0,
             stack_pointer: global_id,
+            literal_memory_offet: HashMap::new(),
+            constants: HashMap::new(),
             locals: HashMap::new(),
             frame_size: 0,
-            literal_memory_offet: HashMap::new(),
         }
     }
 
@@ -351,6 +376,18 @@ impl<'a> WasmGenerator<'a> {
     /// Adds a new literal into the memory, and returns the offset and length.
     fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
         let data = match value {
+            clarity::vm::Value::Int(i) => {
+                let mut data = (((*i as u128) & 0xFFFFFFFFFFFFFFFF) as i64)
+                    .to_le_bytes()
+                    .to_vec();
+                data.extend_from_slice(&(((*i as u128) >> 64) as i64).to_le_bytes());
+                data
+            }
+            clarity::vm::Value::UInt(u) => {
+                let mut data = ((*u & 0xFFFFFFFFFFFFFFFF) as i64).to_le_bytes().to_vec();
+                data.extend_from_slice(&((*u >> 64) as i64).to_le_bytes());
+                data
+            }
             clarity::vm::Value::Principal(p) => match p {
                 PrincipalData::Standard(standard) => {
                     let mut data = vec![standard.0];
@@ -369,6 +406,9 @@ impl<'a> WasmGenerator<'a> {
                 }
             },
             clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
+            clarity::vm::Value::Sequence(SequenceData::String(string_data)) => {
+                return self.add_string_literal(string_data);
+            }
             _ => unimplemented!("Unsupported literal: {}", value),
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
@@ -483,7 +523,7 @@ impl<'a> WasmGenerator<'a> {
                 );
                 16
             }
-            _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
+            _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
         };
         size
     }
@@ -659,6 +699,35 @@ impl<'a> WasmGenerator<'a> {
                     );
                     (builder, true)
                 }
+            }
+        } else {
+            (builder, false)
+        }
+    }
+
+    /// If `name` is a constant, push its value onto the data stack.
+    pub fn lookup_constant_variable<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        name: &str,
+        ty: &TypeSignature,
+    ) -> (InstrSeqBuilder<'b>, bool) {
+        if let Some(offset) = self.constants.get(name) {
+            // Load the offset into a local variable
+            let offset_local = self.module.locals.add(ValType::I32);
+            builder.i32_const(*offset as i32).local_set(offset_local);
+
+            // If `ty` is a value that stays in memory, we can just push the
+            // offset and length to the stack.
+            if is_in_memory_type(ty) {
+                builder
+                    .local_get(offset_local)
+                    .i32_const(get_type_size(ty) as i32);
+                (builder, true)
+            } else {
+                // Otherwise, we need to load the value from memory.
+                self.read_from_memory(&mut builder, offset_local, ty);
+                (builder, true)
             }
         } else {
             (builder, false)
@@ -940,7 +1009,6 @@ impl ASTVisitor for WasmGenerator<'_> {
         expr: &SymbolicExpression,
         atom: &ClarityName,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        let is_builtin: bool;
         let ty = match self.get_expr_type(expr) {
             Some(ty) => ty.clone(),
             None => {
@@ -952,12 +1020,19 @@ impl ASTVisitor for WasmGenerator<'_> {
         };
 
         // Handle builtin variables
+        let is_builtin: bool;
         (builder, is_builtin) = self.lookup_reserved_variable(builder, atom.as_str(), &ty);
         if is_builtin {
             return Ok(builder);
         }
 
-        // FIXME: This should also handle constants and keywords
+        // Handle constants
+        let is_constant: bool;
+        (builder, is_constant) = self.lookup_constant_variable(builder, atom.as_str(), &ty);
+        if is_constant {
+            return Ok(builder);
+        }
+
         let types = clar2wasm_ty(&ty);
         for n in 0..types.len() {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
@@ -1153,6 +1228,48 @@ impl ASTVisitor for WasmGenerator<'_> {
                 .by_name("define_nft")
                 .expect("function not found"),
         );
+        Ok(builder)
+    }
+
+    fn traverse_define_constant<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // If the initial value is a literal, then we can directly add it to
+        // the literal memory.
+        let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
+            let (offset, _len) = self.add_literal(value);
+            offset
+        } else {
+            // If the initial expression is not a literal, then we need to
+            // reserve the space for it, and then execute the expression and
+            // write the result into the reserved space.
+            let offset = self.literal_memory_end;
+            let offset_local = self.module.locals.add(ValType::I32);
+            builder.i32_const(offset as i32).local_set(offset_local);
+
+            let ty = self
+                .get_expr_type(value)
+                .expect("constant value must be typed")
+                .clone();
+
+            let len = get_type_size(&ty);
+            self.literal_memory_end += len;
+
+            // Traverse the initial value expression.
+            builder = self.traverse_expr(builder, value)?;
+
+            // Write the result (on the stack) to the memory
+            self.write_to_memory(&mut builder, offset_local, 0, &ty);
+
+            offset
+        };
+
+        self.constants.insert(name.to_string(), offset);
+
         Ok(builder)
     }
 
