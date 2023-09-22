@@ -1826,3 +1826,317 @@ fn bit_not_int() {
     assert_eq!(result[0].i64(), Some(-4));
     assert_eq!(result[1].i64(), Some(-1));
 }
+
+#[test]
+fn pow_uint() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let pow = instance.get_func(&mut store, "pow-uint").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // pow(0, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(1, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(2, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(0, 1) == 0
+    pow.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(123, 1) == 123
+    pow.call(
+        &mut store,
+        &[Val::I64(123), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 123);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 2) == 9
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 9);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 3) == 27
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(3), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 27);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 80) = large number
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(80), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 4389419161382147137);
+    assert_eq!(result[1].unwrap_i64(), 8012732698178659004);
+
+    // pow(3, 81) overflows
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(81), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // pow(2, 127) = 1 << 127
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(127), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x8000000000000000u64 as i64);
+
+    // pow(2, 128) overflows
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(128), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+}
+
+#[test]
+fn pow_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let pow = instance.get_func(&mut store, "pow-int").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    // pow(0, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(1, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(2, 0) == 1
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(0), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 1);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(0, 1) == 0
+    pow.call(
+        &mut store,
+        &[Val::I64(0), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(123, 1) == 123
+    pow.call(
+        &mut store,
+        &[Val::I64(123), Val::I64(0), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 123);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 2) == 9
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 9);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 3) == 27
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(3), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 27);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(3, 80) = large number
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(80), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 4389419161382147137);
+    assert_eq!(result[1].unwrap_i64(), 8012732698178659004);
+
+    // pow(3, 81) overflows
+    pow.call(
+        &mut store,
+        &[Val::I64(3), Val::I64(0), Val::I64(81), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // pow(2, 126) = 1 << 126
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(126), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x4000000000000000u64 as i64);
+
+    // pow(2, 127) overflows
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(127), Val::I64(0)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
+    // pow(-2, 1) == -2
+    pow.call(
+        &mut store,
+        &[Val::I64(-2), Val::I64(-1), Val::I64(1), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), -2);
+    assert_eq!(result[1].unwrap_i64(), -1);
+
+    // pow(-2, 2) == 4
+    pow.call(
+        &mut store,
+        &[Val::I64(-2), Val::I64(-1), Val::I64(2), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 4);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(-2, 126) == 0x40000000000000000000000000000000
+    pow.call(
+        &mut store,
+        &[Val::I64(-2), Val::I64(-1), Val::I64(126), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x4000000000000000u64 as i64);
+
+    // pow(-2, 127) == i128::MIN
+    pow.call(
+        &mut store,
+        &[Val::I64(-2), Val::I64(-1), Val::I64(127), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x8000000000000000u64 as i64);
+
+    // pow(-3, 2) = 9
+    pow.call(
+        &mut store,
+        &[Val::I64(-3), Val::I64(-1), Val::I64(2), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 9);
+    assert_eq!(result[1].unwrap_i64(), 0);
+
+    // pow(-3, 3) = -27
+    pow.call(
+        &mut store,
+        &[Val::I64(-3), Val::I64(-1), Val::I64(3), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), -27);
+    assert_eq!(result[1].unwrap_i64(), -1);
+
+    // edge case i128::MIN^1 is ok
+    pow.call(
+        &mut store,
+        &[
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+            Val::I64(1),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect("call to pow-int failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x8000000000000000u64 as i64);
+
+    // edge case i128::MIN^2 overflows
+    pow.call(
+        &mut store,
+        &[
+            Val::I64(0),
+            Val::I64(0x8000000000000000u64 as i64),
+            Val::I64(2),
+            Val::I64(0),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+}
