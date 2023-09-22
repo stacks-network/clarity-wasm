@@ -1843,16 +1843,6 @@ fn pow_uint() {
     assert_eq!(result[0].unwrap_i64(), 1);
     assert_eq!(result[1].unwrap_i64(), 0);
 
-    // pow(0, 0) == 1
-    pow.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to pow-uint failed");
-    assert_eq!(result[0].unwrap_i64(), 1);
-    assert_eq!(result[1].unwrap_i64(), 0);
-
     // pow(1, 0) == 1
     pow.call(
         &mut store,
@@ -1955,16 +1945,6 @@ fn pow_int() {
     let (instance, mut store) = load_stdlib().unwrap();
     let pow = instance.get_func(&mut store, "pow-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
-
-    // pow(0, 0) == 1
-    pow.call(
-        &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0), Val::I64(0)],
-        &mut result,
-    )
-    .expect("call to pow-int failed");
-    assert_eq!(result[0].unwrap_i64(), 1);
-    assert_eq!(result[1].unwrap_i64(), 0);
 
     // pow(0, 0) == 1
     pow.call(
