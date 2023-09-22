@@ -2052,6 +2052,16 @@ fn pow_int() {
     )
     .expect_err("expected overflow");
 
+    // pow(-2, 127) == i128::MIN
+    pow.call(
+        &mut store,
+        &[Val::I64(-2), Val::I64(-1), Val::I64(127), Val::I64(0)],
+        &mut result,
+    )
+    .expect("call to pow-uint failed");
+    assert_eq!(result[0].unwrap_i64(), 0);
+    assert_eq!(result[1].unwrap_i64(), 0x8000000000000000u64 as i64);
+
     // pow(-3, 2) = 9
     pow.call(
         &mut store,

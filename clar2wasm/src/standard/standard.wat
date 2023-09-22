@@ -932,6 +932,22 @@
             (call $runtime-error (i32.const 0))
         )
 
+        ;; shortcut if a == 2
+        (if (i64.eqz (i64.or (i64.xor (local.get $a_lo) (i64.const 2)) (local.get $a_hi)))
+            (return 
+                (select 
+                    (i64.shl (i64.const 1) (local.get $b_lo))
+                    (i64.const 0)
+                    (i64.lt_u (local.get $b_lo) (i64.const 64))
+                )
+                (select
+                    (i64.const 0)
+                    (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
+                    (i64.lt_u (local.get $b_lo) (i64.const 64))
+                )
+            )
+        )
+
         (call $pow-inner (local.get $a_lo) (local.get $a_hi) (i32.wrap_i64 (local.get $b_lo)))
     )
 
@@ -957,17 +973,53 @@
             (call $runtime-error (i32.const 4))
         )
 
-        ;; if b > 127 -> runtime error: overflow (since the biggest b that doesn't
-        ;; overflow is in 2^127)
-        (if (i32.or 
-                (i64.gt_u (local.get $b_lo) (i64.const 127))
-                (i64.ne (local.get $b_hi) (i64.const 0))
+        ;; if b > (a >= 0 ? 126 : 127) -> runtime error: overflow (since the biggest b that doesn't
+        ;; overflow is in 2^126 and -2^127, and this is an edge case)
+        (if (i64.gt_u 
+                (local.get $b_lo) 
+                (i64.add (i64.const 126) (i64.extend_i32_u (i64.lt_s (local.get $a_hi) (i64.const 0))))
             )
             (call $runtime-error (i32.const 0))
         )
 
+        ;; shortcut if a == 2
+        (if (i64.eqz (i64.or (i64.xor (local.get $a_lo) (i64.const 2)) (local.get $a_hi)))
+            (return 
+                (select 
+                    (i64.shl (i64.const 1) (local.get $b_lo))
+                    (i64.const 0)
+                    (local.tee $negative (i64.lt_u (local.get $b_lo) (i64.const 64)))
+                )
+                (select
+                    (i64.const 0)
+                    (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
+                    (local.get $negative)
+                )
+            )
+        )
+
+        ;; shortcut if a == -2 (handles edge case -2^127)
+        (if (i32.and (i64.eq (local.get $a_lo) (i64.const -2)) (i64.eq (local.get $a_hi) (i64.const -1)))
+            (then 
+                (local.set $a_lo (select (i64.const -1) (i64.const 1) (local.tee $negative (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1))))))
+                (local.set $a_hi (select (i64.const -1) (i64.const 0) (local.get $negative)))
+                (return
+                    (select
+                        (i64.shl (local.get $a_lo) (local.get $b_lo))
+                        (i64.const 0)
+                        (local.tee $negative (i64.lt_u (local.get $b_lo) (i64.const 64)))
+                    )
+                    (select
+                        (local.get $a_hi)
+                        (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64)))
+                        (local.get $negative)
+                    )
+                )
+            )
+        )
+
         ;; $pow-inner arguments: abs(a) and $b_lo
-        ;; no need to care about i128::MIN, at this point it will overflow
+        ;; no need to care of i128::MIN, at this point it will overflow
         ;; abs($a_lo)
         (select
             (i64.sub (i64.const 0) (local.get $a_lo))
