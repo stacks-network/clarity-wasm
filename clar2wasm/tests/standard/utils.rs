@@ -296,7 +296,7 @@ impl FromWasmResult for bool {
 macro_rules! propints {
     ($(($name: ident, $range: ty)),+ $(,)?) => {
         $(
-            fn $name() -> proptest::strategy::BoxedStrategy<crate::utils::PropInt> {
+            pub(crate) fn $name() -> proptest::strategy::BoxedStrategy<crate::utils::PropInt> {
                 any::<$range>().prop_map(|n| crate::utils::PropInt::new(n as u128)).boxed()
             }
         )+
@@ -320,7 +320,7 @@ propints! {
 
 type PropIntStrategy = fn() -> BoxedStrategy<PropInt>;
 
-const UNSIGNED_STRATEGIES: [PropIntStrategy; 5] = [
+pub(crate) const UNSIGNED_STRATEGIES: [PropIntStrategy; 5] = [
     tiny_uint128,
     small_uint128,
     medium_uint128,
@@ -328,7 +328,7 @@ const UNSIGNED_STRATEGIES: [PropIntStrategy; 5] = [
     huge_uint128,
 ];
 
-const SIGNED_STRATEGIES: [PropIntStrategy; 5] = [
+pub(crate) const SIGNED_STRATEGIES: [PropIntStrategy; 5] = [
     tiny_int128,
     small_int128,
     medium_int128,

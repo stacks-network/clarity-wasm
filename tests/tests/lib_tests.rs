@@ -4,6 +4,7 @@ use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
     vm::{
+        callables::DefineType,
         clarity_wasm::{call_function, initialize_contract},
         contexts::{CallStack, GlobalContext},
         costs::LimitedCostTracker,
@@ -16,16 +17,15 @@ use clarity::{
     },
 };
 
-/// This macro provides a convenient way to test functions inside contracts.
+/// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:
 /// - the name of the test to create,
 /// - the name of the contract containing the function,
-/// - the name of the function to test,
-/// - an optional list of parameters,
-/// - a closure with type `|indicator: i32, ok_value: Res, err_value: Res|`, and
-///   that contains all the assertions we want to test.
-macro_rules! test_contract {
-    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+/// - a closure with type
+///  `|global_context: &mut GlobalContext, contract_context: &ContractContext|`
+///   and that contains all the assertions we want to test.
+macro_rules! test_contract_init {
+    ($func: ident, $contract_name: literal, $context_test: expr) => {
         #[test]
         fn $func() {
             let contract_id = QualifiedContractIdentifier::new(
@@ -87,14 +87,42 @@ macro_rules! test_contract {
                     .increment_ustx_liquid_supply(amount)
                     .unwrap();
 
+                // https://github.com/rust-lang/rust-clippy/issues/1553
+                #[allow(clippy::redundant_closure_call)]
+                $context_test(&mut global_context, &contract_context);
+            }
+
+            global_context.commit().unwrap();
+        }
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_contract!($func, $contract_name, $contract_func, &[], $test);
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|response: ResponseData|`, and
+///   that contains all the assertions we want to test.
+macro_rules! test_contract {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        test_contract_init!(
+            $func,
+            $contract_name,
+            |global_context: &mut GlobalContext, contract_context: &ContractContext| {
                 // Initialize a call stack
                 let mut call_stack = CallStack::new();
 
                 let result = call_function(
                     $contract_func,
                     $params,
-                    &mut global_context,
-                    &contract_context,
+                    global_context,
+                    contract_context,
                     &mut call_stack,
                     Some(StandardPrincipalData::transient().into()),
                     Some(StandardPrincipalData::transient().into()),
@@ -110,9 +138,7 @@ macro_rules! test_contract {
                     panic!("Unexpected result received from WASM function call.");
                 }
             }
-
-            global_context.commit().unwrap();
-        }
+        );
     };
 
     ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
@@ -124,6 +150,23 @@ test_contract!(test_add, "add", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(3));
 });
+
+test_contract_init!(
+    test_define_private,
+    "call-private-with-args",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+        let public_function = contract_context.lookup_function("simple").unwrap();
+        assert_eq!(public_function.define_type, DefineType::Private);
+        assert_eq!(
+            public_function.get_arg_types(),
+            &[TypeSignature::IntType, TypeSignature::IntType]
+        );
+        assert_eq!(
+            public_function.get_return_type(),
+            &Some(TypeSignature::IntType)
+        );
+    }
+);
 
 test_contract!(
     test_call_private_with_args_nested,
@@ -176,6 +219,23 @@ test_contract!(
     }
 );
 
+test_contract_init!(
+    test_define_public,
+    "define-public-ok",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+        let public_function = contract_context.lookup_function("simple").unwrap();
+        assert_eq!(public_function.define_type, DefineType::Public);
+        assert!(public_function.get_arg_types().is_empty());
+        assert_eq!(
+            public_function.get_return_type(),
+            &Some(TypeSignature::ResponseType(Box::new((
+                TypeSignature::IntType,
+                TypeSignature::NoType
+            ))))
+        );
+    }
+);
+
 test_contract!(
     test_define_public_err,
     "define-public-err",
@@ -193,6 +253,15 @@ test_contract!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_init!(
+    test_define_data_var,
+    "var-get",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+        let metadata = contract_context.meta_data_var.get("something").unwrap();
+        assert_eq!(metadata.value_type, TypeSignature::IntType);
     }
 );
 
@@ -598,54 +667,33 @@ test_contract!(
     }
 );
 
-#[test]
-fn test_define_ft() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("define-tokens"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut clarity_store = MemoryBackingStore::new();
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+test_contract!(
+    test_pow_int,
+    "power",
+    "with-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(230539333248));
+    }
+);
 
-    let contract_str = std::fs::read_to_string("contracts/define-tokens.clar").unwrap();
-    let mut compile_result = compile(
-        contract_str.as_str(),
-        &contract_id,
-        cost_tracker,
-        ClarityVersion::latest(),
-        StacksEpochId::latest(),
-        &mut clarity_store,
-    )
-    .expect("Failed to compile contract.");
+test_contract!(
+    test_pow_uint,
+    "power",
+    "with-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(311973482284542371301330321821976049)
+        );
+    }
+);
 
-    contract_context.set_wasm_module(compile_result.module.emit_wasm());
-
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        compile_result.contract_analysis.cost_track.take().unwrap(),
-        StacksEpochId::latest(),
-    );
-    global_context.begin();
-
-    {
-        initialize_contract(
-            &mut global_context,
-            &mut contract_context,
-            None,
-            &compile_result.contract_analysis,
-        )
-        .expect("Failed to initialize contract.");
-
+test_contract_init!(
+    test_define_ft,
+    "define-tokens",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
         let ft_metadata = contract_context
             .meta_ft
             .get("foo")
@@ -658,67 +706,19 @@ fn test_define_ft() {
             .expect("FT 'bar' not found");
         assert_eq!(ft_metadata.total_supply, Some(1000000u128));
     }
+);
 
-    global_context.commit().unwrap();
-}
-
-#[test]
-fn test_define_nft() {
-    let contract_id = QualifiedContractIdentifier::new(
-        StandardPrincipalData::transient(),
-        ContractName::from("define-tokens"),
-    );
-    let mut datastore = Datastore::new();
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut clarity_store = MemoryBackingStore::new();
-    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-    conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
-
-    let contract_str = std::fs::read_to_string("contracts/define-tokens.clar").unwrap();
-    let mut compile_result = compile(
-        contract_str.as_str(),
-        &contract_id,
-        cost_tracker,
-        ClarityVersion::latest(),
-        StacksEpochId::latest(),
-        &mut clarity_store,
-    )
-    .expect("Failed to compile contract.");
-
-    contract_context.set_wasm_module(compile_result.module.emit_wasm());
-
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        conn,
-        compile_result.contract_analysis.cost_track.take().unwrap(),
-        StacksEpochId::latest(),
-    );
-    global_context.begin();
-
-    {
-        initialize_contract(
-            &mut global_context,
-            &mut contract_context,
-            None,
-            &compile_result.contract_analysis,
-        )
-        .expect("Failed to initialize contract.");
-
+test_contract_init!(
+    test_define_nft,
+    "define-tokens",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
         let nft_metadata = contract_context
             .meta_nft
             .get("baz")
             .expect("NFT 'baz' not found");
         assert_eq!(nft_metadata.key_type, TypeSignature::UIntType);
     }
-
-    global_context.commit().unwrap();
-}
+);
 
 test_contract!(
     test_int_constant,
