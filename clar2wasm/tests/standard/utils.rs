@@ -27,7 +27,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .func_wrap(
             "clarity",
             "define_variable",
-            |_name_offset: i32, _name_length: i32| {
+            |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
                 println!("define-data-var");
             },
         )

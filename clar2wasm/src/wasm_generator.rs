@@ -1121,19 +1121,6 @@ impl ASTVisitor for WasmGenerator<'_> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
-        // Push the name onto the data stack
-        builder
-            .i32_const(name_offset as i32)
-            .i32_const(name_length as i32);
-
-        // Call the host interface function, `define_variable`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_variable")
-                .expect("function not found"),
-        );
-
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
         let ty = self
@@ -1173,7 +1160,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         builder.call(
             self.module
                 .funcs
-                .by_name("set_variable")
+                .by_name("define_variable")
                 .expect("function not found"),
         );
         Ok(builder)
