@@ -667,6 +667,29 @@ test_contract!(
     }
 );
 
+test_contract!(
+    test_pow_int,
+    "power",
+    "with-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(230539333248));
+    }
+);
+
+test_contract!(
+    test_pow_uint,
+    "power",
+    "with-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(311973482284542371301330321821976049)
+        );
+    }
+);
+
 test_contract_init!(
     test_define_ft,
     "define-tokens",
