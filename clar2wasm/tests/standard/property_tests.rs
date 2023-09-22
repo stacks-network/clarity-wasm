@@ -222,6 +222,33 @@ fn prop_0_pow_uint_something_is_zero() {
 }
 
 #[test]
+fn prop_1_pow_uint_something_is_one() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), "pow-uint")
+        .unwrap();
+
+    for st_a in UNSIGNED_STRATEGIES {
+        proptest! {|(m in st_a())| {
+                let mut res = [Val::I64(0), Val::I64(0)];
+                let res_slice = u128::relevant_slice(&mut res);
+
+                fun.call(
+                    store.borrow_mut().deref_mut(),
+                    &[Val::I64(1), Val::I64(0), m.low().into(), m.high().into()],
+                    res_slice,
+                )
+                .unwrap_or_else(|_| panic!("Could not call exported function pow-uint"));
+                let wasm_result = u128::from_wasm_result(res_slice);
+
+                prop_assert_eq!(1, wasm_result);
+            }
+        };
+    }
+}
+
+#[test]
 fn prop_something_pow_uint_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
@@ -302,6 +329,33 @@ fn prop_0_pow_int_something_is_zero() {
                 let wasm_result = i128::from_wasm_result(res_slice);
 
                 prop_assert_eq!(if i128::from(m) == 0 {1} else {0}, wasm_result);
+            }
+        };
+    }
+}
+
+#[test]
+fn prop_1_pow_int_something_is_one() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), "pow-int")
+        .unwrap();
+
+    for st_a in SIGNED_STRATEGIES {
+        proptest! {|(m in st_a())| {
+                let mut res = [Val::I64(0), Val::I64(0)];
+                let res_slice = i128::relevant_slice(&mut res);
+
+                fun.call(
+                    store.borrow_mut().deref_mut(),
+                    &[Val::I64(1), Val::I64(0), m.low().into(), m.high().into()],
+                    res_slice,
+                )
+                .unwrap_or_else(|_| panic!("Could not call exported function pow-uint"));
+                let wasm_result = i128::from_wasm_result(res_slice);
+
+                prop_assert_eq!(1, wasm_result);
             }
         };
     }
