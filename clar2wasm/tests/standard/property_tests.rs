@@ -222,7 +222,7 @@ fn prop_0_pow_uint_something_is_zero() {
 }
 
 #[test]
-fn prop_somethin_pow_uint_zero_is_one() {
+fn prop_something_pow_uint_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
@@ -308,7 +308,7 @@ fn prop_0_pow_int_something_is_zero() {
 }
 
 #[test]
-fn prop_somethin_pow_int_zero_is_one() {
+fn prop_something_pow_int_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
