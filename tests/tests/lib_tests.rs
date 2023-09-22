@@ -768,3 +768,16 @@ test_contract!(
         );
     }
 );
+
+test_contract_init!(
+    test_define_map,
+    "define-map",
+    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+        let map_metadata = contract_context
+            .meta_data_map
+            .get("my-map")
+            .expect("Map 'my-map' not found");
+        assert_eq!(map_metadata.key_type, TypeSignature::PrincipalType);
+        assert_eq!(map_metadata.value_type, TypeSignature::UIntType);
+    }
+);

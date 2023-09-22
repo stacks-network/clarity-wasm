@@ -60,6 +60,16 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "define_map",
+            |_name_offset: i32, _name_length: i32| {
+                println!("define-map");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "get_variable",
             |_name_offset: i32, _name_length: i32, _return_offset: i32, _return_length: i32| {
                 println!("var-get");

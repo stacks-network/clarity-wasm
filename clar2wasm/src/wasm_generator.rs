@@ -1265,6 +1265,31 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
+    fn visit_define_map<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        _key_type: &SymbolicExpression,
+        _value_type: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Store the identifier as a string literal in the memory
+        let (name_offset, name_length) = self.add_identifier_string_literal(name);
+
+        // Push the name onto the data stack
+        builder
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        builder.call(
+            self.module
+                .funcs
+                .by_name("define_map")
+                .expect("function not found"),
+        );
+        Ok(builder)
+    }
+
     fn traverse_begin<'b>(
         &mut self,
         builder: InstrSeqBuilder<'b>,

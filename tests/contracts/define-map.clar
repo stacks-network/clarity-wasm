@@ -1,0 +1,1 @@
+(define-map my-map principal uint)
