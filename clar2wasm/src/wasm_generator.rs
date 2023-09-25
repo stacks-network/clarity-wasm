@@ -1866,7 +1866,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_mint<'b>(
+    fn traverse_ft_mint<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,

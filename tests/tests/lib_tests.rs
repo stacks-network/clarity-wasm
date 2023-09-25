@@ -9,6 +9,7 @@ use clarity::{
         contexts::{CallStack, GlobalContext},
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
+        errors::{Error, WasmError},
         types::{
             PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
             TypeSignature,
@@ -97,7 +98,7 @@ macro_rules! test_contract_init {
     };
 
     ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
-        test_contract!($func, $contract_name, $contract_func, &[], $test);
+        test_contract_init!($func, $contract_name, $contract_func, &[], $test);
     };
 }
 
@@ -107,9 +108,9 @@ macro_rules! test_contract_init {
 /// - the name of the contract containing the function,
 /// - the name of the function to test,
 /// - an optional list of parameters,
-/// - a closure with type `|response: ResponseData|`, and
+/// - a closure with type `|result: Result<Value, Error>|`, and
 ///   that contains all the assertions we want to test.
-macro_rules! test_contract {
+macro_rules! test_contract_call {
     ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
         test_contract_init!(
             $func,
@@ -127,8 +128,37 @@ macro_rules! test_contract {
                     Some(StandardPrincipalData::transient().into()),
                     Some(StandardPrincipalData::transient().into()),
                     None,
-                )
-                .expect("Function call failed.");
+                );
+
+                // https://github.com/rust-lang/rust-clippy/issues/1553
+                #[allow(clippy::redundant_closure_call)]
+                $test(result);
+            }
+        );
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_contract_call!($func, $contract_name, $contract_func, &[], $test);
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|response: ResponseData|`, and
+///   that contains all the assertions we want to test.
+macro_rules! test_contract_call_response {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        test_contract_call!(
+            $func,
+            $contract_name,
+            $contract_func,
+            $params,
+            |result: Result<Value, Error>| {
+                let result = result.expect("Function call failed.");
 
                 if let Value::Response(response_data) = result {
                     // https://github.com/rust-lang/rust-clippy/issues/1553
@@ -142,11 +172,11 @@ macro_rules! test_contract {
     };
 
     ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
-        test_contract!($func, $contract_name, $contract_func, &[], $test);
+        test_contract_call_response!($func, $contract_name, $contract_func, &[], $test);
     };
 }
 
-test_contract!(test_add, "add", "simple", |response: ResponseData| {
+test_contract_call_response!(test_add, "add", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(3));
 });
@@ -168,7 +198,7 @@ test_contract_init!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_call_private_with_args_nested,
     "call-private-with-args",
     "call-it",
@@ -178,7 +208,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_call_public,
     "call-public",
     "simple",
@@ -188,7 +218,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_call_public_nested,
     "call-public",
     "call-it",
@@ -198,7 +228,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_call_public_with_args,
     "call-public-with-args",
     "simple",
@@ -209,7 +239,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_call_public_with_args_nested,
     "call-public-with-args",
     "call-it",
@@ -236,7 +266,7 @@ test_contract_init!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_define_public_err,
     "define-public-err",
     "simple",
@@ -246,7 +276,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_define_public_ok,
     "define-public-ok",
     "simple",
@@ -265,7 +295,7 @@ test_contract_init!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_var_get,
     "var-get",
     "simple",
@@ -275,7 +305,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_var_set,
     "var-set",
     "simple",
@@ -285,17 +315,17 @@ test_contract!(
     }
 );
 
-test_contract!(test_fold, "fold", "fold-sub", |response: ResponseData| {
+test_contract_call_response!(test_fold, "fold", "fold-sub", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(2));
 });
 
-test_contract!(test_begin, "begin", "simple", |response: ResponseData| {
+test_contract_call_response!(test_begin, "begin", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(7));
 });
 
-test_contract!(
+test_contract_call_response!(
     test_less_than,
     "cmp-arith",
     "less-uint",
@@ -305,7 +335,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_greater_or_equal,
     "cmp-arith",
     "greater-or-equal-int",
@@ -315,7 +345,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_and,
     "bit-and",
     "assert",
@@ -325,7 +355,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_not,
     "bit-not",
     "assert",
@@ -335,7 +365,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_or,
     "bit-or",
     "assert",
@@ -345,7 +375,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_shift_left,
     "bit-shift-left",
     "assert",
@@ -355,7 +385,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_shift_right,
     "bit-shift-right",
     "assert",
@@ -365,7 +395,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bitwise_xor,
     "bit-xor",
     "assert",
@@ -375,7 +405,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_fold_bench,
     "fold-bench",
     "fold-add-square",
@@ -390,7 +420,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_ret_true,
     "bool",
     "ret-true",
@@ -400,7 +430,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_ret_false,
     "bool",
     "ret-false",
@@ -410,7 +440,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_block_height,
     "block-heights",
     "block",
@@ -420,7 +450,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_burn_block_height,
     "block-heights",
     "burn-block",
@@ -430,7 +460,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_chain_id,
     "chain-id",
     "get-chain-id",
@@ -440,7 +470,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_tx_sender,
     "builtins-principals",
     "get-tx-sender",
@@ -453,7 +483,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_contract_caller,
     "builtins-principals",
     "get-contract-caller",
@@ -466,7 +496,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_tx_sponsor,
     "builtins-principals",
     "get-tx-sponsor",
@@ -476,7 +506,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_is_in_mainnet,
     "network",
     "mainnet",
@@ -486,7 +516,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_is_in_regtest,
     "network",
     "regtest",
@@ -496,12 +526,12 @@ test_contract!(
     }
 );
 
-test_contract!(test_none, "none", "ret-none", |response: ResponseData| {
+test_contract_call_response!(test_none, "none", "ret-none", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::none());
 });
 
-test_contract!(
+test_contract_call_response!(
     test_as_contract_sender,
     "as-contract",
     "check-sender",
@@ -517,7 +547,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_as_contract_caller,
     "as-contract",
     "check-caller",
@@ -533,7 +563,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_get_balance,
     "stx-funcs",
     "test-stx-get-balance",
@@ -543,7 +573,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_account,
     "stx-funcs",
     "test-stx-account",
@@ -567,7 +597,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_burn_ok,
     "stx-funcs",
     "test-stx-burn-ok",
@@ -577,7 +607,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_burn_err1,
     "stx-funcs",
     "test-stx-burn-err1",
@@ -587,7 +617,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_burn_err3,
     "stx-funcs",
     "test-stx-burn-err3",
@@ -597,7 +627,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_burn_err4,
     "stx-funcs",
     "test-stx-burn-err4",
@@ -607,7 +637,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_ok,
     "stx-funcs",
     "test-stx-transfer-ok",
@@ -617,7 +647,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_memo_ok,
     "stx-funcs",
     "test-stx-transfer-memo-ok",
@@ -627,7 +657,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_err1,
     "stx-funcs",
     "test-stx-transfer-err1",
@@ -637,7 +667,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_err2,
     "stx-funcs",
     "test-stx-transfer-err2",
@@ -647,7 +677,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_err3,
     "stx-funcs",
     "test-stx-transfer-err3",
@@ -657,7 +687,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_stx_transfer_err4,
     "stx-funcs",
     "test-stx-transfer-err4",
@@ -667,7 +697,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_pow_int,
     "power",
     "with-int",
@@ -677,7 +707,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_pow_uint,
     "power",
     "with-uint",
@@ -720,7 +750,7 @@ test_contract_init!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_int_constant,
     "constant",
     "get-int-constant",
@@ -730,7 +760,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_large_uint_constant,
     "constant",
     "get-large-uint-constant",
@@ -743,7 +773,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_string_constant,
     "constant",
     "get-string-constant",
@@ -756,7 +786,7 @@ test_contract!(
     }
 );
 
-test_contract!(
+test_contract_call_response!(
     test_bytes_constant,
     "constant",
     "get-bytes-constant",
@@ -779,5 +809,45 @@ test_contract_init!(
             .expect("Map 'my-map' not found");
         assert_eq!(map_metadata.key_type, TypeSignature::PrincipalType);
         assert_eq!(map_metadata.value_type, TypeSignature::UIntType);
+    }
+);
+
+test_contract_call_response!(
+    test_ft_get_supply_0,
+    "tokens",
+    "foo-get-supply-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_mint,
+    "tokens",
+    "foo-mint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_mint_0,
+    "tokens",
+    "foo-mint-0",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call!(
+    test_ft_mint_too_many,
+    "tokens",
+    "bar-mint-too-many",
+    |result: Result<Value, Error>| {
+        // Expecting a RuntimeErrorType::SupplyOverflow(1000001, 1000000)
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );
