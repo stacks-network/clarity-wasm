@@ -1,0 +1,6 @@
+default_install_hook_types: [pre-commit, commit-msg, prepare-commit-msg]
+repos:
+- repo: https://github.com/cylewitruk/commitlint-rs.git
+  rev: v1.0.3
+  hooks:
+  - id: commitlint

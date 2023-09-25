@@ -1,0 +1,18 @@
+rules:
+  type:
+    level: warn
+    options:
+      - feat
+      - fix
+      - task
+      - chore
+      - refactor
+  description-empty:
+    level: warn
+  scope:
+    level: error
+    options:
+      - clar2wasm
+      - stdlib
+      - ab-testing
+      - ci
