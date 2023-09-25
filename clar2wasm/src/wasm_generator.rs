@@ -1810,20 +1810,23 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_get_balance<'b>(
+    fn traverse_ft_get_balance<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _owner: &SymbolicExpression,
+        owner: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Owner is on the stack, but we need to push the token name onto the
-        // stack, then we can call the host interface function `ft_get_balance`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the owner onto the stack
+        builder = self.traverse_expr(builder, owner)?;
+
+        // Call the host interface function `ft_get_balance`
         builder.call(
             self.module
                 .funcs
@@ -1834,22 +1837,25 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_burn<'b>(
+    fn traverse_ft_burn<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount and sender are on the stack, but we need to push the token
-        // name onto the stack, then we can call the host interface function
-        // `ft_burn`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount and sender onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Call the host interface function `ft_burn`
         builder.call(
             self.module
                 .funcs
@@ -1865,17 +1871,20 @@ impl ASTVisitor for WasmGenerator<'_> {
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount and recipient are on the stack, but we need to push the token
-        // name onto the stack, then we can call the host interface function
-        // `ft_mint`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount and recipient onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `ft_mint`
         builder.call(
             self.module
                 .funcs
@@ -1886,23 +1895,27 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_transfer<'b>(
+    fn traverse_ft_transfer<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount, sender, and recipient are on the stack, but we need to push
-        // the token name onto the stack, then we can call the host interface
-        // function `ft_transfer`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount, sender, and recipient onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `ft_transfer`
         builder.call(
             self.module
                 .funcs
@@ -1913,21 +1926,52 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_get_owner<'b>(
+    fn traverse_nft_get_owner<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
+        identifier: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier is on the stack, but we need to push the token name onto
-        // the stack, then we can call the host interface function
-        // `nft_get_owner`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Reserve stack space for the return value, a principal
+        let return_offset;
+        let return_size;
+        (builder, return_offset, return_size) = self.create_call_stack_local(
+            builder,
+            self.stack_pointer,
+            &TypeSignature::PrincipalType,
+        );
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host interface function `nft_get_owner`
         builder.call(
             self.module
                 .funcs
@@ -1938,22 +1982,44 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_burn<'b>(
+    fn traverse_nft_burn<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _sender: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        sender: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier and sender are on the stack, but we need to push the
-        // token name onto the stack, then we can call the host interface
-        // function `nft_burn`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Call the host interface function `nft_burn`
         builder.call(
             self.module
                 .funcs
@@ -1964,22 +2030,44 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_mint<'b>(
+    fn traverse_nft_mint<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier and recipient are on the stack, but we need to push the
-        // token name onto the stack, then we can call the host interface
-        // function `nft_mint`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the recipient onto the stack
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_mint`
         builder.call(
             self.module
                 .funcs
@@ -1990,23 +2078,48 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_transfer<'b>(
+    fn traverse_nft_transfer<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        sender: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier, sender, and recipient are on the stack, but we need to
-        // push the token name onto the stack, then we can call the host
-        // interface function `nft_transfer`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Push the recipient onto the stack
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_transfer`
         builder.call(
             self.module
                 .funcs
