@@ -67,27 +67,36 @@ fn wasm_fold_add_square(c: &mut Criterion) {
         .expect("Failed to initialize contract");
 
         let mut call_stack = CallStack::new();
-        let mut env = Environment::new(
+
+        let list = Value::list_from((1..=8192).map(Value::Int).collect())
+            .expect("failed to construct list argument");
+
+        let result = call_function(
+            "fold-add-square",
+            &[list.clone(), Value::Int(1)],
             &mut global_context,
             &contract_context,
             &mut call_stack,
             Some(StandardPrincipalData::transient().into()),
             Some(StandardPrincipalData::transient().into()),
             None,
-        );
-
-        let list = Value::list_from((1..=8192).map(Value::Int).collect())
-            .expect("failed to construct list argument");
-
-        let result = call_function("fold-add-square", &[list.clone(), Value::Int(1)], &mut env)
-            .expect("Function call failed");
+        )
+        .expect("Function call failed");
         assert_eq!(result.expect_result_ok().expect_i128(), 183285493761);
 
         c.bench_function("wasm_fold_add_square", |b| {
             b.iter(|| {
-                let _result =
-                    call_function("fold-add-square", &[list.clone(), Value::Int(1)], &mut env)
-                        .expect("Function call failed");
+                let _result = call_function(
+                    "fold-add-square",
+                    &[list.clone(), Value::Int(1)],
+                    &mut global_context,
+                    &contract_context,
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                )
+                .expect("Function call failed");
             })
         });
     }
