@@ -56,7 +56,7 @@
                                                          (param $memo_offset i32)
                                                          (param $memo_length i32)
                                                          (result i32 i32 i64 i64)))
-    
+
     (import "clarity" "ft_get_supply" (func $ft_get_supply (param $name_offset i32)
                                                            (param $name_length i32)
                                                            (result i64 i64)))
@@ -146,6 +146,7 @@
         ;; 2: divide by zero
         ;; 3: log of a number <= 0
         ;; 4: expected a non-negative number
+        ;; 5: panic
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -165,7 +166,9 @@
             (loop $loop
                 ;; Check if we've copied all bytes
                 (if (i32.eq (local.get $src_offset) (local.get $end))
-                    (br $done)
+                    (then
+                        (br $done)
+                    )
                 )
 
                 ;; Load byte from source
@@ -212,8 +215,12 @@
 
         ;; Check for overflow and underflow
         (if (i64.eq (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have the same sign
-            (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $sum_hi) (i64.const 63))) ;; and the result has a different sign
-                (call $runtime-error (i32.const 0))
+            (then
+                (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $sum_hi) (i64.const 63))) ;; and the result has a different sign
+                    (then
+                        (call $runtime-error (i32.const 0))
+                    )
+                )
             )
         )
 
@@ -228,7 +235,9 @@
 
         ;; overflow condition: sum (a) < operand (b)
         (if (call $lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         (local.get $a_lo) (local.get $a_hi)
@@ -268,8 +277,12 @@
 
         ;; Check for overflow and underflow
         (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have different signs
-            (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $diff_hi) (i64.const 63))) ;; and the result has a different sign from a
-                (call $runtime-error (i32.const 1))
+            (then
+                (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $diff_hi) (i64.const 63))) ;; and the result has a different sign from a
+                    (then
+                        (call $runtime-error (i32.const 1))
+                    )
+                )
             )
         )
 
@@ -292,7 +305,9 @@
 
         ;; Check for underflow
         (if (i64.gt_u (local.get $diff_hi) (local.get $a_hi))
-            (call $runtime-error (i32.const 1))
+            (then
+                (call $runtime-error (i32.const 1))
+            )
         )
 
         ;; Return the result
@@ -354,13 +369,17 @@
         )
 
         (if (i32.ge_u (local.get $tmp) (i32.const 128))
-            ;; product cannot overflow if the sum of leading zeros is >= 128
-            (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
+            (then
+                ;; product cannot overflow if the sum of leading zeros is >= 128
+                (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
+            )
         )
 
         (if (i32.le_u (local.get $tmp) (i32.const 126))
-            ;; product will overflow if the sum of leading zeros is <= 126
-            (call $runtime-error (i32.const 0))
+            (then
+                ;; product will overflow if the sum of leading zeros is <= 126
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         ;; Other case might overflow. We compute (a * b/2) and check if result > 2**127
@@ -385,7 +404,9 @@
 
         ;; if result/2 > 2**127 overflow
         (if (i64.lt_s (local.get $b_hi) (i64.const 0))
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         ;; res *= 2, meaning res <<= 1
@@ -416,10 +437,14 @@
         ;; also, it prevents us from dealing with the infamous abs(i128::MIN), and
         ;; the only operation that would work on that number would be (i128::MIN * 1)
         (if (i64.eqz (i64.or (local.get $a_hi) (i64.xor (local.get $a_lo) (i64.const 1))))
-            (return (local.get $b_lo) (local.get $b_hi))
+            (then
+                (return (local.get $b_lo) (local.get $b_hi))
+            )
         )
         (if (i64.eqz (i64.or (local.get $b_hi) (i64.xor (local.get $b_lo) (i64.const 1))))
-            (return (local.get $a_lo) (local.get $a_hi))
+            (then
+                (return (local.get $a_lo) (local.get $a_hi))
+            )
         )
 
         ;; take the absolute value of the operands, and compute the expected sign in 3 steps:
@@ -461,7 +486,9 @@
 
         ;; Sign bit should be 0, otherwise there is an overflow
         (if (i64.lt_s (local.get $a_hi) (i64.const 0))
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         ;; Return the result and adapt with sign bit
@@ -486,7 +513,9 @@
 
         ;; Check for division by 0
         (if (i64.eqz (i64.or (local.get $divisor_hi) (local.get $divisor_lo)))
-            (call $runtime-error (i32.const 2))
+            (then
+                (call $runtime-error (i32.const 2))
+            )
         )
 
         ;; Long division algorithm
@@ -750,14 +779,20 @@
 
     (func $log2-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.eqz (i64.or (local.get $hi) (local.get $lo)))
-            (call $runtime-error (i32.const 3)))
+            (then
+               (call $runtime-error (i32.const 3))
+            )
+        )
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
     )
 
     (func $log2-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (call $le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
-            (call $runtime-error (i32.const 3)))
+            (then
+                (call $runtime-error (i32.const 3))
+            )
+        )
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
     )
@@ -769,7 +804,9 @@
         (local $tmp_lo i64) (local $tmp_hi i64)
 
         (if (i64.eqz (i64.or (local.get $lo) (local.get $hi)))
-            (return (i64.const 0) (i64.const 0))
+            (then
+                (return (i64.const 0) (i64.const 0))
+            )
         )
 
         (local.set $c_lo (i64.const 0))
@@ -857,7 +894,9 @@
 
     (func $sqrti-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
-            (call $runtime-error (i32.const 4))
+            (then
+                (call $runtime-error (i32.const 4))
+            )
         )
         (call $sqrti-uint (local.get $lo) (local.get $hi))
     )
@@ -947,12 +986,10 @@
                (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
     (func $clz-int128 (param $a_lo i64) (param $a_hi i64) (result i32)
-        (i32.wrap_i64
-            (select
-                (i64.add (i64.const 64) (i64.clz (local.get $a_lo)))
-                (i64.clz (local.get $a_hi))
-                (i64.eqz (local.get $a_hi))
-            )
+        (select
+            (i32.wrap_i64 (i64.add (i64.const 64) (i64.clz (local.get $a_lo))))
+            (i32.wrap_i64 (i64.clz (local.get $a_hi)))
+            (i64.eqz (local.get $a_hi))
         )
     )
 
@@ -963,7 +1000,7 @@
         (local $carry_lo i64) (local $carry_hi i64)
         (local.set $carry_lo (i64.const 1))
         (local.set $carry_hi (i64.const 0))
-        (loop 
+        (loop
             (if (i32.eqz (i32.and (local.get $b) (i32.const 1)))
                 (then
                     (local.set $b (i32.shr_u (local.get $b) (i32.const 1)))
@@ -986,7 +1023,9 @@
     (func $pow-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
         (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
-            (return (i64.const 1) (i64.const 0))
+            (then
+                (return (i64.const 1) (i64.const 0))
+            )
         )
         ;; (a == 0 => 0) & (a == 1 => 1) ==> (a < 2 => a)
         ;; also, (b == 1 => a)
@@ -994,29 +1033,35 @@
                 (i32.and (i64.lt_u (local.get $a_lo) (i64.const 2)) (i64.eqz (local.get $a_hi)))
                 (i64.eqz (i64.or (i64.xor (local.get $b_lo) (i64.const 1)) (local.get $b_hi)))
             )
-            (return (local.get $a_lo) (local.get $a_hi))
+            (then
+                (return (local.get $a_lo) (local.get $a_hi))
+            )
         )
         ;; if b > 127 -> runtime error: overflow (since the biggest b that doesn't
         ;; overflow is in 2^127)
-        (if (i32.or 
+        (if (i32.or
                 (i64.gt_u (local.get $b_lo) (i64.const 127))
                 (i64.ne (local.get $b_hi) (i64.const 0))
             )
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         ;; shortcut if a == 2
         (if (i64.eqz (i64.or (i64.xor (local.get $a_lo) (i64.const 2)) (local.get $a_hi)))
-            (return 
-                (select 
-                    (i64.shl (i64.const 1) (local.get $b_lo))
-                    (i64.const 0)
-                    (i64.lt_u (local.get $b_lo) (i64.const 64))
-                )
-                (select
-                    (i64.const 0)
-                    (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
-                    (i64.lt_u (local.get $b_lo) (i64.const 64))
+            (then
+                (return
+                    (select
+                        (i64.shl (i64.const 1) (local.get $b_lo))
+                        (i64.const 0)
+                        (i64.lt_u (local.get $b_lo) (i64.const 64))
+                    )
+                    (select
+                        (i64.const 0)
+                        (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
+                        (i64.lt_u (local.get $b_lo) (i64.const 64))
+                    )
                 )
             )
         )
@@ -1028,7 +1073,9 @@
         (local $negative i32)
         ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
         (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
-            (return (i64.const 1) (i64.const 0))
+            (then
+                (return (i64.const 1) (i64.const 0))
+            )
         )
 
 
@@ -1038,42 +1085,50 @@
                 (i32.and (i64.lt_u (local.get $a_lo) (i64.const 2)) (i64.eqz (local.get $a_hi)))
                 (i64.eqz (i64.or (i64.xor (local.get $b_lo) (i64.const 1)) (local.get $b_hi)))
             )
-            (return (local.get $a_lo) (local.get $a_hi))
+            (then
+                (return (local.get $a_lo) (local.get $a_hi))
+            )
         )
 
         ;; otherwise, if b < 0 => runtime error
         (if (i64.lt_s (local.get $b_hi) (i64.const 0))
-            (call $runtime-error (i32.const 4))
+            (then
+                (call $runtime-error (i32.const 4))
+            )
         )
 
         ;; if b > (a >= 0 ? 126 : 127) -> runtime error: overflow (since the biggest b that doesn't
         ;; overflow is in 2^126 and -2^127, and this is an edge case)
-        (if (i64.gt_u 
-                (local.get $b_lo) 
+        (if (i64.gt_u
+                (local.get $b_lo)
                 (i64.add (i64.const 126) (i64.extend_i32_u (i64.lt_s (local.get $a_hi) (i64.const 0))))
             )
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         ;; shortcut if a == 2
         (if (i64.eqz (i64.or (i64.xor (local.get $a_lo) (i64.const 2)) (local.get $a_hi)))
-            (return 
-                (select 
-                    (i64.shl (i64.const 1) (local.get $b_lo))
-                    (i64.const 0)
-                    (local.tee $negative (i64.lt_u (local.get $b_lo) (i64.const 64)))
-                )
-                (select
-                    (i64.const 0)
-                    (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
-                    (local.get $negative)
+            (then
+                (return
+                    (select
+                        (i64.shl (i64.const 1) (local.get $b_lo))
+                        (i64.const 0)
+                        (local.tee $negative (i64.lt_u (local.get $b_lo) (i64.const 64)))
+                    )
+                    (select
+                        (i64.const 0)
+                        (i64.shl (i64.const 1) (i64.sub (local.get $b_lo) (i64.const 64)))
+                        (local.get $negative)
+                    )
                 )
             )
         )
 
         ;; shortcut if a == -2 (handles edge case -2^127)
         (if (i32.and (i64.eq (local.get $a_lo) (i64.const -2)) (i64.eq (local.get $a_hi) (i64.const -1)))
-            (then 
+            (then
                 (local.set $a_lo (select (i64.const -1) (i64.const 1) (local.tee $negative (i32.wrap_i64 (i64.and (local.get $b_lo) (i64.const 1))))))
                 (local.set $a_hi (select (i64.const -1) (i64.const 0) (local.get $negative)))
                 (return
@@ -1109,7 +1164,7 @@
         (local.tee $negative (i32.wrap_i64 (local.get $b_lo)))
 
         ;; $negative is 1 if end result should be negative else 0
-        (local.set $negative 
+        (local.set $negative
             (i32.and (i64.lt_s (local.get $a_hi) (i64.const 0))
                      (i32.and (local.get $negative) (i32.const 1))
             )
@@ -1121,11 +1176,13 @@
 
         ;; overflow if result is negative
         (if (i64.lt_s (local.get $a_hi) (i64.const 0))
-            (call $runtime-error (i32.const 0))
+            (then
+                (call $runtime-error (i32.const 0))
+            )
         )
 
         (if (result i64 i64) (local.get $negative)
-            (then 
+            (then
                 (i64.sub (i64.const 0) (local.get $a_lo))
                 (i64.sub (i64.const 0) (i64.add (local.get $a_hi) (i64.extend_i32_u (i64.ne (local.get $a_lo) (i64.const 0)))))
             )
