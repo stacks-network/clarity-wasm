@@ -851,3 +851,43 @@ test_contract_call!(
         assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );
+
+test_contract_call_response!(
+    test_unwrap_panic_some,
+    "unwrap-panic",
+    "unwrap-some",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call!(
+    test_unwrap_panic_none,
+    "unwrap-panic",
+    "unwrap-none",
+    |result: Result<Value, Error>| {
+        // Expecting a RuntimeErrorType::Panic
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
+    }
+);
+
+test_contract_call_response!(
+    test_unwrap_panic_ok,
+    "unwrap-panic",
+    "unwrap-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call!(
+    test_unwrap_panic_error,
+    "unwrap-panic",
+    "unwrap-error",
+    |result: Result<Value, Error>| {
+        // Expecting a RuntimeErrorType::Panic
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
+    }
+);
