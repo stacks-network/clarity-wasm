@@ -852,6 +852,293 @@ test_contract_call!(
     }
 );
 
+test_contract_call!(
+    test_ft_mint_too_many_2,
+    "tokens",
+    "bar-mint-too-many-2",
+    |result: Result<Value, Error>| {
+        // Expecting a RuntimeErrorType::SupplyOverflow(11111110, 1000000)
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_balance_0,
+    "tokens",
+    "ft-balance-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_balance_10,
+    "tokens",
+    "ft-balance-10",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(10));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_burn_unowned,
+    "tokens",
+    "ft-burn-unowned",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_burn_0,
+    "tokens",
+    "ft-burn-0",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_burn_ok,
+    "tokens",
+    "ft-burn-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_burn_too_many,
+    "tokens",
+    "ft-burn-too-many",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_burn_other,
+    "tokens",
+    "ft-burn-other",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_unowned,
+    "tokens",
+    "ft-transfer-unowned",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_0,
+    "tokens",
+    "ft-transfer-0",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_ok,
+    "tokens",
+    "ft-transfer-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_too_many,
+    "tokens",
+    "ft-transfer-too-many",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_other,
+    "tokens",
+    "ft-transfer-other",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ft_transfer_self,
+    "tokens",
+    "ft-transfer-self",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(2));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_mint,
+    "tokens",
+    "nft-mint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_mint_other,
+    "tokens",
+    "nft-mint-other",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_mint_duplicate,
+    "tokens",
+    "nft-mint-duplicate",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_get_owner,
+    "tokens",
+    "nft-get-owner",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            ))
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_nft_get_owner_unowned,
+    "tokens",
+    "nft-get-owner-unowned",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none(),);
+    }
+);
+
+test_contract_call_response!(
+    test_nft_burn,
+    "tokens",
+    "nft-burn",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_burn_other,
+    "tokens",
+    "nft-burn-other",
+    |response: ResponseData| {
+        println!("{:?}", response);
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_burn_wrong,
+    "tokens",
+    "nft-burn-wrong",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_does_not_exist,
+    "tokens",
+    "nft-transfer-does-not-exist",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_ok,
+    "tokens",
+    "nft-transfer-ok",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_wrong,
+    "tokens",
+    "nft-transfer-wrong",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_not_owner,
+    "tokens",
+    "nft-transfer-not-owner",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_self,
+    "tokens",
+    "nft-transfer-self",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(2));
+    }
+);
+
+test_contract_call_response!(
+    test_nft_transfer_other,
+    "tokens",
+    "nft-transfer-other",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
 test_contract_call_response!(
     test_unwrap_panic_some,
     "unwrap-panic",
