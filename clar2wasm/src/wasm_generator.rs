@@ -11,12 +11,25 @@ use clarity::vm::{
 };
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
-    ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind},
+    ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
 
 use crate::ast_visitor::{traverse, ASTVisitor};
+
+/// `Trap` should match the values used in the standard library and is used to
+/// indicate the reason for a runtime error from the Clarity code.
+#[allow(dead_code)]
+#[repr(i32)]
+enum Trap {
+    Overflow = 0,
+    Underflow = 1,
+    DivideByZero = 2,
+    LogOfNumberLessThanOrEqualToZero = 3,
+    ExpectedANonNegativeNumber = 4,
+    Panic = 5,
+}
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
@@ -73,7 +86,7 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
     match ty {
         TypeSignature::IntType | TypeSignature::UIntType => 16,
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(length))) => {
-            u32::from(length.clone())
+            u32::from(length)
         }
         TypeSignature::PrincipalType => {
             // Standard principal is a 1 byte version and a 20 byte Hash160.
@@ -84,9 +97,7 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(length)) => {
-            u32::from(length.clone())
-        }
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(length)) => u32::from(length),
         _ => unimplemented!("Unsupported type: {}", ty),
     }
 }
@@ -1299,6 +1310,18 @@ impl ASTVisitor for WasmGenerator<'_> {
         self.traverse_statement_list(builder, statements)
     }
 
+    fn traverse_some<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // (some <val>) is represented by an i32 1, followed by the value
+        builder.i32_const(1);
+        builder = self.traverse_expr(builder, value)?;
+        Ok(builder)
+    }
+
     fn traverse_ok<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -1810,20 +1833,23 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_get_balance<'b>(
+    fn traverse_ft_get_balance<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _owner: &SymbolicExpression,
+        owner: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Owner is on the stack, but we need to push the token name onto the
-        // stack, then we can call the host interface function `ft_get_balance`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the owner onto the stack
+        builder = self.traverse_expr(builder, owner)?;
+
+        // Call the host interface function `ft_get_balance`
         builder.call(
             self.module
                 .funcs
@@ -1834,22 +1860,25 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_burn<'b>(
+    fn traverse_ft_burn<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount and sender are on the stack, but we need to push the token
-        // name onto the stack, then we can call the host interface function
-        // `ft_burn`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount and sender onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Call the host interface function `ft_burn`
         builder.call(
             self.module
                 .funcs
@@ -1860,22 +1889,25 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_mint<'b>(
+    fn traverse_ft_mint<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount and recipient are on the stack, but we need to push the token
-        // name onto the stack, then we can call the host interface function
-        // `ft_mint`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount and recipient onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `ft_mint`
         builder.call(
             self.module
                 .funcs
@@ -1886,23 +1918,27 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_ft_transfer<'b>(
+    fn traverse_ft_transfer<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Amount, sender, and recipient are on the stack, but we need to push
-        // the token name onto the stack, then we can call the host interface
-        // function `ft_transfer`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the amount, sender, and recipient onto the stack
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `ft_transfer`
         builder.call(
             self.module
                 .funcs
@@ -1913,21 +1949,52 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_get_owner<'b>(
+    fn traverse_nft_get_owner<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
+        identifier: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier is on the stack, but we need to push the token name onto
-        // the stack, then we can call the host interface function
-        // `nft_get_owner`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Reserve stack space for the return value, a principal
+        let return_offset;
+        let return_size;
+        (builder, return_offset, return_size) = self.create_call_stack_local(
+            builder,
+            self.stack_pointer,
+            &TypeSignature::PrincipalType,
+        );
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host interface function `nft_get_owner`
         builder.call(
             self.module
                 .funcs
@@ -1938,22 +2005,44 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_burn<'b>(
+    fn traverse_nft_burn<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _sender: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        sender: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier and sender are on the stack, but we need to push the
-        // token name onto the stack, then we can call the host interface
-        // function `nft_burn`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Call the host interface function `nft_burn`
         builder.call(
             self.module
                 .funcs
@@ -1964,22 +2053,44 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_mint<'b>(
+    fn traverse_nft_mint<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier and recipient are on the stack, but we need to push the
-        // token name onto the stack, then we can call the host interface
-        // function `nft_mint`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the recipient onto the stack
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_mint`
         builder.call(
             self.module
                 .funcs
@@ -1990,23 +2101,48 @@ impl ASTVisitor for WasmGenerator<'_> {
         Ok(builder)
     }
 
-    fn visit_nft_transfer<'b>(
+    fn traverse_nft_transfer<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-        _identifier: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
+        identifier: &SymbolicExpression,
+        sender: &SymbolicExpression,
+        recipient: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        // Identifier, sender, and recipient are on the stack, but we need to
-        // push the token name onto the stack, then we can call the host
-        // interface function `nft_transfer`
+        // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        // Push the identifier onto the stack
+        builder = self.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = self
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let id_offset;
+        let id_size;
+        (builder, id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        self.write_to_memory(&mut builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        builder = self.traverse_expr(builder, sender)?;
+
+        // Push the recipient onto the stack
+        builder = self.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_transfer`
         builder.call(
             self.module
                 .funcs
@@ -2015,6 +2151,116 @@ impl ASTVisitor for WasmGenerator<'_> {
         );
 
         Ok(builder)
+    }
+
+    fn visit_unwrap_panic<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // There must be either an `optional` or a `response` on the top of the
+        // stack. Both use an i32 indicator, where 0 means `none` or `err`. In
+        // both cases, if this indicator is a 0, then we need to early exit.
+
+        // Get the type of the input expression
+        let input_ty = self
+            .get_expr_type(input)
+            .expect("try input expression must be typed")
+            .clone();
+
+        match &input_ty {
+            TypeSignature::OptionalType(val_ty) => {
+                // For the optional case, e.g. `(unwrap-panic (some 1))`, the stack
+                // will look like:
+                // 1 -- some value
+                // 1 -- indicator
+                // We need to get to the indicator, so we can pop the some value and
+                // store it in a local, then check the indicator. If it's 0, we need to
+                // trigger a runtime error. If it's a 1, we just push the some value
+                // back onto the stack and continue execution.
+
+                // Save the value in locals
+                let wasm_types = clar2wasm_ty(val_ty);
+                let mut val_locals = Vec::with_capacity(wasm_types.len());
+                for local_ty in wasm_types.iter().rev() {
+                    let local = self.module.locals.add(*local_ty);
+                    val_locals.push(local);
+                    builder.local_set(local);
+                }
+
+                // If the indicator is 0, throw a runtime error
+                builder.unop(UnaryOp::I32Eqz).if_else(
+                    InstrSeqType::new(&mut self.module.types, &[], &[]),
+                    |then| {
+                        then.i32_const(Trap::Panic as i32).call(
+                            self.module
+                                .funcs
+                                .by_name("runtime-error")
+                                .expect("runtime_error not found"),
+                        );
+                    },
+                    |_| {},
+                );
+
+                // Otherwise, push the value back onto the stack
+                // self.read_from_memory(&mut builder, value_offset, val_ty);
+                for &val_local in val_locals.iter().rev() {
+                    builder.local_get(val_local);
+                }
+
+                Ok(builder)
+            }
+            TypeSignature::ResponseType(inner_types) => {
+                // Ex. `(unwrap-panic (ok 1))`, where the value type is
+                // `(response uint uint)`, the stack will look like:
+                // 0 -- err value
+                // 1 -- ok value
+                // 1 -- indicator
+                // We need to get to the indicator, so we can drop the err value, since
+                // that is not needed, then we can pop the ok value and store them in a
+                // local. Now we can check the indicator. If it's 0, we need to trigger
+                // a runtime error. If it's a 1, we just push the ok value back onto
+                // the stack and continue execution.
+
+                let (ok_ty, err_ty) = &**inner_types;
+
+                // Drop the err value
+                drop_value(&mut builder, err_ty);
+
+                // Save the ok value in locals
+                let ok_wasm_types = clar2wasm_ty(ok_ty);
+                let mut ok_val_locals = Vec::with_capacity(ok_wasm_types.len());
+                for local_ty in ok_wasm_types.iter().rev() {
+                    let local = self.module.locals.add(*local_ty);
+                    ok_val_locals.push(local);
+                    builder.local_set(local);
+                }
+
+                // If the indicator is 0, throw a runtime error
+                builder.unop(UnaryOp::I32Eqz).if_else(
+                    InstrSeqType::new(&mut self.module.types, &[], &[]),
+                    |then| {
+                        then.i32_const(Trap::Panic as i32).call(
+                            self.module
+                                .funcs
+                                .by_name("runtime-error")
+                                .expect("runtime_error not found"),
+                        );
+                    },
+                    |_| {},
+                );
+
+                // Otherwise, push the value back onto the stack
+                // self.read_from_memory(&mut builder, value_offset, val_ty);
+                for &val_local in ok_val_locals.iter().rev() {
+                    builder.local_get(val_local);
+                }
+
+                Ok(builder)
+            }
+            _ => Err(builder),
+        }
     }
 }
 

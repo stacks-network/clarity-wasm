@@ -219,6 +219,119 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_get_supply",
+            |_name_offset: i32, _name_length: i32| Ok((0i64, 0i64)),
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_get_balance",
+            |_name_offset: i32, _name_length: i32, _owner_offset: i32, _owner_length: i32| {
+                Ok((0i64, 0i64))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_burn",
+            |_name_offset: i32,
+             _name_length: i32,
+             _amount_lo: i64,
+             _amount_hi: i64,
+             _sender_offset: i32,
+             _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_mint",
+            |_name_offset: i32,
+             _name_length: i32,
+             _amount_lo: i64,
+             _amount_hi: i64,
+             _sender_offset: i32,
+             _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_transfer",
+            |_name_offset: i32,
+             _name_length: i32,
+             _amount_lo: i64,
+             _amount_hi: i64,
+             _sender_offset: i32,
+             _sender_length: i32,
+             _recipient_offset: i32,
+             _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_get_owner",
+            |_name_offset: i32,
+             _name_length: i32,
+             _asset_offset: i32,
+             _asset_length: i32,
+             _return_offset: i32,
+             _return_length: i32| { Ok((0i32, 0i32, 0i32)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_burn",
+            |_name_offset: i32,
+             _name_length: i32,
+             _asset_offset: i32,
+             _asset_length: i32,
+             _sender_offset: i32,
+             _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_mint",
+            |_name_offset: i32,
+             _name_length: i32,
+             _asset_offset: i32,
+             _asset_length: i32,
+             _recipient_offset: i32,
+             _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_transfer",
+            |_name_offset: i32,
+             _name_length: i32,
+             _asset_offset: i32,
+             _asset_length: i32,
+             _sender_offset: i32,
+             _sender_length: i32,
+             _recipient_offset: i32,
+             _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
