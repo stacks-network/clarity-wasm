@@ -143,6 +143,12 @@
                                                      (param $key_offset i32)
                                                      (param $key_length i32)
                                                      (result i32)))
+    (import "clarity" "get_block_info" (func $get_block_info (param $name_offset i32)
+                                                             (param $name_length i32)
+                                                             (param $height_lo i64)
+                                                             (param $height_hi i64)
+                                                             (param $return_offset i32)
+                                                             (param $return_length i32)))
 
     (import "clarity" "tx_sender" (func $tx_sender (param $return_offset i32)
                                                    (param $return_length i32)

@@ -379,6 +379,22 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "get_block_info",
+            |_name_offset: i32,
+             _name_length: i32,
+             _height_lo: i64,
+             _height_hi: i64,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("get_block_info");
+                Ok(())
+            },
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {

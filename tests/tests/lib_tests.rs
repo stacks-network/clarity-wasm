@@ -1298,3 +1298,109 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::none());
     }
 );
+
+// These tests are disabled because they require a block to be present in the
+// chain, which is not the case when running the tests. Once the test framework
+// supports this, these tests can be re-enabled.
+
+// test_contract_call_response!(
+//     test_gbi_non_existent,
+//     "get-block-info",
+//     "non-existent",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::none());
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_bhh,
+//     "get-block-info",
+//     "get-burnchain-header-hash",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(
+//             *response.data,
+//             Value::some(Value::buff_from(vec![0u8; 32]).unwrap()).unwrap()
+//         );
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_id_hh,
+//     "get-block-info",
+//     "get-id-header-hash",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(
+//             *response.data,
+//             Value::some(Value::buff_from(vec![0u8; 32]).unwrap()).unwrap()
+//         );
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_hh,
+//     "get-block-info",
+//     "get-header-hash",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(
+//             *response.data,
+//             Value::some(Value::buff_from(vec![0u8; 32]).unwrap()).unwrap()
+//         );
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_miner_address,
+//     "get-block-info",
+//     "get-miner-address",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(
+//             *response.data,
+//             Value::some(StandardPrincipalData::transient().into()).unwrap()
+//         );
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_time,
+//     "get-block-info",
+//     "get-time",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(42)).unwrap());
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_block_reward,
+//     "get-block-info",
+//     "get-block-reward",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_miner_spend_total,
+//     "get-block-info",
+//     "get-miner-spend-total",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+//     }
+// );
+
+// test_contract_call_response!(
+//     test_gbi_miner_spend_winner,
+//     "get-block-info",
+//     "get-miner-spend-winner",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+//     }
+// );
