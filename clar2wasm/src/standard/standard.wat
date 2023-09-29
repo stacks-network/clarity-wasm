@@ -986,10 +986,12 @@
                (i64.shr_s (local.get $a_hi) (i64.const 63)))))
 
     (func $clz-int128 (param $a_lo i64) (param $a_hi i64) (result i32)
-        (select
-            (i32.wrap_i64 (i64.add (i64.const 64) (i64.clz (local.get $a_lo))))
-            (i32.wrap_i64 (i64.clz (local.get $a_hi)))
-            (i64.eqz (local.get $a_hi))
+        (i32.wrap_i64
+            (select
+                (i64.add (i64.const 64) (i64.clz (local.get $a_lo)))
+                (i64.clz (local.get $a_hi))
+                (i64.eqz (local.get $a_hi))
+            )
         )
     )
 
