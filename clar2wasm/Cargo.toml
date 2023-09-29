@@ -12,10 +12,10 @@ walrus = "0.20.1"
 lazy_static = "1.4.0"
 
 [build-dependencies]
-wat = "1.0.69"
+wat = "1.0.74"
 
 [dev-dependencies]
-wasmtime = "12.0.1"
+wasmtime = "13.0.0"
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }

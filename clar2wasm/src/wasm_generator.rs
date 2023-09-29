@@ -94,6 +94,7 @@ fn get_type_size(ty: &TypeSignature) -> u32 {
             // the contract name, which has a max length of 128.
             1 + 20 + 1 + 128
         }
+        TypeSignature::OptionalType(inner) => 1 + get_type_size(inner),
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
             list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
         }
@@ -510,6 +511,7 @@ impl<'a> WasmGenerator<'a> {
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset: LocalId,
+        literal_offset: u32,
         ty: &TypeSignature,
     ) -> i32 {
         let memory = self.module.memories.iter().next().expect("no memory found");
@@ -521,7 +523,7 @@ impl<'a> WasmGenerator<'a> {
                     LoadKind::I64 { atomic: false },
                     MemArg {
                         align: 8,
-                        offset: 0,
+                        offset: literal_offset,
                     },
                 );
                 builder.local_get(offset).load(
@@ -529,10 +531,36 @@ impl<'a> WasmGenerator<'a> {
                     LoadKind::I64 { atomic: false },
                     MemArg {
                         align: 8,
-                        offset: 8,
+                        offset: literal_offset + 8,
                     },
                 );
                 16
+            }
+            TypeSignature::OptionalType(inner) => {
+                // Memory: Offset -> | Indicator | Value |
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: literal_offset,
+                    },
+                );
+                4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)
+            }
+            // For types that are represented in-memory, just return the offset
+            // and length.
+            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
+                if literal_offset > 0 {
+                    builder.i32_const(literal_offset as i32);
+                    builder.local_get(offset);
+                    builder.binop(BinaryOp::I32Add);
+                } else {
+                    builder.local_get(offset);
+                }
+                let len = get_type_size(ty) as i32;
+                builder.i32_const(len);
+                len
             }
             _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
         };
@@ -737,7 +765,7 @@ impl<'a> WasmGenerator<'a> {
                 (builder, true)
             } else {
                 // Otherwise, we need to load the value from memory.
-                self.read_from_memory(&mut builder, offset_local, ty);
+                self.read_from_memory(&mut builder, offset_local, 0, ty);
                 (builder, true)
             }
         } else {
@@ -1476,7 +1504,7 @@ impl ASTVisitor for WasmGenerator<'_> {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
-        self.read_from_memory(builder.borrow_mut(), offset, &ty);
+        self.read_from_memory(builder.borrow_mut(), offset, 0, &ty);
 
         Ok(builder)
     }
@@ -1663,7 +1691,7 @@ impl ASTVisitor for WasmGenerator<'_> {
             let loop_id = loop_.id();
 
             // Load the element from the sequence
-            let elem_size = self.read_from_memory(loop_, offset, elem_ty);
+            let elem_size = self.read_from_memory(loop_, offset, 0, elem_ty);
 
             // Push the locals to the stack
             for result_local in result_locals.iter() {
@@ -2204,7 +2232,6 @@ impl ASTVisitor for WasmGenerator<'_> {
                 );
 
                 // Otherwise, push the value back onto the stack
-                // self.read_from_memory(&mut builder, value_offset, val_ty);
                 for &val_local in val_locals.iter().rev() {
                     builder.local_get(val_local);
                 }
@@ -2252,7 +2279,6 @@ impl ASTVisitor for WasmGenerator<'_> {
                 );
 
                 // Otherwise, push the value back onto the stack
-                // self.read_from_memory(&mut builder, value_offset, val_ty);
                 for &val_local in ok_val_locals.iter().rev() {
                     builder.local_get(val_local);
                 }
@@ -2261,6 +2287,296 @@ impl ASTVisitor for WasmGenerator<'_> {
             }
             _ => Err(builder),
         }
+    }
+
+    fn traverse_map_get<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("map not found: {name}");
+        let id_length = name.len();
+
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Create space on the call stack to write the key
+        let ty = self
+            .get_expr_type(key)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (key_offset, key_size);
+        (builder, key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the key to the data stack
+        builder = self.traverse_expr(builder, key)?;
+
+        // Write the key to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), key_offset, 0, &ty);
+
+        // Push the key offset and size to the data stack
+        builder.local_get(key_offset).i32_const(key_size);
+
+        // Create a new local to hold the result on the call stack
+        let ty = self
+            .get_expr_type(expr)
+            .expect("map-get? expression must be typed")
+            .clone();
+        let (return_offset, return_size);
+        (builder, return_offset, return_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the return value offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host-interface function, `map_get`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("map_get")
+                .expect("map_get not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the data stack.
+        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &ty);
+
+        Ok(builder)
+    }
+
+    fn traverse_map_set<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        key: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("map not found: {name}");
+        let id_length = name.len();
+
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Create space on the call stack to write the key
+        let ty = self
+            .get_expr_type(key)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (key_offset, key_size);
+        (builder, key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the key to the data stack
+        builder = self.traverse_expr(builder, key)?;
+
+        // Write the key to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), key_offset, 0, &ty);
+
+        // Push the key offset and size to the data stack
+        builder.local_get(key_offset).i32_const(key_size);
+
+        // Create space on the call stack to write the value
+        let ty = self
+            .get_expr_type(value)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (val_offset, val_size);
+        (builder, val_offset, val_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the value to the data stack
+        builder = self.traverse_expr(builder, value)?;
+
+        // Write the value to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), val_offset, 0, &ty);
+
+        // Push the value offset and size to the data stack
+        builder.local_get(val_offset).i32_const(val_size);
+
+        // Call the host interface function, `map_set`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("map_set")
+                .expect("map_set not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn traverse_map_insert<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        key: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("map not found: {name}");
+        let id_length = name.len();
+
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Create space on the call stack to write the key
+        let ty = self
+            .get_expr_type(key)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (key_offset, key_size);
+        (builder, key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the key to the data stack
+        builder = self.traverse_expr(builder, key)?;
+
+        // Write the key to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), key_offset, 0, &ty);
+
+        // Push the key offset and size to the data stack
+        builder.local_get(key_offset).i32_const(key_size);
+
+        // Create space on the call stack to write the value
+        let ty = self
+            .get_expr_type(value)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (val_offset, val_size);
+        (builder, val_offset, val_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the value to the data stack
+        builder = self.traverse_expr(builder, value)?;
+
+        // Write the value to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), val_offset, 0, &ty);
+
+        // Push the value offset and size to the data stack
+        builder.local_get(val_offset).i32_const(val_size);
+
+        // Call the host interface function, `map_insert`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("map_insert")
+                .expect("map_insert not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn traverse_map_delete<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        name: &ClarityName,
+        key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *self
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("map not found: {name}");
+        let id_length = name.len();
+
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Create space on the call stack to write the key
+        let ty = self
+            .get_expr_type(key)
+            .expect("map-set value expression must be typed")
+            .clone();
+        let (key_offset, key_size);
+        (builder, key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+
+        // Push the key to the data stack
+        builder = self.traverse_expr(builder, key)?;
+
+        // Write the key to the memory (it's already on the data stack)
+        self.write_to_memory(builder.borrow_mut(), key_offset, 0, &ty);
+
+        // Push the key offset and size to the data stack
+        builder.local_get(key_offset).i32_const(key_size);
+
+        // Call the host interface function, `map_delete`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("map_delete")
+                .expect("map_delete not found"),
+        );
+
+        Ok(builder)
+    }
+
+    fn traverse_get_block_info<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        prop_name: &ClarityName,
+        block: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        // Push the property name onto the stack
+        let (id_offset, id_length) = self.add_identifier_string_literal(prop_name);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the block number onto the stack
+        builder = self.traverse_expr(builder, block)?;
+
+        // Reserve space on the stack for the return value
+        let return_ty = self
+            .get_expr_type(expr)
+            .expect("get-block-info? expression must be typed")
+            .clone();
+
+        let (return_offset, return_size);
+        (builder, return_offset, return_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &return_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host interface function, `get_block_info`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("get_block_info")
+                .expect("get_block_info not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the data stack.
+        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &return_ty);
+
+        Ok(builder)
     }
 }
 
