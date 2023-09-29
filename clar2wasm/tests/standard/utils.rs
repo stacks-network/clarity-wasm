@@ -332,6 +332,53 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "map_get",
+            |_name_offset: i32,
+             _name_length: i32,
+             _key_offset: i32,
+             _key_length: i32,
+             _return_offset: i32,
+             _return_length: i32| { Ok(()) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "map_set",
+            |_name_offset: i32,
+             _name_length: i32,
+             _key_offset: i32,
+             _key_length: i32,
+             _value_offset: i32,
+             _value_length: i32| { Ok(0i32) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "map_insert",
+            |_name_offset: i32,
+             _name_length: i32,
+             _key_offset: i32,
+             _key_length: i32,
+             _value_offset: i32,
+             _value_length: i32| { Ok(0i32) },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "map_delete",
+            |_name_offset: i32, _name_length: i32, _key_offset: i32, _key_length: i32| Ok(0i32),
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
