@@ -2175,7 +2175,7 @@ impl ASTVisitor for WasmGenerator<'_> {
                 // will look like:
                 // 1 -- some value
                 // 1 -- indicator
-                // We need to get to the indicator, so we can pop the some value amd
+                // We need to get to the indicator, so we can pop the some value and
                 // store it in a local, then check the indicator. If it's 0, we need to
                 // trigger a runtime error. If it's a 1, we just push the some value
                 // back onto the stack and continue execution.
