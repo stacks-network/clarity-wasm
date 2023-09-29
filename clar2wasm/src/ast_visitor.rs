@@ -324,13 +324,12 @@ pub trait ASTVisitor {
                                 .unwrap_or(&DEFAULT_EXPR)
                                 .match_atom()
                                 .unwrap_or(&DEFAULT_NAME);
-                            let key = match_tuple(args.get(1).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            self.traverse_map_get(builder, expr, name, &key)
+                            self.traverse_map_get(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            )
                         }
                         SetEntry => {
                             let name = args
@@ -338,19 +337,13 @@ pub trait ASTVisitor {
                                 .unwrap_or(&DEFAULT_EXPR)
                                 .match_atom()
                                 .unwrap_or(&DEFAULT_NAME);
-                            let key = match_tuple(args.get(1).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            let value = match_tuple(args.get(2).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(2).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            self.traverse_map_set(builder, expr, name, &key, &value)
+                            self.traverse_map_set(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
                         }
                         InsertEntry => {
                             let name = args
@@ -358,19 +351,13 @@ pub trait ASTVisitor {
                                 .unwrap_or(&DEFAULT_EXPR)
                                 .match_atom()
                                 .unwrap_or(&DEFAULT_NAME);
-                            let key = match_tuple(args.get(1).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            let value = match_tuple(args.get(2).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(2).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            self.traverse_map_insert(builder, expr, name, &key, &value)
+                            self.traverse_map_insert(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
                         }
                         DeleteEntry => {
                             let name = args
@@ -378,13 +365,12 @@ pub trait ASTVisitor {
                                 .unwrap_or(&DEFAULT_EXPR)
                                 .match_atom()
                                 .unwrap_or(&DEFAULT_NAME);
-                            let key = match_tuple(args.get(1).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_else(|| {
-                                    let mut tuple_map = HashMap::new();
-                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
-                                    tuple_map
-                                });
-                            self.traverse_map_delete(builder, expr, name, &key)
+                            self.traverse_map_delete(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            )
                         }
                         TupleCons => self.traverse_tuple(
                             builder,
@@ -1294,11 +1280,9 @@ pub trait ASTVisitor {
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
         name: &ClarityName,
-        key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        key: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for val in key.values() {
-            builder = self.traverse_expr(builder, val)?;
-        }
+        builder = self.traverse_expr(builder, key)?;
         self.visit_map_get(builder, expr, name, key)
     }
 
@@ -1307,7 +1291,7 @@ pub trait ASTVisitor {
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
-        _key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        _key: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
@@ -1317,15 +1301,11 @@ pub trait ASTVisitor {
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
         name: &ClarityName,
-        key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-        value: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        key: &SymbolicExpression,
+        value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for key_val in key.values() {
-            builder = self.traverse_expr(builder, key_val)?;
-        }
-        for val_val in value.values() {
-            builder = self.traverse_expr(builder, val_val)?;
-        }
+        builder = self.traverse_expr(builder, key)?;
+        builder = self.traverse_expr(builder, value)?;
         self.visit_map_set(builder, expr, name, key, value)
     }
 
@@ -1334,8 +1314,8 @@ pub trait ASTVisitor {
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
-        _key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-        _value: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        _key: &SymbolicExpression,
+        _value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
@@ -1345,15 +1325,11 @@ pub trait ASTVisitor {
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
         name: &ClarityName,
-        key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-        value: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        key: &SymbolicExpression,
+        value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for key_val in key.values() {
-            builder = self.traverse_expr(builder, key_val)?;
-        }
-        for val_val in value.values() {
-            builder = self.traverse_expr(builder, val_val)?;
-        }
+        builder = self.traverse_expr(builder, key)?;
+        builder = self.traverse_expr(builder, value)?;
         self.visit_map_insert(builder, expr, name, key, value)
     }
 
@@ -1362,8 +1338,8 @@ pub trait ASTVisitor {
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
-        _key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-        _value: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        _key: &SymbolicExpression,
+        _value: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }
@@ -1373,11 +1349,9 @@ pub trait ASTVisitor {
         mut builder: InstrSeqBuilder<'b>,
         expr: &SymbolicExpression,
         name: &ClarityName,
-        key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        key: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
-        for val in key.values() {
-            builder = self.traverse_expr(builder, val)?;
-        }
+        builder = self.traverse_expr(builder, key)?;
         self.visit_map_delete(builder, expr, name, key)
     }
 
@@ -1386,7 +1360,7 @@ pub trait ASTVisitor {
         builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
-        _key: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+        _key: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         Ok(builder)
     }

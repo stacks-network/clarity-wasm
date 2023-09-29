@@ -1178,3 +1178,123 @@ test_contract_call!(
         assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );
+
+test_contract_call_response!(
+    test_map_insert,
+    "maps",
+    "test-map-insert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_map_insert_exists,
+    "maps",
+    "test-map-insert-exists",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_map_set,
+    "maps",
+    "test-map-set",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_map_set_exists,
+    "maps",
+    "test-map-set-exists",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_map_get_insert,
+    "maps",
+    "test-map-get-insert",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_map_get_insert_exists,
+    "maps",
+    "test-map-get-insert-exists",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(1)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_map_get_set,
+    "maps",
+    "test-map-get-set",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_map_get_set_exists,
+    "maps",
+    "test-map-get-set-exists",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_map_get_none,
+    "maps",
+    "test-map-get-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_map_delete,
+    "maps",
+    "test-map-delete",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_map_delete_none,
+    "maps",
+    "test-map-delete-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_map_delete_get,
+    "maps",
+    "test-map-delete-get",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
