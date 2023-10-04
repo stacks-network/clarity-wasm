@@ -1953,16 +1953,11 @@ impl WasmGenerator {
         };
 
         // Handle builtin variables
-        let is_builtin: bool;
-        is_builtin = self.lookup_reserved_variable(builder, atom.as_str(), &ty);
-        if is_builtin {
+        if self.lookup_reserved_variable(builder, atom.as_str(), &ty) {
             return Ok(());
         }
 
-        // Handle constants
-        let is_constant: bool;
-        is_constant = self.lookup_constant_variable(builder, atom.as_str(), &ty);
-        if is_constant {
+        if self.lookup_constant_variable(builder, atom.as_str(), &ty) {
             return Ok(());
         }
 
