@@ -11,7 +11,6 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
-// mod ast_visitor;
 mod wasm_generator;
 
 // FIXME: This is copied from stacks-blockchain

@@ -21,19 +21,6 @@ use walrus::{
     ValType,
 };
 
-pub type CResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-#[derive(Debug)]
-struct GenericError;
-
-impl std::fmt::Display for GenericError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "error")
-    }
-}
-
-impl std::error::Error for GenericError {}
-
 lazy_static! {
     // Since the AST Visitor may be used before other checks have been performed,
     // we may need a default value for some expressions. This can be used for a
@@ -175,7 +162,7 @@ pub fn traverse(
     visitor: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     exprs: &[SymbolicExpression],
-) -> CResult<()> {
+) -> Result<(), GeneratorError> {
     for expr in exprs {
         visitor.traverse_expr(builder, expr)?;
     }
@@ -252,7 +239,7 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         match &expr.expr {
             SymbolicExpressionType::AtomValue(value) => self.visit_atom_value(builder, expr, value),
             SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
@@ -272,7 +259,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         if let Some((function_name, args)) = list.split_first() {
             if let Some(function_name) = function_name.match_atom() {
                 if let Some(define_function) = DefineFunctions::lookup_by_name(function_name) {
@@ -317,7 +304,7 @@ impl WasmGenerator {
                                         _ => unreachable!(),
                                     }
                                 }
-                                _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+                                _ => Err(GeneratorError::NotImplemented),
                             }
                         }
                         DefineFunctions::NonFungibleToken => self.traverse_define_nft(
@@ -493,7 +480,7 @@ impl WasmGenerator {
                                     args.get(0).unwrap_or(&DEFAULT_EXPR),
                                     *length,
                                 ),
-                                _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+                                _ => Err(GeneratorError::NotImplemented),
                             }
                         }
                         Len => {
@@ -984,7 +971,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _list: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -1116,7 +1103,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &Value,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -1362,7 +1349,7 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         statements: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         assert!(
             statements.len() > 1,
             "statement list must have at least one statement"
@@ -1673,7 +1660,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(expr)
             .expect("arithmetic expression must be typed");
@@ -1684,7 +1671,7 @@ impl WasmGenerator {
                 self.error = Some(GeneratorError::InternalError(
                     "invalid type for arithmetic".to_string(),
                 ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         let helper_func = match func {
@@ -1730,7 +1717,7 @@ impl WasmGenerator {
                 .unwrap_or_else(|| panic!("function not found: pow-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -1753,7 +1740,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let helper_func = match func {
             NativeFunctions::BitwiseAnd => self
                 .module
@@ -1772,7 +1759,7 @@ impl WasmGenerator {
                 .unwrap_or_else(|| panic!("function not found: bit-xor")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -1796,7 +1783,7 @@ impl WasmGenerator {
         func: NativeFunctions,
         input: &SymbolicExpression,
         _shamt: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(input)
             .expect("bit shift operands must be typed");
@@ -1807,7 +1794,7 @@ impl WasmGenerator {
                 self.error = Some(GeneratorError::InternalError(
                     "invalid type for shift".to_string(),
                 ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         let helper_func = match func {
@@ -1823,7 +1810,7 @@ impl WasmGenerator {
                 .unwrap_or_else(|| panic!("function not found: bit-shift-right-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         builder.call(helper_func);
@@ -1831,7 +1818,7 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> CResult<()> {
+    fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
         let helper_func = self
             .module
             .funcs
@@ -1847,7 +1834,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(&operands[0])
             .expect("comparison operands must be typed");
@@ -1865,7 +1852,7 @@ impl WasmGenerator {
                 self.error = Some(GeneratorError::InternalError(
                     "invalid type for comparison".to_string(),
                 ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         let helper_func = match func {
@@ -1891,7 +1878,7 @@ impl WasmGenerator {
                 .unwrap_or_else(|| panic!("function not found: ge-{type_suffix}")),
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         builder.call(helper_func);
@@ -1904,7 +1891,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &clarity::vm::Value,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         match value {
             clarity::vm::Value::Int(i) => {
                 builder.i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
@@ -1931,7 +1918,7 @@ impl WasmGenerator {
             }
             _ => {
                 self.error = Some(GeneratorError::NotImplemented);
-                Err(Box::new(GenericError) as Box<dyn std::error::Error>)
+                Err(GeneratorError::NotImplemented)
             }
         }
     }
@@ -1941,14 +1928,14 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         atom: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = match self.get_expr_type(expr) {
             Some(ty) => ty.clone(),
             None => {
                 self.error = Some(GeneratorError::InternalError(
                     "atom expression must be typed".to_string(),
                 ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -1970,7 +1957,7 @@ impl WasmGenerator {
                         "unable to find local for {}",
                         atom.as_str()
                     )));
-                    return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                    return Err(GeneratorError::NotImplemented);
                 }
             };
             builder.local_get(local);
@@ -1986,14 +1973,14 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         if self
             .traverse_define_function(builder, name, body, FunctionKind::Private)
             .is_some()
         {
             Ok(())
         } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
+            Err(GeneratorError::NotImplemented)
         }
     }
 
@@ -2004,14 +1991,14 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         if let Some(function_id) =
             self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)
         {
             self.module.exports.add(name.as_str(), function_id);
             Ok(())
         } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
+            Err(GeneratorError::NotImplemented)
         }
     }
 
@@ -2022,14 +2009,14 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         if let Some(function_id) =
             self.traverse_define_function(builder, name, body, FunctionKind::Public)
         {
             self.module.exports.add(name.as_str(), function_id);
             Ok(())
         } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
+            Err(GeneratorError::NotImplemented)
         }
     }
 
@@ -2040,7 +2027,7 @@ impl WasmGenerator {
         name: &ClarityName,
         _data_type: &SymbolicExpression,
         initial: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2095,7 +2082,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         supply: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2128,7 +2115,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _nft_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2152,7 +2139,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // If the initial value is a literal, then we can directly add it to
         // the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
@@ -2195,7 +2182,7 @@ impl WasmGenerator {
         name: &ClarityName,
         _key_type: &SymbolicExpression,
         _value_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2218,7 +2205,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         statements: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_statement_list(builder, statements)
     }
 
@@ -2227,7 +2214,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
         self.traverse_expr(builder, value)?;
@@ -2239,7 +2226,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (ok <val>) is represented by an i32 1, followed by the ok value,
         // followed by a placeholder for the err value
         builder.i32_const(1);
@@ -2263,7 +2250,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
         builder.i32_const(0);
@@ -2287,7 +2274,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         builder.call(
             self.module
                 .funcs
@@ -2303,7 +2290,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         lhs: &SymbolicExpression,
         rhs: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Create a new sequence to hold the result in the stack frame
         let ty = self
             .get_expr_type(expr)
@@ -2354,7 +2341,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -2399,7 +2386,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -2445,7 +2432,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(expr)
             .expect("list expression must be typed")
@@ -2489,7 +2476,7 @@ impl WasmGenerator {
         func: &ClarityName,
         sequence: &SymbolicExpression,
         initial: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Fold takes an initial value, and a sequence, and applies a function
         // to the output of the previous call, or the initial value in the case
         // of the first call, and each element of the sequence.
@@ -2518,7 +2505,7 @@ impl WasmGenerator {
                 self.error = Some(GeneratorError::InternalError(
                     "expected sequence type".to_string(),
                 ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -2623,7 +2610,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         inner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Call the host interface function, `enter_as_contract`
         builder.call(
             self.module
@@ -2651,7 +2638,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Owner is on the stack, so just call the host interface function,
         // `stx_get_balance`
         builder.call(
@@ -2668,7 +2655,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Owner is on the stack, so just call the host interface function,
         // `stx_get_account`
         builder.call(
@@ -2686,7 +2673,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _amount: &SymbolicExpression,
         _sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
         builder.call(
@@ -2706,7 +2693,7 @@ impl WasmGenerator {
         _sender: &SymbolicExpression,
         _recipient: &SymbolicExpression,
         _memo: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Amount, sender, and recipient are on the stack. If memo is none, we
         // need to add a placeholder to the stack, then we can call the host
         // interface function, `stx_transfer`
@@ -2727,7 +2714,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack, then call the host interface
         // function `ft_get_supply`
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
@@ -2751,7 +2738,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         token: &ClarityName,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2779,7 +2766,7 @@ impl WasmGenerator {
         token: &ClarityName,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2808,7 +2795,7 @@ impl WasmGenerator {
         token: &ClarityName,
         amount: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2838,7 +2825,7 @@ impl WasmGenerator {
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2867,7 +2854,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2924,7 +2911,7 @@ impl WasmGenerator {
         token: &ClarityName,
         identifier: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2972,7 +2959,7 @@ impl WasmGenerator {
         token: &ClarityName,
         identifier: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -3021,7 +3008,7 @@ impl WasmGenerator {
         identifier: &SymbolicExpression,
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -3070,7 +3057,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // There must be either an `optional` or a `response` on the top of the
         // stack. Both use an i32 indicator, where 0 means `none` or `err`. In
         // both cases, if this indicator is a 0, then we need to early exit.
@@ -3169,7 +3156,7 @@ impl WasmGenerator {
 
                 Ok(())
             }
-            _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+            _ => Err(GeneratorError::NotImplemented),
         }
     }
 
@@ -3179,7 +3166,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3243,7 +3230,7 @@ impl WasmGenerator {
         name: &ClarityName,
         key: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3308,7 +3295,7 @@ impl WasmGenerator {
         name: &ClarityName,
         key: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3372,7 +3359,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3419,7 +3406,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         prop_name: &ClarityName,
         block: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the property name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(prop_name);
         builder
@@ -3463,7 +3450,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
@@ -3477,7 +3464,7 @@ impl WasmGenerator {
         func: NativeFunctions,
         input: &SymbolicExpression,
         shamt: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, shamt)?;
         self.visit_bit_shift(builder, expr, func, input, shamt)
@@ -3490,7 +3477,7 @@ impl WasmGenerator {
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
         element: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.traverse_expr(builder, index)?;
         self.traverse_expr(builder, element)?;
@@ -3501,7 +3488,7 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_bitwise_not(builder)
     }
@@ -3511,7 +3498,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _field: &TraitIdentifier,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3521,7 +3508,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _trait_def: &TraitDefinition,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3532,7 +3519,7 @@ impl WasmGenerator {
         name: &ClarityName,
         key_type: &SymbolicExpression,
         value_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_define_map(builder, expr, name, key_type, value_type)
     }
 
@@ -3542,7 +3529,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         functions: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_define_trait(builder, expr, name, functions)
     }
 
@@ -3552,7 +3539,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _functions: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3562,7 +3549,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_use_trait(builder, expr, name, trait_identifier)
     }
 
@@ -3572,7 +3559,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3581,7 +3568,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_impl_trait(builder, expr, trait_identifier)
     }
 
@@ -3590,7 +3577,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3601,7 +3588,7 @@ impl WasmGenerator {
         func: NativeFunctions,
         lhs: &SymbolicExpression,
         rhs: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in &[lhs, rhs] {
             self.traverse_expr(builder, operand)?;
         }
@@ -3615,7 +3602,7 @@ impl WasmGenerator {
         _func: NativeFunctions,
         _lhs: &SymbolicExpression,
         _rhs: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3625,7 +3612,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in operands {
             self.traverse_expr(builder, operand)?;
         }
@@ -3638,7 +3625,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         function: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in operands {
             self.traverse_expr(builder, operand)?;
         }
@@ -3651,7 +3638,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _function: NativeFunctions,
         _operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3661,7 +3648,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         function: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in operands {
             self.traverse_expr(builder, operand)?;
         }
@@ -3674,7 +3661,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _function: NativeFunctions,
         _operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3683,7 +3670,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_int_cast(builder, expr, input)
     }
@@ -3693,7 +3680,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3704,7 +3691,7 @@ impl WasmGenerator {
         cond: &SymbolicExpression,
         then_expr: &SymbolicExpression,
         else_expr: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for &expr in &[cond, then_expr, else_expr] {
             self.traverse_expr(builder, expr)?;
         }
@@ -3718,7 +3705,7 @@ impl WasmGenerator {
         _cond: &SymbolicExpression,
         _then_expr: &SymbolicExpression,
         _else_expr: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3727,7 +3714,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_var_get(builder, expr, name)
     }
 
@@ -3737,7 +3724,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_var_set(builder, expr, name, value)
     }
@@ -3747,7 +3734,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for val in values.values() {
             self.traverse_expr(builder, val)?;
         }
@@ -3759,7 +3746,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3769,7 +3756,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         key: &ClarityName,
         tuple: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, tuple)?;
         self.visit_get(builder, expr, key, tuple)
     }
@@ -3780,7 +3767,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _key: &ClarityName,
         _tuple: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3790,7 +3777,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         tuple1: &SymbolicExpression,
         tuple2: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, tuple1)?;
         self.traverse_expr(builder, tuple2)?;
         self.visit_merge(builder, expr, tuple1, tuple2)
@@ -3802,7 +3789,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _tuple1: &SymbolicExpression,
         _tuple2: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3812,7 +3799,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: NativeFunctions,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_hash(builder, expr, func, value)
     }
@@ -3823,7 +3810,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _func: NativeFunctions,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3833,7 +3820,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, hash)?;
         self.traverse_expr(builder, signature)?;
         self.visit_secp256k1_recover(builder, expr, hash, signature)
@@ -3845,7 +3832,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _hash: &SymbolicExpression,
         _signature: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3856,7 +3843,7 @@ impl WasmGenerator {
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
         public_key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, hash)?;
         self.traverse_expr(builder, signature)?;
         self.visit_secp256k1_verify(builder, expr, hash, signature, public_key)
@@ -3869,7 +3856,7 @@ impl WasmGenerator {
         _hash: &SymbolicExpression,
         _signature: &SymbolicExpression,
         _public_key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3878,7 +3865,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_print(builder, expr, value)
     }
@@ -3888,7 +3875,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3899,7 +3886,7 @@ impl WasmGenerator {
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &ClarityName,
         args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
@@ -3913,7 +3900,7 @@ impl WasmGenerator {
         _contract_identifier: &QualifiedContractIdentifier,
         _function_name: &ClarityName,
         _args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3924,7 +3911,7 @@ impl WasmGenerator {
         trait_ref: &SymbolicExpression,
         function_name: &ClarityName,
         args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, trait_ref)?;
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
@@ -3939,7 +3926,7 @@ impl WasmGenerator {
         _trait_ref: &SymbolicExpression,
         _function_name: &ClarityName,
         _args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3948,7 +3935,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, name)?;
         self.visit_contract_of(builder, expr, name)
     }
@@ -3958,7 +3945,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _name: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3967,7 +3954,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         public_key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, public_key)?;
         self.visit_principal_of(builder, expr, public_key)
     }
@@ -3977,7 +3964,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _public_key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -3987,7 +3974,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         block: &SymbolicExpression,
         inner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, block)?;
         self.traverse_expr(builder, inner)?;
         self.visit_at_block(builder, expr, block, inner)
@@ -3999,7 +3986,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _block: &SymbolicExpression,
         _inner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4009,7 +3996,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         default: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, default)?;
         self.traverse_expr(builder, value)?;
         self.visit_default_to(builder, expr, default, value)
@@ -4021,7 +4008,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _default: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4031,7 +4018,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, throws)?;
         self.visit_unwrap(builder, expr, input, throws)
@@ -4043,7 +4030,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4053,7 +4040,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, throws)?;
         self.visit_unwrap_err(builder, expr, input, throws)
@@ -4065,7 +4052,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4074,7 +4061,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_is_ok(builder, expr, value)
     }
@@ -4084,7 +4071,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4093,7 +4080,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_is_none(builder, expr, value)
     }
@@ -4103,7 +4090,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4112,7 +4099,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_is_err(builder, expr, value)
     }
@@ -4122,7 +4109,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4131,7 +4118,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_is_some(builder, expr, value)
     }
@@ -4141,7 +4128,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4151,7 +4138,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: &ClarityName,
         sequence: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.visit_filter(builder, expr, func, sequence)
     }
@@ -4162,7 +4149,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _func: &ClarityName,
         _sequence: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4171,7 +4158,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_unwrap_panic(builder, expr, input)
     }
@@ -4184,7 +4171,7 @@ impl WasmGenerator {
         some_name: &ClarityName,
         some_branch: &SymbolicExpression,
         none_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, some_branch)?;
         self.traverse_expr(builder, none_branch)?;
@@ -4199,7 +4186,7 @@ impl WasmGenerator {
         _some_name: &ClarityName,
         _some_branch: &SymbolicExpression,
         _none_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4213,7 +4200,7 @@ impl WasmGenerator {
         ok_branch: &SymbolicExpression,
         err_name: &ClarityName,
         err_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, ok_branch)?;
         self.traverse_expr(builder, err_branch)?;
@@ -4232,7 +4219,7 @@ impl WasmGenerator {
         _ok_branch: &SymbolicExpression,
         _err_name: &ClarityName,
         _err_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4241,7 +4228,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_try(builder, expr, input)
     }
@@ -4251,7 +4238,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4261,7 +4248,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         cond: &SymbolicExpression,
         thrown: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, cond)?;
         self.traverse_expr(builder, thrown)?;
         self.visit_asserts(builder, expr, cond, thrown)
@@ -4273,7 +4260,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _cond: &SymbolicExpression,
         _thrown: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4283,7 +4270,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, amount)?;
         self.traverse_expr(builder, sender)?;
         self.visit_stx_burn(builder, expr, amount, sender)
@@ -4297,7 +4284,7 @@ impl WasmGenerator {
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
         memo: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, amount)?;
         self.traverse_expr(builder, sender)?;
         self.traverse_expr(builder, recipient)?;
@@ -4312,7 +4299,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, owner)?;
         self.visit_stx_get_balance(builder, expr, owner)
     }
@@ -4322,7 +4309,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         token: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_ft_get_supply(builder, expr, token)
     }
 
@@ -4332,7 +4319,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         bindings: &HashMap<&ClarityName, &SymbolicExpression>,
         body: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for val in bindings.values() {
             self.traverse_expr(builder, val)?;
         }
@@ -4348,7 +4335,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _bindings: &HashMap<&ClarityName, &SymbolicExpression>,
         _body: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4358,7 +4345,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: &ClarityName,
         sequences: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for sequence in sequences {
             self.traverse_expr(builder, sequence)?;
         }
@@ -4371,7 +4358,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _func: &ClarityName,
         _sequences: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4381,7 +4368,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         list: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, list)?;
         self.traverse_expr(builder, value)?;
         self.visit_append(builder, expr, list, value)
@@ -4393,7 +4380,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _list: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4403,7 +4390,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         length: u128,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.visit_as_max_len(builder, expr, sequence, length)
     }
@@ -4414,7 +4401,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
         _length: u128,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4423,7 +4410,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.visit_len(builder, expr, sequence)
     }
@@ -4433,7 +4420,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4443,7 +4430,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.traverse_expr(builder, index)?;
         self.visit_element_at(builder, expr, sequence, index)
@@ -4455,7 +4442,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
         _index: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4465,7 +4452,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         item: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.traverse_expr(builder, item)?;
         self.visit_element_at(builder, expr, sequence, item)
@@ -4476,7 +4463,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_buff_cast(builder, expr, input)
     }
@@ -4486,7 +4473,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4495,7 +4482,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_is_standard(builder, expr, value)
     }
@@ -4505,7 +4492,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4514,7 +4501,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         principal: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, principal)?;
         self.visit_principal_destruct(builder, expr, principal)
     }
@@ -4524,7 +4511,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _principal: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4535,7 +4522,7 @@ impl WasmGenerator {
         buff1: &SymbolicExpression,
         buff20: &SymbolicExpression,
         contract: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, buff1)?;
         self.traverse_expr(builder, buff20)?;
         if let Some(contract) = contract {
@@ -4551,7 +4538,7 @@ impl WasmGenerator {
         _buff1: &SymbolicExpression,
         _buff20: &SymbolicExpression,
         _contract: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4560,7 +4547,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_string_to_int(builder, expr, input)
     }
@@ -4570,7 +4557,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4579,7 +4566,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_int_to_string(builder, expr, input)
     }
@@ -4589,7 +4576,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4598,7 +4585,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, owner)?;
         self.visit_stx_get_account(builder, expr, owner)
     }
@@ -4610,7 +4597,7 @@ impl WasmGenerator {
         seq: &SymbolicExpression,
         left: &SymbolicExpression,
         right: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, seq)?;
         self.traverse_expr(builder, left)?;
         self.traverse_expr(builder, right)?;
@@ -4624,7 +4611,7 @@ impl WasmGenerator {
         _seq: &SymbolicExpression,
         _left: &SymbolicExpression,
         _right: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4634,7 +4621,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         prop_name: &ClarityName,
         block: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, block)?;
         self.visit_get_burn_block_info(builder, expr, prop_name, block)
     }
@@ -4645,7 +4632,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _prop_name: &ClarityName,
         _block: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4654,7 +4641,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_to_consensus_buff(builder, expr, input)
     }
@@ -4664,7 +4651,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4674,7 +4661,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         type_expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, type_expr)?;
         self.traverse_expr(builder, input)?;
         self.visit_from_consensus_buff(builder, expr, type_expr, input)
@@ -4686,7 +4673,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _type_expr: &SymbolicExpression,
         _input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -4697,7 +4684,7 @@ impl WasmGenerator {
         _sequence: &SymbolicExpression,
         _index: &SymbolicExpression,
         _element: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 }
