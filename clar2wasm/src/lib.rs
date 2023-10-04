@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate lazy_static;
 
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
@@ -12,7 +11,6 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
-mod ast_visitor;
 mod wasm_generator;
 
 // FIXME: This is copied from stacks-blockchain
@@ -87,7 +85,7 @@ pub fn compile(
         }
     };
 
-    let generator = WasmGenerator::new(&mut contract_analysis);
+    let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
         Ok(module) => Ok(CompileResult {
             diagnostics,
@@ -104,9 +102,7 @@ pub fn compile(
     }
 }
 
-pub fn compile_contract(
-    contract_analysis: &mut ContractAnalysis,
-) -> Result<Module, GeneratorError> {
+pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
     let generator = WasmGenerator::new(contract_analysis);
     generator.generate()
 }
