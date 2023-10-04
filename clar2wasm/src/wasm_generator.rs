@@ -51,10 +51,10 @@ pub struct TypedVar<'a> {
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
-pub struct WasmGenerator<'a> {
+pub struct WasmGenerator {
     /// The contract analysis, which contains the expressions and type
     /// information for the contract.
-    contract_analysis: &'a mut ContractAnalysis,
+    contract_analysis: ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
     /// The error that occurred during generation, if any.
@@ -169,8 +169,8 @@ pub fn traverse<'b>(
     Ok(builder)
 }
 
-impl<'a> WasmGenerator<'a> {
-    pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
+impl WasmGenerator {
+    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
@@ -1654,7 +1654,7 @@ fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &Symbo
     Some(tuple_map)
 }
 
-impl WasmGenerator<'_> {
+impl WasmGenerator {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,

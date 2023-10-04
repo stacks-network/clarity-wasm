@@ -86,7 +86,7 @@ pub fn compile(
         }
     };
 
-    let generator = WasmGenerator::new(&mut contract_analysis);
+    let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
         Ok(module) => Ok(CompileResult {
             diagnostics,
@@ -103,9 +103,7 @@ pub fn compile(
     }
 }
 
-pub fn compile_contract(
-    contract_analysis: &mut ContractAnalysis,
-) -> Result<Module, GeneratorError> {
+pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
     let generator = WasmGenerator::new(contract_analysis);
     generator.generate()
 }
