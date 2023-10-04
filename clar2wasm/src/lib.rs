@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate lazy_static;
 
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
@@ -12,7 +11,7 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
-mod ast_visitor;
+// mod ast_visitor;
 mod wasm_generator;
 
 // FIXME: This is copied from stacks-blockchain

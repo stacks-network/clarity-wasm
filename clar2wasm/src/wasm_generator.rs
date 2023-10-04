@@ -1,14 +1,19 @@
+use clarity::vm::functions::define::DefineFunctions;
+use clarity::vm::types::{QualifiedContractIdentifier, TraitIdentifier};
+use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
+    representations::{Span, TraitDefinition},
     types::{
         CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
         TypeSignature,
     },
     variables::NativeVariables,
-    ClarityName, SymbolicExpression, SymbolicExpressionType,
+    ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
+use lazy_static::lazy_static;
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
     ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp},
@@ -16,7 +21,13 @@ use walrus::{
     ValType,
 };
 
-use crate::ast_visitor::{traverse, ASTVisitor};
+lazy_static! {
+    // Since the AST Visitor may be used before other checks have been performed,
+    // we may need a default value for some expressions. This can be used for a
+    // missing `ClarityName`.
+    static ref DEFAULT_NAME: ClarityName = ClarityName::from("placeholder__");
+    static ref DEFAULT_EXPR: SymbolicExpression = SymbolicExpression::atom(DEFAULT_NAME.clone());
+}
 
 /// `Trap` should match the values used in the standard library and is used to
 /// indicate the reason for a runtime error from the Clarity code.
@@ -29,6 +40,13 @@ enum Trap {
     LogOfNumberLessThanOrEqualToZero = 3,
     ExpectedANonNegativeNumber = 4,
     Panic = 5,
+}
+
+#[derive(Clone)]
+pub struct TypedVar<'a> {
+    pub name: &'a ClarityName,
+    pub type_expr: &'a SymbolicExpression,
+    pub decl_span: Span,
 }
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
@@ -140,6 +158,17 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
     }
 }
 
+pub fn traverse<'b>(
+    visitor: &mut WasmGenerator,
+    mut builder: InstrSeqBuilder<'b>,
+    exprs: &[SymbolicExpression],
+) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+    for expr in exprs {
+        builder = visitor.traverse_expr(builder, expr)?;
+    }
+    Ok(builder)
+}
+
 impl<'a> WasmGenerator<'a> {
     pub fn new(contract_analysis: &'a mut ContractAnalysis) -> WasmGenerator<'a> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -204,6 +233,747 @@ impl<'a> WasmGenerator<'a> {
         );
 
         Ok(self.module)
+    }
+
+    fn traverse_expr<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        match &expr.expr {
+            SymbolicExpressionType::AtomValue(value) => self.visit_atom_value(builder, expr, value),
+            SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
+            SymbolicExpressionType::List(exprs) => self.traverse_list(builder, expr, exprs),
+            SymbolicExpressionType::LiteralValue(value) => {
+                self.visit_literal_value(builder, expr, value)
+            }
+            SymbolicExpressionType::Field(field) => self.visit_field(builder, expr, field),
+            SymbolicExpressionType::TraitReference(name, trait_def) => {
+                self.visit_trait_reference(builder, expr, name, trait_def)
+            }
+        }
+    }
+
+    fn traverse_list<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        list: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        if let Some((function_name, args)) = list.split_first() {
+            if let Some(function_name) = function_name.match_atom() {
+                if let Some(define_function) = DefineFunctions::lookup_by_name(function_name) {
+                    builder = match define_function {
+                        DefineFunctions::Constant => self.traverse_define_constant(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        DefineFunctions::PrivateFunction
+                        | DefineFunctions::ReadOnlyFunction
+                        | DefineFunctions::PublicFunction => {
+                            match args.get(0).unwrap_or(&DEFAULT_EXPR).match_list() {
+                                Some(signature) => {
+                                    let name = signature
+                                        .get(0)
+                                        .and_then(|n| n.match_atom())
+                                        .unwrap_or(&DEFAULT_NAME);
+                                    let params = match signature.len() {
+                                        0 | 1 => None,
+                                        _ => match_pairs_list(&signature[1..]),
+                                    };
+                                    let body = args.get(1).unwrap_or(&DEFAULT_EXPR);
+
+                                    match define_function {
+                                        DefineFunctions::PrivateFunction => self
+                                            .traverse_define_private(
+                                                builder, expr, name, params, body,
+                                            ),
+                                        DefineFunctions::ReadOnlyFunction => self
+                                            .traverse_define_read_only(
+                                                builder, expr, name, params, body,
+                                            ),
+                                        DefineFunctions::PublicFunction => self
+                                            .traverse_define_public(
+                                                builder, expr, name, params, body,
+                                            ),
+                                        _ => unreachable!(),
+                                    }
+                                }
+                                _ => Err(builder),
+                            }
+                        }
+                        DefineFunctions::NonFungibleToken => self.traverse_define_nft(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        DefineFunctions::FungibleToken => self.traverse_define_ft(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1),
+                        ),
+                        DefineFunctions::Map => self.traverse_define_map(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        DefineFunctions::PersistedVariable => self.traverse_define_data_var(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        DefineFunctions::Trait => {
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
+                            self.traverse_define_trait(
+                                builder,
+                                expr,
+                                args.get(0)
+                                    .unwrap_or(&DEFAULT_EXPR)
+                                    .match_atom()
+                                    .unwrap_or(&DEFAULT_NAME),
+                                params,
+                            )
+                        }
+                        DefineFunctions::UseTrait => self.traverse_use_trait(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_field()
+                                .unwrap_or(&TraitIdentifier {
+                                    contract_identifier: QualifiedContractIdentifier::transient(),
+                                    name: DEFAULT_NAME.clone(),
+                                }),
+                        ),
+                        DefineFunctions::ImplTrait => self.traverse_impl_trait(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_field()
+                                .unwrap_or(&TraitIdentifier {
+                                    contract_identifier: QualifiedContractIdentifier::transient(),
+                                    name: DEFAULT_NAME.clone(),
+                                }),
+                        ),
+                    }?;
+                } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
+                    function_name,
+                    &ClarityVersion::latest(), // FIXME(brice): this should probably be passed in
+                ) {
+                    use clarity::vm::functions::NativeFunctions::*;
+                    builder = match native_function {
+                        Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
+                            self.traverse_arithmetic(builder, expr, native_function, args)
+                        }
+                        BitwiseXor => self.traverse_binary_bitwise(
+                            builder,
+                            expr,
+                            native_function,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
+                            self.traverse_comparison(builder, expr, native_function, args)
+                        }
+                        And | Or => {
+                            self.traverse_lazy_logical(builder, expr, native_function, args)
+                        }
+                        Not => self.traverse_logical(builder, expr, native_function, args),
+                        ToInt | ToUInt => self.traverse_int_cast(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        If => self.traverse_if(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Let => {
+                            let bindings = match_pairs(args.get(0).unwrap_or(&DEFAULT_EXPR))
+                                .unwrap_or_default();
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
+                            self.traverse_let(builder, expr, &bindings, params)
+                        }
+                        ElementAt | ElementAtAlias => self.traverse_element_at(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IndexOf | IndexOfAlias => self.traverse_index_of(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Map => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let params = if !args.is_empty() { &args[1..] } else { &[] };
+                            self.traverse_map(builder, expr, name, params)
+                        }
+                        Fold => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_fold(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
+                        }
+                        Append => self.traverse_append(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Concat => self.traverse_concat(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        AsMaxLen => {
+                            match args.get(1).unwrap_or(&DEFAULT_EXPR).match_literal_value() {
+                                Some(Value::UInt(length)) => self.traverse_as_max_len(
+                                    builder,
+                                    expr,
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    *length,
+                                ),
+                                _ => Err(builder),
+                            }
+                        }
+                        Len => {
+                            self.traverse_len(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        ListCons => self.traverse_list_cons(builder, expr, args),
+                        FetchVar => self.traverse_var_get(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                        ),
+                        SetVar => self.traverse_var_set(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        FetchEntry => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_map_get(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            )
+                        }
+                        SetEntry => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_map_set(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
+                        }
+                        InsertEntry => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_map_insert(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
+                        }
+                        DeleteEntry => {
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_map_delete(
+                                builder,
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            )
+                        }
+                        TupleCons => self.traverse_tuple(
+                            builder,
+                            expr,
+                            &match_tuple(expr).unwrap_or_default(),
+                        ),
+                        TupleGet => self.traverse_get(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        TupleMerge => self.traverse_merge(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Begin => self.traverse_begin(builder, expr, args),
+                        Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => self
+                            .traverse_hash(
+                                builder,
+                                expr,
+                                native_function,
+                                args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            ),
+                        Secp256k1Recover => self.traverse_secp256k1_recover(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Secp256k1Verify => self.traverse_secp256k1_verify(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Print => {
+                            self.traverse_print(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        ContractCall => {
+                            let function_name = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let params = if args.len() >= 2 { &args[2..] } else { &[] };
+                            if let SymbolicExpressionType::LiteralValue(Value::Principal(
+                                PrincipalData::Contract(ref contract_identifier),
+                            )) = args.get(0).unwrap_or(&DEFAULT_EXPR).expr
+                            {
+                                self.traverse_static_contract_call(
+                                    builder,
+                                    expr,
+                                    contract_identifier,
+                                    function_name,
+                                    params,
+                                )
+                            } else {
+                                self.traverse_dynamic_contract_call(
+                                    builder,
+                                    expr,
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    function_name,
+                                    params,
+                                )
+                            }
+                        }
+                        AsContract => self.traverse_as_contract(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        ContractOf => self.traverse_contract_of(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        PrincipalOf => self.traverse_principal_of(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        AtBlock => self.traverse_at_block(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetBlockInfo => self.traverse_get_block_info(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        ConsError => {
+                            self.traverse_err(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        ConsOkay => {
+                            self.traverse_ok(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        ConsSome => {
+                            self.traverse_some(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        DefaultTo => self.traverse_default_to(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Asserts => self.traverse_asserts(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        UnwrapRet => self.traverse_unwrap(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Unwrap => self.traverse_unwrap_panic(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IsOkay => {
+                            self.traverse_is_ok(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        IsNone => self.traverse_is_none(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IsErr => self.traverse_is_err(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IsSome => self.traverse_is_some(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Filter => self.traverse_filter(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        UnwrapErrRet => self.traverse_unwrap_err(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        UnwrapErr => self.traverse_unwrap_err(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Match => {
+                            if args.len() == 4 {
+                                self.traverse_match_option(
+                                    builder,
+                                    expr,
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(1)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(3).unwrap_or(&DEFAULT_EXPR),
+                                )
+                            } else {
+                                self.traverse_match_response(
+                                    builder,
+                                    expr,
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(1)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(3)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(4).unwrap_or(&DEFAULT_EXPR),
+                                )
+                            }
+                        }
+                        TryRet => {
+                            self.traverse_try(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        StxBurn => self.traverse_stx_burn(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        StxTransfer | StxTransferMemo => self.traverse_stx_transfer(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            args.get(3),
+                        ),
+                        GetStxBalance => self.traverse_stx_get_balance(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        BurnToken => self.traverse_ft_burn(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        TransferToken => self.traverse_ft_transfer(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            args.get(3).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetTokenBalance => self.traverse_ft_get_balance(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetTokenSupply => self.traverse_ft_get_supply(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                        ),
+                        MintToken => self.traverse_ft_mint(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        BurnAsset => self.traverse_nft_burn(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        TransferAsset => self.traverse_nft_transfer(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            args.get(3).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        MintAsset => self.traverse_nft_mint(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetAssetOwner => self.traverse_nft_get_owner(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        BuffToIntLe | BuffToUIntLe | BuffToIntBe | BuffToUIntBe => self
+                            .traverse_buff_cast(
+                                builder,
+                                expr,
+                                args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            ),
+                        IsStandard => self.traverse_is_standard(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        PrincipalDestruct => self.traverse_principal_destruct(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        PrincipalConstruct => self.traverse_principal_construct(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2),
+                        ),
+                        StringToInt | StringToUInt => self.traverse_string_to_int(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IntToAscii | IntToUtf8 => self.traverse_int_to_string(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetBurnBlockInfo => self.traverse_get_burn_block_info(
+                            builder,
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        StxGetAccount => self.traverse_stx_get_account(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Slice => self.traverse_slice(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        ToConsensusBuff => self.traverse_to_consensus_buff(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        FromConsensusBuff => self.traverse_from_consensus_buff(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        ReplaceAt => self.traverse_replace_at(
+                            builder,
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        BitwiseAnd | BitwiseOr | BitwiseXor2 => {
+                            self.traverse_bitwise(builder, expr, native_function, args)
+                        }
+                        BitwiseNot => {
+                            self.traverse_bitwise_not(builder, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        BitwiseLShift | BitwiseRShift => self.traverse_bit_shift(
+                            builder,
+                            expr,
+                            native_function,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                    }?;
+                } else {
+                    builder =
+                        self.traverse_call_user_defined(builder, expr, function_name, args)?;
+                }
+            }
+        }
+        self.visit_list(builder, expr, list)
+    }
+
+    fn visit_list<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _list: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
     }
 
     fn traverse_define_function(
@@ -327,6 +1097,15 @@ impl<'a> WasmGenerator<'a> {
             .as_ref()
             .expect("type-checker must be called before Wasm generation")
             .get_type(expr)
+    }
+
+    fn visit_atom_value<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &Value,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
     }
 
     /// Adds a new string literal into the memory, and returns the offset and length.
@@ -774,7 +1553,108 @@ impl<'a> WasmGenerator<'a> {
     }
 }
 
-impl ASTVisitor for WasmGenerator<'_> {
+fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
+    match ty {
+        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
+        TypeSignature::IntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::ResponseType(inner_types) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(&inner_types.0));
+            types.extend(clar2wasm_ty(&inner_types.1));
+            types
+        }
+        TypeSignature::SequenceType(_) => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::BoolType => vec![ValType::I32],
+        TypeSignature::PrincipalType => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::OptionalType(inner_ty) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
+        TypeSignature::TupleType(inner_types) => {
+            let mut types = vec![];
+            for inner_type in inner_types.get_type_map().values() {
+                types.extend(clar2wasm_ty(inner_type));
+            }
+            types
+        }
+        _ => unimplemented!("{:?}", ty),
+    }
+}
+
+/// Drop a value of type `ty` from the data stack.
+fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+    let wasm_types = clar2wasm_ty(ty);
+    (0..wasm_types.len()).for_each(|_| {
+        builder.drop();
+    });
+}
+
+fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
+    let mut vars = Vec::new();
+    for pair_list in list {
+        let pair = pair_list.match_list()?;
+        if pair.len() != 2 {
+            return None;
+        }
+        let name = pair[0].match_atom()?;
+        vars.push(TypedVar {
+            name,
+            type_expr: &pair[1],
+            decl_span: pair[0].span.clone(),
+        });
+    }
+    Some(vars)
+}
+
+fn match_tuple(
+    expr: &SymbolicExpression,
+) -> Option<HashMap<Option<&ClarityName>, &SymbolicExpression>> {
+    if let Some(list) = expr.match_list() {
+        if let Some((function_name, args)) = list.split_first() {
+            if let Some(function_name) = function_name.match_atom() {
+                if NativeFunctions::lookup_by_name_at_version(
+                    function_name,
+                    &clarity::vm::ClarityVersion::latest(),
+                ) == Some(NativeFunctions::TupleCons)
+                {
+                    let mut tuple_map = HashMap::new();
+                    for element in args {
+                        let pair = element.match_list().unwrap_or_default();
+                        if pair.len() != 2 {
+                            return None;
+                        }
+                        tuple_map.insert(pair[0].match_atom(), &pair[1]);
+                    }
+                    return Some(tuple_map);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &SymbolicExpression>> {
+    let list = expr.match_list()?;
+    let mut tuple_map = HashMap::new();
+    for pair_list in list {
+        let pair = pair_list.match_list()?;
+        if pair.len() != 2 {
+            return None;
+        }
+        tuple_map.insert(pair[0].match_atom()?, &pair[1]);
+    }
+    Some(tuple_map)
+}
+
+impl WasmGenerator<'_> {
     fn traverse_arithmetic<'b>(
         &mut self,
         mut builder: InstrSeqBuilder<'b>,
@@ -1100,7 +1980,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
-        _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
+        _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if self
@@ -1118,7 +1998,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
-        _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
+        _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if let Some(function_id) =
@@ -1136,7 +2016,7 @@ impl ASTVisitor for WasmGenerator<'_> {
         mut builder: InstrSeqBuilder<'b>,
         _expr: &SymbolicExpression,
         name: &ClarityName,
-        _parameters: Option<Vec<crate::ast_visitor::TypedVar<'_>>>,
+        _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
     ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
         if let Some(function_id) =
@@ -2578,48 +3458,1248 @@ impl ASTVisitor for WasmGenerator<'_> {
 
         Ok(builder)
     }
-}
 
-fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
-    match ty {
-        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
-        TypeSignature::IntType => vec![ValType::I64, ValType::I64],
-        TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
-        TypeSignature::ResponseType(inner_types) => {
-            let mut types = vec![ValType::I32];
-            types.extend(clar2wasm_ty(&inner_types.0));
-            types.extend(clar2wasm_ty(&inner_types.1));
-            types
+    fn traverse_call_user_defined<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        args: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for arg in args.iter() {
+            builder = self.traverse_expr(builder, arg)?;
         }
-        TypeSignature::SequenceType(_) => vec![
-            ValType::I32, // offset
-            ValType::I32, // length
-        ],
-        TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType => vec![
-            ValType::I32, // offset
-            ValType::I32, // length
-        ],
-        TypeSignature::OptionalType(inner_ty) => {
-            let mut types = vec![ValType::I32];
-            types.extend(clar2wasm_ty(inner_ty));
-            types
-        }
-        TypeSignature::TupleType(inner_types) => {
-            let mut types = vec![];
-            for inner_type in inner_types.get_type_map().values() {
-                types.extend(clar2wasm_ty(inner_type));
-            }
-            types
-        }
-        _ => unimplemented!("{:?}", ty),
+        self.visit_call_user_defined(builder, expr, name, args)
     }
-}
 
-/// Drop a value of type `ty` from the data stack.
-fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
-    let wasm_types = clar2wasm_ty(ty);
-    (0..wasm_types.len()).for_each(|_| {
-        builder.drop();
-    });
+    fn traverse_bit_shift<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        input: &SymbolicExpression,
+        shamt: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        builder = self.traverse_expr(builder, shamt)?;
+        self.visit_bit_shift(builder, expr, func, input, shamt)
+    }
+
+    fn traverse_replace_at<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        sequence: &SymbolicExpression,
+        index: &SymbolicExpression,
+        element: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        builder = self.traverse_expr(builder, index)?;
+        builder = self.traverse_expr(builder, element)?;
+        self.visit_replace_at(builder, expr, sequence, element, index)
+    }
+
+    fn traverse_bitwise_not<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_bitwise_not(builder)
+    }
+
+    fn visit_field<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _field: &TraitIdentifier,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn visit_trait_reference<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _name: &ClarityName,
+        _trait_def: &TraitDefinition,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_define_map<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        key_type: &SymbolicExpression,
+        value_type: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_define_map(builder, expr, name, key_type, value_type)
+    }
+
+    fn traverse_define_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        functions: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_define_trait(builder, expr, name, functions)
+    }
+
+    fn visit_define_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _name: &ClarityName,
+        _functions: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_use_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        trait_identifier: &TraitIdentifier,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_use_trait(builder, expr, name, trait_identifier)
+    }
+
+    fn visit_use_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _name: &ClarityName,
+        _trait_identifier: &TraitIdentifier,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_impl_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        trait_identifier: &TraitIdentifier,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_impl_trait(builder, expr, trait_identifier)
+    }
+
+    fn visit_impl_trait<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _trait_identifier: &TraitIdentifier,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_binary_bitwise<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        lhs: &SymbolicExpression,
+        rhs: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for operand in &[lhs, rhs] {
+            builder = self.traverse_expr(builder, operand)?;
+        }
+        self.visit_binary_bitwise(builder, expr, func, lhs, rhs)
+    }
+
+    fn visit_binary_bitwise<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _func: NativeFunctions,
+        _lhs: &SymbolicExpression,
+        _rhs: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_comparison<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for operand in operands {
+            builder = self.traverse_expr(builder, operand)?;
+        }
+        self.visit_comparison(builder, expr, func, operands)
+    }
+
+    fn traverse_lazy_logical<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        function: NativeFunctions,
+        operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for operand in operands {
+            builder = self.traverse_expr(builder, operand)?;
+        }
+        self.visit_lazy_logical(builder, expr, function, operands)
+    }
+
+    fn visit_lazy_logical<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _function: NativeFunctions,
+        _operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_logical<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        function: NativeFunctions,
+        operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for operand in operands {
+            builder = self.traverse_expr(builder, operand)?;
+        }
+        self.visit_logical(builder, expr, function, operands)
+    }
+
+    fn visit_logical<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _function: NativeFunctions,
+        _operands: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_int_cast<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_int_cast(builder, expr, input)
+    }
+
+    fn visit_int_cast<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_if<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        cond: &SymbolicExpression,
+        then_expr: &SymbolicExpression,
+        else_expr: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for &expr in &[cond, then_expr, else_expr] {
+            builder = self.traverse_expr(builder, expr)?;
+        }
+        self.visit_if(builder, expr, cond, then_expr, else_expr)
+    }
+
+    fn visit_if<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _cond: &SymbolicExpression,
+        _then_expr: &SymbolicExpression,
+        _else_expr: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_var_get<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_var_get(builder, expr, name)
+    }
+
+    fn traverse_var_set<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_var_set(builder, expr, name, value)
+    }
+
+    fn traverse_tuple<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for val in values.values() {
+            builder = self.traverse_expr(builder, val)?;
+        }
+        self.visit_tuple(builder, expr, values)
+    }
+
+    fn visit_tuple<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_get<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        key: &ClarityName,
+        tuple: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, tuple)?;
+        self.visit_get(builder, expr, key, tuple)
+    }
+
+    fn visit_get<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _key: &ClarityName,
+        _tuple: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_merge<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        tuple1: &SymbolicExpression,
+        tuple2: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, tuple1)?;
+        builder = self.traverse_expr(builder, tuple2)?;
+        self.visit_merge(builder, expr, tuple1, tuple2)
+    }
+
+    fn visit_merge<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _tuple1: &SymbolicExpression,
+        _tuple2: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_hash<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_hash(builder, expr, func, value)
+    }
+
+    fn visit_hash<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _func: NativeFunctions,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_secp256k1_recover<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        hash: &SymbolicExpression,
+        signature: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, hash)?;
+        builder = self.traverse_expr(builder, signature)?;
+        self.visit_secp256k1_recover(builder, expr, hash, signature)
+    }
+
+    fn visit_secp256k1_recover<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _hash: &SymbolicExpression,
+        _signature: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_secp256k1_verify<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        hash: &SymbolicExpression,
+        signature: &SymbolicExpression,
+        public_key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, hash)?;
+        builder = self.traverse_expr(builder, signature)?;
+        self.visit_secp256k1_verify(builder, expr, hash, signature, public_key)
+    }
+
+    fn visit_secp256k1_verify<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _hash: &SymbolicExpression,
+        _signature: &SymbolicExpression,
+        _public_key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_print<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_print(builder, expr, value)
+    }
+
+    fn visit_print<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_static_contract_call<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        contract_identifier: &QualifiedContractIdentifier,
+        function_name: &ClarityName,
+        args: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for arg in args.iter() {
+            builder = self.traverse_expr(builder, arg)?;
+        }
+        self.visit_static_contract_call(builder, expr, contract_identifier, function_name, args)
+    }
+
+    fn visit_static_contract_call<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _contract_identifier: &QualifiedContractIdentifier,
+        _function_name: &ClarityName,
+        _args: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_dynamic_contract_call<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        trait_ref: &SymbolicExpression,
+        function_name: &ClarityName,
+        args: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, trait_ref)?;
+        for arg in args.iter() {
+            builder = self.traverse_expr(builder, arg)?;
+        }
+        self.visit_dynamic_contract_call(builder, expr, trait_ref, function_name, args)
+    }
+
+    fn visit_dynamic_contract_call<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _trait_ref: &SymbolicExpression,
+        _function_name: &ClarityName,
+        _args: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_contract_of<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        name: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, name)?;
+        self.visit_contract_of(builder, expr, name)
+    }
+
+    fn visit_contract_of<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _name: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_principal_of<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        public_key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, public_key)?;
+        self.visit_principal_of(builder, expr, public_key)
+    }
+
+    fn visit_principal_of<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _public_key: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_at_block<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        block: &SymbolicExpression,
+        inner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, block)?;
+        builder = self.traverse_expr(builder, inner)?;
+        self.visit_at_block(builder, expr, block, inner)
+    }
+
+    fn visit_at_block<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _block: &SymbolicExpression,
+        _inner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_default_to<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        default: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, default)?;
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_default_to(builder, expr, default, value)
+    }
+
+    fn visit_default_to<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _default: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_unwrap<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+        throws: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        builder = self.traverse_expr(builder, throws)?;
+        self.visit_unwrap(builder, expr, input, throws)
+    }
+
+    fn visit_unwrap<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+        _throws: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_unwrap_err<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+        throws: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        builder = self.traverse_expr(builder, throws)?;
+        self.visit_unwrap_err(builder, expr, input, throws)
+    }
+
+    fn visit_unwrap_err<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+        _throws: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_is_ok<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_is_ok(builder, expr, value)
+    }
+
+    fn visit_is_ok<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_is_none<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_is_none(builder, expr, value)
+    }
+
+    fn visit_is_none<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_is_err<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_is_err(builder, expr, value)
+    }
+
+    fn visit_is_err<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_is_some<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_is_some(builder, expr, value)
+    }
+
+    fn visit_is_some<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_filter<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: &ClarityName,
+        sequence: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        self.visit_filter(builder, expr, func, sequence)
+    }
+
+    fn visit_filter<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _func: &ClarityName,
+        _sequence: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_unwrap_panic<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_unwrap_panic(builder, expr, input)
+    }
+
+    fn traverse_match_option<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+        some_name: &ClarityName,
+        some_branch: &SymbolicExpression,
+        none_branch: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        builder = self.traverse_expr(builder, some_branch)?;
+        builder = self.traverse_expr(builder, none_branch)?;
+        self.visit_match_option(builder, expr, input, some_name, some_branch, none_branch)
+    }
+
+    fn visit_match_option<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+        _some_name: &ClarityName,
+        _some_branch: &SymbolicExpression,
+        _none_branch: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn traverse_match_response<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+        ok_name: &ClarityName,
+        ok_branch: &SymbolicExpression,
+        err_name: &ClarityName,
+        err_branch: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        builder = self.traverse_expr(builder, ok_branch)?;
+        builder = self.traverse_expr(builder, err_branch)?;
+        self.visit_match_response(
+            builder, expr, input, ok_name, ok_branch, err_name, err_branch,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn visit_match_response<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+        _ok_name: &ClarityName,
+        _ok_branch: &SymbolicExpression,
+        _err_name: &ClarityName,
+        _err_branch: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_try<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_try(builder, expr, input)
+    }
+
+    fn visit_try<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_asserts<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        cond: &SymbolicExpression,
+        thrown: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, cond)?;
+        builder = self.traverse_expr(builder, thrown)?;
+        self.visit_asserts(builder, expr, cond, thrown)
+    }
+
+    fn visit_asserts<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _cond: &SymbolicExpression,
+        _thrown: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_stx_burn<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+        self.visit_stx_burn(builder, expr, amount, sender)
+    }
+
+    fn traverse_stx_transfer<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        amount: &SymbolicExpression,
+        sender: &SymbolicExpression,
+        recipient: &SymbolicExpression,
+        memo: Option<&SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, amount)?;
+        builder = self.traverse_expr(builder, sender)?;
+        builder = self.traverse_expr(builder, recipient)?;
+        if let Some(memo) = memo {
+            builder = self.traverse_expr(builder, memo)?;
+        }
+        self.visit_stx_transfer(builder, expr, amount, sender, recipient, memo)
+    }
+
+    fn traverse_stx_get_balance<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        owner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, owner)?;
+        self.visit_stx_get_balance(builder, expr, owner)
+    }
+
+    fn traverse_ft_get_supply<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        token: &ClarityName,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        self.visit_ft_get_supply(builder, expr, token)
+    }
+
+    fn traverse_let<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        bindings: &HashMap<&ClarityName, &SymbolicExpression>,
+        body: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for val in bindings.values() {
+            builder = self.traverse_expr(builder, val)?;
+        }
+        for expr in body {
+            builder = self.traverse_expr(builder, expr)?;
+        }
+        self.visit_let(builder, expr, bindings, body)
+    }
+
+    fn visit_let<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _bindings: &HashMap<&ClarityName, &SymbolicExpression>,
+        _body: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_map<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        func: &ClarityName,
+        sequences: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        for sequence in sequences {
+            builder = self.traverse_expr(builder, sequence)?;
+        }
+        self.visit_map(builder, expr, func, sequences)
+    }
+
+    fn visit_map<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _func: &ClarityName,
+        _sequences: &[SymbolicExpression],
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_append<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        list: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, list)?;
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_append(builder, expr, list, value)
+    }
+
+    fn visit_append<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _list: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_as_max_len<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        sequence: &SymbolicExpression,
+        length: u128,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        self.visit_as_max_len(builder, expr, sequence, length)
+    }
+
+    fn visit_as_max_len<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _sequence: &SymbolicExpression,
+        _length: u128,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_len<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        sequence: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        self.visit_len(builder, expr, sequence)
+    }
+
+    fn visit_len<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _sequence: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_element_at<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        sequence: &SymbolicExpression,
+        index: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        builder = self.traverse_expr(builder, index)?;
+        self.visit_element_at(builder, expr, sequence, index)
+    }
+
+    fn visit_element_at<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _sequence: &SymbolicExpression,
+        _index: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_index_of<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        sequence: &SymbolicExpression,
+        item: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, sequence)?;
+        builder = self.traverse_expr(builder, item)?;
+        self.visit_element_at(builder, expr, sequence, item)
+    }
+
+    fn traverse_buff_cast<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_buff_cast(builder, expr, input)
+    }
+
+    fn visit_buff_cast<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_is_standard<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, value)?;
+        self.visit_is_standard(builder, expr, value)
+    }
+
+    fn visit_is_standard<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _value: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_principal_destruct<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        principal: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, principal)?;
+        self.visit_principal_destruct(builder, expr, principal)
+    }
+
+    fn visit_principal_destruct<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _principal: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_principal_construct<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        buff1: &SymbolicExpression,
+        buff20: &SymbolicExpression,
+        contract: Option<&SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, buff1)?;
+        builder = self.traverse_expr(builder, buff20)?;
+        if let Some(contract) = contract {
+            builder = self.traverse_expr(builder, contract)?;
+        }
+        self.visit_principal_construct(builder, expr, buff1, buff20, contract)
+    }
+
+    fn visit_principal_construct<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _buff1: &SymbolicExpression,
+        _buff20: &SymbolicExpression,
+        _contract: Option<&SymbolicExpression>,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_string_to_int<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_string_to_int(builder, expr, input)
+    }
+
+    fn visit_string_to_int<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_int_to_string<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_int_to_string(builder, expr, input)
+    }
+
+    fn visit_int_to_string<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_stx_get_account<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        owner: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, owner)?;
+        self.visit_stx_get_account(builder, expr, owner)
+    }
+
+    fn traverse_slice<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        seq: &SymbolicExpression,
+        left: &SymbolicExpression,
+        right: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, seq)?;
+        builder = self.traverse_expr(builder, left)?;
+        builder = self.traverse_expr(builder, right)?;
+        self.visit_slice(builder, expr, seq, left, right)
+    }
+
+    fn visit_slice<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _seq: &SymbolicExpression,
+        _left: &SymbolicExpression,
+        _right: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_get_burn_block_info<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        prop_name: &ClarityName,
+        block: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, block)?;
+        self.visit_get_burn_block_info(builder, expr, prop_name, block)
+    }
+
+    fn visit_get_burn_block_info<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _prop_name: &ClarityName,
+        _block: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_to_consensus_buff<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_to_consensus_buff(builder, expr, input)
+    }
+
+    fn visit_to_consensus_buff<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn traverse_from_consensus_buff<'b>(
+        &mut self,
+        mut builder: InstrSeqBuilder<'b>,
+        expr: &SymbolicExpression,
+        type_expr: &SymbolicExpression,
+        input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        builder = self.traverse_expr(builder, type_expr)?;
+        builder = self.traverse_expr(builder, input)?;
+        self.visit_from_consensus_buff(builder, expr, type_expr, input)
+    }
+
+    fn visit_from_consensus_buff<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _type_expr: &SymbolicExpression,
+        _input: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
+
+    fn visit_replace_at<'b>(
+        &mut self,
+        builder: InstrSeqBuilder<'b>,
+        _expr: &SymbolicExpression,
+        _sequence: &SymbolicExpression,
+        _index: &SymbolicExpression,
+        _element: &SymbolicExpression,
+    ) -> Result<InstrSeqBuilder<'b>, InstrSeqBuilder<'b>> {
+        Ok(builder)
+    }
 }
