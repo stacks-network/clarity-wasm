@@ -171,9 +171,9 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
     }
 }
 
-pub fn traverse<'b>(
+pub fn traverse(
     visitor: &mut WasmGenerator,
-    builder: &mut InstrSeqBuilder<'b>,
+    builder: &mut InstrSeqBuilder,
     exprs: &[SymbolicExpression],
 ) -> CResult<()> {
     for expr in exprs {
@@ -248,9 +248,9 @@ impl WasmGenerator {
         Ok(self.module)
     }
 
-    fn traverse_expr<'b>(
+    fn traverse_expr(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
     ) -> CResult<()> {
         match &expr.expr {
@@ -267,9 +267,9 @@ impl WasmGenerator {
         }
     }
 
-    fn traverse_list<'b>(
+    fn traverse_list(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
     ) -> CResult<()> {
@@ -979,9 +979,9 @@ impl WasmGenerator {
         self.visit_list(builder, expr, list)
     }
 
-    fn visit_list<'b>(
+    fn visit_list(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _list: &[SymbolicExpression],
     ) -> CResult<()> {
@@ -1111,9 +1111,9 @@ impl WasmGenerator {
             .get_type(expr)
     }
 
-    fn visit_atom_value<'b>(
+    fn visit_atom_value(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &Value,
     ) -> CResult<()> {
@@ -1231,9 +1231,9 @@ impl WasmGenerator {
 
     /// Push a new local onto the call stack, adjusting the stack pointer and
     /// tracking the current function's frame size accordingly.
-    fn create_call_stack_local<'b>(
+    fn create_call_stack_local(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         stack_pointer: GlobalId,
         ty: &TypeSignature,
     ) -> (LocalId, i32) {
@@ -1358,9 +1358,9 @@ impl WasmGenerator {
         size
     }
 
-    fn traverse_statement_list<'b>(
+    fn traverse_statement_list(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         statements: &[SymbolicExpression],
     ) -> CResult<()> {
         assert!(
@@ -1383,9 +1383,9 @@ impl WasmGenerator {
     }
 
     /// If `name` is a reserved variable, push its value onto the data stack.
-    pub fn lookup_reserved_variable<'b>(
+    pub fn lookup_reserved_variable(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         name: &str,
         ty: &TypeSignature,
     ) -> bool {
@@ -1536,9 +1536,9 @@ impl WasmGenerator {
     }
 
     /// If `name` is a constant, push its value onto the data stack.
-    pub fn lookup_constant_variable<'b>(
+    pub fn lookup_constant_variable(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         name: &str,
         ty: &TypeSignature,
     ) -> bool {
@@ -1667,9 +1667,9 @@ fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &Symbo
 }
 
 impl WasmGenerator {
-    fn traverse_arithmetic<'b>(
+    fn traverse_arithmetic(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -1747,9 +1747,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_bitwise<'b>(
+    fn traverse_bitwise(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -1789,9 +1789,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_bit_shift<'b>(
+    fn visit_bit_shift(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         input: &SymbolicExpression,
@@ -1831,7 +1831,7 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_bitwise_not<'b>(&mut self, builder: &mut InstrSeqBuilder<'b>) -> CResult<()> {
+    fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> CResult<()> {
         let helper_func = self
             .module
             .funcs
@@ -1841,9 +1841,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_comparison<'b>(
+    fn visit_comparison(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -1899,9 +1899,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_literal_value<'b>(
+    fn visit_literal_value(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &clarity::vm::Value,
     ) -> CResult<()> {
@@ -1936,9 +1936,9 @@ impl WasmGenerator {
         }
     }
 
-    fn visit_atom<'b>(
+    fn visit_atom(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         atom: &ClarityName,
     ) -> CResult<()> {
@@ -1984,9 +1984,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_private<'b>(
+    fn traverse_define_private(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
@@ -2002,9 +2002,9 @@ impl WasmGenerator {
         }
     }
 
-    fn traverse_define_read_only<'b>(
+    fn traverse_define_read_only(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
@@ -2020,9 +2020,9 @@ impl WasmGenerator {
         }
     }
 
-    fn traverse_define_public<'b>(
+    fn traverse_define_public(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
@@ -2038,9 +2038,9 @@ impl WasmGenerator {
         }
     }
 
-    fn traverse_define_data_var<'b>(
+    fn traverse_define_data_var(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _data_type: &SymbolicExpression,
@@ -2094,9 +2094,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_ft<'b>(
+    fn traverse_define_ft(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         supply: Option<&SymbolicExpression>,
@@ -2127,9 +2127,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_nft<'b>(
+    fn traverse_define_nft(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _nft_type: &SymbolicExpression,
@@ -2151,9 +2151,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_constant<'b>(
+    fn traverse_define_constant(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
@@ -2193,9 +2193,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_define_map<'b>(
+    fn visit_define_map(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _key_type: &SymbolicExpression,
@@ -2218,18 +2218,18 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_begin<'b>(
+    fn traverse_begin(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         statements: &[SymbolicExpression],
     ) -> CResult<()> {
         self.traverse_statement_list(builder, statements)
     }
 
-    fn traverse_some<'b>(
+    fn traverse_some(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2239,9 +2239,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_ok<'b>(
+    fn traverse_ok(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2263,9 +2263,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_err<'b>(
+    fn traverse_err(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2286,9 +2286,9 @@ impl WasmGenerator {
         self.traverse_expr(builder, value)
     }
 
-    fn visit_call_user_defined<'b>(
+    fn visit_call_user_defined(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _args: &[SymbolicExpression],
@@ -2302,9 +2302,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_concat<'b>(
+    fn traverse_concat(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         lhs: &SymbolicExpression,
         rhs: &SymbolicExpression,
@@ -2354,9 +2354,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_var_get<'b>(
+    fn visit_var_get(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
     ) -> CResult<()> {
@@ -2398,9 +2398,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_var_set<'b>(
+    fn visit_var_set(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
@@ -2445,9 +2445,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_list_cons<'b>(
+    fn traverse_list_cons(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
     ) -> CResult<()> {
@@ -2487,9 +2487,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_fold<'b>(
+    fn traverse_fold(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         func: &ClarityName,
         sequence: &SymbolicExpression,
@@ -2623,9 +2623,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_as_contract<'b>(
+    fn traverse_as_contract(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         inner: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2651,9 +2651,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_stx_get_balance<'b>(
+    fn visit_stx_get_balance(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2668,9 +2668,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_stx_get_account<'b>(
+    fn visit_stx_get_account(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
     ) -> CResult<()> {
@@ -2685,9 +2685,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_stx_burn<'b>(
+    fn visit_stx_burn(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _amount: &SymbolicExpression,
         _sender: &SymbolicExpression,
@@ -2703,9 +2703,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_stx_transfer<'b>(
+    fn visit_stx_transfer(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _amount: &SymbolicExpression,
         _sender: &SymbolicExpression,
@@ -2727,9 +2727,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_ft_get_supply<'b>(
+    fn visit_ft_get_supply(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
     ) -> CResult<()> {
@@ -2750,9 +2750,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_ft_get_balance<'b>(
+    fn traverse_ft_get_balance(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         owner: &SymbolicExpression,
@@ -2777,9 +2777,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_ft_burn<'b>(
+    fn traverse_ft_burn(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         amount: &SymbolicExpression,
@@ -2806,9 +2806,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_ft_mint<'b>(
+    fn traverse_ft_mint(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         amount: &SymbolicExpression,
@@ -2835,9 +2835,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_ft_transfer<'b>(
+    fn traverse_ft_transfer(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         amount: &SymbolicExpression,
@@ -2866,9 +2866,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_nft_get_owner<'b>(
+    fn traverse_nft_get_owner(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
@@ -2922,9 +2922,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_nft_burn<'b>(
+    fn traverse_nft_burn(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
@@ -2970,9 +2970,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_nft_mint<'b>(
+    fn traverse_nft_mint(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
@@ -3018,9 +3018,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_nft_transfer<'b>(
+    fn traverse_nft_transfer(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
@@ -3070,9 +3070,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_unwrap_panic<'b>(
+    fn visit_unwrap_panic(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -3178,9 +3178,9 @@ impl WasmGenerator {
         }
     }
 
-    fn traverse_map_get<'b>(
+    fn traverse_map_get(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
@@ -3241,9 +3241,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_map_set<'b>(
+    fn traverse_map_set(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
@@ -3306,9 +3306,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_map_insert<'b>(
+    fn traverse_map_insert(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
@@ -3371,9 +3371,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_map_delete<'b>(
+    fn traverse_map_delete(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
@@ -3418,9 +3418,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_get_block_info<'b>(
+    fn traverse_get_block_info(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         prop_name: &ClarityName,
         block: &SymbolicExpression,
@@ -3462,9 +3462,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_call_user_defined<'b>(
+    fn traverse_call_user_defined(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         args: &[SymbolicExpression],
@@ -3475,9 +3475,9 @@ impl WasmGenerator {
         self.visit_call_user_defined(builder, expr, name, args)
     }
 
-    fn traverse_bit_shift<'b>(
+    fn traverse_bit_shift(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: NativeFunctions,
         input: &SymbolicExpression,
@@ -3488,9 +3488,9 @@ impl WasmGenerator {
         self.visit_bit_shift(builder, expr, func, input, shamt)
     }
 
-    fn traverse_replace_at<'b>(
+    fn traverse_replace_at(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
@@ -3502,27 +3502,27 @@ impl WasmGenerator {
         self.visit_replace_at(builder, expr, sequence, element, index)
     }
 
-    fn traverse_bitwise_not<'b>(
+    fn traverse_bitwise_not(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         input: &SymbolicExpression,
     ) -> CResult<()> {
         self.traverse_expr(builder, input)?;
         self.visit_bitwise_not(builder)
     }
 
-    fn visit_field<'b>(
+    fn visit_field(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _field: &TraitIdentifier,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn visit_trait_reference<'b>(
+    fn visit_trait_reference(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _trait_def: &TraitDefinition,
@@ -3530,9 +3530,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_map<'b>(
+    fn traverse_define_map(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         key_type: &SymbolicExpression,
@@ -3541,9 +3541,9 @@ impl WasmGenerator {
         self.visit_define_map(builder, expr, name, key_type, value_type)
     }
 
-    fn traverse_define_trait<'b>(
+    fn traverse_define_trait(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         functions: &[SymbolicExpression],
@@ -3551,9 +3551,9 @@ impl WasmGenerator {
         self.visit_define_trait(builder, expr, name, functions)
     }
 
-    fn visit_define_trait<'b>(
+    fn visit_define_trait(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _functions: &[SymbolicExpression],
@@ -3561,9 +3561,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_use_trait<'b>(
+    fn traverse_use_trait(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         trait_identifier: &TraitIdentifier,
@@ -3571,9 +3571,9 @@ impl WasmGenerator {
         self.visit_use_trait(builder, expr, name, trait_identifier)
     }
 
-    fn visit_use_trait<'b>(
+    fn visit_use_trait(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _name: &ClarityName,
         _trait_identifier: &TraitIdentifier,
@@ -3581,27 +3581,27 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_impl_trait<'b>(
+    fn traverse_impl_trait(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         trait_identifier: &TraitIdentifier,
     ) -> CResult<()> {
         self.visit_impl_trait(builder, expr, trait_identifier)
     }
 
-    fn visit_impl_trait<'b>(
+    fn visit_impl_trait(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _trait_identifier: &TraitIdentifier,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_binary_bitwise<'b>(
+    fn traverse_binary_bitwise(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: NativeFunctions,
         lhs: &SymbolicExpression,
@@ -3613,9 +3613,9 @@ impl WasmGenerator {
         self.visit_binary_bitwise(builder, expr, func, lhs, rhs)
     }
 
-    fn visit_binary_bitwise<'b>(
+    fn visit_binary_bitwise(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: NativeFunctions,
         _lhs: &SymbolicExpression,
@@ -3624,9 +3624,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_comparison<'b>(
+    fn traverse_comparison(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -3637,9 +3637,9 @@ impl WasmGenerator {
         self.visit_comparison(builder, expr, func, operands)
     }
 
-    fn traverse_lazy_logical<'b>(
+    fn traverse_lazy_logical(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         function: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -3650,9 +3650,9 @@ impl WasmGenerator {
         self.visit_lazy_logical(builder, expr, function, operands)
     }
 
-    fn visit_lazy_logical<'b>(
+    fn visit_lazy_logical(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _function: NativeFunctions,
         _operands: &[SymbolicExpression],
@@ -3660,9 +3660,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_logical<'b>(
+    fn traverse_logical(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         function: NativeFunctions,
         operands: &[SymbolicExpression],
@@ -3673,9 +3673,9 @@ impl WasmGenerator {
         self.visit_logical(builder, expr, function, operands)
     }
 
-    fn visit_logical<'b>(
+    fn visit_logical(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _function: NativeFunctions,
         _operands: &[SymbolicExpression],
@@ -3683,9 +3683,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_int_cast<'b>(
+    fn traverse_int_cast(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -3693,18 +3693,18 @@ impl WasmGenerator {
         self.visit_int_cast(builder, expr, input)
     }
 
-    fn visit_int_cast<'b>(
+    fn visit_int_cast(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_if<'b>(
+    fn traverse_if(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         cond: &SymbolicExpression,
         then_expr: &SymbolicExpression,
@@ -3716,9 +3716,9 @@ impl WasmGenerator {
         self.visit_if(builder, expr, cond, then_expr, else_expr)
     }
 
-    fn visit_if<'b>(
+    fn visit_if(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _cond: &SymbolicExpression,
         _then_expr: &SymbolicExpression,
@@ -3727,18 +3727,18 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_var_get<'b>(
+    fn traverse_var_get(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
     ) -> CResult<()> {
         self.visit_var_get(builder, expr, name)
     }
 
-    fn traverse_var_set<'b>(
+    fn traverse_var_set(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
@@ -3747,9 +3747,9 @@ impl WasmGenerator {
         self.visit_var_set(builder, expr, name, value)
     }
 
-    fn traverse_tuple<'b>(
+    fn traverse_tuple(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
     ) -> CResult<()> {
@@ -3759,18 +3759,18 @@ impl WasmGenerator {
         self.visit_tuple(builder, expr, values)
     }
 
-    fn visit_tuple<'b>(
+    fn visit_tuple(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_get<'b>(
+    fn traverse_get(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         key: &ClarityName,
         tuple: &SymbolicExpression,
@@ -3779,9 +3779,9 @@ impl WasmGenerator {
         self.visit_get(builder, expr, key, tuple)
     }
 
-    fn visit_get<'b>(
+    fn visit_get(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _key: &ClarityName,
         _tuple: &SymbolicExpression,
@@ -3789,9 +3789,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_merge<'b>(
+    fn traverse_merge(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         tuple1: &SymbolicExpression,
         tuple2: &SymbolicExpression,
@@ -3801,9 +3801,9 @@ impl WasmGenerator {
         self.visit_merge(builder, expr, tuple1, tuple2)
     }
 
-    fn visit_merge<'b>(
+    fn visit_merge(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _tuple1: &SymbolicExpression,
         _tuple2: &SymbolicExpression,
@@ -3811,9 +3811,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_hash<'b>(
+    fn traverse_hash(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: NativeFunctions,
         value: &SymbolicExpression,
@@ -3822,9 +3822,9 @@ impl WasmGenerator {
         self.visit_hash(builder, expr, func, value)
     }
 
-    fn visit_hash<'b>(
+    fn visit_hash(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: NativeFunctions,
         _value: &SymbolicExpression,
@@ -3832,9 +3832,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_secp256k1_recover<'b>(
+    fn traverse_secp256k1_recover(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
@@ -3844,9 +3844,9 @@ impl WasmGenerator {
         self.visit_secp256k1_recover(builder, expr, hash, signature)
     }
 
-    fn visit_secp256k1_recover<'b>(
+    fn visit_secp256k1_recover(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _hash: &SymbolicExpression,
         _signature: &SymbolicExpression,
@@ -3854,9 +3854,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_secp256k1_verify<'b>(
+    fn traverse_secp256k1_verify(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
@@ -3867,9 +3867,9 @@ impl WasmGenerator {
         self.visit_secp256k1_verify(builder, expr, hash, signature, public_key)
     }
 
-    fn visit_secp256k1_verify<'b>(
+    fn visit_secp256k1_verify(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _hash: &SymbolicExpression,
         _signature: &SymbolicExpression,
@@ -3878,9 +3878,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_print<'b>(
+    fn traverse_print(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -3888,18 +3888,18 @@ impl WasmGenerator {
         self.visit_print(builder, expr, value)
     }
 
-    fn visit_print<'b>(
+    fn visit_print(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_static_contract_call<'b>(
+    fn traverse_static_contract_call(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &ClarityName,
@@ -3911,9 +3911,9 @@ impl WasmGenerator {
         self.visit_static_contract_call(builder, expr, contract_identifier, function_name, args)
     }
 
-    fn visit_static_contract_call<'b>(
+    fn visit_static_contract_call(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _contract_identifier: &QualifiedContractIdentifier,
         _function_name: &ClarityName,
@@ -3922,9 +3922,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_dynamic_contract_call<'b>(
+    fn traverse_dynamic_contract_call(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         trait_ref: &SymbolicExpression,
         function_name: &ClarityName,
@@ -3937,9 +3937,9 @@ impl WasmGenerator {
         self.visit_dynamic_contract_call(builder, expr, trait_ref, function_name, args)
     }
 
-    fn visit_dynamic_contract_call<'b>(
+    fn visit_dynamic_contract_call(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _trait_ref: &SymbolicExpression,
         _function_name: &ClarityName,
@@ -3948,9 +3948,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_contract_of<'b>(
+    fn traverse_contract_of(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &SymbolicExpression,
     ) -> CResult<()> {
@@ -3958,18 +3958,18 @@ impl WasmGenerator {
         self.visit_contract_of(builder, expr, name)
     }
 
-    fn visit_contract_of<'b>(
+    fn visit_contract_of(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _name: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_principal_of<'b>(
+    fn traverse_principal_of(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         public_key: &SymbolicExpression,
     ) -> CResult<()> {
@@ -3977,18 +3977,18 @@ impl WasmGenerator {
         self.visit_principal_of(builder, expr, public_key)
     }
 
-    fn visit_principal_of<'b>(
+    fn visit_principal_of(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _public_key: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_at_block<'b>(
+    fn traverse_at_block(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         block: &SymbolicExpression,
         inner: &SymbolicExpression,
@@ -3998,9 +3998,9 @@ impl WasmGenerator {
         self.visit_at_block(builder, expr, block, inner)
     }
 
-    fn visit_at_block<'b>(
+    fn visit_at_block(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _block: &SymbolicExpression,
         _inner: &SymbolicExpression,
@@ -4008,9 +4008,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_default_to<'b>(
+    fn traverse_default_to(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         default: &SymbolicExpression,
         value: &SymbolicExpression,
@@ -4020,9 +4020,9 @@ impl WasmGenerator {
         self.visit_default_to(builder, expr, default, value)
     }
 
-    fn visit_default_to<'b>(
+    fn visit_default_to(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _default: &SymbolicExpression,
         _value: &SymbolicExpression,
@@ -4030,9 +4030,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_unwrap<'b>(
+    fn traverse_unwrap(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
@@ -4042,9 +4042,9 @@ impl WasmGenerator {
         self.visit_unwrap(builder, expr, input, throws)
     }
 
-    fn visit_unwrap<'b>(
+    fn visit_unwrap(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _throws: &SymbolicExpression,
@@ -4052,9 +4052,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_unwrap_err<'b>(
+    fn traverse_unwrap_err(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
@@ -4064,9 +4064,9 @@ impl WasmGenerator {
         self.visit_unwrap_err(builder, expr, input, throws)
     }
 
-    fn visit_unwrap_err<'b>(
+    fn visit_unwrap_err(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _throws: &SymbolicExpression,
@@ -4074,9 +4074,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_is_ok<'b>(
+    fn traverse_is_ok(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4084,18 +4084,18 @@ impl WasmGenerator {
         self.visit_is_ok(builder, expr, value)
     }
 
-    fn visit_is_ok<'b>(
+    fn visit_is_ok(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_is_none<'b>(
+    fn traverse_is_none(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4103,18 +4103,18 @@ impl WasmGenerator {
         self.visit_is_none(builder, expr, value)
     }
 
-    fn visit_is_none<'b>(
+    fn visit_is_none(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_is_err<'b>(
+    fn traverse_is_err(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4122,18 +4122,18 @@ impl WasmGenerator {
         self.visit_is_err(builder, expr, value)
     }
 
-    fn visit_is_err<'b>(
+    fn visit_is_err(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_is_some<'b>(
+    fn traverse_is_some(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4141,18 +4141,18 @@ impl WasmGenerator {
         self.visit_is_some(builder, expr, value)
     }
 
-    fn visit_is_some<'b>(
+    fn visit_is_some(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_filter<'b>(
+    fn traverse_filter(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: &ClarityName,
         sequence: &SymbolicExpression,
@@ -4161,9 +4161,9 @@ impl WasmGenerator {
         self.visit_filter(builder, expr, func, sequence)
     }
 
-    fn visit_filter<'b>(
+    fn visit_filter(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: &ClarityName,
         _sequence: &SymbolicExpression,
@@ -4171,9 +4171,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_unwrap_panic<'b>(
+    fn traverse_unwrap_panic(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4181,9 +4181,9 @@ impl WasmGenerator {
         self.visit_unwrap_panic(builder, expr, input)
     }
 
-    fn traverse_match_option<'b>(
+    fn traverse_match_option(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         some_name: &ClarityName,
@@ -4196,9 +4196,9 @@ impl WasmGenerator {
         self.visit_match_option(builder, expr, input, some_name, some_branch, none_branch)
     }
 
-    fn visit_match_option<'b>(
+    fn visit_match_option(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _some_name: &ClarityName,
@@ -4209,9 +4209,9 @@ impl WasmGenerator {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn traverse_match_response<'b>(
+    fn traverse_match_response(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
         ok_name: &ClarityName,
@@ -4228,9 +4228,9 @@ impl WasmGenerator {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn visit_match_response<'b>(
+    fn visit_match_response(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
         _ok_name: &ClarityName,
@@ -4241,9 +4241,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_try<'b>(
+    fn traverse_try(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4251,18 +4251,18 @@ impl WasmGenerator {
         self.visit_try(builder, expr, input)
     }
 
-    fn visit_try<'b>(
+    fn visit_try(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_asserts<'b>(
+    fn traverse_asserts(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         cond: &SymbolicExpression,
         thrown: &SymbolicExpression,
@@ -4272,9 +4272,9 @@ impl WasmGenerator {
         self.visit_asserts(builder, expr, cond, thrown)
     }
 
-    fn visit_asserts<'b>(
+    fn visit_asserts(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _cond: &SymbolicExpression,
         _thrown: &SymbolicExpression,
@@ -4282,9 +4282,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_stx_burn<'b>(
+    fn traverse_stx_burn(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
@@ -4294,9 +4294,9 @@ impl WasmGenerator {
         self.visit_stx_burn(builder, expr, amount, sender)
     }
 
-    fn traverse_stx_transfer<'b>(
+    fn traverse_stx_transfer(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
@@ -4312,9 +4312,9 @@ impl WasmGenerator {
         self.visit_stx_transfer(builder, expr, amount, sender, recipient, memo)
     }
 
-    fn traverse_stx_get_balance<'b>(
+    fn traverse_stx_get_balance(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4322,18 +4322,18 @@ impl WasmGenerator {
         self.visit_stx_get_balance(builder, expr, owner)
     }
 
-    fn traverse_ft_get_supply<'b>(
+    fn traverse_ft_get_supply(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         token: &ClarityName,
     ) -> CResult<()> {
         self.visit_ft_get_supply(builder, expr, token)
     }
 
-    fn traverse_let<'b>(
+    fn traverse_let(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         bindings: &HashMap<&ClarityName, &SymbolicExpression>,
         body: &[SymbolicExpression],
@@ -4347,9 +4347,9 @@ impl WasmGenerator {
         self.visit_let(builder, expr, bindings, body)
     }
 
-    fn visit_let<'b>(
+    fn visit_let(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _bindings: &HashMap<&ClarityName, &SymbolicExpression>,
         _body: &[SymbolicExpression],
@@ -4357,9 +4357,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_map<'b>(
+    fn traverse_map(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         func: &ClarityName,
         sequences: &[SymbolicExpression],
@@ -4370,9 +4370,9 @@ impl WasmGenerator {
         self.visit_map(builder, expr, func, sequences)
     }
 
-    fn visit_map<'b>(
+    fn visit_map(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: &ClarityName,
         _sequences: &[SymbolicExpression],
@@ -4380,9 +4380,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_append<'b>(
+    fn traverse_append(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &SymbolicExpression,
         value: &SymbolicExpression,
@@ -4392,9 +4392,9 @@ impl WasmGenerator {
         self.visit_append(builder, expr, list, value)
     }
 
-    fn visit_append<'b>(
+    fn visit_append(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _list: &SymbolicExpression,
         _value: &SymbolicExpression,
@@ -4402,9 +4402,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_as_max_len<'b>(
+    fn traverse_as_max_len(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         length: u128,
@@ -4413,9 +4413,9 @@ impl WasmGenerator {
         self.visit_as_max_len(builder, expr, sequence, length)
     }
 
-    fn visit_as_max_len<'b>(
+    fn visit_as_max_len(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
         _length: u128,
@@ -4423,9 +4423,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_len<'b>(
+    fn traverse_len(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4433,18 +4433,18 @@ impl WasmGenerator {
         self.visit_len(builder, expr, sequence)
     }
 
-    fn visit_len<'b>(
+    fn visit_len(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_element_at<'b>(
+    fn traverse_element_at(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
@@ -4454,9 +4454,9 @@ impl WasmGenerator {
         self.visit_element_at(builder, expr, sequence, index)
     }
 
-    fn visit_element_at<'b>(
+    fn visit_element_at(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
         _index: &SymbolicExpression,
@@ -4464,9 +4464,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_index_of<'b>(
+    fn traverse_index_of(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         item: &SymbolicExpression,
@@ -4476,9 +4476,9 @@ impl WasmGenerator {
         self.visit_element_at(builder, expr, sequence, item)
     }
 
-    fn traverse_buff_cast<'b>(
+    fn traverse_buff_cast(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4486,18 +4486,18 @@ impl WasmGenerator {
         self.visit_buff_cast(builder, expr, input)
     }
 
-    fn visit_buff_cast<'b>(
+    fn visit_buff_cast(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_is_standard<'b>(
+    fn traverse_is_standard(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4505,18 +4505,18 @@ impl WasmGenerator {
         self.visit_is_standard(builder, expr, value)
     }
 
-    fn visit_is_standard<'b>(
+    fn visit_is_standard(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_principal_destruct<'b>(
+    fn traverse_principal_destruct(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         principal: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4524,18 +4524,18 @@ impl WasmGenerator {
         self.visit_principal_destruct(builder, expr, principal)
     }
 
-    fn visit_principal_destruct<'b>(
+    fn visit_principal_destruct(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _principal: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_principal_construct<'b>(
+    fn traverse_principal_construct(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         buff1: &SymbolicExpression,
         buff20: &SymbolicExpression,
@@ -4549,9 +4549,9 @@ impl WasmGenerator {
         self.visit_principal_construct(builder, expr, buff1, buff20, contract)
     }
 
-    fn visit_principal_construct<'b>(
+    fn visit_principal_construct(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _buff1: &SymbolicExpression,
         _buff20: &SymbolicExpression,
@@ -4560,9 +4560,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_string_to_int<'b>(
+    fn traverse_string_to_int(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4570,18 +4570,18 @@ impl WasmGenerator {
         self.visit_string_to_int(builder, expr, input)
     }
 
-    fn visit_string_to_int<'b>(
+    fn visit_string_to_int(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_int_to_string<'b>(
+    fn traverse_int_to_string(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4589,18 +4589,18 @@ impl WasmGenerator {
         self.visit_int_to_string(builder, expr, input)
     }
 
-    fn visit_int_to_string<'b>(
+    fn visit_int_to_string(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_stx_get_account<'b>(
+    fn traverse_stx_get_account(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4608,9 +4608,9 @@ impl WasmGenerator {
         self.visit_stx_get_account(builder, expr, owner)
     }
 
-    fn traverse_slice<'b>(
+    fn traverse_slice(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         seq: &SymbolicExpression,
         left: &SymbolicExpression,
@@ -4622,9 +4622,9 @@ impl WasmGenerator {
         self.visit_slice(builder, expr, seq, left, right)
     }
 
-    fn visit_slice<'b>(
+    fn visit_slice(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _seq: &SymbolicExpression,
         _left: &SymbolicExpression,
@@ -4633,9 +4633,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_get_burn_block_info<'b>(
+    fn traverse_get_burn_block_info(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         prop_name: &ClarityName,
         block: &SymbolicExpression,
@@ -4644,9 +4644,9 @@ impl WasmGenerator {
         self.visit_get_burn_block_info(builder, expr, prop_name, block)
     }
 
-    fn visit_get_burn_block_info<'b>(
+    fn visit_get_burn_block_info(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _prop_name: &ClarityName,
         _block: &SymbolicExpression,
@@ -4654,9 +4654,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_to_consensus_buff<'b>(
+    fn traverse_to_consensus_buff(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
     ) -> CResult<()> {
@@ -4664,18 +4664,18 @@ impl WasmGenerator {
         self.visit_to_consensus_buff(builder, expr, input)
     }
 
-    fn visit_to_consensus_buff<'b>(
+    fn visit_to_consensus_buff(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _input: &SymbolicExpression,
     ) -> CResult<()> {
         Ok(())
     }
 
-    fn traverse_from_consensus_buff<'b>(
+    fn traverse_from_consensus_buff(
         &mut self,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         type_expr: &SymbolicExpression,
         input: &SymbolicExpression,
@@ -4685,9 +4685,9 @@ impl WasmGenerator {
         self.visit_from_consensus_buff(builder, expr, type_expr, input)
     }
 
-    fn visit_from_consensus_buff<'b>(
+    fn visit_from_consensus_buff(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _type_expr: &SymbolicExpression,
         _input: &SymbolicExpression,
@@ -4695,9 +4695,9 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_replace_at<'b>(
+    fn visit_replace_at(
         &mut self,
-        _builder: &mut InstrSeqBuilder<'b>,
+        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _sequence: &SymbolicExpression,
         _index: &SymbolicExpression,
