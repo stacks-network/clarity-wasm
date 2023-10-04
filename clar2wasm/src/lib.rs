@@ -11,8 +11,11 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
-// mod ast_visitor;
 mod wasm_generator;
+mod words;
+
+// TODO: remove this
+pub type CResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1

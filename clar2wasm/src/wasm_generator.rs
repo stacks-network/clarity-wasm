@@ -1,11 +1,11 @@
 use clarity::vm::functions::define::DefineFunctions;
-use clarity::vm::types::{QualifiedContractIdentifier, TraitIdentifier};
+use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
-    representations::{Span, TraitDefinition},
+    representations::Span,
     types::{
         CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
         TypeSignature,
@@ -21,18 +21,7 @@ use walrus::{
     ValType,
 };
 
-pub type CResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-#[derive(Debug)]
-struct GenericError;
-
-impl std::fmt::Display for GenericError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "error")
-    }
-}
-
-impl std::error::Error for GenericError {}
+use crate::words;
 
 lazy_static! {
     // Since the AST Visitor may be used before other checks have been performed,
@@ -70,8 +59,6 @@ pub struct WasmGenerator {
     contract_analysis: ContractAnalysis,
     /// The WebAssembly module that is being generated.
     module: Module,
-    /// The error that occurred during generation, if any.
-    error: Option<GeneratorError>,
     /// Offset of the end of the literal memory.
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
@@ -175,7 +162,7 @@ pub fn traverse(
     visitor: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     exprs: &[SymbolicExpression],
-) -> CResult<()> {
+) -> Result<(), GeneratorError> {
     for expr in exprs {
         visitor.traverse_expr(builder, expr)?;
     }
@@ -205,7 +192,6 @@ impl WasmGenerator {
         WasmGenerator {
             contract_analysis,
             module,
-            error: None,
             literal_memory_end: 0,
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
@@ -229,10 +215,6 @@ impl WasmGenerator {
 
         self.contract_analysis.expressions = expressions;
 
-        if let Some(err) = self.error {
-            return Err(err);
-        }
-
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
         current_function.func_body().return_();
@@ -248,11 +230,11 @@ impl WasmGenerator {
         Ok(self.module)
     }
 
-    fn traverse_expr(
+    pub fn traverse_expr(
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         match &expr.expr {
             SymbolicExpressionType::AtomValue(value) => self.visit_atom_value(builder, expr, value),
             SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
@@ -260,10 +242,7 @@ impl WasmGenerator {
             SymbolicExpressionType::LiteralValue(value) => {
                 self.visit_literal_value(builder, expr, value)
             }
-            SymbolicExpressionType::Field(field) => self.visit_field(builder, expr, field),
-            SymbolicExpressionType::TraitReference(name, trait_def) => {
-                self.visit_trait_reference(builder, expr, name, trait_def)
-            }
+            _ => todo!(),
         }
     }
 
@@ -272,10 +251,19 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> CResult<()> {
-        if let Some((function_name, args)) = list.split_first() {
-            if let Some(function_name) = function_name.match_atom() {
-                if let Some(define_function) = DefineFunctions::lookup_by_name(function_name) {
+    ) -> Result<(), GeneratorError> {
+        match list.split_first() {
+            Some((
+                SymbolicExpression {
+                    expr: SymbolicExpressionType::Atom(function_name),
+                    ..
+                },
+                args,
+            )) => {
+                if let Some(word) = words::lookup(function_name) {
+                    word.traverse(self, builder, expr, args)?;
+                } else if let Some(define_function) = DefineFunctions::lookup_by_name(function_name)
+                {
                     match define_function {
                         DefineFunctions::Constant => self.traverse_define_constant(
                             builder,
@@ -317,7 +305,7 @@ impl WasmGenerator {
                                         _ => unreachable!(),
                                     }
                                 }
-                                _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+                                _ => Err(GeneratorError::NotImplemented),
                             }
                         }
                         DefineFunctions::NonFungibleToken => self.traverse_define_nft(
@@ -358,44 +346,7 @@ impl WasmGenerator {
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        DefineFunctions::Trait => {
-                            let params = if !args.is_empty() { &args[1..] } else { &[] };
-                            self.traverse_define_trait(
-                                builder,
-                                expr,
-                                args.get(0)
-                                    .unwrap_or(&DEFAULT_EXPR)
-                                    .match_atom()
-                                    .unwrap_or(&DEFAULT_NAME),
-                                params,
-                            )
-                        }
-                        DefineFunctions::UseTrait => self.traverse_use_trait(
-                            builder,
-                            expr,
-                            args.get(0)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_atom()
-                                .unwrap_or(&DEFAULT_NAME),
-                            args.get(1)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_field()
-                                .unwrap_or(&TraitIdentifier {
-                                    contract_identifier: QualifiedContractIdentifier::transient(),
-                                    name: DEFAULT_NAME.clone(),
-                                }),
-                        ),
-                        DefineFunctions::ImplTrait => self.traverse_impl_trait(
-                            builder,
-                            expr,
-                            args.get(0)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_field()
-                                .unwrap_or(&TraitIdentifier {
-                                    contract_identifier: QualifiedContractIdentifier::transient(),
-                                    name: DEFAULT_NAME.clone(),
-                                }),
-                        ),
+                        _ => Ok(()),
                     }?;
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
                     function_name,
@@ -403,9 +354,6 @@ impl WasmGenerator {
                 ) {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
-                        Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
-                            self.traverse_arithmetic(builder, expr, native_function, args)
-                        }
                         BitwiseXor => self.traverse_binary_bitwise(
                             builder,
                             expr,
@@ -416,9 +364,7 @@ impl WasmGenerator {
                         CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
                             self.traverse_comparison(builder, expr, native_function, args)
                         }
-                        And | Or => {
-                            self.traverse_lazy_logical(builder, expr, native_function, args)
-                        }
+                        And | Or => todo!(),
                         Not => self.traverse_logical(builder, expr, native_function, args),
                         ToInt | ToUInt => self.traverse_int_cast(
                             builder,
@@ -493,7 +439,7 @@ impl WasmGenerator {
                                     args.get(0).unwrap_or(&DEFAULT_EXPR),
                                     *length,
                                 ),
-                                _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+                                _ => Err(GeneratorError::NotImplemented),
                             }
                         }
                         Len => {
@@ -571,11 +517,7 @@ impl WasmGenerator {
                                 args.get(1).unwrap_or(&DEFAULT_EXPR),
                             )
                         }
-                        TupleCons => self.traverse_tuple(
-                            builder,
-                            expr,
-                            &match_tuple(expr).unwrap_or_default(),
-                        ),
+                        TupleCons => todo!(),
                         TupleGet => self.traverse_get(
                             builder,
                             expr,
@@ -939,11 +881,7 @@ impl WasmGenerator {
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        ToConsensusBuff => self.traverse_to_consensus_buff(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
+                        ToConsensusBuff => Ok(()),
                         FromConsensusBuff => self.traverse_from_consensus_buff(
                             builder,
                             expr,
@@ -970,11 +908,13 @@ impl WasmGenerator {
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
+                        e => unreachable!("{:?}", e),
                     }?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
             }
+            _ => todo!(),
         }
         self.visit_list(builder, expr, list)
     }
@@ -984,7 +924,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _list: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -994,7 +934,7 @@ impl WasmGenerator {
         name: &ClarityName,
         body: &SymbolicExpression,
         kind: FunctionKind,
-    ) -> Option<FunctionId> {
+    ) -> Result<FunctionId, GeneratorError> {
         let opt_function_type = match kind {
             FunctionKind::ReadOnly => {
                 builder.i32_const(0);
@@ -1014,11 +954,10 @@ impl WasmGenerator {
         let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
             fixed.clone()
         } else {
-            self.error = Some(GeneratorError::InternalError(match opt_function_type {
+            return Err(GeneratorError::InternalError(match opt_function_type {
                 Some(_) => "expected fixed function type".to_string(),
                 None => format!("unable to find function type for {}", name.as_str()),
             }));
-            return None;
         };
 
         // Call the host interface to save this function
@@ -1079,9 +1018,7 @@ impl WasmGenerator {
         let block_id = block.id();
 
         // Traverse the body of the function
-        if self.traverse_expr(&mut block, body).is_err() {
-            return None;
-        }
+        self.traverse_expr(&mut block, body)?;
 
         // TODO: We need to ensure that all exits from the function go through
         // the postlude. Maybe put the body in a block, and then have any exits
@@ -1099,11 +1036,11 @@ impl WasmGenerator {
         // Restore the top-level locals map.
         self.locals = top_level_locals;
 
-        Some(func_builder.finish(param_locals, &mut self.module.funcs))
+        Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
-    fn get_expr_type(&self, expr: &SymbolicExpression) -> Option<&TypeSignature> {
+    pub fn get_expr_type(&self, expr: &SymbolicExpression) -> Option<&TypeSignature> {
         self.contract_analysis
             .type_map
             .as_ref()
@@ -1116,7 +1053,7 @@ impl WasmGenerator {
         _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _value: &Value,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         Ok(())
     }
 
@@ -1362,7 +1299,7 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         statements: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         assert!(
             statements.len() > 1,
             "statement list must have at least one statement"
@@ -1626,33 +1563,6 @@ fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
     Some(vars)
 }
 
-fn match_tuple(
-    expr: &SymbolicExpression,
-) -> Option<HashMap<Option<&ClarityName>, &SymbolicExpression>> {
-    if let Some(list) = expr.match_list() {
-        if let Some((function_name, args)) = list.split_first() {
-            if let Some(function_name) = function_name.match_atom() {
-                if NativeFunctions::lookup_by_name_at_version(
-                    function_name,
-                    &clarity::vm::ClarityVersion::latest(),
-                ) == Some(NativeFunctions::TupleCons)
-                {
-                    let mut tuple_map = HashMap::new();
-                    for element in args {
-                        let pair = element.match_list().unwrap_or_default();
-                        if pair.len() != 2 {
-                            return None;
-                        }
-                        tuple_map.insert(pair[0].match_atom(), &pair[1]);
-                    }
-                    return Some(tuple_map);
-                }
-            }
-        }
-    }
-    None
-}
-
 fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &SymbolicExpression>> {
     let list = expr.match_list()?;
     let mut tuple_map = HashMap::new();
@@ -1667,93 +1577,13 @@ fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &Symbo
 }
 
 impl WasmGenerator {
-    fn traverse_arithmetic(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        func: NativeFunctions,
-        operands: &[SymbolicExpression],
-    ) -> CResult<()> {
-        let ty = self
-            .get_expr_type(expr)
-            .expect("arithmetic expression must be typed");
-        let type_suffix = match ty {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
-            _ => {
-                self.error = Some(GeneratorError::InternalError(
-                    "invalid type for arithmetic".to_string(),
-                ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
-            }
-        };
-        let helper_func = match func {
-            NativeFunctions::Add => self
-                .module
-                .funcs
-                .by_name(&format!("add-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: add-{type_suffix}")),
-            NativeFunctions::Subtract => self
-                .module
-                .funcs
-                .by_name(&format!("sub-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: sub-{type_suffix}")),
-            NativeFunctions::Multiply => self
-                .module
-                .funcs
-                .by_name(&format!("mul-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: mul-{type_suffix}")),
-            NativeFunctions::Divide => self
-                .module
-                .funcs
-                .by_name(&format!("div-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: div-{type_suffix}")),
-            NativeFunctions::Modulo => self
-                .module
-                .funcs
-                .by_name(&format!("mod-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: mod-{type_suffix}")),
-            NativeFunctions::Log2 => self
-                .module
-                .funcs
-                .by_name(&format!("log2-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: log2-{type_suffix}")),
-            NativeFunctions::Sqrti => self
-                .module
-                .funcs
-                .by_name(&format!("sqrti-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: sqrti-{type_suffix}")),
-            NativeFunctions::Power => self
-                .module
-                .funcs
-                .by_name(&format!("pow-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: pow-{type_suffix}")),
-            _ => {
-                self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
-            }
-        };
-
-        // Start off with operand 0, then loop over the rest, calling the
-        // helper function with a pair of operands, either operand 0 and 1, or
-        // the result of the previous call and the next operand.
-        // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
-        self.traverse_expr(builder, &operands[0])?;
-        for operand in operands.iter().skip(1) {
-            self.traverse_expr(builder, operand)?;
-            builder.call(helper_func);
-        }
-
-        Ok(())
-    }
-
     fn traverse_bitwise(
         &mut self,
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let helper_func = match func {
             NativeFunctions::BitwiseAnd => self
                 .module
@@ -1771,8 +1601,7 @@ impl WasmGenerator {
                 .by_name("bit-xor")
                 .unwrap_or_else(|| panic!("function not found: bit-xor")),
             _ => {
-                self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -1796,7 +1625,7 @@ impl WasmGenerator {
         func: NativeFunctions,
         input: &SymbolicExpression,
         _shamt: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(input)
             .expect("bit shift operands must be typed");
@@ -1804,10 +1633,7 @@ impl WasmGenerator {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                self.error = Some(GeneratorError::InternalError(
-                    "invalid type for shift".to_string(),
-                ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         let helper_func = match func {
@@ -1822,8 +1648,7 @@ impl WasmGenerator {
                 .by_name(&format!("bit-shift-right-{type_suffix}"))
                 .unwrap_or_else(|| panic!("function not found: bit-shift-right-{type_suffix}")),
             _ => {
-                self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         builder.call(helper_func);
@@ -1831,7 +1656,7 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> CResult<()> {
+    fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
         let helper_func = self
             .module
             .funcs
@@ -1847,7 +1672,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(&operands[0])
             .expect("comparison operands must be typed");
@@ -1862,10 +1687,7 @@ impl WasmGenerator {
             }
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buffer",
             _ => {
-                self.error = Some(GeneratorError::InternalError(
-                    "invalid type for comparison".to_string(),
-                ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         let helper_func = match func {
@@ -1890,8 +1712,7 @@ impl WasmGenerator {
                 .by_name(&format!("ge-{type_suffix}"))
                 .unwrap_or_else(|| panic!("function not found: ge-{type_suffix}")),
             _ => {
-                self.error = Some(GeneratorError::NotImplemented);
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
         builder.call(helper_func);
@@ -1904,7 +1725,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &clarity::vm::Value,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         match value {
             clarity::vm::Value::Int(i) => {
                 builder.i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
@@ -1929,10 +1750,7 @@ impl WasmGenerator {
                 builder.i32_const(len as i32);
                 Ok(())
             }
-            _ => {
-                self.error = Some(GeneratorError::NotImplemented);
-                Err(Box::new(GenericError) as Box<dyn std::error::Error>)
-            }
+            _ => Err(GeneratorError::NotImplemented),
         }
     }
 
@@ -1941,14 +1759,11 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         atom: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = match self.get_expr_type(expr) {
             Some(ty) => ty.clone(),
             None => {
-                self.error = Some(GeneratorError::InternalError(
-                    "atom expression must be typed".to_string(),
-                ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -1966,11 +1781,7 @@ impl WasmGenerator {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
                 None => {
-                    self.error = Some(GeneratorError::InternalError(format!(
-                        "unable to find local for {}",
-                        atom.as_str()
-                    )));
-                    return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                    return Err(GeneratorError::NotImplemented);
                 }
             };
             builder.local_get(local);
@@ -1986,15 +1797,9 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
-        if self
-            .traverse_define_function(builder, name, body, FunctionKind::Private)
-            .is_some()
-        {
-            Ok(())
-        } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
-        }
+    ) -> Result<(), GeneratorError> {
+        self.traverse_define_function(builder, name, body, FunctionKind::Private)
+            .map(|_| ())
     }
 
     fn traverse_define_read_only(
@@ -2004,15 +1809,11 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
-        if let Some(function_id) =
-            self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)
-        {
-            self.module.exports.add(name.as_str(), function_id);
-            Ok(())
-        } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
-        }
+    ) -> Result<(), GeneratorError> {
+        let function_id =
+            self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
+        self.module.exports.add(name.as_str(), function_id);
+        Ok(())
     }
 
     fn traverse_define_public(
@@ -2022,15 +1823,12 @@ impl WasmGenerator {
         name: &ClarityName,
         _parameters: Option<Vec<TypedVar<'_>>>,
         body: &SymbolicExpression,
-    ) -> CResult<()> {
-        if let Some(function_id) =
-            self.traverse_define_function(builder, name, body, FunctionKind::Public)
-        {
-            self.module.exports.add(name.as_str(), function_id);
-            Ok(())
-        } else {
-            Err(Box::new(GenericError) as Box<dyn std::error::Error>)
-        }
+    ) -> Result<(), GeneratorError> {
+        let function_id =
+            self.traverse_define_function(builder, name, body, FunctionKind::Public)?;
+
+        self.module.exports.add(name.as_str(), function_id);
+        Ok(())
     }
 
     fn traverse_define_data_var(
@@ -2040,7 +1838,7 @@ impl WasmGenerator {
         name: &ClarityName,
         _data_type: &SymbolicExpression,
         initial: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2095,7 +1893,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         supply: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2128,7 +1926,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _nft_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2152,7 +1950,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // If the initial value is a literal, then we can directly add it to
         // the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
@@ -2195,7 +1993,7 @@ impl WasmGenerator {
         name: &ClarityName,
         _key_type: &SymbolicExpression,
         _value_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = self.add_identifier_string_literal(name);
 
@@ -2218,7 +2016,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         statements: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_statement_list(builder, statements)
     }
 
@@ -2227,7 +2025,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
         self.traverse_expr(builder, value)?;
@@ -2239,7 +2037,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (ok <val>) is represented by an i32 1, followed by the ok value,
         // followed by a placeholder for the err value
         builder.i32_const(1);
@@ -2263,7 +2061,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
         builder.i32_const(0);
@@ -2287,7 +2085,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         _args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         builder.call(
             self.module
                 .funcs
@@ -2303,7 +2101,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         lhs: &SymbolicExpression,
         rhs: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Create a new sequence to hold the result in the stack frame
         let ty = self
             .get_expr_type(expr)
@@ -2354,7 +2152,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -2399,7 +2197,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -2445,7 +2243,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         let ty = self
             .get_expr_type(expr)
             .expect("list expression must be typed")
@@ -2489,7 +2287,7 @@ impl WasmGenerator {
         func: &ClarityName,
         sequence: &SymbolicExpression,
         initial: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Fold takes an initial value, and a sequence, and applies a function
         // to the output of the previous call, or the initial value in the case
         // of the first call, and each element of the sequence.
@@ -2515,10 +2313,7 @@ impl WasmGenerator {
         {
             TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
             _ => {
-                self.error = Some(GeneratorError::InternalError(
-                    "expected sequence type".to_string(),
-                ));
-                return Err(Box::new(GenericError) as Box<dyn std::error::Error>);
+                return Err(GeneratorError::NotImplemented);
             }
         };
 
@@ -2623,7 +2418,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         inner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Call the host interface function, `enter_as_contract`
         builder.call(
             self.module
@@ -2651,7 +2446,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Owner is on the stack, so just call the host interface function,
         // `stx_get_balance`
         builder.call(
@@ -2668,7 +2463,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Owner is on the stack, so just call the host interface function,
         // `stx_get_account`
         builder.call(
@@ -2686,7 +2481,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         _amount: &SymbolicExpression,
         _sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
         builder.call(
@@ -2706,7 +2501,7 @@ impl WasmGenerator {
         _sender: &SymbolicExpression,
         _recipient: &SymbolicExpression,
         _memo: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Amount, sender, and recipient are on the stack. If memo is none, we
         // need to add a placeholder to the stack, then we can call the host
         // interface function, `stx_transfer`
@@ -2727,7 +2522,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         token: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack, then call the host interface
         // function `ft_get_supply`
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
@@ -2751,7 +2546,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         token: &ClarityName,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2779,7 +2574,7 @@ impl WasmGenerator {
         token: &ClarityName,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2808,7 +2603,7 @@ impl WasmGenerator {
         token: &ClarityName,
         amount: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2838,7 +2633,7 @@ impl WasmGenerator {
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2867,7 +2662,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         token: &ClarityName,
         identifier: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2924,7 +2719,7 @@ impl WasmGenerator {
         token: &ClarityName,
         identifier: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -2972,7 +2767,7 @@ impl WasmGenerator {
         token: &ClarityName,
         identifier: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -3021,7 +2816,7 @@ impl WasmGenerator {
         identifier: &SymbolicExpression,
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the token name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(token);
         builder
@@ -3070,7 +2865,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // There must be either an `optional` or a `response` on the top of the
         // stack. Both use an i32 indicator, where 0 means `none` or `err`. In
         // both cases, if this indicator is a 0, then we need to early exit.
@@ -3169,7 +2964,7 @@ impl WasmGenerator {
 
                 Ok(())
             }
-            _ => Err(Box::new(GenericError) as Box<dyn std::error::Error>),
+            _ => Err(GeneratorError::NotImplemented),
         }
     }
 
@@ -3179,7 +2974,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3243,7 +3038,7 @@ impl WasmGenerator {
         name: &ClarityName,
         key: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3308,7 +3103,7 @@ impl WasmGenerator {
         name: &ClarityName,
         key: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3372,7 +3167,7 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         name: &ClarityName,
         key: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *self
             .literal_memory_offet
@@ -3419,7 +3214,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         prop_name: &ClarityName,
         block: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         // Push the property name onto the stack
         let (id_offset, id_length) = self.add_identifier_string_literal(prop_name);
         builder
@@ -3463,7 +3258,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
@@ -3477,7 +3272,7 @@ impl WasmGenerator {
         func: NativeFunctions,
         input: &SymbolicExpression,
         shamt: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, shamt)?;
         self.visit_bit_shift(builder, expr, func, input, shamt)
@@ -3486,43 +3281,24 @@ impl WasmGenerator {
     fn traverse_replace_at(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
         element: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.traverse_expr(builder, index)?;
         self.traverse_expr(builder, element)?;
-        self.visit_replace_at(builder, expr, sequence, element, index)
+        Ok(())
     }
 
     fn traverse_bitwise_not(
         &mut self,
         builder: &mut InstrSeqBuilder,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_bitwise_not(builder)
-    }
-
-    fn visit_field(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _field: &TraitIdentifier,
-    ) -> CResult<()> {
-        Ok(())
-    }
-
-    fn visit_trait_reference(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _name: &ClarityName,
-        _trait_def: &TraitDefinition,
-    ) -> CResult<()> {
-        Ok(())
     }
 
     fn traverse_define_map(
@@ -3532,90 +3308,21 @@ impl WasmGenerator {
         name: &ClarityName,
         key_type: &SymbolicExpression,
         value_type: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_define_map(builder, expr, name, key_type, value_type)
-    }
-
-    fn traverse_define_trait(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        name: &ClarityName,
-        functions: &[SymbolicExpression],
-    ) -> CResult<()> {
-        self.visit_define_trait(builder, expr, name, functions)
-    }
-
-    fn visit_define_trait(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _name: &ClarityName,
-        _functions: &[SymbolicExpression],
-    ) -> CResult<()> {
-        Ok(())
-    }
-
-    fn traverse_use_trait(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        name: &ClarityName,
-        trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
-        self.visit_use_trait(builder, expr, name, trait_identifier)
-    }
-
-    fn visit_use_trait(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _name: &ClarityName,
-        _trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
-        Ok(())
-    }
-
-    fn traverse_impl_trait(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
-        self.visit_impl_trait(builder, expr, trait_identifier)
-    }
-
-    fn visit_impl_trait(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _trait_identifier: &TraitIdentifier,
-    ) -> CResult<()> {
-        Ok(())
     }
 
     fn traverse_binary_bitwise(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        func: NativeFunctions,
+        _expr: &SymbolicExpression,
+        _func: NativeFunctions,
         lhs: &SymbolicExpression,
         rhs: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in &[lhs, rhs] {
             self.traverse_expr(builder, operand)?;
         }
-        self.visit_binary_bitwise(builder, expr, func, lhs, rhs)
-    }
-
-    fn visit_binary_bitwise(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: NativeFunctions,
-        _lhs: &SymbolicExpression,
-        _rhs: &SymbolicExpression,
-    ) -> CResult<()> {
         Ok(())
     }
 
@@ -3625,100 +3332,46 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         func: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in operands {
             self.traverse_expr(builder, operand)?;
         }
         self.visit_comparison(builder, expr, func, operands)
     }
 
-    fn traverse_lazy_logical(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        function: NativeFunctions,
-        operands: &[SymbolicExpression],
-    ) -> CResult<()> {
-        for operand in operands {
-            self.traverse_expr(builder, operand)?;
-        }
-        self.visit_lazy_logical(builder, expr, function, operands)
-    }
-
-    fn visit_lazy_logical(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _function: NativeFunctions,
-        _operands: &[SymbolicExpression],
-    ) -> CResult<()> {
-        Ok(())
-    }
-
     fn traverse_logical(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        function: NativeFunctions,
+        _expr: &SymbolicExpression,
+        _function: NativeFunctions,
         operands: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for operand in operands {
             self.traverse_expr(builder, operand)?;
         }
-        self.visit_logical(builder, expr, function, operands)
-    }
-
-    fn visit_logical(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _function: NativeFunctions,
-        _operands: &[SymbolicExpression],
-    ) -> CResult<()> {
         Ok(())
     }
 
     fn traverse_int_cast(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_int_cast(builder, expr, input)
-    }
-
-    fn visit_int_cast(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        input: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, input)
     }
 
     fn traverse_if(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         cond: &SymbolicExpression,
         then_expr: &SymbolicExpression,
         else_expr: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for &expr in &[cond, then_expr, else_expr] {
             self.traverse_expr(builder, expr)?;
         }
-        self.visit_if(builder, expr, cond, then_expr, else_expr)
-    }
-
-    fn visit_if(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _cond: &SymbolicExpression,
-        _then_expr: &SymbolicExpression,
-        _else_expr: &SymbolicExpression,
-    ) -> CResult<()> {
         Ok(())
     }
 
@@ -3727,7 +3380,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         name: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_var_get(builder, expr, name)
     }
 
@@ -3737,433 +3390,209 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         name: &ClarityName,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, value)?;
         self.visit_var_set(builder, expr, name, value)
-    }
-
-    fn traverse_tuple(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-    ) -> CResult<()> {
-        for val in values.values() {
-            self.traverse_expr(builder, val)?;
-        }
-        self.visit_tuple(builder, expr, values)
-    }
-
-    fn visit_tuple(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _values: &HashMap<Option<&ClarityName>, &SymbolicExpression>,
-    ) -> CResult<()> {
-        Ok(())
     }
 
     fn traverse_get(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        key: &ClarityName,
-        tuple: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, tuple)?;
-        self.visit_get(builder, expr, key, tuple)
-    }
-
-    fn visit_get(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _key: &ClarityName,
-        _tuple: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        tuple: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, tuple)
     }
 
     fn traverse_merge(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         tuple1: &SymbolicExpression,
         tuple2: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, tuple1)?;
-        self.traverse_expr(builder, tuple2)?;
-        self.visit_merge(builder, expr, tuple1, tuple2)
-    }
-
-    fn visit_merge(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _tuple1: &SymbolicExpression,
-        _tuple2: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, tuple2)
     }
 
     fn traverse_hash(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        func: NativeFunctions,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_hash(builder, expr, func, value)
-    }
-
-    fn visit_hash(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: NativeFunctions,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_secp256k1_recover(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, hash)?;
-        self.traverse_expr(builder, signature)?;
-        self.visit_secp256k1_recover(builder, expr, hash, signature)
-    }
-
-    fn visit_secp256k1_recover(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _hash: &SymbolicExpression,
-        _signature: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, signature)
     }
 
     fn traverse_secp256k1_verify(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
-        public_key: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, hash)?;
-        self.traverse_expr(builder, signature)?;
-        self.visit_secp256k1_verify(builder, expr, hash, signature, public_key)
-    }
-
-    fn visit_secp256k1_verify(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _hash: &SymbolicExpression,
-        _signature: &SymbolicExpression,
         _public_key: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, hash)?;
+        self.traverse_expr(builder, signature)
     }
 
     fn traverse_print(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_print(builder, expr, value)
-    }
-
-    fn visit_print(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_static_contract_call(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        contract_identifier: &QualifiedContractIdentifier,
-        function_name: &ClarityName,
-        args: &[SymbolicExpression],
-    ) -> CResult<()> {
-        for arg in args.iter() {
-            self.traverse_expr(builder, arg)?;
-        }
-        self.visit_static_contract_call(builder, expr, contract_identifier, function_name, args)
-    }
-
-    fn visit_static_contract_call(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _contract_identifier: &QualifiedContractIdentifier,
         _function_name: &ClarityName,
-        _args: &[SymbolicExpression],
-    ) -> CResult<()> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        for arg in args.iter() {
+            self.traverse_expr(builder, arg)?;
+        }
         Ok(())
     }
 
     fn traverse_dynamic_contract_call(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         trait_ref: &SymbolicExpression,
-        function_name: &ClarityName,
+        _function_name: &ClarityName,
         args: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, trait_ref)?;
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
-        self.visit_dynamic_contract_call(builder, expr, trait_ref, function_name, args)
-    }
-
-    fn visit_dynamic_contract_call(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _trait_ref: &SymbolicExpression,
-        _function_name: &ClarityName,
-        _args: &[SymbolicExpression],
-    ) -> CResult<()> {
         Ok(())
     }
 
     fn traverse_contract_of(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        name: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, name)?;
-        self.visit_contract_of(builder, expr, name)
-    }
-
-    fn visit_contract_of(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _name: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        name: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, name)
     }
 
     fn traverse_principal_of(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        public_key: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, public_key)?;
-        self.visit_principal_of(builder, expr, public_key)
-    }
-
-    fn visit_principal_of(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _public_key: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        public_key: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, public_key)
     }
 
     fn traverse_at_block(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         block: &SymbolicExpression,
         inner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, block)?;
-        self.traverse_expr(builder, inner)?;
-        self.visit_at_block(builder, expr, block, inner)
-    }
-
-    fn visit_at_block(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _block: &SymbolicExpression,
-        _inner: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, inner)
     }
 
     fn traverse_default_to(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         default: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, default)?;
-        self.traverse_expr(builder, value)?;
-        self.visit_default_to(builder, expr, default, value)
-    }
-
-    fn visit_default_to(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _default: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_unwrap(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
-        self.traverse_expr(builder, throws)?;
-        self.visit_unwrap(builder, expr, input, throws)
-    }
-
-    fn visit_unwrap(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-        _throws: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, throws)
     }
 
     fn traverse_unwrap_err(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         input: &SymbolicExpression,
         throws: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
-        self.traverse_expr(builder, throws)?;
-        self.visit_unwrap_err(builder, expr, input, throws)
-    }
-
-    fn visit_unwrap_err(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-        _throws: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, throws)
     }
 
     fn traverse_is_ok(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_is_ok(builder, expr, value)
-    }
-
-    fn visit_is_ok(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_is_none(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_is_none(builder, expr, value)
-    }
-
-    fn visit_is_none(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_is_err(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_is_err(builder, expr, value)
-    }
-
-    fn visit_is_err(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_is_some(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_is_some(builder, expr, value)
-    }
-
-    fn visit_is_some(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_filter(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        func: &ClarityName,
-        sequence: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, sequence)?;
-        self.visit_filter(builder, expr, func, sequence)
-    }
-
-    fn visit_filter(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _func: &ClarityName,
-        _sequence: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        sequence: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, sequence)
     }
 
     fn traverse_unwrap_panic(
@@ -4171,7 +3600,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_unwrap_panic(builder, expr, input)
     }
@@ -4179,102 +3608,51 @@ impl WasmGenerator {
     fn traverse_match_option(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         input: &SymbolicExpression,
-        some_name: &ClarityName,
+        _some_name: &ClarityName,
         some_branch: &SymbolicExpression,
         none_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, some_branch)?;
-        self.traverse_expr(builder, none_branch)?;
-        self.visit_match_option(builder, expr, input, some_name, some_branch, none_branch)
-    }
-
-    fn visit_match_option(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-        _some_name: &ClarityName,
-        _some_branch: &SymbolicExpression,
-        _none_branch: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, none_branch)
     }
 
     #[allow(clippy::too_many_arguments)]
     fn traverse_match_response(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         input: &SymbolicExpression,
-        ok_name: &ClarityName,
+        _ok_name: &ClarityName,
         ok_branch: &SymbolicExpression,
-        err_name: &ClarityName,
+        _err_name: &ClarityName,
         err_branch: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.traverse_expr(builder, ok_branch)?;
-        self.traverse_expr(builder, err_branch)?;
-        self.visit_match_response(
-            builder, expr, input, ok_name, ok_branch, err_name, err_branch,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn visit_match_response(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-        _ok_name: &ClarityName,
-        _ok_branch: &SymbolicExpression,
-        _err_name: &ClarityName,
-        _err_branch: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, err_branch)
     }
 
     fn traverse_try(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_try(builder, expr, input)
-    }
-
-    fn visit_try(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        input: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, input)
     }
 
     fn traverse_asserts(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         cond: &SymbolicExpression,
         thrown: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, cond)?;
-        self.traverse_expr(builder, thrown)?;
-        self.visit_asserts(builder, expr, cond, thrown)
-    }
-
-    fn visit_asserts(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _cond: &SymbolicExpression,
-        _thrown: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, thrown)
     }
 
     fn traverse_stx_burn(
@@ -4283,7 +3661,7 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, amount)?;
         self.traverse_expr(builder, sender)?;
         self.visit_stx_burn(builder, expr, amount, sender)
@@ -4297,7 +3675,7 @@ impl WasmGenerator {
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
         memo: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, amount)?;
         self.traverse_expr(builder, sender)?;
         self.traverse_expr(builder, recipient)?;
@@ -4312,7 +3690,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, owner)?;
         self.visit_stx_get_balance(builder, expr, owner)
     }
@@ -4322,275 +3700,150 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         token: &ClarityName,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.visit_ft_get_supply(builder, expr, token)
     }
 
     fn traverse_let(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         bindings: &HashMap<&ClarityName, &SymbolicExpression>,
         body: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for val in bindings.values() {
             self.traverse_expr(builder, val)?;
         }
         for expr in body {
             self.traverse_expr(builder, expr)?;
         }
-        self.visit_let(builder, expr, bindings, body)
-    }
-
-    fn visit_let(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _bindings: &HashMap<&ClarityName, &SymbolicExpression>,
-        _body: &[SymbolicExpression],
-    ) -> CResult<()> {
         Ok(())
     }
 
     fn traverse_map(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        func: &ClarityName,
+        _expr: &SymbolicExpression,
+        _func: &ClarityName,
         sequences: &[SymbolicExpression],
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         for sequence in sequences {
             self.traverse_expr(builder, sequence)?;
         }
-        self.visit_map(builder, expr, func, sequences)
-    }
-
-    fn visit_map(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: &ClarityName,
-        _sequences: &[SymbolicExpression],
-    ) -> CResult<()> {
         Ok(())
     }
 
     fn traverse_append(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         list: &SymbolicExpression,
         value: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, list)?;
-        self.traverse_expr(builder, value)?;
-        self.visit_append(builder, expr, list, value)
-    }
-
-    fn visit_append(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _list: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_as_max_len(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-        length: u128,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, sequence)?;
-        self.visit_as_max_len(builder, expr, sequence, length)
-    }
-
-    fn visit_as_max_len(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _sequence: &SymbolicExpression,
+        sequence: &SymbolicExpression,
         _length: u128,
-    ) -> CResult<()> {
-        Ok(())
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, sequence)
     }
 
     fn traverse_len(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, sequence)?;
-        self.visit_len(builder, expr, sequence)
-    }
-
-    fn visit_len(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _sequence: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        sequence: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, sequence)
     }
 
     fn traverse_element_at(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         index: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
-        self.traverse_expr(builder, index)?;
-        self.visit_element_at(builder, expr, sequence, index)
-    }
-
-    fn visit_element_at(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _sequence: &SymbolicExpression,
-        _index: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, index)
     }
 
     fn traverse_index_of(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         sequence: &SymbolicExpression,
         item: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
-        self.traverse_expr(builder, item)?;
-        self.visit_element_at(builder, expr, sequence, item)
+        self.traverse_expr(builder, item)
     }
 
     fn traverse_buff_cast(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_buff_cast(builder, expr, input)
-    }
-
-    fn visit_buff_cast(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        input: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, input)
     }
 
     fn traverse_is_standard(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, value)?;
-        self.visit_is_standard(builder, expr, value)
-    }
-
-    fn visit_is_standard(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _value: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, value)
     }
 
     fn traverse_principal_destruct(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        principal: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, principal)?;
-        self.visit_principal_destruct(builder, expr, principal)
-    }
-
-    fn visit_principal_destruct(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _principal: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        principal: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, principal)
     }
 
     fn traverse_principal_construct(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         buff1: &SymbolicExpression,
         buff20: &SymbolicExpression,
         contract: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, buff1)?;
         self.traverse_expr(builder, buff20)?;
         if let Some(contract) = contract {
             self.traverse_expr(builder, contract)?;
         }
-        self.visit_principal_construct(builder, expr, buff1, buff20, contract)
-    }
-
-    fn visit_principal_construct(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _buff1: &SymbolicExpression,
-        _buff20: &SymbolicExpression,
-        _contract: Option<&SymbolicExpression>,
-    ) -> CResult<()> {
         Ok(())
     }
 
     fn traverse_string_to_int(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_string_to_int(builder, expr, input)
-    }
-
-    fn visit_string_to_int(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        input: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, input)
     }
 
     fn traverse_int_to_string(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_int_to_string(builder, expr, input)
-    }
-
-    fn visit_int_to_string(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        input: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, input)
     }
 
     fn traverse_stx_get_account(
@@ -4598,7 +3851,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         owner: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, owner)?;
         self.visit_stx_get_account(builder, expr, owner)
     }
@@ -4606,98 +3859,41 @@ impl WasmGenerator {
     fn traverse_slice(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         seq: &SymbolicExpression,
         left: &SymbolicExpression,
         right: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, seq)?;
         self.traverse_expr(builder, left)?;
-        self.traverse_expr(builder, right)?;
-        self.visit_slice(builder, expr, seq, left, right)
-    }
-
-    fn visit_slice(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _seq: &SymbolicExpression,
-        _left: &SymbolicExpression,
-        _right: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        self.traverse_expr(builder, right)
     }
 
     fn traverse_get_burn_block_info(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        prop_name: &ClarityName,
-        block: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, block)?;
-        self.visit_get_burn_block_info(builder, expr, prop_name, block)
-    }
-
-    fn visit_get_burn_block_info(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _prop_name: &ClarityName,
-        _block: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
-    }
-
-    fn traverse_to_consensus_buff(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> CResult<()> {
-        self.traverse_expr(builder, input)?;
-        self.visit_to_consensus_buff(builder, expr, input)
-    }
-
-    fn visit_to_consensus_buff(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+        block: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, block)
     }
 
     fn traverse_from_consensus_buff(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         type_expr: &SymbolicExpression,
         input: &SymbolicExpression,
-    ) -> CResult<()> {
+    ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, type_expr)?;
-        self.traverse_expr(builder, input)?;
-        self.visit_from_consensus_buff(builder, expr, type_expr, input)
+        self.traverse_expr(builder, input)
     }
 
-    fn visit_from_consensus_buff(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _type_expr: &SymbolicExpression,
-        _input: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
-    }
-
-    fn visit_replace_at(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _sequence: &SymbolicExpression,
-        _index: &SymbolicExpression,
-        _element: &SymbolicExpression,
-    ) -> CResult<()> {
-        Ok(())
+    pub fn func_by_name(&self, name: &str) -> FunctionId {
+        self.module
+            .funcs
+            .by_name(name)
+            .unwrap_or_else(|| panic!("function not found: {name}"))
     }
 }
