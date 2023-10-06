@@ -14,91 +14,179 @@ use clarity::{
             PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
             TypeSignature,
         },
-        ClarityVersion, ContractContext, ContractName, Value,
+        ClarityVersion, ContractContext, Value,
     },
 };
+use std::collections::HashMap;
 
 /// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:
 /// - the name of the test to create,
-/// - the name of the contract containing the function,
+/// - the names of the contracts to initialize,
+/// - a closure with type
+///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>|`
+///   and that contains all the assertions we want to test.
+macro_rules! test_multi_contract_init {
+    ($func: ident, $contract_names: expr, $context_test: expr) => {
+        #[test]
+        fn $func() {
+            let mut compile_results = HashMap::new();
+            let mut contract_contexts = HashMap::new();
+
+            let mut datastore = Datastore::new();
+            let constants = StacksConstants::default();
+            let burn_datastore = BurnDatastore::new(constants);
+            let mut clarity_store = MemoryBackingStore::new();
+            let mut cost_tracker = LimitedCostTracker::new_free();
+
+            // First pass: Compile
+            for contract_name in $contract_names.iter() {
+                println!("Compiling contract: {}", contract_name);
+                let contract_id = QualifiedContractIdentifier::new(
+                    StandardPrincipalData::transient(),
+                    (*contract_name).into(),
+                );
+
+                let contract_str =
+                    std::fs::read_to_string(format!("contracts/{}.clar", contract_name)).unwrap();
+                let mut compile_result = compile(
+                    contract_str.as_str(),
+                    &contract_id,
+                    cost_tracker,
+                    ClarityVersion::latest(),
+                    StacksEpochId::latest(),
+                    &mut clarity_store,
+                )
+                .expect("Failed to compile contract.");
+
+                let mut contract_context =
+                    ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+                contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
+                cost_tracker = compile_result.contract_analysis.cost_track.take().unwrap();
+
+                compile_results.insert(*contract_name, compile_result);
+                contract_contexts.insert(*contract_name, contract_context);
+            }
+
+            // Create GlobalContext
+            let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+            conn.begin();
+            conn.set_clarity_epoch_version(StacksEpochId::latest());
+            conn.commit();
+            let mut global_context = GlobalContext::new(
+                false,
+                CHAIN_ID_TESTNET,
+                conn,
+                cost_tracker,
+                StacksEpochId::latest(),
+            );
+            global_context.begin();
+
+            // Second pass: Initialize
+            for contract_name in $contract_names.iter() {
+                let compile_result = compile_results.get(contract_name).unwrap();
+                let contract_context = contract_contexts.get_mut(contract_name).unwrap();
+
+                println!(
+                    "Initializing contract: {}",
+                    contract_context.contract_identifier
+                );
+                initialize_contract(
+                    &mut global_context,
+                    contract_context,
+                    None,
+                    &compile_result.contract_analysis,
+                )
+                .expect("Failed to initialize contract.");
+            }
+
+            // Do this once for all contracts
+            let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+            let amount = 1_000_000_000;
+            let mut snapshot = global_context.database.get_stx_balance_snapshot(&recipient);
+            snapshot.credit(amount);
+            snapshot.save();
+            global_context
+                .database
+                .increment_ustx_liquid_supply(amount)
+                .unwrap();
+
+            #[allow(clippy::redundant_closure_call)]
+            $context_test(&mut global_context, &contract_contexts);
+
+            global_context.commit().unwrap();
+        }
+    };
+}
+
+/// This macro provides a convenient way to test contract initialization.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contracts to initialize,
 /// - a closure with type
 ///  `|global_context: &mut GlobalContext, contract_context: &ContractContext|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_contract_init {
     ($func: ident, $contract_name: literal, $context_test: expr) => {
-        #[test]
-        fn $func() {
-            let contract_id = QualifiedContractIdentifier::new(
-                StandardPrincipalData::transient(),
-                ContractName::from($contract_name),
-            );
-            let mut datastore = Datastore::new();
-            let constants = StacksConstants::default();
-            let burn_datastore = BurnDatastore::new(constants);
-            let mut clarity_store = MemoryBackingStore::new();
-            let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-            conn.begin();
-            conn.set_clarity_epoch_version(StacksEpochId::latest());
-            conn.commit();
-            let cost_tracker = LimitedCostTracker::new_free();
-            let mut contract_context =
-                ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+        test_multi_contract_init!(
+            $func,
+            [$contract_name],
+            |_global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>| {
+                let contract_context = contract_contexts.get($contract_name).unwrap();
+                $context_test(_global_context, contract_context);
+            }
+        );
+    };
+}
 
-            let contract_str =
-                std::fs::read_to_string(format!("contracts/{}.clar", $contract_name)).unwrap();
-            let mut compile_result = compile(
-                contract_str.as_str(),
-                &contract_id,
-                cost_tracker,
-                ClarityVersion::latest(),
-                StacksEpochId::latest(),
-                &mut clarity_store,
-            )
-            .expect("Failed to compile contract.");
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of all contracts to initialize,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`, and
+///   that contains all the assertions we want to test.
+macro_rules! test_multi_contract_call {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        test_multi_contract_init!(
+            $func,
+            $init_contracts,
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>| {
+                // Initialize a call stack
+                let mut call_stack = CallStack::new();
 
-            contract_context.set_wasm_module(compile_result.module.emit_wasm());
-
-            let mut global_context = GlobalContext::new(
-                false,
-                CHAIN_ID_TESTNET,
-                conn,
-                compile_result.contract_analysis.cost_track.take().unwrap(),
-                StacksEpochId::latest(),
-            );
-            global_context.begin();
-
-            {
-                initialize_contract(
-                    &mut global_context,
-                    &mut contract_context,
+                let result = call_function(
+                    $contract_func,
+                    $params,
+                    global_context,
+                    &contract_contexts.get($contract_name).unwrap(),
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
                     None,
-                    &compile_result.contract_analysis,
-                )
-                .expect("Failed to initialize contract.");
-
-                // Give an account an initial balance
-                let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
-                let amount = 1_000_000_000;
-                let mut snapshot = global_context.database.get_stx_balance_snapshot(&recipient);
-                snapshot.credit(amount);
-                snapshot.save();
-                global_context
-                    .database
-                    .increment_ustx_liquid_supply(amount)
-                    .unwrap();
+                );
 
                 // https://github.com/rust-lang/rust-clippy/issues/1553
                 #[allow(clippy::redundant_closure_call)]
-                $context_test(&mut global_context, &contract_context);
+                $test(result);
             }
-
-            global_context.commit().unwrap();
-        }
+        );
     };
 
-    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
-        test_contract_init!($func, $contract_name, $contract_func, &[], $test);
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_multi_contract_call!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test
+        );
     };
 }
 
@@ -112,28 +200,13 @@ macro_rules! test_contract_init {
 ///   that contains all the assertions we want to test.
 macro_rules! test_contract_call {
     ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
-        test_contract_init!(
+        test_multi_contract_call!(
             $func,
+            [$contract_name],
             $contract_name,
-            |global_context: &mut GlobalContext, contract_context: &ContractContext| {
-                // Initialize a call stack
-                let mut call_stack = CallStack::new();
-
-                let result = call_function(
-                    $contract_func,
-                    $params,
-                    global_context,
-                    contract_context,
-                    &mut call_stack,
-                    Some(StandardPrincipalData::transient().into()),
-                    Some(StandardPrincipalData::transient().into()),
-                    None,
-                );
-
-                // https://github.com/rust-lang/rust-clippy/issues/1553
-                #[allow(clippy::redundant_closure_call)]
-                $test(result);
-            }
+            $contract_func,
+            $params,
+            $test
         );
     };
 
@@ -150,10 +223,11 @@ macro_rules! test_contract_call {
 /// - an optional list of parameters,
 /// - a closure with type `|response: ResponseData|`, and
 ///   that contains all the assertions we want to test.
-macro_rules! test_contract_call_response {
-    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
-        test_contract_call!(
+macro_rules! test_multi_contract_call_response {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        test_multi_contract_call!(
             $func,
+            $init_contracts,
             $contract_name,
             $contract_func,
             $params,
@@ -168,6 +242,31 @@ macro_rules! test_contract_call_response {
                     panic!("Unexpected result received from WASM function call.");
                 }
             }
+        );
+    };
+
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_contract_call_response!($func, $contract_name, $contract_func, &[], $test);
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|response: ResponseData|`, and
+///   that contains all the assertions we want to test.
+macro_rules! test_contract_call_response {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
+        test_multi_contract_call_response!(
+            $func,
+            [$contract_name],
+            $contract_name,
+            $contract_func,
+            $params,
+            $test
         );
     };
 
