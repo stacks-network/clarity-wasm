@@ -1,4 +1,14 @@
 {
   "rust-analyzer.check.command": "clippy",
-  "rust-analyzer.check.features": "all"
+  "rust-analyzer.check.features": "all",
+  "editor.rulers": [
+    { // Ruler at 80 chars (soft limit)
+        "column": 80,
+        "color": "#353535"
+    },
+    { // Ruler at 100 chars (hard limit)
+        "column": 100,
+        "color": "#492020"
+    },
+  ],
 }

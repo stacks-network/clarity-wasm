@@ -12,3 +12,9 @@ blockstack-core = { path = "../stacks-blockchain" }
 diesel = { version = "2.1.3", features = ["sqlite"] }
 env_logger = "0.10.0"
 log = "0.4.20"
+toml = "0.8.2"
+serde = "1.0.188"
+serde_derive = "1.0.188"
+anyhow = "1.0.75"
+thiserror = "1.0.49"
+rand = "0.8.5"
