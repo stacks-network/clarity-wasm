@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
@@ -12,13 +12,13 @@ use blockstack_lib::{
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, STACKS_EPOCHS_MAINNET,
     },
 };
-use clarity::vm::{database::BurnStateDB, types::QualifiedContractIdentifier};
-use diesel::{Connection, SqliteConnection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use clarity::vm::{types::QualifiedContractIdentifier, database::{NULL_HEADER_DB, NULL_BURN_STATE_DB}, clarity::ClarityConnection, analysis::ContractAnalysis};
+use diesel::{Connection, SqliteConnection, RunQueryDsl, sql_query};
 use rand::Rng;
-use stacks_common::{types::chainstate::{BurnchainHeaderHash, StacksBlockId}, deps_common::bitcoin::blockdata::block::Block};
+use stacks_common::types::chainstate::{BurnchainHeaderHash, StacksBlockId};
 use log::*;
 
-use crate::{model::BlockHeader, schema::block_headers};
+use crate::model::BlockHeader;
 
 #[derive(Debug)]
 pub struct TestContext {
@@ -145,22 +145,20 @@ impl<'a> TestEnvContext<'a> {
         }
     }
 
-    pub fn fetch_staging_blocks(&self) -> Result<Vec<BlockHeader>> {
+    pub fn load_contract_analysis(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier) -> Option<ContractAnalysis> {
         let mut env = self.env.borrow_mut();
-        let db = &mut env.index_db;
+        
+        let mut conn = env.chainstate.clarity_state.read_only_connection(
+            at_block, 
+            &NULL_HEADER_DB, 
+            &NULL_BURN_STATE_DB);
 
-        let staging_blocks = block_headers::table
-            .order_by(block_headers::block_height.asc())
-            .offset(1)
-            .limit(5)
-            .load::<BlockHeader>(db)?;
-
-        Ok(staging_blocks)
-    }
-
-    pub fn load_contract(&self, contract_id: &QualifiedContractIdentifier) {
-        let mut env = self.env.borrow_mut();
-        //env.chainstate.clarity_state.read_only_connection(at_block, header_db, burn_state_db)
+        conn.with_clarity_db_readonly_owned(|mut clarity_db| {
+            (
+                clarity_db.load_contract_analysis(contract_id),
+                clarity_db
+            )
+        })
     }
 
     pub fn get_stacks_block(&self, block_hash: &str) -> Result<StacksBlock> {
@@ -184,17 +182,22 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
         let mut env = self.env.borrow_mut();
         let db = &mut env.index_db;
 
-        trace!("Looking up genesis block...");
-        let genesis_block = block_headers::table
-            .filter(block_headers::block_height.eq(0))
-            .get_result::<BlockHeader>(db)
-            .expect("Failed to look up genesis block");
-        trace!("Genesis block found: {:?}", genesis_block);
+        let blocks_query = "
+            SELECT DISTINCT
+                parent.block_height, 
+                parent.index_block_hash, 
+                parent.parent_block_id 
+            FROM block_headers parent 
+            INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash 
+            ORDER BY parent.block_height ASC;";
+        let mut blocks_result = sql_query(blocks_query)
+            .get_results::<BlockHeader>(db)
+            .expect("Failed to retrieve block inventory.");
 
         BlockIntoIterator {
             env_ctx: self,
-            block_hash: genesis_block.index_block_hash,
-            block: None
+            index: None,
+            blocks: blocks_result.into_iter().map(Some).collect()
         }
     }
 }
@@ -202,14 +205,27 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
 #[derive(Debug)]
 pub struct BlockIntoIterator<'a> {
     env_ctx: &'a TestEnvContext<'a>,
-    block_hash: String,
-    block: Option<BlockHeader>
+    index: Option<usize>,
+    blocks: Vec<Option<BlockHeader>>
 }
 
-impl Iterator for BlockIntoIterator<'_> {
+impl<'a> Iterator for BlockIntoIterator<'a> {
     type Item = BlockHeader;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        if let Some(index) = self.index {
+            let next_index = index + 1;
+
+            if next_index >= self.blocks.len() {
+                return None;
+            }
+
+            self.index = Some(next_index);
+            self.blocks[next_index].take()
+            
+        } else {
+            self.index = Some(0);
+            self.blocks[0].take()
+        }
     }
 }

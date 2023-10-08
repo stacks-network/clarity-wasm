@@ -20,23 +20,31 @@ fn main() -> Result<()> {
     let mut test_context = TestContext::new(&config.chainstate.path)?;
 
     test_context.with_baseline_env(|_ctx, env| {
-        let iter = env.into_iter();
-        debug!("iter: {:?}", iter);
-        for block_info in env.fetch_staging_blocks()?.iter() {
-            let _block_id = StacksBlockId::from_hex(&block_info.index_block_hash)?;
-            let block = env.get_stacks_block(&block_info.index_block_hash)?;
-
+        for block_header in env.into_iter() {
             info!(
                 "processing: {{ block height = {}, block hash = '{}' }}",
-                block_info.block_height, block_info.index_block_hash
+                block_header.block_height, block_header.index_block_hash
             );
+
+            if block_header.is_genesis() {
+                info!("genesis block - skipping");
+                continue;
+            }
+
+            let block_id = StacksBlockId::from_hex(&block_header.index_block_hash)?;
+            let block = env.get_stacks_block(&block_header.index_block_hash)?;
+
+            
 
             for tx in block.txs {
                 use blockstack_lib::chainstate::stacks::TransactionPayload::*;
                 match tx.payload {
                     ContractCall(contract_call) => {
                         let contract_id = contract_call.contract_identifier();
-                        trace!("{:?}", contract_call);
+                        //trace!("contract call {{ contract id: '{}' }}", contract_id);
+                        let contract = env.load_contract_analysis(&block_id, &contract_id);
+                        trace!("{:?}", contract);
+                        panic!("exit here")
                     }
                     SmartContract(contract, clarity_version) => {
                         //info!("{{ block_id: {}, index_block_hash: {}, block_hash: {} }}", block_info.0, block_info.4, block_info.1);
