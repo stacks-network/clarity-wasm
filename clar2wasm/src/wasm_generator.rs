@@ -166,7 +166,7 @@ impl WasmGenerator {
         WasmGenerator {
             contract_analysis,
             module,
-            literal_memory_end: 0,
+            literal_memory_end: 288,
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),

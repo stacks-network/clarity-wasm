@@ -179,6 +179,12 @@
     (export "stack-pointer" (global $stack-pointer))
     (memory (export "memory") 10)
 
+    ;; (sha256) initial hash values: first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19
+    (data (i32.const 0) "\67\e6\09\6a\85\ae\67\bb\72\f3\6e\3c\3a\f5\4f\a5\7f\52\0e\51\8c\68\05\9b\ab\d9\83\1f\19\cd\e0\5b")
+
+    ;; (sha256) K constants: first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311
+    (data (i32.const 32) "\98\2f\8a\42\91\44\37\71\cf\fb\c0\b5\a5\db\b5\e9\5b\c2\56\39\f1\11\f1\59\a4\82\3f\92\d5\5e\1c\ab\98\aa\07\d8\01\5b\83\12\be\85\31\24\c3\7d\0c\55\74\5d\be\72\fe\b1\de\80\a7\06\dc\9b\74\f1\9b\c1\c1\69\9b\e4\86\47\be\ef\c6\9d\c1\0f\cc\a1\0c\24\6f\2c\e9\2d\aa\84\74\4a\dc\a9\b0\5c\da\88\f9\76\52\51\3e\98\6d\c6\31\a8\c8\27\03\b0\c7\7f\59\bf\f3\0b\e0\c6\47\91\a7\d5\51\63\ca\06\67\29\29\14\85\0a\b7\27\38\21\1b\2e\fc\6d\2c\4d\13\0d\38\53\54\73\0a\65\bb\0a\6a\76\2e\c9\c2\81\85\2c\72\92\a1\e8\bf\a2\4b\66\1a\a8\70\8b\4b\c2\a3\51\6c\c7\19\e8\92\d1\24\06\99\d6\85\35\0e\f4\70\a0\6a\10\16\c1\a4\19\08\6c\37\1e\4c\77\48\27\b5\bc\b0\34\b3\0c\1c\39\4a\aa\d8\4e\4f\ca\9c\5b\f3\6f\2e\68\ee\82\8f\74\6f\63\a5\78\14\78\c8\84\08\02\c7\8c\fa\ff\be\90\eb\6c\50\a4\f7\a3\f9\be\f2\78\71\c6")
+
     ;; The error code is one of:
         ;; 0: overflow
         ;; 1: underflow
@@ -1190,6 +1196,235 @@
         )
     )
 
+    (func $sha256 (param $offset i32) (param $length i32) (result i32 i32)
+        (local $i i32)
+        ;; see this for an explanation: https://sha256algorithm.com/
+
+        (call $extend-data (local.get $offset) (local.get $length))
+        (local.set $length)
+
+        (local.set $i (i32.const 0))
+        (loop
+
+            (call $block64
+                (local.get $offset)
+                (i32.add (local.get $offset) (local.get $i))
+            )
+
+            (call $working-vars (local.get $offset))
+
+            (br_if 0
+                (i32.lt_u
+                    (local.tee $i (i32.add (local.get $i) (i32.const 64)))
+                    (local.get $length)
+                )
+            )
+        )
+        (local.get $offset) (i32.const 8)
+    )
+
+    (func $extend-data (param $offset i32) (param $length i32) (result i32)
+        (local $res_len i32) (local $i i32) (local $len64 i64)
+        ;; TODO: check if enough pages of memory and grow accordingly
+
+        ;; Shift data to the right, so that it has this relative configuration:
+        ;;   0..32 -> Initial hash vals (will be the result hash in the end)
+        ;;   32..288 -> Space to store W (result of $block64)
+        ;;   288..$length+288 -> shifted data
+        ;; Since memory.copy cannot have overlapping src and dst, we copy from the right
+        ;; 288 bytes by 288 bytes
+        (local.set $res_len (i32.add (local.get $offset) (local.get $length)))
+        (loop
+            (local.get $res_len)
+            (local.tee $res_len (i32.sub (local.get $res_len) (i32.const 288)))
+            (i32.const 288)
+            memory.copy
+            (br_if 0 (i32.gt_u (local.get $res_len) (local.get $offset)))
+        )
+        ;; copy initial hash values
+        (memory.copy (local.get $offset) (i32.const 0) (i32.const 32))
+
+        (local.set $res_len ;; total size of data with expansion
+            (i32.add
+                (i32.or
+                    ;; len + 1 byte for the added "1" + 8 bytes for the size
+                    (i32.add (local.get $length) (i32.const 9))
+                    (i32.const 0x3f)
+                )
+            (i32.const 1)
+            )
+        )
+
+        ;; Add "1" at the end of the data
+        (i32.store offset=288
+            (i32.add (local.get $offset) (local.get $length))
+            (i32.const 0x80)
+        )
+        ;; Fill the remaining part before the size with 0s
+        (memory.fill
+            (i32.add (i32.add (local.get $offset) (local.get $length)) (i32.const 289))
+            (i32.const 0)
+            (i32.sub (i32.sub (local.get $res_len) (local.get $length)) (i32.const 8))
+        )
+
+        ;; Add the size, as a 64bits big-endian integer
+        (local.set $len64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
+        (i32.sub (i32.add (local.get $offset) (local.get $res_len)) (i32.const 8))
+        (i64.or
+            (i64.or
+                (i64.or
+                    (i64.shl (local.get $len64) (i64.const 0x38))
+                    (i64.shl (i64.and (local.get $len64) (i64.const 0xff00)) (i64.const 0x28))
+                )
+                (i64.or
+                    (i64.shl (i64.and (local.get $len64) (i64.const 0xff0000)) (i64.const 0x18))
+                    (i64.shl (i64.and (local.get $len64) (i64.const 0xff000000)) (i64.const 0x8))
+                )
+            )
+            (i64.or
+                (i64.or
+                    (i64.and (i64.shr_u (local.get $len64) (i64.const 0x8)) (i64.const 0xff000000))
+                    (i64.and (i64.shr_u (local.get $len64) (i64.const 0x18)) (i64.const 0xff0000))
+                )
+                (i64.or
+                    (i64.and (i64.shr_u (local.get $len64) (i64.const 0x28)) (i64.const 0xff00))
+                    (i64.shr_u (local.get $len64) (i64.const 0x38))
+                )
+            )
+        )
+        i64.store offset=288
+
+        (local.get $res_len)
+    )
+
+    (func $block64 (param $origin i32) (param $data i32)
+        (local $i i32) (local $tmp i32)
+        (local.set $i (i32.const 0))
+        ;; copy first 64 bytes of data to offset as i32 with endianness adjustment
+        ;; Using v128 to process more bytes at a time
+        ;; TODO? : unroll this loop, since it's one instruction 4 times?
+        (loop
+            (i32.add (local.get $origin) (local.get $i))
+            (i8x16.swizzle
+                (v128.load offset=288 (i32.add (local.get $data) (local.get $i)))
+                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
+            )
+            v128.store offset=32
+
+            (br_if 0
+                (i32.lt_u
+                    (local.tee $i (i32.add (local.get $i) (i32.const 16)))
+                    (i32.const 64)
+                )
+            )
+        )
+
+        (local.set $i (i32.const 0))
+        (loop
+            (local.set $data (i32.add (local.get $origin) (local.get $i)))
+            ;; store address: w(current+16)
+            (i32.add (local.get $data) (i32.const 64))
+            ;; w(current)
+            (i32.load offset=32 (local.get $data))
+            ;; sigma 0
+            (local.set $tmp (i32.load offset=36 (local.get $data))) ;; offset = 32 + 4
+            (i32.rotr (local.get $tmp) (i32.const 7))
+            (i32.xor (i32.rotr (local.get $tmp) (i32.const 18)))
+            (i32.xor (i32.shr_u (local.get $tmp) (i32.const 3)))
+            i32.add
+            ;; w(current+9)
+            (i32.add (i32.load offset=68 (local.get $data))) ;; offset = 32+36
+            ;; sigma 1
+            (local.set $tmp (i32.load offset=88 (local.get $data))) ;; offset = 32+56
+            (i32.rotr (local.get $tmp) (i32.const 17))
+            (i32.xor (i32.rotr (local.get $tmp) (i32.const 19)))
+            (i32.xor (i32.shr_u (local.get $tmp) (i32.const 10)))
+            i32.add
+            ;; save
+            i32.store offset=32
+
+            (br_if 0
+                (i32.lt_u
+                    (local.tee $i (i32.add (local.get $i) (i32.const 4)))
+                    (i32.const 192)
+                )
+            )
+        )
+    )
+
+    (func $working-vars (param $origin i32)
+        (local $a i32) (local $b i32) (local $c i32) (local $d i32)
+        (local $e i32) (local $f i32) (local $g i32) (local $h i32)
+        (local $temp1 i32) (local $temp2 i32) (local $i i32)
+
+        (local.set $a (i32.load offset=0 (local.get $origin)))
+        (local.set $b (i32.load offset=4 (local.get $origin)))
+        (local.set $c (i32.load offset=8 (local.get $origin)))
+        (local.set $d (i32.load offset=12 (local.get $origin)))
+        (local.set $e (i32.load offset=16 (local.get $origin)))
+        (local.set $f (i32.load offset=20 (local.get $origin)))
+        (local.set $g (i32.load offset=24 (local.get $origin)))
+        (local.set $h (i32.load offset=28 (local.get $origin)))
+
+        (local.set $i (i32.const 0))
+        (loop
+        ;; compute $temp1: h + sigma1 + choice + k0 + w0
+            (local.get $h) ;; h
+
+            (i32.rotr (local.get $e) (i32.const 6))
+            (i32.xor (i32.rotr (local.get $e) (i32.const 11)))
+            (i32.xor (i32.rotr (local.get $e) (i32.const 25)))
+            i32.add ;; + sigma1
+
+            (i32.and (local.get $e) (local.get $f))
+            (i32.xor (i32.and (i32.xor (local.get $e) (i32.const -1)) (local.get $g)))
+            i32.add ;; + choice
+
+            (i32.add (i32.load offset=32 (local.get $i))) ;; + k(current)
+
+            (i32.add (i32.load offset=32 (i32.add (local.get $origin) (local.get $i)))) ;; + w(current)
+            (local.set $temp1)
+
+            ;; compute temp2: sigma0 + majority
+            (i32.rotr (local.get $a) (i32.const 2))
+            (i32.xor (i32.rotr (local.get $a) (i32.const 13)))
+            (i32.xor (i32.rotr (local.get $a) (i32.const 22))) ;; sigma0
+
+            (i32.and (local.get $a) (local.get $b))
+            (i32.xor (i32.and (local.get $a) (local.get $c)))
+            (i32.xor (i32.and (local.get $b) (local.get $c)))
+            i32.add ;; + majority
+            (local.set $temp2)
+
+            ;; assign new variables
+            (local.set $h (local.get $g))
+            (local.set $g (local.get $f))
+            (local.set $f (local.get $e))
+            (local.set $e (i32.add (local.get $d) (local.get $temp1)))
+            (local.set $d (local.get $c))
+            (local.set $c (local.get $b))
+            (local.set $b (local.get $a))
+            (local.set $a (i32.add (local.get $temp1) (local.get $temp2)))
+
+            (br_if 0
+                (i32.lt_u
+                    (local.tee $i (i32.add (local.get $i) (i32.const 4)))
+                    (i32.const 256)
+                )
+            )
+        )
+
+        ;; update hash
+        (i32.store offset=0 (local.get $origin) (i32.add (i32.load offset=0 (local.get $origin)) (local.get $a)))
+        (i32.store offset=4 (local.get $origin) (i32.add (i32.load offset=4 (local.get $origin)) (local.get $b)))
+        (i32.store offset=8 (local.get $origin) (i32.add (i32.load offset=8 (local.get $origin)) (local.get $c)))
+        (i32.store offset=12 (local.get $origin) (i32.add (i32.load offset=12 (local.get $origin)) (local.get $d)))
+        (i32.store offset=16 (local.get $origin) (i32.add (i32.load offset=16 (local.get $origin)) (local.get $e)))
+        (i32.store offset=20 (local.get $origin) (i32.add (i32.load offset=20 (local.get $origin)) (local.get $f)))
+        (i32.store offset=24 (local.get $origin) (i32.add (i32.load offset=24 (local.get $origin)) (local.get $g)))
+        (i32.store offset=28 (local.get $origin) (i32.add (i32.load offset=28 (local.get $origin)) (local.get $h)))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1227,4 +1462,5 @@
     (export "bit-shift-right-int" (func $bit-shift-right-int))
     (export "pow-uint" (func $pow-uint))
     (export "pow-int" (func $pow-int))
+    (export "sha256" (func $sha256))
 )
