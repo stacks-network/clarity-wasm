@@ -5,20 +5,20 @@ use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
         burn::db::sortdb::SortitionDB,
-        stacks::{db::StacksChainState, index::marf::MARFOpenOpts, StacksBlock},
+        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MARF, MarfConnection}, node::{TriePtr, TrieNode, is_backptr, TrieCursor, TriePath, TrieNodeType}, storage::TrieStorageConnection, file, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
     },
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, STACKS_EPOCHS_MAINNET,
-    },
+    }, clarity_vm::database::marf::MarfedKV,
 };
-use clarity::vm::{types::QualifiedContractIdentifier, database::{NULL_HEADER_DB, NULL_BURN_STATE_DB}, clarity::ClarityConnection, analysis::ContractAnalysis};
-use diesel::{Connection, SqliteConnection, RunQueryDsl, sql_query};
+use clarity::vm::{types::{QualifiedContractIdentifier, TypeSignature}, database::{NULL_HEADER_DB, NULL_BURN_STATE_DB, clarity_db}, clarity::ClarityConnection, analysis::ContractAnalysis, Value};
+use diesel::{Connection, SqliteConnection, RunQueryDsl, sql_query, ExpressionMethods, QueryDsl, OptionalExtension};
 use rand::Rng;
-use stacks_common::types::chainstate::{BurnchainHeaderHash, StacksBlockId};
+use stacks_common::types::{chainstate::{BurnchainHeaderHash, StacksBlockId, BlockHeaderHash}, StacksEpochId};
 use log::*;
 
-use crate::model::BlockHeader;
+use crate::{model::{BlockHeader, DataEntry, MetaDataEntry}, schema::data_table};
 
 #[derive(Debug)]
 pub struct TestContext {
@@ -68,6 +68,7 @@ pub struct TestEnv {
     chainstate: StacksChainState,
     index_db: SqliteConnection,
     sortition_db: SortitionDB,
+    clarity_db: SqliteConnection,
 }
 
 impl std::fmt::Debug for TestEnv {
@@ -78,6 +79,7 @@ impl std::fmt::Debug for TestEnv {
             .field("chainstate", &"...")
             .field("index_db", &"...")
             .field("sortition_db", &"...")
+            .field("clarity_db", &"...")
             .finish()
     }
 }
@@ -88,6 +90,7 @@ impl TestEnv {
         let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
         let blocks_dir = format!("{}/chainstate/blocks", stacks_dir);
         let chainstate_path = format!("{}/chainstate", stacks_dir);
+        let clarity_db_path = format!("{}/chainstate/vm/clarity/marf.sqlite", stacks_dir);
 
         debug!("index_db_path: '{}'", index_db_path);
         debug!("sortition_db_path: '{}'", sortition_db_path);
@@ -96,6 +99,10 @@ impl TestEnv {
         debug!("loading index db...");
         let index_db = SqliteConnection::establish(&index_db_path)?;
         info!("successfully connected to index db");
+
+        debug!("loading clarity db...");
+        let clarity_db = SqliteConnection::establish(&clarity_db_path)?;
+        info!("successfully connected to clarity db");
 
         let mut marf_opts = MARFOpenOpts::default();
         marf_opts.external_blobs = true;
@@ -127,6 +134,7 @@ impl TestEnv {
             chainstate: chainstate.0,
             index_db,
             sortition_db,
+            clarity_db
         })
     }
 }
@@ -145,21 +153,120 @@ impl<'a> TestEnvContext<'a> {
         }
     }
 
-    pub fn load_contract_analysis(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier) -> Option<ContractAnalysis> {
+    pub fn load_contract_analysis(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier) -> Result<()>{
         let mut env = self.env.borrow_mut();
-        
+
         let mut conn = env.chainstate.clarity_state.read_only_connection(
-            at_block, 
-            &NULL_HEADER_DB, 
+            at_block,
+            &NULL_HEADER_DB,
             &NULL_BURN_STATE_DB);
 
-        conn.with_clarity_db_readonly_owned(|mut clarity_db| {
-            (
-                clarity_db.load_contract_analysis(contract_id),
-                clarity_db
-            )
-        })
+        conn.with_clarity_db_readonly(|clarity_db| {
+            let contract_analysis = clarity_db.load_contract_analysis(contract_id);
+
+            if contract_analysis.is_none() {
+                bail!("Failed to load contract");
+            }
+
+            let contract_analysis = contract_analysis.unwrap();
+
+            for var in contract_analysis.persisted_variable_types.iter() {
+                let meta = clarity_db.load_variable(contract_id, var.0)?;
+                let value = clarity_db.lookup_variable(contract_id, var.0, &meta, &StacksEpochId::Epoch24);
+                debug!("[{}]: {:?}", &var.0, value.unwrap());
+            }
+
+            for map in &contract_analysis.map_types {
+                let meta = clarity_db.load_map(contract_id, map.0)?;
+                clarity_db.get_value("asdasdasdasdasdddsss", &TypeSignature::UIntType, &StacksEpochId::Epoch24)?;
+            }
+
+            Ok(())
+        })?;
+
+        info!("beginning to walk the block: {}", at_block);
+        let leaves = Self::walk_block(&mut env, at_block)?;
+        info!("finished walking, leaf count: {}", leaves.len());
+
+        for leaf in leaves {
+            trace!("leaf: {:?}", leaf);
+
+            let value = data_table::table
+                .filter(data_table::key.eq(leaf.data.to_string()))
+                .first::<DataEntry>(&mut env.clarity_db)
+                .optional()?;
+
+            if let Some(value_unwrapped) = value {
+                let clarity_value = Value::try_deserialize_hex_untyped(&value_unwrapped.value)?;
+                info!("val: {:?}", clarity_value);
+            }
+            
+        }
+
+        Ok(())
     }
+
+    fn walk_block(env: &mut TestEnv, block_id: &StacksBlockId) -> Result<Vec<TrieLeaf>> {
+        let mut leaves: Vec<TrieLeaf> = Default::default();
+
+        env.chainstate.with_clarity_marf(|marf| -> Result<()> {
+            let mut marf = marf.reopen_readonly()?;
+            let _root_hash = marf.get_root_hash_at(block_id)?;
+
+            marf.open_block(block_id)?;
+
+            let _ = marf.with_conn(|storage| -> Result<()> {
+                
+                let (root_node_type, _root_hash) = Trie::read_root(storage)?;
+                
+                Self::inner_walk_block(storage, &root_node_type, &mut leaves)?;
+
+                Ok(())
+            });
+            Ok(())
+        })?;
+
+        Ok(leaves)
+    }
+
+    fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
+        for ptr in node.ptrs().iter() {
+            if is_backptr(ptr.id) {
+                //debug!("processing back pointer");
+                let back_block_hash = storage.get_block_from_local_id(ptr.back_block())?.clone();
+                //debug!("[ptr={:?}] back-block: {}", ptr, back_block_hash);
+                //debug!("opening block with id: {}", ptr.back_block());
+                storage.open_block_known_id(&back_block_hash, ptr.back_block())?;
+                //debug!("success!");
+                let backptr_node_type = storage.read_nodetype_nohash(&ptr.from_backptr())?;
+
+                //debug!("inner_walk_block: {:?}", &backptr_node_type);
+                Self::inner_walk_block(storage, &backptr_node_type, leaves)?;
+            } else {
+                //debug!("processing normal pointer with id: {}", ptr.ptr());
+
+                let node_type = storage
+                    .read_nodetype_nohash(ptr)?;
+                //debug!("node type: {:?}", node_type);
+
+                match node_type {
+                    TrieNodeType::Leaf(data) => {
+                        //debug!("leaf: {:?}", data);
+                        leaves.push(data.clone());
+                        return Ok(())
+                    }
+                    _ => {
+                        //debug!("continuing walking {:?}", node_type.id());
+                        return Self::inner_walk_block(storage, &node_type, leaves);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    //pub fn get_contract_values(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier)
 
     pub fn get_stacks_block(&self, block_hash: &str) -> Result<StacksBlock> {
         let env = self.env.borrow();
@@ -212,6 +319,7 @@ pub struct BlockIntoIterator<'a> {
 impl<'a> Iterator for BlockIntoIterator<'a> {
     type Item = BlockHeader;
 
+    // TODO: Return `Block` instead.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.index {
             let next_index = index + 1;
@@ -226,6 +334,20 @@ impl<'a> Iterator for BlockIntoIterator<'a> {
         } else {
             self.index = Some(0);
             self.blocks[0].take()
+        }
+    }
+}
+
+pub struct Block {
+    header: BlockHeader,
+    block: StacksBlock
+}
+
+impl Block {
+    pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
+        Self {
+            header,
+            block
         }
     }
 }

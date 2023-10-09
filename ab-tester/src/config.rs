@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use serde_derive::Deserialize;
 use std::{fs, path::Path};
+use log::*;
 
 #[derive(Debug, Deserialize)]
 pub struct Chainstate {
@@ -14,8 +15,10 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Config> {
-        let config_filename = "config.toml";
-        let contents = match fs::read_to_string("config.toml") {
+        let config_filename = &std::env::var("CONFIG_FILE")?;
+        debug!("config file: '{}'", config_filename);
+
+        let contents = match fs::read_to_string(config_filename) {
             Ok(c) => c,
             Err(err) => bail!("Could not read file `{}`: {}", config_filename, err),
         };

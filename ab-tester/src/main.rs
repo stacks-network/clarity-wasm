@@ -4,8 +4,6 @@ mod model;
 mod schema;
 
 use anyhow::Result;
-use blockstack_lib::chainstate::stacks::index::marf::MARFOpenOpts;
-use blockstack_lib::clarity_vm::database::marf::MarfedKV;
 use context::TestContext;
 use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
@@ -22,8 +20,8 @@ fn main() -> Result<()> {
     test_context.with_baseline_env(|_ctx, env| {
         for block_header in env.into_iter() {
             info!(
-                "processing: {{ block height = {}, block hash = '{}' }}",
-                block_header.block_height, block_header.index_block_hash
+                "processing block: {{ height = {}, hash = '{}' }}",
+                block_header.block_height, block_header.index_block_hash,
             );
 
             if block_header.is_genesis() {
@@ -43,7 +41,7 @@ fn main() -> Result<()> {
                         let contract_id = contract_call.contract_identifier();
                         //trace!("contract call {{ contract id: '{}' }}", contract_id);
                         let contract = env.load_contract_analysis(&block_id, &contract_id);
-                        trace!("{:?}", contract);
+                        //trace!("{:?}", contract);
                         panic!("exit here")
                     }
                     SmartContract(contract, clarity_version) => {
@@ -59,14 +57,4 @@ fn main() -> Result<()> {
     })?;
 
     Ok(())
-}
-
-
-
-fn get_clarity_marfed_kv(path: &str) -> Result<MarfedKV> {
-    let mut marf_open_opts = MARFOpenOpts::default();
-    marf_open_opts.external_blobs = true;
-
-    let marfed_kv = MarfedKV::open(path, None, Some(marf_open_opts))?;
-    Ok(marfed_kv)
 }
