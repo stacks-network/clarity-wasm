@@ -32,17 +32,16 @@ fn main() -> Result<()> {
             let block_id = StacksBlockId::from_hex(&block_header.index_block_hash)?;
             let block = env.get_stacks_block(&block_header.index_block_hash)?;
 
-            
-
             for tx in block.txs {
                 use blockstack_lib::chainstate::stacks::TransactionPayload::*;
+
                 match tx.payload {
                     ContractCall(contract_call) => {
                         let contract_id = contract_call.contract_identifier();
                         //trace!("contract call {{ contract id: '{}' }}", contract_id);
-                        let contract = env.load_contract_analysis(&block_id, &contract_id);
+                        env.load_contract_analysis(&block_id, &contract_id)?;
                         //trace!("{:?}", contract);
-                        panic!("exit here")
+                        //panic!("exit here")
                     }
                     SmartContract(contract, clarity_version) => {
                         //info!("{{ block_id: {}, index_block_hash: {}, block_hash: {} }}", block_info.0, block_info.4, block_info.1);

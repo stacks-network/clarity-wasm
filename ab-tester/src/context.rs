@@ -173,7 +173,7 @@ impl<'a> TestEnvContext<'a> {
             for var in contract_analysis.persisted_variable_types.iter() {
                 let meta = clarity_db.load_variable(contract_id, var.0)?;
                 let value = clarity_db.lookup_variable(contract_id, var.0, &meta, &StacksEpochId::Epoch24);
-                debug!("[{}]: {:?}", &var.0, value.unwrap());
+                //debug!("[{}]: {:?}", &var.0, value.unwrap());
             }
 
             for map in &contract_analysis.map_types {
@@ -184,9 +184,11 @@ impl<'a> TestEnvContext<'a> {
             Ok(())
         })?;
 
-        info!("beginning to walk the block: {}", at_block);
+        //info!("beginning to walk the block: {}", at_block);
         let leaves = Self::walk_block(&mut env, at_block)?;
-        info!("finished walking, leaf count: {}", leaves.len());
+        if !leaves.is_empty() {
+            error!("finished walking, leaf count: {}", leaves.len());
+        }
 
         for leaf in leaves {
             trace!("leaf: {:?}", leaf);
@@ -197,8 +199,13 @@ impl<'a> TestEnvContext<'a> {
                 .optional()?;
 
             if let Some(value_unwrapped) = value {
-                let clarity_value = Value::try_deserialize_hex_untyped(&value_unwrapped.value)?;
-                info!("val: {:?}", clarity_value);
+                let clarity_value = Value::try_deserialize_hex_untyped(&value_unwrapped.value);
+                if let Ok(clarity_value) = clarity_value {
+                    info!("deserialized value: {:?}", clarity_value);
+                } else {
+                    warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
+                }
+                
             }
             
         }
@@ -232,6 +239,7 @@ impl<'a> TestEnvContext<'a> {
     fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
         for ptr in node.ptrs().iter() {
             if is_backptr(ptr.id) {
+                let (current_block, current_id) = storage.get_cur_block_and_id();
                 //debug!("processing back pointer");
                 let back_block_hash = storage.get_block_from_local_id(ptr.back_block())?.clone();
                 //debug!("[ptr={:?}] back-block: {}", ptr, back_block_hash);
@@ -242,6 +250,8 @@ impl<'a> TestEnvContext<'a> {
 
                 //debug!("inner_walk_block: {:?}", &backptr_node_type);
                 Self::inner_walk_block(storage, &backptr_node_type, leaves)?;
+
+                storage.open_block_known_id(&current_block, current_id.unwrap())?;
             } else {
                 //debug!("processing normal pointer with id: {}", ptr.ptr());
 
@@ -297,6 +307,7 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
             FROM block_headers parent 
             INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash 
             ORDER BY parent.block_height ASC;";
+
         let mut blocks_result = sql_query(blocks_query)
             .get_results::<BlockHeader>(db)
             .expect("Failed to retrieve block inventory.");
