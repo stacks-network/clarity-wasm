@@ -1196,7 +1196,7 @@
         )
     )
 
-    (func $sha256 (param $offset i32) (param $length i32) (result i32 i32)
+    (func $sha256 (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1205,14 +1205,8 @@
 
         (local.set $i (i32.const 0))
         (loop
-
-            (call $block64
-                (local.get $offset)
-                (i32.add (local.get $offset) (local.get $i))
-            )
-
-            (call $working-vars (local.get $offset))
-
+            (call $block64 (local.get $i))
+            (call $working-vars)
             (br_if 0
                 (i32.lt_u
                     (local.tee $i (i32.add (local.get $i) (i32.const 64)))
@@ -1220,29 +1214,22 @@
                 )
             )
         )
-        (local.get $offset) (i32.const 8)
+
+        ;; copy the result to the final location and return
+        (memory.copy (local.get $offset-result) (global.get $stack-pointer) (i32.const 32))
+        (local.get $offset-result) (i32.const 8)
     )
 
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
         (local $res_len i32) (local $i i32) (local $len64 i64)
         ;; TODO: check if enough pages of memory and grow accordingly
 
-        ;; Shift data to the right, so that it has this relative configuration:
+        ;; Move data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W (result of $block64)
         ;;   288..$length+288 -> shifted data
-        ;; Since memory.copy cannot have overlapping src and dst, we copy from the right
-        ;; 288 bytes by 288 bytes
-        (local.set $res_len (i32.add (local.get $offset) (local.get $length)))
-        (loop
-            (local.get $res_len)
-            (local.tee $res_len (i32.sub (local.get $res_len) (i32.const 288)))
-            (i32.const 288)
-            memory.copy
-            (br_if 0 (i32.gt_u (local.get $res_len) (local.get $offset)))
-        )
-        ;; copy initial hash values
-        (memory.copy (local.get $offset) (i32.const 0) (i32.const 32))
+        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
+        (memory.copy (i32.add (global.get $stack-pointer) (i32.const 288)) (local.get $offset) (local.get $length))
 
         (local.set $res_len ;; total size of data with expansion
             (i32.add
@@ -1251,25 +1238,25 @@
                     (i32.add (local.get $length) (i32.const 9))
                     (i32.const 0x3f)
                 )
-            (i32.const 1)
+                (i32.const 1)
             )
         )
 
         ;; Add "1" at the end of the data
         (i32.store offset=288
-            (i32.add (local.get $offset) (local.get $length))
+            (i32.add (global.get $stack-pointer) (local.get $length))
             (i32.const 0x80)
         )
         ;; Fill the remaining part before the size with 0s
         (memory.fill
-            (i32.add (i32.add (local.get $offset) (local.get $length)) (i32.const 289))
+            (i32.add (i32.add (global.get $stack-pointer) (local.get $length)) (i32.const 289))
             (i32.const 0)
             (i32.sub (i32.sub (local.get $res_len) (local.get $length)) (i32.const 8))
         )
 
         ;; Add the size, as a 64bits big-endian integer
         (local.set $len64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
-        (i32.sub (i32.add (local.get $offset) (local.get $res_len)) (i32.const 8))
+        (i32.sub (i32.add (global.get $stack-pointer) (local.get $res_len)) (i32.const 8))
         (i64.or
             (i64.or
                 (i64.or
@@ -1297,8 +1284,13 @@
         (local.get $res_len)
     )
 
-    (func $block64 (param $origin i32) (param $data i32)
+    (func $block64 (param $data i32)
+        (local $origin i32)
         (local $i i32) (local $tmp i32)
+
+        (local.set $origin (global.get $stack-pointer))
+        (local.set $data (i32.add (local.get $origin) (local.get $data)))
+
         (local.set $i (i32.const 0))
         ;; copy first 64 bytes of data to offset as i32 with endianness adjustment
         ;; Using v128 to process more bytes at a time
@@ -1352,10 +1344,13 @@
         )
     )
 
-    (func $working-vars (param $origin i32)
+    (func $working-vars
+        (local $origin i32)
         (local $a i32) (local $b i32) (local $c i32) (local $d i32)
         (local $e i32) (local $f i32) (local $g i32) (local $h i32)
         (local $temp1 i32) (local $temp2 i32) (local $i i32)
+
+        (local.set $origin (global.get $stack-pointer))
 
         (local.set $a (i32.load offset=0 (local.get $origin)))
         (local.set $b (i32.load offset=4 (local.get $origin)))
