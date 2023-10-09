@@ -1,5 +1,4 @@
 use clarity::vm::functions::define::DefineFunctions;
-use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
@@ -378,33 +377,6 @@ impl WasmGenerator {
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                             args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        Let => {
-                            let bindings = match_pairs(args.get(0).unwrap_or(&DEFAULT_EXPR))
-                                .unwrap_or_default();
-                            let params = if !args.is_empty() { &args[1..] } else { &[] };
-                            self.traverse_let(builder, expr, &bindings, params)
-                        }
-                        ElementAt | ElementAtAlias => self.traverse_element_at(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        IndexOf | IndexOfAlias => self.traverse_index_of(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        Map => {
-                            let name = args
-                                .get(0)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_atom()
-                                .unwrap_or(&DEFAULT_NAME);
-                            let params = if !args.is_empty() { &args[1..] } else { &[] };
-                            self.traverse_map(builder, expr, name, params)
-                        }
                         Fold => {
                             let name = args
                                 .get(0)
@@ -419,32 +391,12 @@ impl WasmGenerator {
                                 args.get(2).unwrap_or(&DEFAULT_EXPR),
                             )
                         }
-                        Append => self.traverse_append(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
                         Concat => self.traverse_concat(
                             builder,
                             expr,
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        AsMaxLen => {
-                            match args.get(1).unwrap_or(&DEFAULT_EXPR).match_literal_value() {
-                                Some(Value::UInt(length)) => self.traverse_as_max_len(
-                                    builder,
-                                    expr,
-                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
-                                    *length,
-                                ),
-                                _ => Err(GeneratorError::NotImplemented),
-                            }
-                        }
-                        Len => {
-                            self.traverse_len(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
-                        }
                         ListCons => self.traverse_list_cons(builder, expr, args),
                         FetchVar => self.traverse_var_get(
                             builder,
@@ -527,12 +479,6 @@ impl WasmGenerator {
                                 .unwrap_or(&DEFAULT_NAME),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        TupleMerge => self.traverse_merge(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
                         Begin => self.traverse_begin(builder, expr, args),
                         Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => self
                             .traverse_hash(
@@ -557,54 +503,10 @@ impl WasmGenerator {
                         Print => {
                             self.traverse_print(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
                         }
-                        ContractCall => {
-                            let function_name = args
-                                .get(1)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_atom()
-                                .unwrap_or(&DEFAULT_NAME);
-                            let params = if args.len() >= 2 { &args[2..] } else { &[] };
-                            if let SymbolicExpressionType::LiteralValue(Value::Principal(
-                                PrincipalData::Contract(ref contract_identifier),
-                            )) = args.get(0).unwrap_or(&DEFAULT_EXPR).expr
-                            {
-                                self.traverse_static_contract_call(
-                                    builder,
-                                    expr,
-                                    contract_identifier,
-                                    function_name,
-                                    params,
-                                )
-                            } else {
-                                self.traverse_dynamic_contract_call(
-                                    builder,
-                                    expr,
-                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
-                                    function_name,
-                                    params,
-                                )
-                            }
-                        }
                         AsContract => self.traverse_as_contract(
                             builder,
                             expr,
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        ContractOf => self.traverse_contract_of(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        PrincipalOf => self.traverse_principal_of(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        AtBlock => self.traverse_at_block(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         GetBlockInfo => self.traverse_get_block_info(
                             builder,
@@ -624,18 +526,6 @@ impl WasmGenerator {
                         ConsSome => {
                             self.traverse_some(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
                         }
-                        DefaultTo => self.traverse_default_to(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        Asserts => self.traverse_asserts(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
                         UnwrapRet => self.traverse_unwrap(
                             builder,
                             expr,
@@ -646,33 +536,6 @@ impl WasmGenerator {
                             builder,
                             expr,
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        IsOkay => {
-                            self.traverse_is_ok(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
-                        }
-                        IsNone => self.traverse_is_none(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        IsErr => self.traverse_is_err(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        IsSome => self.traverse_is_some(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        Filter => self.traverse_filter(
-                            builder,
-                            expr,
-                            args.get(0)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_atom()
-                                .unwrap_or(&DEFAULT_NAME),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         UnwrapErrRet => self.traverse_unwrap_err(
                             builder,
@@ -686,40 +549,6 @@ impl WasmGenerator {
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        Match => {
-                            if args.len() == 4 {
-                                self.traverse_match_option(
-                                    builder,
-                                    expr,
-                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
-                                    args.get(1)
-                                        .unwrap_or(&DEFAULT_EXPR)
-                                        .match_atom()
-                                        .unwrap_or(&DEFAULT_NAME),
-                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
-                                    args.get(3).unwrap_or(&DEFAULT_EXPR),
-                                )
-                            } else {
-                                self.traverse_match_response(
-                                    builder,
-                                    expr,
-                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
-                                    args.get(1)
-                                        .unwrap_or(&DEFAULT_EXPR)
-                                        .match_atom()
-                                        .unwrap_or(&DEFAULT_NAME),
-                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
-                                    args.get(3)
-                                        .unwrap_or(&DEFAULT_EXPR)
-                                        .match_atom()
-                                        .unwrap_or(&DEFAULT_NAME),
-                                    args.get(4).unwrap_or(&DEFAULT_EXPR),
-                                )
-                            }
-                        }
-                        TryRet => {
-                            self.traverse_try(builder, expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
-                        }
                         StxBurn => self.traverse_stx_burn(
                             builder,
                             expr,
@@ -827,66 +656,10 @@ impl WasmGenerator {
                                 .unwrap_or(&DEFAULT_NAME),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        BuffToIntLe | BuffToUIntLe | BuffToIntBe | BuffToUIntBe => self
-                            .traverse_buff_cast(
-                                builder,
-                                expr,
-                                args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            ),
-                        IsStandard => self.traverse_is_standard(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        PrincipalDestruct => self.traverse_principal_destruct(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        PrincipalConstruct => self.traverse_principal_construct(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                            args.get(2),
-                        ),
-                        StringToInt | StringToUInt => self.traverse_string_to_int(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        IntToAscii | IntToUtf8 => self.traverse_int_to_string(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        GetBurnBlockInfo => self.traverse_get_burn_block_info(
-                            builder,
-                            expr,
-                            args.get(0)
-                                .unwrap_or(&DEFAULT_EXPR)
-                                .match_atom()
-                                .unwrap_or(&DEFAULT_NAME),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                        ),
                         StxGetAccount => self.traverse_stx_get_account(
                             builder,
                             expr,
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        Slice => self.traverse_slice(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
-                            args.get(2).unwrap_or(&DEFAULT_EXPR),
-                        ),
-                        ToConsensusBuff => Ok(()),
-                        FromConsensusBuff => self.traverse_from_consensus_buff(
-                            builder,
-                            expr,
-                            args.get(0).unwrap_or(&DEFAULT_EXPR),
-                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         ReplaceAt => self.traverse_replace_at(
                             builder,
@@ -908,7 +681,7 @@ impl WasmGenerator {
                             args.get(0).unwrap_or(&DEFAULT_EXPR),
                             args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        e => unreachable!("{:?}", e),
+                        e => todo!("{:?}", e),
                     }?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;
@@ -1561,19 +1334,6 @@ fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
         });
     }
     Some(vars)
-}
-
-fn match_pairs(expr: &SymbolicExpression) -> Option<HashMap<&ClarityName, &SymbolicExpression>> {
-    let list = expr.match_list()?;
-    let mut tuple_map = HashMap::new();
-    for pair_list in list {
-        let pair = pair_list.match_list()?;
-        if pair.len() != 2 {
-            return None;
-        }
-        tuple_map.insert(pair[0].match_atom()?, &pair[1]);
-    }
-    Some(tuple_map)
 }
 
 impl WasmGenerator {
@@ -3288,8 +3048,7 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, sequence)?;
         self.traverse_expr(builder, index)?;
-        self.traverse_expr(builder, element)?;
-        Ok(())
+        self.traverse_expr(builder, element)
     }
 
     fn traverse_bitwise_not(
@@ -3405,17 +3164,6 @@ impl WasmGenerator {
         self.traverse_expr(builder, tuple)
     }
 
-    fn traverse_merge(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        tuple1: &SymbolicExpression,
-        tuple2: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, tuple1)?;
-        self.traverse_expr(builder, tuple2)
-    }
-
     fn traverse_hash(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3458,75 +3206,6 @@ impl WasmGenerator {
         self.traverse_expr(builder, value)
     }
 
-    fn traverse_static_contract_call(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _contract_identifier: &QualifiedContractIdentifier,
-        _function_name: &ClarityName,
-        args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        for arg in args.iter() {
-            self.traverse_expr(builder, arg)?;
-        }
-        Ok(())
-    }
-
-    fn traverse_dynamic_contract_call(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        trait_ref: &SymbolicExpression,
-        _function_name: &ClarityName,
-        args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, trait_ref)?;
-        for arg in args.iter() {
-            self.traverse_expr(builder, arg)?;
-        }
-        Ok(())
-    }
-
-    fn traverse_contract_of(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, name)
-    }
-
-    fn traverse_principal_of(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        public_key: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, public_key)
-    }
-
-    fn traverse_at_block(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        block: &SymbolicExpression,
-        inner: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, block)?;
-        self.traverse_expr(builder, inner)
-    }
-
-    fn traverse_default_to(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        default: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, default)?;
-        self.traverse_expr(builder, value)
-    }
-
     fn traverse_unwrap(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3549,52 +3228,6 @@ impl WasmGenerator {
         self.traverse_expr(builder, throws)
     }
 
-    fn traverse_is_ok(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_is_none(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_is_err(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_is_some(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_filter(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: &ClarityName,
-        sequence: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, sequence)
-    }
-
     fn traverse_unwrap_panic(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3603,56 +3236,6 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, input)?;
         self.visit_unwrap_panic(builder, expr, input)
-    }
-
-    fn traverse_match_option(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-        _some_name: &ClarityName,
-        some_branch: &SymbolicExpression,
-        none_branch: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)?;
-        self.traverse_expr(builder, some_branch)?;
-        self.traverse_expr(builder, none_branch)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn traverse_match_response(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-        _ok_name: &ClarityName,
-        ok_branch: &SymbolicExpression,
-        _err_name: &ClarityName,
-        err_branch: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)?;
-        self.traverse_expr(builder, ok_branch)?;
-        self.traverse_expr(builder, err_branch)
-    }
-
-    fn traverse_try(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)
-    }
-
-    fn traverse_asserts(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        cond: &SymbolicExpression,
-        thrown: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, cond)?;
-        self.traverse_expr(builder, thrown)
     }
 
     fn traverse_stx_burn(
@@ -3704,148 +3287,6 @@ impl WasmGenerator {
         self.visit_ft_get_supply(builder, expr, token)
     }
 
-    fn traverse_let(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        bindings: &HashMap<&ClarityName, &SymbolicExpression>,
-        body: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        for val in bindings.values() {
-            self.traverse_expr(builder, val)?;
-        }
-        for expr in body {
-            self.traverse_expr(builder, expr)?;
-        }
-        Ok(())
-    }
-
-    fn traverse_map(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: &ClarityName,
-        sequences: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        for sequence in sequences {
-            self.traverse_expr(builder, sequence)?;
-        }
-        Ok(())
-    }
-
-    fn traverse_append(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        list: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, list)?;
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_as_max_len(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-        _length: u128,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, sequence)
-    }
-
-    fn traverse_len(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, sequence)
-    }
-
-    fn traverse_element_at(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-        index: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, sequence)?;
-        self.traverse_expr(builder, index)
-    }
-
-    fn traverse_index_of(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        sequence: &SymbolicExpression,
-        item: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, sequence)?;
-        self.traverse_expr(builder, item)
-    }
-
-    fn traverse_buff_cast(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)
-    }
-
-    fn traverse_is_standard(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
-    }
-
-    fn traverse_principal_destruct(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        principal: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, principal)
-    }
-
-    fn traverse_principal_construct(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        buff1: &SymbolicExpression,
-        buff20: &SymbolicExpression,
-        contract: Option<&SymbolicExpression>,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, buff1)?;
-        self.traverse_expr(builder, buff20)?;
-        if let Some(contract) = contract {
-            self.traverse_expr(builder, contract)?;
-        }
-        Ok(())
-    }
-
-    fn traverse_string_to_int(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)
-    }
-
-    fn traverse_int_to_string(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, input)
-    }
-
     fn traverse_stx_get_account(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3854,40 +3295,6 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         self.traverse_expr(builder, owner)?;
         self.visit_stx_get_account(builder, expr, owner)
-    }
-
-    fn traverse_slice(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        seq: &SymbolicExpression,
-        left: &SymbolicExpression,
-        right: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, seq)?;
-        self.traverse_expr(builder, left)?;
-        self.traverse_expr(builder, right)
-    }
-
-    fn traverse_get_burn_block_info(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _prop_name: &ClarityName,
-        block: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, block)
-    }
-
-    fn traverse_from_consensus_buff(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        type_expr: &SymbolicExpression,
-        input: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, type_expr)?;
-        self.traverse_expr(builder, input)
     }
 
     pub fn func_by_name(&self, name: &str) -> FunctionId {
