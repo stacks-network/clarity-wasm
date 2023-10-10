@@ -63,10 +63,10 @@ impl Word for Sub {
         "-".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -82,10 +82,10 @@ impl Word for Mul {
         "*".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -101,10 +101,10 @@ impl Word for Div {
         "/".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -120,10 +120,10 @@ impl Word for Modulo {
         "mod".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -142,7 +142,7 @@ impl Word for Log2 {
     fn traverse<'b>(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -158,10 +158,10 @@ impl Word for Power {
         "pow".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
@@ -177,10 +177,10 @@ impl Word for Sqrti {
         "sqrti".into()
     }
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
-        builder: &mut walrus::InstrSeqBuilder<'b>,
+        builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {

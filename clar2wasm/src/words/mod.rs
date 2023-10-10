@@ -33,10 +33,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
 pub trait Word: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
 
-    fn traverse<'b>(
+    fn traverse(
         &self,
         generator: &mut WasmGenerator,
-        builder: &mut InstrSeqBuilder<'b>,
+        builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError>;
