@@ -218,6 +218,7 @@ impl<'a> TestEnvContext<'a> {
 
         info!("beginning to walk the block: {}", block_id);
         let leaves = Self::walk_block(&mut env, block_id)?;
+
         if !leaves.is_empty() {
             info!("finished walking, leaf count: {}", leaves.len());
         } else {
@@ -236,7 +237,7 @@ impl<'a> TestEnvContext<'a> {
                 let clarity_value = Value::try_deserialize_hex_untyped(&value_unwrapped.value);
                 if let Ok(clarity_value) = clarity_value {
                     if clarity_value != Value::Int(25600000000) {
-                        info!("deserialized value: {:?}", &clarity_value);
+                        trace!("deserialized value: {:?}", &clarity_value);
                     }
                 } else {
                     //warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
@@ -275,13 +276,14 @@ impl<'a> TestEnvContext<'a> {
     fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, level: &mut u32, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
         *level += 1;
         let node_type_id = TrieNodeID::from_u8(node.id()).unwrap();
-        debug!("[level {level}] processing {node_type_id:?} with {} ptrs", node.ptrs().len());
+        debug!("[level {level}] processing {node_type_id:?} with {} ptrs", &node.ptrs().len());
 
         #[allow(clippy::single_match)]
         match &node {
             TrieNodeType::Leaf(leaf) => {
                 leaves.push(leaf.clone());
                 *level -= 1;
+                trace!("[level {level}] returned to level");
                 return Ok(());
             },
             _ => {
@@ -293,6 +295,7 @@ impl<'a> TestEnvContext<'a> {
         for ptr in node.ptrs().iter() {
             ptr_number += 1;
             trace!("[level {level}] [ptr no. {ptr_number}] ptr: {ptr:?}");
+
             if is_backptr(ptr.id) {
                 // Handle back-pointers
 
@@ -322,42 +325,59 @@ impl<'a> TestEnvContext<'a> {
                 // Snapshot the current block hash & id so that we can rollback
                 // to them after we're finished processing this back-pointer.
                 let (current_block, current_id) = storage.get_cur_block_and_id();
-                trace!("{current_block} :: {current_id:?}");
+                trace!("[level {level}] current block: {} :: {current_block}", current_id.unwrap());
 
                 // Get the block hash for the block the back-pointer is pointing to
-                let ptr_block_hash = storage.get_block_from_local_id(ptr.ptr())?.clone();
+                // This doesn't seem to work, pointers are up in e.g. 4808741 (highest block is only 122k or so)
+                //let ptr_block_hash = storage.get_block_from_local_id(ptr.ptr())?.clone();
+                //let trie_hash = storage.read_node_hash_bytes(ptr)?;
+                //storage.open_block(trie_hash);
 
-                trace!("[level {level}] normal ptr block hash: {ptr_block_hash}");
+                //trace!("[level {level}] normal ptr block hash: {ptr_block_hash}");
                 
                 // Open the block to which the back-pointer is pointing.
                 //storage.open_block_known_id(&ptr_block_hash, ptr.ptr())?;
-                storage.open_block(&ptr_block_hash)?;
+                //storage.open_block(&ptr_block_hash)?;
 
                 // Handle nodes contained within this block/trie
+                trace!("hello");
+                let type_id = TrieNodeID::from_u8(ptr.id()).unwrap();
+                if type_id == TrieNodeID::Empty {
+                    trace!("[level {level}] reached empty node, continuing");
+                    continue;
+                }
+
+                trace!("[level {level}] ptr node type: {type_id:?}");
                 let node_type = storage
-                    .read_nodetype_nohash(ptr)?;
+                    .read_nodetype_nohash(ptr).unwrap();
+                
 
                 //error!("node type: {:?}", node_type);
 
-                match &node_type {
+                /*match &node_type {
                     TrieNodeType::Leaf(data) => {
                         trace!("[level {level}] leaf => {ptr:?}");
                         leaves.push(data.clone());
                         *level -= 1;
-                        return Ok(())
+                        trace!("[level {level}] returned to level");
+                        continue;
                     }
                     _ => {
                         trace!("[level {level}] {:?} => {ptr:?}, ptrs: {}", TrieNodeID::from_u8(ptr.id()), node_type.ptrs().len());
                         Self::inner_walk_block(storage, &node_type, level, leaves)?;
                     }
-                }
+                }*/
+
+                trace!("[level {level}] {:?} => {ptr:?}, ptrs: {}", TrieNodeID::from_u8(ptr.id()), node_type.ptrs().len());
+                Self::inner_walk_block(storage, &node_type, level, leaves)?;
 
                 // Return to the previous block
-                trace!("returning to context: {current_block} {current_id:?}");
-                storage.open_block_known_id(&current_block, current_id.unwrap())?;
+                //trace!("[level {level}] returning to context: {current_block} {current_id:?}");
+                //storage.open_block_known_id(&current_block, current_id.unwrap())?;
             }
         }
         *level -= 1;
+        trace!("[level {level}] returned to level");
         Ok(())
     }
 

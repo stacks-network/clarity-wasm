@@ -8,7 +8,7 @@ mod macros;
 
 use std::process::exit;
 
-use anyhow::Result;
+use anyhow::{Result, bail, Error};
 use blockstack_lib::chainstate::stacks::TransactionContractCall;
 
 use clap::Parser;
@@ -52,11 +52,24 @@ fn cmd_data(data_args: DataArgs) -> Result<()> {
         let mut contract_calls: Vec<TransactionContractCall> = Default::default();
         
         info!("aggregating contract calls starting at block height {}...", data_args.from_height);
+        let mut block_count = 0;
         for block_header in env.into_iter() {
-            if block_header.block_height > data_args.to_height.unwrap() - 1 {
-                info!("reached block height limit ({}), exiting.", block_header.block_height);
-                exit(0);
+
+            // Check if we've reached the specified max blocks processed count.
+            if let Some(max_blocks) = data_args.max_block_count {
+                if block_count >= max_blocks {
+                    info!("reached max block count ({}), exiting.", max_blocks);
+                    exit(0);
+                }
             }
+
+            if let Some(to_height) = data_args.to_height {
+                if block_header.block_height > to_height - 1 {
+                    info!("reached block height limit ({}), exiting.", block_header.block_height);
+                    exit(0);
+                }
+            }
+            
 
             if block_header.block_height < data_args.from_height {
                 continue;
@@ -103,10 +116,15 @@ fn cmd_data(data_args: DataArgs) -> Result<()> {
                     _ => {}
                 }
             }
+
+            block_count += 1;
         }
         info!("finished aggregating {} contract calls.", contract_calls.len());
         
         ok!()
+    }).or_else(|e| {
+        error!("Encountered error: {e:?}");
+        bail!(e);
     })?;
 
     ok!()
