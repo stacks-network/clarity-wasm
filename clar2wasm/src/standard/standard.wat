@@ -1215,9 +1215,23 @@
             )
         )
 
-        ;; copy the result to the final location and return
-        (memory.copy (local.get $offset-result) (global.get $stack-pointer) (i32.const 32))
-        (local.get $offset-result) (i32.const 8)
+        ;; store at result position with correct endianness
+        (v128.store
+            (local.get $offset-result)
+            (i8x16.swizzle
+                (v128.load (global.get $stack-pointer))
+                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
+            )
+        )
+        (v128.store offset=16
+            (local.get $offset-result)
+            (i8x16.swizzle
+                (v128.load offset=16 (global.get $stack-pointer))
+                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
+            )
+        )
+
+        (local.get $offset-result) (i32.const 32)
     )
 
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
