@@ -5,7 +5,7 @@ use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
         burn::db::sortdb::SortitionDB,
-        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MARF, MarfConnection}, node::{TriePtr, TrieNode, is_backptr, TrieCursor, TriePath, TrieNodeType}, storage::TrieStorageConnection, file, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
+        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MARF, MarfConnection}, node::{TriePtr, TrieNode, is_backptr, TrieCursor, TriePath, TrieNodeType, TrieNodeID}, storage::TrieStorageConnection, file, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
     },
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
@@ -154,6 +154,9 @@ impl<'a> TestEnvContext<'a> {
     }
 
     pub fn load_contract_analysis(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier) -> Result<()>{
+        use clarity::vm::database::{ClarityDatabase, StoreType};
+
+        let mut variable_paths: Vec<String> = Default::default();
         let mut env = self.env.borrow_mut();
 
         let mut conn = env.chainstate.clarity_state.read_only_connection(
@@ -170,28 +173,59 @@ impl<'a> TestEnvContext<'a> {
 
             let contract_analysis = contract_analysis.unwrap();
 
-            for var in contract_analysis.persisted_variable_types.iter() {
-                let meta = clarity_db.load_variable(contract_id, var.0)?;
-                let value = clarity_db.lookup_variable(contract_id, var.0, &meta, &StacksEpochId::Epoch24);
-                //debug!("[{}]: {:?}", &var.0, value.unwrap());
+            // Handle persisted variables.
+            for (name, _) in contract_analysis.persisted_variable_types.iter() {
+                // Get the metadata for the variable.
+                let meta = clarity_db.load_variable(
+                    contract_id, 
+                    name)?;
+
+                // Construct the identifier (key) for this variable in the 
+                // persistence layer.
+                let key = ClarityDatabase::make_key_for_trip(
+                    contract_id,
+                    StoreType::Variable,
+                    name,
+                );
+                
+                let path = TriePath::from_key(&key);
+                //debug!("[{}](key='{}'; path='{}')", name, key, path);
+
+                // Retrieve the current value.
+                let value = clarity_db.lookup_variable(
+                    contract_id, 
+                    name, 
+                    &meta, 
+                    &StacksEpochId::Epoch24)?;
+                
+                //trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
             }
 
+            // Handle maps
             for map in &contract_analysis.map_types {
                 let meta = clarity_db.load_map(contract_id, map.0)?;
-                clarity_db.get_value("asdasdasdasdasdddsss", &TypeSignature::UIntType, &StacksEpochId::Epoch24)?;
+                //clarity_db.get_value("asdasdasdasdasdddsss", &TypeSignature::UIntType, &StacksEpochId::Epoch24)?;
             }
 
             Ok(())
         })?;
 
-        //info!("beginning to walk the block: {}", at_block);
-        let leaves = Self::walk_block(&mut env, at_block)?;
+        Ok(())
+    }
+
+    pub fn load_block(&self, block_id: &StacksBlockId) -> Result<()> {
+        let mut env = self.env.borrow_mut();
+
+        info!("beginning to walk the block: {}", block_id);
+        let leaves = Self::walk_block(&mut env, block_id)?;
         if !leaves.is_empty() {
-            error!("finished walking, leaf count: {}", leaves.len());
+            info!("finished walking, leaf count: {}", leaves.len());
+        } else {
+            warn!("no leaves found");
         }
 
         for leaf in leaves {
-            trace!("leaf: {:?}", leaf);
+            //trace!("leaf: {:?}", leaf);
 
             let value = data_table::table
                 .filter(data_table::key.eq(leaf.data.to_string()))
@@ -201,13 +235,14 @@ impl<'a> TestEnvContext<'a> {
             if let Some(value_unwrapped) = value {
                 let clarity_value = Value::try_deserialize_hex_untyped(&value_unwrapped.value);
                 if let Ok(clarity_value) = clarity_value {
-                    info!("deserialized value: {:?}", clarity_value);
+                    if clarity_value != Value::Int(25600000000) {
+                        info!("deserialized value: {:?}", &clarity_value);
+                    }
                 } else {
-                    warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
+                    //warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
                 }
                 
             }
-            
         }
 
         Ok(())
@@ -220,13 +255,14 @@ impl<'a> TestEnvContext<'a> {
             let mut marf = marf.reopen_readonly()?;
             let _root_hash = marf.get_root_hash_at(block_id)?;
 
-            marf.open_block(block_id)?;
-
             let _ = marf.with_conn(|storage| -> Result<()> {
                 
-                let (root_node_type, _root_hash) = Trie::read_root(storage)?;
+                debug!("opening block {block_id}");
+                storage.open_block(block_id)?;
+                let (root_node_type, _) = Trie::read_root(storage)?;
                 
-                Self::inner_walk_block(storage, &root_node_type, &mut leaves)?;
+                let mut level: u32 = 0;
+                Self::inner_walk_block(storage, &root_node_type, &mut level, &mut leaves)?;
 
                 Ok(())
             });
@@ -236,43 +272,92 @@ impl<'a> TestEnvContext<'a> {
         Ok(leaves)
     }
 
-    fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
-        for ptr in node.ptrs().iter() {
-            if is_backptr(ptr.id) {
-                let (current_block, current_id) = storage.get_cur_block_and_id();
-                //debug!("processing back pointer");
-                let back_block_hash = storage.get_block_from_local_id(ptr.back_block())?.clone();
-                //debug!("[ptr={:?}] back-block: {}", ptr, back_block_hash);
-                //debug!("opening block with id: {}", ptr.back_block());
-                storage.open_block_known_id(&back_block_hash, ptr.back_block())?;
-                //debug!("success!");
-                let backptr_node_type = storage.read_nodetype_nohash(&ptr.from_backptr())?;
+    fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, level: &mut u32, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
+        *level += 1;
+        let node_type_id = TrieNodeID::from_u8(node.id()).unwrap();
+        debug!("[level {level}] processing {node_type_id:?} with {} ptrs", node.ptrs().len());
 
-                //debug!("inner_walk_block: {:?}", &backptr_node_type);
-                Self::inner_walk_block(storage, &backptr_node_type, leaves)?;
+        #[allow(clippy::single_match)]
+        match &node {
+            TrieNodeType::Leaf(leaf) => {
+                leaves.push(leaf.clone());
+                *level -= 1;
+                return Ok(());
+            },
+            _ => {
 
-                storage.open_block_known_id(&current_block, current_id.unwrap())?;
-            } else {
-                //debug!("processing normal pointer with id: {}", ptr.ptr());
-
-                let node_type = storage
-                    .read_nodetype_nohash(ptr)?;
-                //debug!("node type: {:?}", node_type);
-
-                match node_type {
-                    TrieNodeType::Leaf(data) => {
-                        //debug!("leaf: {:?}", data);
-                        leaves.push(data.clone());
-                        return Ok(())
-                    }
-                    _ => {
-                        //debug!("continuing walking {:?}", node_type.id());
-                        return Self::inner_walk_block(storage, &node_type, leaves);
-                    }
-                }
             }
         }
 
+        let mut ptr_number = 0;
+        for ptr in node.ptrs().iter() {
+            ptr_number += 1;
+            trace!("[level {level}] [ptr no. {ptr_number}] ptr: {ptr:?}");
+            if is_backptr(ptr.id) {
+                // Handle back-pointers
+
+                // Snapshot the current block hash & id so that we can rollback
+                // to them after we're finished processing this back-pointer.
+                let (current_block, current_id) = storage.get_cur_block_and_id();
+
+                // Get the block hash for the block the back-pointer is pointing to
+                let back_block_hash = storage.get_block_from_local_id(ptr.back_block())?.clone();
+
+                trace!("[level {level}] following backptr: {ptr:?}, {back_block_hash}");
+                
+                // Open the block to which the back-pointer is pointing.
+                storage.open_block_known_id(&back_block_hash, ptr.back_block())?;
+
+                // Read the back-pointer type.
+                let backptr_node_type = storage.read_nodetype_nohash(&ptr.from_backptr())?;
+
+                // Walk the newly opened block using the back-pointer.
+                Self::inner_walk_block(storage, &backptr_node_type, level, leaves)?;
+
+                // Return to the previous block
+                trace!("[level {level}] returning to context: {current_block} {current_id:?}");
+                storage.open_block_known_id(&current_block, current_id.unwrap())?;
+            } else {
+                trace!("[level {level}] following normal ptr: {ptr:?}");
+                // Snapshot the current block hash & id so that we can rollback
+                // to them after we're finished processing this back-pointer.
+                let (current_block, current_id) = storage.get_cur_block_and_id();
+                trace!("{current_block} :: {current_id:?}");
+
+                // Get the block hash for the block the back-pointer is pointing to
+                let ptr_block_hash = storage.get_block_from_local_id(ptr.ptr())?.clone();
+
+                trace!("[level {level}] normal ptr block hash: {ptr_block_hash}");
+                
+                // Open the block to which the back-pointer is pointing.
+                //storage.open_block_known_id(&ptr_block_hash, ptr.ptr())?;
+                storage.open_block(&ptr_block_hash)?;
+
+                // Handle nodes contained within this block/trie
+                let node_type = storage
+                    .read_nodetype_nohash(ptr)?;
+
+                //error!("node type: {:?}", node_type);
+
+                match &node_type {
+                    TrieNodeType::Leaf(data) => {
+                        trace!("[level {level}] leaf => {ptr:?}");
+                        leaves.push(data.clone());
+                        *level -= 1;
+                        return Ok(())
+                    }
+                    _ => {
+                        trace!("[level {level}] {:?} => {ptr:?}, ptrs: {}", TrieNodeID::from_u8(ptr.id()), node_type.ptrs().len());
+                        Self::inner_walk_block(storage, &node_type, level, leaves)?;
+                    }
+                }
+
+                // Return to the previous block
+                trace!("returning to context: {current_block} {current_id:?}");
+                storage.open_block_known_id(&current_block, current_id.unwrap())?;
+            }
+        }
+        *level -= 1;
         Ok(())
     }
 
