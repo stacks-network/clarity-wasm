@@ -1196,7 +1196,7 @@
         )
     )
 
-    (func $sha256 (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $sha256-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1471,5 +1471,5 @@
     (export "bit-shift-right-int" (func $bit-shift-right-int))
     (export "pow-uint" (func $pow-uint))
     (export "pow-int" (func $pow-int))
-    (export "sha256" (func $sha256))
+    (export "sha256-buf" (func $sha256-buf))
 )

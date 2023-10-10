@@ -3117,11 +3117,47 @@ impl WasmGenerator {
     fn traverse_hash(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: NativeFunctions,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
         value: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
+        self.traverse_expr(builder, value)?;
+        self.visit_hash(builder, expr, func, value)
+    }
+
+    fn visit_hash(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        func: NativeFunctions,
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        let offset_res = self.literal_memory_end;
+        let hash_kind = match func {
+            NativeFunctions::Sha256 => {
+                self.literal_memory_end += 8 * 4;
+                "sha256"
+            }
+            _ => unimplemented!("Unknown hash"),
+        };
+        let ty = self
+            .get_expr_type(value)
+            .expect("Hash value should be typed");
+        let hash_type = match ty {
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
+            _ => unimplemented!("unimplemented type for hash argument"),
+        };
+        let hash_func = self
+            .module
+            .funcs
+            .by_name(&format!("{hash_kind}-{hash_type}"))
+            .unwrap_or_else(|| panic!("function not found: {hash_kind}-{hash_type}"));
+
+        builder
+            .i32_const(offset_res as i32) // result offset
+            .call(hash_func);
+
+        Ok(())
     }
 
     fn traverse_secp256k1_recover(
