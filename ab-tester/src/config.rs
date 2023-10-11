@@ -16,7 +16,6 @@ pub struct Config {
 impl Config {
     pub fn load() -> Result<Config> {
         let config_filename = &std::env::var("CONFIG_FILE")?;
-        debug!("config file: '{}'", config_filename);
 
         let contents = match fs::read_to_string(config_filename) {
             Ok(c) => c,

@@ -37,8 +37,16 @@ pub mod appdb {
             key_hash -> Binary,
             block_height -> Integer,
             block_hash -> Binary,
-            contract_id -> Text,
             value -> Text
+        }
+    }
+
+    table! {
+        contract_vars (key, contract_id, block_height) {
+            key -> Text,
+            contract_id -> Text,
+            block_height -> Integer,
+            value -> Binary
         }
     }
 }

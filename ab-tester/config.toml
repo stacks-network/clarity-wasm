@@ -2,9 +2,17 @@
 [chainstate]
 path = "/home/cylwit/stacks/mainnet/"
 
-[baseline]
+[env.baseline]
+# REQUIRED: Set this to the path of your node root.
 chainstate_path = "/home/cylwit/stacks/mainnet/"
 
+
 [env.interpreter]
+# ;; Uncomment to provide a custom chainstate path for the 'wasm' environment.
+# ;; If not provided, a randomly generated temporary directory will be used.
+#chainstate_path = ""
 
 [env.wasm]
+# ;; Uncomment to provide a custom chainstate path for the 'wasm' environment.
+# ;; If not provided, a randomly generated temporary directory will be used.
+#chainstate_path = ""
