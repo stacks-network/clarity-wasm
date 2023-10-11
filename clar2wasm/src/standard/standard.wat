@@ -1234,6 +1234,34 @@
         (local.get $offset-result) (i32.const 32)
     )
 
+    (func $sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+        (i64.store (global.get $stack-pointer) (local.get $lo))
+        (i64.store offset=8 (global.get $stack-pointer) (local.get $hi))
+        (i32.store offset=16 (global.get $stack-pointer) (i32.const 0x80))
+        (memory.fill (i32.add (global.get $stack-pointer) (i32.const 20)) (i32.const 0) (i32.const 46))
+        (i32.store8 offset=63 (global.get $stack-pointer) (i32.const 0x80))
+
+        (call $block64 (i32.const 0))
+        (call $working-vars)
+
+        (v128.store
+            (local.get $offset-result)
+            (i8x16.swizzle
+                (v128.load (global.get $stack-pointer))
+                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
+            )
+        )
+        (v128.store offset=16
+            (local.get $offset-result)
+            (i8x16.swizzle
+                (v128.load offset=16 (global.get $stack-pointer))
+                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
+            )
+        )
+
+        (local.get $offset-result) (i32.const 32)
+    )
+
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
         (local $res_len i32) (local $i i32) (local $len64 i64)
         ;; TODO: check if enough pages of memory and grow accordingly
@@ -1472,4 +1500,5 @@
     (export "pow-uint" (func $pow-uint))
     (export "pow-int" (func $pow-int))
     (export "sha256-buf" (func $sha256-buf))
+    (export "sha256-int" (func $sha256-int))
 )
