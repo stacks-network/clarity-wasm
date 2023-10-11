@@ -419,6 +419,7 @@ dependencies = [
  "clar2wasm",
  "clarity",
  "criterion",
+ "hex",
  "predicates",
  "rusqlite",
  "sha2 0.10.7",
