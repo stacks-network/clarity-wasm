@@ -3141,14 +3141,21 @@ impl WasmGenerator {
                 self.literal_memory_end += 8 * 4;
                 "sha256"
             }
-            _ => unimplemented!("Unknown hash"),
+            _ => {
+                self.error = Some(GeneratorError::NotImplemented);
+                return Err(GeneratorError::NotImplemented);
+            }
         };
         let ty = self
             .get_expr_type(value)
             .expect("Hash value should be typed");
         let hash_type = match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => "int",
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
-            _ => unimplemented!("unimplemented type for hash argument"),
+            _ => {
+                self.error = Some(GeneratorError::NotImplemented);
+                return Err(GeneratorError::NotImplemented);
+            }
         };
         let hash_func = self
             .module
