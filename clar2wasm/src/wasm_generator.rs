@@ -2,6 +2,7 @@ use clarity::vm::functions::define::DefineFunctions;
 use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
+    clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     representations::Span,
@@ -107,44 +108,6 @@ impl ArgumentsExt for &[SymbolicExpression] {
             .ok_or(GeneratorError::InternalError(format!(
                 "{self:?} does not have a name at argument index {n}"
             )))
-    }
-}
-
-/// Return the number of bytes required to store a value of the type `ty`.
-fn get_type_size(ty: &TypeSignature) -> u32 {
-    match ty {
-        TypeSignature::IntType | TypeSignature::UIntType => 16,
-        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(length))) => {
-            u32::from(length)
-        }
-        TypeSignature::PrincipalType => {
-            // Standard principal is a 1 byte version and a 20 byte Hash160.
-            // Then there is an int32 for the contract name length, followed by
-            // the contract name, which has a max length of 128.
-            1 + 20 + 1 + 128
-        }
-        TypeSignature::OptionalType(inner) => 1 + get_type_size(inner),
-        TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)) => {
-            list_data.get_max_len() * get_type_size(list_data.get_list_item_type())
-        }
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(length)) => u32::from(length),
-        _ => unimplemented!("Unsupported type: {}", ty),
-    }
-}
-
-/// Return true if the value of the given type stays in memory, and false if
-/// it is stored on the data stack.
-fn is_in_memory_type(ty: &TypeSignature) -> bool {
-    match ty {
-        TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => true,
-        TypeSignature::IntType
-        | TypeSignature::UIntType
-        | TypeSignature::NoType
-        | TypeSignature::BoolType
-        | TypeSignature::TupleType(_)
-        | TypeSignature::OptionalType(_)
-        | TypeSignature::ResponseType(_) => false,
-        _ => todo!("Unsupported type: {}", ty),
     }
 }
 
@@ -558,6 +521,30 @@ impl WasmGenerator {
                             args.get_expr(0)?,
                             args.get_expr(1)?,
                         ),
+                        ContractCall => {
+                            let function_name = args.get_name(1)?;
+                            let params = if args.len() >= 2 { &args[2..] } else { &[] };
+                            if let SymbolicExpressionType::LiteralValue(Value::Principal(
+                                PrincipalData::Contract(ref contract_identifier),
+                            )) = args.get_expr(0)?.expr
+                            {
+                                self.traverse_static_contract_call(
+                                    builder,
+                                    expr,
+                                    contract_identifier,
+                                    function_name,
+                                    params,
+                                )
+                            } else {
+                                self.traverse_dynamic_contract_call(
+                                    builder,
+                                    expr,
+                                    args.get_expr(0)?,
+                                    function_name,
+                                    params,
+                                )
+                            }
+                        }
                         e => todo!("{:?}", e),
                     }?;
                 } else {
@@ -784,6 +771,8 @@ impl WasmGenerator {
                     data.extend_from_slice(&standard.1);
                     let contract_length = 0i32.to_le_bytes();
                     data.extend_from_slice(&contract_length);
+                    // Append a 0 for the length of the contract name
+                    data.extend_from_slice(&[0u8; 4]);
                     data
                 }
                 PrincipalData::Contract(contract) => {
@@ -818,13 +807,25 @@ impl WasmGenerator {
 
     /// Push a new local onto the call stack, adjusting the stack pointer and
     /// tracking the current function's frame size accordingly.
+    /// - `include_repr` indicates if space should be reserved for the
+    ///   representation of the value (e.g. the offset, length for an in-memory
+    ///   type)
+    /// - `include_value` indicates if space should be reserved for the value
     fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
         stack_pointer: GlobalId,
         ty: &TypeSignature,
+        include_repr: bool,
+        include_value: bool,
     ) -> (LocalId, i32) {
-        let size = get_type_size(ty) as i32;
+        let size = if include_value {
+            get_type_in_memory_size(ty, include_repr)
+        } else if include_repr {
+            get_type_size(ty)
+        } else {
+            unreachable!("must include either repr or value")
+        };
 
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
@@ -852,7 +853,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         ty: &TypeSignature,
-    ) -> i32 {
+    ) -> u32 {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let size = match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -877,6 +878,29 @@ impl WasmGenerator {
                     },
                 );
                 16
+            }
+            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
+                // Data stack: TOP | Length | Offset | ...
+                // Save the offset/length to locals.
+                let seq_offset = self.module.locals.add(ValType::I32);
+                let seq_length = self.module.locals.add(ValType::I32);
+                builder.local_set(seq_length).local_set(seq_offset);
+
+                // Store the offset/length to memory.
+                builder.local_get(offset_local).local_get(seq_offset).store(
+                    memory.id(),
+                    StoreKind::I32 { atomic: false },
+                    MemArg { align: 4, offset },
+                );
+                builder.local_get(offset_local).local_get(seq_length).store(
+                    memory.id(),
+                    StoreKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: offset + 4,
+                    },
+                );
+                8
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         };
@@ -926,19 +950,57 @@ impl WasmGenerator {
                 );
                 4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)
             }
-            // For types that are represented in-memory, just return the offset
-            // and length.
+            TypeSignature::ResponseType(inner) => {
+                // Memory: Offset -> | Indicator | Ok Value | Err Value |
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: literal_offset,
+                    },
+                );
+                let mut offset_adjust = 4;
+                offset_adjust += self.read_from_memory(
+                    builder,
+                    offset,
+                    literal_offset + offset_adjust,
+                    &inner.0,
+                ) as u32;
+                offset_adjust += self.read_from_memory(
+                    builder,
+                    offset,
+                    literal_offset + offset_adjust,
+                    &inner.1,
+                ) as u32;
+                offset_adjust as i32
+            }
+            // Principals and sequence types are stored in-memory and
+            // represented by an offset and length.
             TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
-                if literal_offset > 0 {
-                    builder.i32_const(literal_offset as i32);
-                    builder.local_get(offset);
-                    builder.binop(BinaryOp::I32Add);
-                } else {
-                    builder.local_get(offset);
-                }
-                let len = get_type_size(ty) as i32;
-                builder.i32_const(len);
-                len
+                // Memory: Offset -> | ValueOffset | ValueLength |
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: literal_offset,
+                    },
+                );
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: literal_offset + 4,
+                    },
+                );
+                8
+            }
+            // Unknown types just get a placeholder i32 value.
+            TypeSignature::NoType => {
+                builder.i32_const(0);
+                4
             }
             _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
         };
@@ -988,6 +1050,8 @@ impl WasmGenerator {
                         builder,
                         self.stack_pointer,
                         &TypeSignature::PrincipalType,
+                        false,
+                        true,
                     );
 
                     // Push the offset and size to the data stack
@@ -1009,6 +1073,8 @@ impl WasmGenerator {
                         builder,
                         self.stack_pointer,
                         &TypeSignature::PrincipalType,
+                        false,
+                        true,
                     );
 
                     // Push the offset and size to the data stack
@@ -1030,6 +1096,8 @@ impl WasmGenerator {
                         builder,
                         self.stack_pointer,
                         &TypeSignature::PrincipalType,
+                        false,
+                        true,
                     );
 
                     // Push the offset and size to the data stack
@@ -1139,7 +1207,7 @@ impl WasmGenerator {
             if is_in_memory_type(ty) {
                 builder
                     .local_get(offset_local)
-                    .i32_const(get_type_size(ty) as i32);
+                    .i32_const(get_type_in_memory_size(ty, false));
                 true
             } else {
                 // Otherwise, we need to load the value from memory.
@@ -1152,6 +1220,7 @@ impl WasmGenerator {
     }
 }
 
+/// Convert a Clarity type signature to a wasm type signature.
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     match ty {
         TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
@@ -1510,7 +1579,7 @@ impl WasmGenerator {
         // FIXME: These initial values do not need to be saved in the literal
         //        memory forever... we just need them once, when .top-level
         //        is called.
-        self.literal_memory_end += size as u32;
+        self.literal_memory_end += size;
 
         // Push the name onto the data stack
         builder
@@ -1521,7 +1590,7 @@ impl WasmGenerator {
         builder.local_get(offset);
 
         // Push the size onto the data stack
-        builder.i32_const(size);
+        builder.i32_const(size as i32);
 
         // Call the host interface function, `define_variable`
         builder.call(
@@ -1615,13 +1684,13 @@ impl WasmGenerator {
                 .expect("constant value must be typed")
                 .clone();
 
-            let len = get_type_size(&ty);
+            let len = get_type_in_memory_size(&ty, true) as u32;
             self.literal_memory_end += len;
 
             // Traverse the initial value expression.
             self.traverse_expr(builder, value)?;
 
-            // Write the result (on the stack) to the memory
+            // Write the initial value to the memory, to be read by the host.
             self.write_to_memory(builder, offset_local, 0, &ty);
 
             offset
@@ -1753,8 +1822,8 @@ impl WasmGenerator {
             .get_expr_type(expr)
             .expect("concat expression must be typed")
             .clone();
-        let offset;
-        (offset, _) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (offset, _) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, false, true);
 
         // Traverse the lhs, leaving it on the data stack (offset, size)
         self.traverse_expr(builder, lhs)?;
@@ -1811,8 +1880,8 @@ impl WasmGenerator {
             .get_expr_type(expr)
             .expect("var-get expression must be typed")
             .clone();
-        let (offset, size);
-        (offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (offset, size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, true);
 
         // Push the identifier offset and length onto the data stack
         builder
@@ -1856,10 +1925,10 @@ impl WasmGenerator {
             .get_expr_type(value)
             .expect("var-set value expression must be typed")
             .clone();
-        let (offset, size);
-        (offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (offset, size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
-        // Write the value to the memory (it's already on the data stack)
+        // Write the value to the memory, to be read by the host
         self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
 
         // Push the identifier offset and length onto the data stack
@@ -1907,16 +1976,17 @@ impl WasmGenerator {
         assert_eq!(num_elem as usize, list.len(), "list size mismatch");
 
         // Allocate space on the data stack for the entire list
-        let (offset, size);
-        (offset, size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (offset, size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, false, true);
 
         // Loop through the expressions in the list and store them onto the
         // data stack.
         let mut total_size = 0;
         for expr in list.iter() {
             self.traverse_expr(builder, expr)?;
+            // Write this element to memory
             let elem_size = self.write_to_memory(builder.borrow_mut(), offset, total_size, elem_ty);
-            total_size += elem_size as u32;
+            total_size += elem_size;
         }
         assert_eq!(total_size, size as u32, "list size mismatch");
 
@@ -1989,7 +2059,7 @@ impl WasmGenerator {
         let end_offset = self.module.locals.add(ValType::I32);
         builder
             .local_get(offset)
-            .i32_const((seq_len * elem_size) as i32)
+            .i32_const(seq_len as i32 * elem_size)
             .binop(BinaryOp::I32Add)
             .local_set(end_offset);
 
@@ -2326,10 +2396,8 @@ impl WasmGenerator {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let id_offset;
-        let id_size;
-        (id_offset, id_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+        let (id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         self.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -2344,6 +2412,8 @@ impl WasmGenerator {
             builder,
             self.stack_pointer,
             &TypeSignature::PrincipalType,
+            false,
+            true,
         );
 
         // Push the offset and size to the data stack
@@ -2383,10 +2453,8 @@ impl WasmGenerator {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let id_offset;
-        let id_size;
-        (id_offset, id_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+        let (id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         self.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -2431,10 +2499,8 @@ impl WasmGenerator {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let id_offset;
-        let id_size;
-        (id_offset, id_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+        let (id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         self.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -2480,10 +2546,8 @@ impl WasmGenerator {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let id_offset;
-        let id_size;
-        (id_offset, id_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty);
+        let (id_offset, id_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         self.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -2640,8 +2704,8 @@ impl WasmGenerator {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size);
-        (key_offset, key_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the key to the data stack
         self.traverse_expr(builder, key)?;
@@ -2657,9 +2721,8 @@ impl WasmGenerator {
             .get_expr_type(expr)
             .expect("map-get? expression must be typed")
             .clone();
-        let (return_offset, return_size);
-        (return_offset, return_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (return_offset, return_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, true);
 
         // Push the return value offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
@@ -2704,8 +2767,8 @@ impl WasmGenerator {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size);
-        (key_offset, key_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the key to the data stack
         self.traverse_expr(builder, key)?;
@@ -2721,8 +2784,8 @@ impl WasmGenerator {
             .get_expr_type(value)
             .expect("map-set value expression must be typed")
             .clone();
-        let (val_offset, val_size);
-        (val_offset, val_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (val_offset, val_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the value to the data stack
         self.traverse_expr(builder, value)?;
@@ -2769,8 +2832,8 @@ impl WasmGenerator {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size);
-        (key_offset, key_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the key to the data stack
         self.traverse_expr(builder, key)?;
@@ -2786,8 +2849,8 @@ impl WasmGenerator {
             .get_expr_type(value)
             .expect("map-set value expression must be typed")
             .clone();
-        let (val_offset, val_size);
-        (val_offset, val_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (val_offset, val_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the value to the data stack
         self.traverse_expr(builder, value)?;
@@ -2833,8 +2896,8 @@ impl WasmGenerator {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size);
-        (key_offset, key_size) = self.create_call_stack_local(builder, self.stack_pointer, &ty);
+        let (key_offset, key_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
         // Push the key to the data stack
         self.traverse_expr(builder, key)?;
@@ -2878,9 +2941,8 @@ impl WasmGenerator {
             .expect("get-block-info? expression must be typed")
             .clone();
 
-        let (return_offset, return_size);
-        (return_offset, return_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &return_ty);
+        let (return_offset, return_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &return_ty, true, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
@@ -3190,5 +3252,82 @@ impl WasmGenerator {
             .funcs
             .by_name(name)
             .unwrap_or_else(|| panic!("function not found: {name}"))
+    }
+
+    fn traverse_static_contract_call(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        contract_identifier: &clarity::vm::types::QualifiedContractIdentifier,
+        function_name: &ClarityName,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Push the contract identifier onto the stack
+        // TODO(#111): These should be tracked for reuse, similar to the string literals
+        let (id_offset, id_length) = self.add_literal(&contract_identifier.clone().into());
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the function name onto the stack
+        let (fn_offset, fn_length) = self.add_identifier_string_literal(function_name);
+        builder
+            .i32_const(fn_offset as i32)
+            .i32_const(fn_length as i32);
+
+        // Write the arguments to the call stack, to be read by the host
+        let arg_offset = self.module.locals.add(ValType::I32);
+        builder.global_get(self.stack_pointer).local_set(arg_offset);
+        let mut arg_length = 0;
+        for arg in args {
+            // Traverse the argument, pushing it onto the stack
+            self.traverse_expr(builder, arg)?;
+
+            let arg_ty = self
+                .get_expr_type(arg)
+                .expect("contract-call? argument must be typed")
+                .clone();
+
+            arg_length += self.write_to_memory(builder, arg_offset, arg_length, &arg_ty);
+        }
+
+        // Push the arguments offset and length onto the data stack
+        builder.local_get(arg_offset).i32_const(arg_length as i32);
+
+        // Reserve space for the return value
+        let return_ty = self
+            .get_expr_type(expr)
+            .expect("contract-call? expression must be typed")
+            .clone();
+        let (return_offset, return_size) =
+            self.create_call_stack_local(builder, self.stack_pointer, &return_ty, true, true);
+
+        // Push the return offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host interface function, `static_contract_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("static_contract_call")
+                .expect("static_contract_call not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the data stack.
+        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &return_ty);
+
+        Ok(())
+    }
+
+    fn traverse_dynamic_contract_call(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        trait_ref: &'a SymbolicExpression,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        todo!("dynamic contract calls are not yet supported")
     }
 }

@@ -1,5 +1,5 @@
 use clar2wasm::compile;
-use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm_tests::datastore::{BurnDatastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -7,6 +7,7 @@ use clarity::{
         callables::DefineType,
         clarity_wasm::{call_function, initialize_contract},
         contexts::{CallStack, GlobalContext},
+        contracts::Contract,
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
         errors::{Error, WasmError},
@@ -30,87 +31,115 @@ macro_rules! test_multi_contract_init {
     ($func: ident, $contract_names: expr, $context_test: expr) => {
         #[test]
         fn $func() {
-            let mut compile_results = HashMap::new();
             let mut contract_contexts = HashMap::new();
 
-            let mut datastore = Datastore::new();
             let constants = StacksConstants::default();
             let burn_datastore = BurnDatastore::new(constants);
             let mut clarity_store = MemoryBackingStore::new();
             let mut cost_tracker = LimitedCostTracker::new_free();
 
-            // First pass: Compile
+            let mut db = ClarityDatabase::new(&mut clarity_store, &burn_datastore, &burn_datastore);
+            db.begin();
+            db.set_clarity_epoch_version(StacksEpochId::latest());
+            db.commit();
+
             for contract_name in $contract_names.iter() {
-                println!("Compiling contract: {}", contract_name);
                 let contract_id = QualifiedContractIdentifier::new(
                     StandardPrincipalData::transient(),
                     (*contract_name).into(),
                 );
 
-                let contract_str =
-                    std::fs::read_to_string(format!("contracts/{}.clar", contract_name)).unwrap();
-                let mut compile_result = compile(
-                    contract_str.as_str(),
-                    &contract_id,
-                    cost_tracker,
-                    ClarityVersion::latest(),
-                    StacksEpochId::latest(),
-                    &mut clarity_store,
-                )
-                .expect("Failed to compile contract.");
+                let contract_path = format!(
+                    "{}/contracts/{}.clar",
+                    env!("CARGO_MANIFEST_DIR"),
+                    contract_name
+                );
+                let contract_str = std::fs::read_to_string(contract_path).unwrap();
+
+                let mut compile_result = clarity_store
+                    .as_analysis_db()
+                    .execute(|analysis_db| {
+                        compile(
+                            contract_str.as_str(),
+                            &contract_id,
+                            LimitedCostTracker::new_free(),
+                            ClarityVersion::latest(),
+                            StacksEpochId::latest(),
+                            analysis_db,
+                        )
+                    })
+                    .expect("Failed to compile contract.");
+
+                clarity_store
+                    .as_analysis_db()
+                    .execute(|analysis_db| {
+                        analysis_db.insert_contract(&contract_id, &compile_result.contract_analysis)
+                    })
+                    .expect("Failed to insert contract analysis.");
 
                 let mut contract_context =
                     ContractContext::new(contract_id.clone(), ClarityVersion::latest());
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
-                cost_tracker = compile_result.contract_analysis.cost_track.take().unwrap();
-
-                compile_results.insert(*contract_name, compile_result);
-                contract_contexts.insert(*contract_name, contract_context);
-            }
-
-            // Create GlobalContext
-            let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-            conn.begin();
-            conn.set_clarity_epoch_version(StacksEpochId::latest());
-            conn.commit();
-            let mut global_context = GlobalContext::new(
-                false,
-                CHAIN_ID_TESTNET,
-                conn,
-                cost_tracker,
-                StacksEpochId::latest(),
-            );
-            global_context.begin();
-
-            // Second pass: Initialize
-            for contract_name in $contract_names.iter() {
-                let compile_result = compile_results.get(contract_name).unwrap();
-                let contract_context = contract_contexts.get_mut(contract_name).unwrap();
-
-                println!(
-                    "Initializing contract: {}",
-                    contract_context.contract_identifier
+                let mut global_context = GlobalContext::new(
+                    false,
+                    CHAIN_ID_TESTNET,
+                    clarity_store.as_clarity_db(),
+                    cost_tracker,
+                    StacksEpochId::latest(),
                 );
+                global_context.begin();
+                global_context
+                    .execute(|g| g.database.insert_contract_hash(&contract_id, &contract_str))
+                    .expect("Failed to insert contract hash.");
+
                 initialize_contract(
                     &mut global_context,
-                    contract_context,
+                    &mut contract_context,
                     None,
                     &compile_result.contract_analysis,
                 )
                 .expect("Failed to initialize contract.");
+
+                let data_size = contract_context.data_size;
+                global_context.database.insert_contract(
+                    &contract_id,
+                    Contract {
+                        contract_context: contract_context.clone(),
+                    },
+                );
+                global_context
+                    .database
+                    .set_contract_data_size(&contract_id, data_size)
+                    .expect("Failed to set contract data size.");
+
+                global_context.commit().unwrap();
+                cost_tracker = global_context.cost_track;
+
+                contract_contexts.insert(*contract_name, contract_context);
             }
 
             // Do this once for all contracts
             let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
             let amount = 1_000_000_000;
-            let mut snapshot = global_context.database.get_stx_balance_snapshot(&recipient);
-            snapshot.credit(amount);
-            snapshot.save();
-            global_context
-                .database
-                .increment_ustx_liquid_supply(amount)
-                .unwrap();
+            clarity_store
+                .as_clarity_db()
+                .execute(|database| {
+                    let mut snapshot = database.get_stx_balance_snapshot(&recipient);
+                    snapshot.credit(amount);
+                    snapshot.save();
+                    database.increment_ustx_liquid_supply(amount)
+                })
+                .expect("Failed to increment liquid supply.");
+
+            let mut global_context = GlobalContext::new(
+                false,
+                CHAIN_ID_TESTNET,
+                clarity_store.as_clarity_db(),
+                cost_tracker,
+                StacksEpochId::latest(),
+            );
+            global_context.begin();
 
             #[allow(clippy::redundant_closure_call)]
             $context_test(&mut global_context, &contract_contexts);
@@ -246,7 +275,14 @@ macro_rules! test_multi_contract_call_response {
     };
 
     ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test: expr) => {
-        test_contract_call_response!($func, $contract_name, $contract_func, &[], $test);
+        test_multi_contract_call_response!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test
+        );
     };
 }
 
@@ -545,7 +581,7 @@ test_contract_call_response!(
     "block",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(0));
+        assert_eq!(*response.data, Value::UInt(1));
     }
 );
 
@@ -555,7 +591,7 @@ test_contract_call_response!(
     "burn-block",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(0));
+        assert_eq!(*response.data, Value::UInt(1));
     }
 );
 
@@ -1162,7 +1198,6 @@ test_contract_call_response!(
     "tokens",
     "nft-burn-other",
     |response: ResponseData| {
-        println!("{:?}", response);
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(true));
     }
@@ -1503,3 +1538,64 @@ test_contract_call_response!(
 //         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
 //     }
 // );
+
+test_multi_contract_call_response!(
+    test_contract_call_no_args,
+    ["contract-callee", "contract-caller"],
+    "contract-caller",
+    "no-args",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(42));
+    }
+);
+
+test_multi_contract_call_response!(
+    test_contract_call_one_simple_arg,
+    ["contract-callee", "contract-caller"],
+    "contract-caller",
+    "one-simple-arg",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(17));
+    }
+);
+
+test_multi_contract_call_response!(
+    test_contract_call_one_arg,
+    ["contract-callee", "contract-caller"],
+    "contract-caller",
+    "one-arg",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap()
+        );
+    }
+);
+
+test_multi_contract_call_response!(
+    test_contract_call_two_simple_args,
+    ["contract-callee", "contract-caller"],
+    "contract-caller",
+    "two-simple-args",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42 + 17),);
+    }
+);
+
+test_multi_contract_call_response!(
+    test_contract_call_two_args,
+    ["contract-callee", "contract-caller"],
+    "contract-caller",
+    "two-args",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    }
+);

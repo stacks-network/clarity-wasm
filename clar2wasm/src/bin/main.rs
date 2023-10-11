@@ -54,7 +54,7 @@ fn main() {
         cost_track,
         clarity_version,
         epoch,
-        &mut datastore,
+        &mut datastore.as_analysis_db(),
     )
     .unwrap_or_else(|err| match err {
         CompileError::Generic {
