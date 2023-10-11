@@ -5,20 +5,30 @@ use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
         burn::db::sortdb::SortitionDB,
-        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MARF, MarfConnection}, node::{TriePtr, TrieNode, is_backptr, TrieCursor, TriePath, TrieNodeType, TrieNodeID}, storage::TrieStorageConnection, file, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
+        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MarfConnection}, node::{is_backptr, TriePath, TrieNodeType, TrieNodeID}, storage::TrieStorageConnection, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
     },
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, STACKS_EPOCHS_MAINNET,
-    }, clarity_vm::database::marf::MarfedKV,
+    },
 };
-use clarity::vm::{types::{QualifiedContractIdentifier, TypeSignature}, database::{NULL_HEADER_DB, NULL_BURN_STATE_DB, clarity_db}, clarity::ClarityConnection, analysis::ContractAnalysis, Value};
-use diesel::{Connection, SqliteConnection, RunQueryDsl, sql_query, ExpressionMethods, QueryDsl, OptionalExtension};
+use clarity::vm::{
+    types::QualifiedContractIdentifier, 
+    database::{NULL_HEADER_DB, NULL_BURN_STATE_DB}, 
+    clarity::ClarityConnection, Value
+};
+use diesel::{
+    Connection, SqliteConnection, RunQueryDsl, sql_query, 
+    ExpressionMethods, QueryDsl, OptionalExtension
+};
 use rand::Rng;
-use stacks_common::types::{chainstate::{BurnchainHeaderHash, StacksBlockId, BlockHeaderHash}, StacksEpochId};
+use stacks_common::types::{
+    chainstate::{BurnchainHeaderHash, StacksBlockId}, 
+    StacksEpochId
+};
 use log::*;
 
-use crate::{model::{BlockHeader, DataEntry, MetaDataEntry}, schema::data_table};
+use crate::{model::{BlockHeader, DataEntry}, schema::clarity_marf::data_table};
 
 #[derive(Debug)]
 pub struct TestContext {
@@ -276,7 +286,6 @@ impl<'a> TestEnvContext<'a> {
         let node_type_id = TrieNodeID::from_u8(node.id()).unwrap();
         debug!("[level {level}] processing {node_type_id:?} with {} ptrs", &node.ptrs().len());
 
-        #[allow(clippy::single_match)]
         match &node {
             TrieNodeType::Leaf(leaf) => {
                 leaves.push(leaf.clone());
@@ -411,7 +420,7 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
             INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash 
             ORDER BY parent.block_height ASC;";
 
-        let mut blocks_result = sql_query(blocks_query)
+        let blocks_result = sql_query(blocks_query)
             .get_results::<BlockHeader>(db)
             .expect("Failed to retrieve block inventory.");
 

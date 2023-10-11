@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use serde_derive::Deserialize;
-use std::{fs, path::Path};
+use std::fs;
 use log::*;
 
 #[derive(Debug, Deserialize)]
@@ -27,32 +27,5 @@ impl Config {
             Ok(config) => Ok(config),
             Err(err) => bail!("Unable to load data from `{}`: {}", config_filename, err),
         }
-    }
-
-    pub fn get_index_db_path(&self) -> Result<String> {
-        let path = Path::new(&self.chainstate.path)
-            .join("vm/index.sqlite")
-            .to_string_lossy()
-            .to_string();
-
-        Ok(path)
-    }
-
-    pub fn get_clarity_db_path(&self) -> Result<String> {
-        let path = Path::new(&self.chainstate.path)
-            .join("vm/clarity/")
-            .to_string_lossy()
-            .to_string();
-
-        Ok(path)
-    }
-
-    pub fn get_blocks_dir(&self) -> Result<String> {
-        let path = Path::new(&self.chainstate.path)
-            .join("blocks/")
-            .to_string_lossy()
-            .to_string();
-
-        Ok(path)
     }
 }
