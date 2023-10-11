@@ -1453,6 +1453,46 @@ test_contract_call_response!(
     }
 );
 
+test_contract_call_response!(
+    test_sha256_int,
+    "sha256",
+    "sha256-integer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex(
+                        "bf9d9b2cf6fa58e2d98fe7357d73ddf052aba366ea543741510591fbf64cd60d"
+                    )
+                    .unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_sha256_uint,
+    "sha256",
+    "sha256-unsigned",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex(
+                        "3c9f0d5d10486e680b92df0124aaa55ec061c7684e5e67241b44ed42a323aa5b"
+                    )
+                    .unwrap(),
+                },
+            )),
+        );
+    }
+);
+
 // These tests are disabled because they require a block to be present in the
 // chain, which is not the case when running the tests. Once the test framework
 // supports this, these tests can be re-enabled.
