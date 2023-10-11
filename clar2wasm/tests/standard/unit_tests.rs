@@ -2140,3 +2140,108 @@ fn pow_int() {
     )
     .expect_err("expected overflow");
 }
+
+#[test]
+fn sha256_prerequisite() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    // check initial hash values in memory at offset 0 with length 32
+    let mut buffer = vec![0u8; 32];
+    memory
+        .read(&mut store, 0, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    let buffer: Vec<_> = buffer
+        .chunks_exact(4)
+        .map(|i| u32::from_le_bytes(i.try_into().unwrap()))
+        .collect();
+    assert_eq!(
+        buffer,
+        [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19
+        ]
+    );
+
+    // check K values in memory at offset 32 with length 256
+    let mut buffer = vec![0u8; 256];
+    memory
+        .read(&mut store, 32, &mut buffer)
+        .expect("could not read K values from memory");
+    let buffer: Vec<_> = buffer
+        .chunks_exact(4)
+        .map(|i| i32::from_le_bytes(i.try_into().unwrap()))
+        .collect();
+    assert_eq!(
+        buffer,
+        [
+            1116352408,
+            1899447441,
+            -1245643825,
+            -373957723,
+            961987163,
+            1508970993,
+            -1841331548,
+            -1424204075,
+            -670586216,
+            310598401,
+            607225278,
+            1426881987,
+            1925078388,
+            -2132889090,
+            -1680079193,
+            -1046744716,
+            -459576895,
+            -272742522,
+            264347078,
+            604807628,
+            770255983,
+            1249150122,
+            1555081692,
+            1996064986,
+            -1740746414,
+            -1473132947,
+            -1341970488,
+            -1084653625,
+            -958395405,
+            -710438585,
+            113926993,
+            338241895,
+            666307205,
+            773529912,
+            1294757372,
+            1396182291,
+            1695183700,
+            1986661051,
+            -2117940946,
+            -1838011259,
+            -1564481375,
+            -1474664885,
+            -1035236496,
+            -949202525,
+            -778901479,
+            -694614492,
+            -200395387,
+            275423344,
+            430227734,
+            506948616,
+            659060556,
+            883997877,
+            958139571,
+            1322822218,
+            1537002063,
+            1747873779,
+            1955562222,
+            2024104815,
+            -2067236844,
+            -1933114872,
+            -1866530822,
+            -1538233109,
+            -1090935817,
+            -965641998
+        ]
+    );
+}
