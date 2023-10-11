@@ -1,3 +1,5 @@
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use hex::FromHex;
 use wasmtime::Val;
 
 use crate::utils::load_stdlib;
@@ -2244,4 +2246,80 @@ fn sha256_prerequisite() {
             -965641998
         ]
     );
+}
+
+#[test]
+fn sha256_buf() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let sha256 = instance.get_func(&mut store, "sha256-buf").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // test with "Hello, World!", which requires only one pass
+    let text = b"Hello, World!";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha256-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 32);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f").unwrap();
+    assert_eq!(&buffer, &expected_result);
+
+    // test with Lorem Ipsum, which will require multiple passes
+    let text = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha256-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 32);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("973153f86ec2da1748e63f0cf85b89835b42f8ee8018c549868a1308a19f6ca3").unwrap();
+    assert_eq!(&buffer, &expected_result);
 }
