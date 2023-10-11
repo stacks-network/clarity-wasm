@@ -1,10 +1,11 @@
+pub mod commands;
+
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, ensure, Error, Ok, Result};
+use anyhow::{anyhow, ensure, Ok, Result};
 use clap::{Args, Parser, Subcommand};
-use log::info;
 
-use crate::errors::{self, AppError};
+use crate::errors::AppError;
 use crate::ok;
 
 #[derive(Debug, Parser)]

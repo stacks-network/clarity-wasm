@@ -417,8 +417,8 @@ impl<'a> TestEnvContext<'a> {
         Ok(())
     }
 
-    //pub fn get_contract_values(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier)
-
+    /// Loads the block with the specified block hash from chainstate (the `blocks`
+    /// directory for the node).
     pub fn get_stacks_block(&self, block_hash: &str) -> Result<StacksBlock> {
         let env = self.env.borrow();
 

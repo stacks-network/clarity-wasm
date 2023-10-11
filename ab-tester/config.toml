@@ -1,2 +1,10 @@
+# Configure chainstate for the baseline 
 [chainstate]
 path = "/home/cylwit/stacks/mainnet/"
+
+[baseline]
+chainstate_path = "/home/cylwit/stacks/mainnet/"
+
+[env.interpreter]
+
+[env.wasm]
