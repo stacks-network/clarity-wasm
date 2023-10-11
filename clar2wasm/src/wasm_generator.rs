@@ -22,6 +22,9 @@ use walrus::{
 
 use crate::words;
 
+/// First free position after data directly defined in standard.wat
+pub const END_OF_STANDARD_DATA: u32 = 288;
+
 /// `Trap` should match the values used in the standard library and is used to
 /// indicate the reason for a runtime error from the Clarity code.
 #[allow(dead_code)]
@@ -166,7 +169,7 @@ impl WasmGenerator {
         WasmGenerator {
             contract_analysis,
             module,
-            literal_memory_end: 288,
+            literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),
