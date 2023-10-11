@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
+use log::*;
 use serde_derive::Deserialize;
 use std::fs;
-use log::*;
 
 #[derive(Debug, Deserialize)]
 pub struct Chainstate {

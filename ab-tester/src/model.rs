@@ -1,8 +1,8 @@
 use diesel::prelude::*;
 
 use crate::schema::{
-    chainstate_marf::{block_headers}, 
-    clarity_marf::{data_table, metadata_table}
+    chainstate_marf::block_headers,
+    clarity_marf::{data_table, metadata_table},
 };
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -11,7 +11,7 @@ use crate::schema::{
 pub struct BlockHeader {
     block_height: i32,
     pub index_block_hash: String,
-    pub parent_block_id: String
+    pub parent_block_id: String,
 }
 
 impl BlockHeader {
@@ -31,7 +31,7 @@ impl BlockHeader {
 #[diesel(table_name = data_table)]
 pub struct DataEntry {
     pub key: String,
-    pub value: String
+    pub value: String,
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -40,5 +40,5 @@ pub struct DataEntry {
 pub struct MetaDataEntry {
     pub key: String,
     pub blockhash: String,
-    pub value: String
+    pub value: String,
 }

@@ -1,10 +1,10 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Ok, Result, Error, bail, ensure, anyhow};
-use clap::{Parser, Subcommand, Args};
+use anyhow::{anyhow, bail, ensure, Error, Ok, Result};
+use clap::{Args, Parser, Subcommand};
 use log::info;
 
-use crate::errors::{AppError, self};
+use crate::errors::{self, AppError};
 use crate::ok;
 
 #[derive(Debug, Parser)]
@@ -17,34 +17,34 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     Tui(TuiArgs),
-    Data(DataArgs)
+    Data(DataArgs),
 }
 
 #[derive(Debug, Args)]
 pub struct TuiArgs {
     #[arg(
-        long = "config", 
-        default_value = "./config.toml", 
+        long = "config",
+        default_value = "./config.toml",
         value_name = "CONFIG FILE",
         help = "Use the specified configuration file."
     )]
-    pub config: Option<PathBuf>
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 pub struct DataArgs {
     #[arg(
-        long = "config", 
-        default_value = "./config.toml", 
+        long = "config",
+        default_value = "./config.toml",
         value_name = "CONFIG FILE",
         help = "Use the specified configuration file."
     )]
     pub config: Option<PathBuf>,
 
     #[arg(
-        short = 'f', 
-        long = "from-height", 
-        default_value = "0", 
+        short = 'f',
+        long = "from-height",
+        default_value = "0",
         help = "The block height at which to begin processing."
     )]
     pub from_height: u32,
@@ -58,7 +58,7 @@ pub struct DataArgs {
     pub to_height: Option<u32>,
 
     #[arg(
-        short = 'l', 
+        short = 'l',
         long = "max-blocks",
         help = "Stops processing after the specified number of blocks."
     )]
@@ -69,7 +69,7 @@ pub struct DataArgs {
         long = "contract-id",
         help = "Filter all processing to only the specified qualified contract id."
     )]
-    pub contract_id: Option<String>
+    pub contract_id: Option<String>,
 }
 
 impl DataArgs {
@@ -77,7 +77,10 @@ impl DataArgs {
         if let Some(max_blocks) = self.max_block_count {
             ensure!(
                 processed_block_count < max_blocks,
-                AppError::Graceful(anyhow!("number of blocks processed has reached the specified maximum")));
+                AppError::Graceful(anyhow!(
+                    "number of blocks processed has reached the specified maximum"
+                ))
+            );
         }
 
         ok!()
@@ -87,7 +90,9 @@ impl DataArgs {
         if let Some(to_height) = self.to_height {
             ensure!(
                 block_height < to_height,
-                AppError::Graceful(anyhow!("block height has reached the specified maximum block height (to-height)"))
+                AppError::Graceful(anyhow!(
+                    "block height has reached the specified maximum block height (to-height)"
+                ))
             )
         }
 
@@ -96,21 +101,21 @@ impl DataArgs {
 }
 
 /*// Check if we've reached the specified max blocks processed count.
-            if let Some(max_blocks) = data_args.max_block_count {
-                if block_count >= max_blocks {
-                    info!("reached max block count ({}), exiting.", max_blocks);
-                    exit(0);
-                }
-            }
+if let Some(max_blocks) = data_args.max_block_count {
+    if block_count >= max_blocks {
+        info!("reached max block count ({}), exiting.", max_blocks);
+        exit(0);
+    }
+}
 
-            if let Some(to_height) = data_args.to_height {
-                if block_header.block_height > to_height - 1 {
-                    info!("reached block height limit ({}), exiting.", block_header.block_height);
-                    exit(0);
-                }
-            }
-            
+if let Some(to_height) = data_args.to_height {
+    if block_header.block_height > to_height - 1 {
+        info!("reached block height limit ({}), exiting.", block_header.block_height);
+        exit(0);
+    }
+}
 
-            if block_header.block_height < data_args.from_height {
-                continue;
-            } */
+
+if block_header.block_height < data_args.from_height {
+    continue;
+} */

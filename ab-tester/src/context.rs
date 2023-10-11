@@ -1,11 +1,21 @@
-use std::{collections::HashMap, rc::Rc, cell::RefCell};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
         burn::db::sortdb::SortitionDB,
-        stacks::{db::StacksChainState, index::{ marf::{MARFOpenOpts, MarfConnection}, node::{is_backptr, TriePath, TrieNodeType, TrieNodeID}, storage::TrieStorageConnection, trie::Trie, TrieLeaf, MarfTrieId}, StacksBlock},
+        stacks::{
+            db::StacksChainState,
+            index::{
+                marf::{MARFOpenOpts, MarfConnection},
+                node::{is_backptr, TrieNodeID, TrieNodeType, TriePath},
+                storage::TrieStorageConnection,
+                trie::Trie,
+                MarfTrieId, TrieLeaf,
+            },
+            StacksBlock,
+        },
     },
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
@@ -13,22 +23,26 @@ use blockstack_lib::{
     },
 };
 use clarity::vm::{
-    types::QualifiedContractIdentifier, 
-    database::{NULL_HEADER_DB, NULL_BURN_STATE_DB}, 
-    clarity::ClarityConnection, Value
+    clarity::ClarityConnection,
+    database::{NULL_BURN_STATE_DB, NULL_HEADER_DB},
+    types::QualifiedContractIdentifier,
+    Value,
 };
 use diesel::{
-    Connection, SqliteConnection, RunQueryDsl, sql_query, 
-    ExpressionMethods, QueryDsl, OptionalExtension
-};
-use rand::Rng;
-use stacks_common::types::{
-    chainstate::{BurnchainHeaderHash, StacksBlockId}, 
-    StacksEpochId
+    sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    SqliteConnection,
 };
 use log::*;
+use rand::Rng;
+use stacks_common::types::{
+    chainstate::{BurnchainHeaderHash, StacksBlockId},
+    StacksEpochId,
+};
 
-use crate::{model::{BlockHeader, DataEntry}, schema::clarity_marf::data_table};
+use crate::{
+    model::{BlockHeader, DataEntry},
+    schema::clarity_marf::data_table,
+};
 
 #[derive(Debug)]
 pub struct TestContext {
@@ -48,7 +62,10 @@ impl TestContext {
         })
     }
 
-    pub fn with_baseline_env(&mut self, f: impl FnOnce(&TestContext, &TestEnvContext) -> Result<()>) -> Result<()> {
+    pub fn with_baseline_env(
+        &mut self,
+        f: impl FnOnce(&TestContext, &TestEnvContext) -> Result<()>,
+    ) -> Result<()> {
         let env_ctx = TestEnvContext::new(self, Rc::clone(&self.baseline_env));
         f(self, &env_ctx)?;
         Ok(())
@@ -61,7 +78,11 @@ impl TestContext {
         Ok(())
     }
 
-    pub fn with_env(&mut self, name: &str, f: impl FnOnce(&TestContext, Option<&mut TestEnvContext>) -> Result<()>) -> Result<()> {
+    pub fn with_env(
+        &mut self,
+        name: &str,
+        f: impl FnOnce(&TestContext, Option<&mut TestEnvContext>) -> Result<()>,
+    ) -> Result<()> {
         if let Some(env) = self.test_envs.get(name) {
             let env_ctx = TestEnvContext::new(self, Rc::clone(env));
             todo!()
@@ -118,12 +139,7 @@ impl TestEnv {
         marf_opts.external_blobs = true;
 
         debug!("opening chainstate...");
-        let chainstate = StacksChainState::open(
-            true, 
-            1, 
-            &chainstate_path, 
-            Some(marf_opts)
-        )?;
+        let chainstate = StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts))?;
         info!("successfully opened chainstate");
 
         debug!("opening sortition db...");
@@ -144,7 +160,7 @@ impl TestEnv {
             chainstate: chainstate.0,
             index_db,
             sortition_db,
-            clarity_db
+            clarity_db,
         })
     }
 }
@@ -152,18 +168,19 @@ impl TestEnv {
 #[derive(Debug)]
 pub struct TestEnvContext<'a> {
     test_context: &'a TestContext,
-    env: Rc<RefCell<TestEnv>>
+    env: Rc<RefCell<TestEnv>>,
 }
 
 impl<'a> TestEnvContext<'a> {
     pub fn new(test_context: &'a TestContext, env: Rc<RefCell<TestEnv>>) -> Self {
-        Self {
-            test_context,
-            env
-        }
+        Self { test_context, env }
     }
 
-    pub fn load_contract_analysis(&self, at_block: &StacksBlockId, contract_id: &QualifiedContractIdentifier) -> Result<()>{
+    pub fn load_contract_analysis(
+        &self,
+        at_block: &StacksBlockId,
+        contract_id: &QualifiedContractIdentifier,
+    ) -> Result<()> {
         use clarity::vm::database::{ClarityDatabase, StoreType};
 
         let mut variable_paths: Vec<String> = Default::default();
@@ -172,7 +189,8 @@ impl<'a> TestEnvContext<'a> {
         let mut conn = env.chainstate.clarity_state.read_only_connection(
             at_block,
             &NULL_HEADER_DB,
-            &NULL_BURN_STATE_DB);
+            &NULL_BURN_STATE_DB,
+        );
 
         conn.with_clarity_db_readonly(|clarity_db| {
             let contract_analysis = clarity_db.load_contract_analysis(contract_id);
@@ -186,28 +204,24 @@ impl<'a> TestEnvContext<'a> {
             // Handle persisted variables.
             for (name, _) in contract_analysis.persisted_variable_types.iter() {
                 // Get the metadata for the variable.
-                let meta = clarity_db.load_variable(
-                    contract_id, 
-                    name)?;
+                let meta = clarity_db.load_variable(contract_id, name)?;
 
-                // Construct the identifier (key) for this variable in the 
+                // Construct the identifier (key) for this variable in the
                 // persistence layer.
-                let key = ClarityDatabase::make_key_for_trip(
-                    contract_id,
-                    StoreType::Variable,
-                    name,
-                );
-                
+                let key =
+                    ClarityDatabase::make_key_for_trip(contract_id, StoreType::Variable, name);
+
                 let path = TriePath::from_key(&key);
                 //debug!("[{}](key='{}'; path='{}')", name, key, path);
 
                 // Retrieve the current value.
                 let value = clarity_db.lookup_variable(
-                    contract_id, 
-                    name, 
-                    &meta, 
-                    &StacksEpochId::Epoch24)?;
-                
+                    contract_id,
+                    name,
+                    &meta,
+                    &StacksEpochId::Epoch24,
+                )?;
+
                 //trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
             }
 
@@ -250,7 +264,6 @@ impl<'a> TestEnvContext<'a> {
                 } else {
                     //warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
                 }
-                
             }
         }
 
@@ -265,11 +278,10 @@ impl<'a> TestEnvContext<'a> {
             let _root_hash = marf.get_root_hash_at(block_id)?;
 
             let _ = marf.with_conn(|storage| -> Result<()> {
-                
                 debug!("opening block {block_id}");
                 storage.open_block(block_id)?;
                 let (root_node_type, _) = Trie::read_root(storage)?;
-                
+
                 let mut level: u32 = 0;
                 Self::inner_walk_block(storage, &root_node_type, &mut level, &mut leaves)?;
 
@@ -281,10 +293,18 @@ impl<'a> TestEnvContext<'a> {
         Ok(leaves)
     }
 
-    fn inner_walk_block<T: MarfTrieId>(storage: &mut TrieStorageConnection<T>, node: &TrieNodeType, level: &mut u32, leaves: &mut Vec<TrieLeaf>) -> Result<()> {
+    fn inner_walk_block<T: MarfTrieId>(
+        storage: &mut TrieStorageConnection<T>,
+        node: &TrieNodeType,
+        level: &mut u32,
+        leaves: &mut Vec<TrieLeaf>,
+    ) -> Result<()> {
         *level += 1;
         let node_type_id = TrieNodeID::from_u8(node.id()).unwrap();
-        debug!("[level {level}] processing {node_type_id:?} with {} ptrs", &node.ptrs().len());
+        debug!(
+            "[level {level}] processing {node_type_id:?} with {} ptrs",
+            &node.ptrs().len()
+        );
 
         match &node {
             TrieNodeType::Leaf(leaf) => {
@@ -292,7 +312,7 @@ impl<'a> TestEnvContext<'a> {
                 *level -= 1;
                 trace!("[level {level}] returned to level");
                 return Ok(());
-            },
+            }
             _ => {
                 let mut ptr_number = 0;
                 for ptr in node.ptrs().iter() {
@@ -308,28 +328,35 @@ impl<'a> TestEnvContext<'a> {
                         let (current_block, current_id) = storage.get_cur_block_and_id();
 
                         // Get the block hash for the block the back-pointer is pointing to
-                        let back_block_hash = storage.get_block_from_local_id(ptr.back_block())?.clone();
+                        let back_block_hash =
+                            storage.get_block_from_local_id(ptr.back_block())?.clone();
 
                         trace!("[level {level}] following backptr: {ptr:?}, {back_block_hash}");
-                        
+
                         // Open the block to which the back-pointer is pointing.
                         storage.open_block_known_id(&back_block_hash, ptr.back_block())?;
 
                         // Read the back-pointer type.
-                        let backptr_node_type = storage.read_nodetype_nohash(&ptr.from_backptr())?;
+                        let backptr_node_type =
+                            storage.read_nodetype_nohash(&ptr.from_backptr())?;
 
                         // Walk the newly opened block using the back-pointer.
                         Self::inner_walk_block(storage, &backptr_node_type, level, leaves)?;
 
                         // Return to the previous block
-                        trace!("[level {level}] returning to context: {current_block} {current_id:?}");
+                        trace!(
+                            "[level {level}] returning to context: {current_block} {current_id:?}"
+                        );
                         storage.open_block_known_id(&current_block, current_id.unwrap())?;
                     } else {
                         trace!("[level {level}] following normal ptr: {ptr:?}");
                         // Snapshot the current block hash & id so that we can rollback
                         // to them after we're finished processing this back-pointer.
                         let (current_block, current_id) = storage.get_cur_block_and_id();
-                        trace!("[level {level}] current block: {} :: {current_block}", current_id.unwrap());
+                        trace!(
+                            "[level {level}] current block: {} :: {current_block}",
+                            current_id.unwrap()
+                        );
 
                         // Get the block hash for the block the back-pointer is pointing to
                         // This doesn't seem to work, pointers are up in e.g. 4808741 (highest block is only 122k or so)
@@ -338,7 +365,7 @@ impl<'a> TestEnvContext<'a> {
                         //storage.open_block(trie_hash);
 
                         //trace!("[level {level}] normal ptr block hash: {ptr_block_hash}");
-                        
+
                         // Open the block to which the back-pointer is pointing.
                         //storage.open_block_known_id(&ptr_block_hash, ptr.ptr())?;
                         //storage.open_block(&ptr_block_hash)?;
@@ -352,9 +379,7 @@ impl<'a> TestEnvContext<'a> {
                         }
 
                         trace!("[level {level}] ptr node type: {type_id:?}");
-                        let node_type = storage
-                            .read_nodetype_nohash(ptr).unwrap();
-                        
+                        let node_type = storage.read_nodetype_nohash(ptr).unwrap();
 
                         //error!("node type: {:?}", node_type);
 
@@ -372,7 +397,11 @@ impl<'a> TestEnvContext<'a> {
                             }
                         }*/
 
-                        trace!("[level {level}] {:?} => {ptr:?}, ptrs: {}", TrieNodeID::from_u8(ptr.id()), node_type.ptrs().len());
+                        trace!(
+                            "[level {level}] {:?} => {ptr:?}, ptrs: {}",
+                            TrieNodeID::from_u8(ptr.id()),
+                            node_type.ptrs().len()
+                        );
                         Self::inner_walk_block(storage, &node_type, level, leaves)?;
 
                         // Return to the previous block
@@ -382,7 +411,7 @@ impl<'a> TestEnvContext<'a> {
                 }
             }
         }
-        
+
         *level -= 1;
         trace!("[level {level}] returned to level");
         Ok(())
@@ -394,8 +423,7 @@ impl<'a> TestEnvContext<'a> {
         let env = self.env.borrow();
 
         let block_id = StacksBlockId::from_hex(block_hash)?;
-        let block_path =
-            StacksChainState::get_index_block_path(&env.blocks_dir, &block_id)?;
+        let block_path = StacksChainState::get_index_block_path(&env.blocks_dir, &block_id)?;
         let block = StacksChainState::consensus_load(&block_path)?;
 
         Ok(block)
@@ -407,7 +435,6 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
     type IntoIter = BlockIntoIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-
         let mut env = self.env.borrow_mut();
         let db = &mut env.index_db;
 
@@ -427,7 +454,7 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
         BlockIntoIterator {
             env_ctx: self,
             index: None,
-            blocks: blocks_result.into_iter().map(Some).collect()
+            blocks: blocks_result.into_iter().map(Some).collect(),
         }
     }
 }
@@ -436,7 +463,7 @@ impl<'a> IntoIterator for &'a TestEnvContext<'a> {
 pub struct BlockIntoIterator<'a> {
     env_ctx: &'a TestEnvContext<'a>,
     index: Option<usize>,
-    blocks: Vec<Option<BlockHeader>>
+    blocks: Vec<Option<BlockHeader>>,
 }
 
 impl<'a> Iterator for BlockIntoIterator<'a> {
@@ -453,7 +480,6 @@ impl<'a> Iterator for BlockIntoIterator<'a> {
 
             self.index = Some(next_index);
             self.blocks[next_index].take()
-            
         } else {
             self.index = Some(0);
             self.blocks[0].take()
@@ -463,14 +489,11 @@ impl<'a> Iterator for BlockIntoIterator<'a> {
 
 pub struct Block {
     header: BlockHeader,
-    block: StacksBlock
+    block: StacksBlock,
 }
 
 impl Block {
     pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
-        Self {
-            header,
-            block
-        }
+        Self { header, block }
     }
 }
