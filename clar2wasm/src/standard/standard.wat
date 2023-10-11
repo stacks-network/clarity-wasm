@@ -1235,11 +1235,17 @@
     )
 
     (func $sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
-        (i64.store (global.get $stack-pointer) (local.get $lo))
-        (i64.store offset=8 (global.get $stack-pointer) (local.get $hi))
-        (i32.store offset=16 (global.get $stack-pointer) (i32.const 0x80))
-        (memory.fill (i32.add (global.get $stack-pointer) (i32.const 20)) (i32.const 0) (i32.const 46))
-        (i32.store8 offset=63 (global.get $stack-pointer) (i32.const 0x80))
+        ;; Copy data to the working stack, so that it has this relative configuration:
+        ;;   0..32 -> Initial hash vals (will be the result hash in the end)
+        ;;   32..288 -> Space to store W
+        ;;   288..352 -> extended int
+        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
+
+        (i64.store offset=288 (global.get $stack-pointer) (local.get $lo))
+        (i64.store offset=296 (global.get $stack-pointer) (local.get $hi)) ;; offset = 288 + 8
+        (i32.store offset=304 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+16
+        (memory.fill (i32.add (global.get $stack-pointer) (i32.const 308)) (i32.const 0) (i32.const 46)) ;; offset = 288+20
+        (i32.store8 offset=351 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+63
 
         (call $block64 (i32.const 0))
         (call $working-vars)
