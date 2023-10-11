@@ -250,8 +250,6 @@ impl<'a> TestEnvContext<'a> {
         }
 
         for leaf in leaves {
-            //trace!("leaf: {:?}", leaf);
-
             let value = data_table::table
                 .filter(data_table::key.eq(leaf.data.to_string()))
                 .first::<DataEntry>(&mut env.clarity_db)
@@ -262,7 +260,7 @@ impl<'a> TestEnvContext<'a> {
                 if let Ok(clarity_value) = clarity_value {
                     trace!("deserialized value: {:?}", &clarity_value);
                 } else {
-                    //warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
+                    warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
                 }
             }
         }

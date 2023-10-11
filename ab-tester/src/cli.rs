@@ -8,6 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use crate::errors::AppError;
 use crate::ok;
 
+/// Our CLI entrypoint.
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
@@ -15,12 +16,15 @@ pub struct Cli {
     pub command: Commands,
 }
 
+/// Enum which defines our root subcommands.
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     Tui(TuiArgs),
     Data(DataArgs),
 }
 
+/// Arguments for the `tui` subcommand, used together with the [commands::tui]
+/// command implementation.
 #[derive(Debug, Args)]
 pub struct TuiArgs {
     #[arg(
@@ -32,6 +36,8 @@ pub struct TuiArgs {
     pub config: Option<PathBuf>,
 }
 
+/// Arguments for the `data` subcommand, used together with the [commands::data]
+/// command implementation.
 #[derive(Debug, Args)]
 pub struct DataArgs {
     #[arg(
@@ -73,6 +79,7 @@ pub struct DataArgs {
     pub contract_id: Option<String>,
 }
 
+/// Implements helper functions for [DataArgs].
 impl DataArgs {
     pub fn assert_max_processed_block_count(&self, processed_block_count: u32) -> Result<()> {
         if let Some(max_blocks) = self.max_block_count {
@@ -100,23 +107,3 @@ impl DataArgs {
         ok!()
     }
 }
-
-/*// Check if we've reached the specified max blocks processed count.
-if let Some(max_blocks) = data_args.max_block_count {
-    if block_count >= max_blocks {
-        info!("reached max block count ({}), exiting.", max_blocks);
-        exit(0);
-    }
-}
-
-if let Some(to_height) = data_args.to_height {
-    if block_header.block_height > to_height - 1 {
-        info!("reached block height limit ({}), exiting.", block_header.block_height);
-        exit(0);
-    }
-}
-
-
-if block_header.block_height < data_args.from_height {
-    continue;
-} */
