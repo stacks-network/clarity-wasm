@@ -2323,3 +2323,46 @@ fn sha256_buf() {
         Vec::from_hex("973153f86ec2da1748e63f0cf85b89835b42f8ee8018c549868a1308a19f6ca3").unwrap();
     assert_eq!(&buffer, &expected_result);
 }
+
+#[test]
+fn sha256_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let sha256 = instance.get_func(&mut store, "sha256-int").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // Test on 0xfeedc0dedeadbeefcafed00dcafebabe
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I64(0xcafed00dcafebabe_u64 as i64),
+                Val::I64(0xfeedc0dedeadbeef_u64 as i64),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha256-int failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 32);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("2099af4a709288ebee47cad01952a37d2d04b8003b3f4f2d520a94f3fdfe4210").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}
