@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS runtime (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
@@ -127,5 +125,3 @@ CREATE TABLE IF NOT EXISTS contract_map_entry (
     FOREIGN KEY (block_id)
     REFERENCES block (id)
 );
-
-COMMIT;

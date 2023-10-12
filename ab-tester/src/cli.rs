@@ -15,6 +15,13 @@ use crate::ok;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+    #[arg(
+        long = "config",
+        default_value = "./config.toml",
+        value_name = "CONFIG FILE",
+        help = "Use the specified configuration file."
+    )]
+    pub config: Option<PathBuf>,
 }
 
 /// Enum which defines our root subcommands.
@@ -28,27 +35,13 @@ pub enum Commands {
 /// command implementation.
 #[derive(Debug, Args)]
 pub struct TuiArgs {
-    #[arg(
-        long = "config",
-        default_value = "./config.toml",
-        value_name = "CONFIG FILE",
-        help = "Use the specified configuration file."
-    )]
-    pub config: Option<PathBuf>,
+    
 }
 
 /// Arguments for the `data` subcommand, used together with the [commands::data]
 /// command implementation.
 #[derive(Debug, Args)]
 pub struct DataArgs {
-    #[arg(
-        long = "config",
-        default_value = "./config.toml",
-        value_name = "CONFIG FILE",
-        help = "Use the specified configuration file."
-    )]
-    pub config: Option<PathBuf>,
-
     #[arg(
         short = 'f',
         long = "from-height",
