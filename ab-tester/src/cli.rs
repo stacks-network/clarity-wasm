@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, ensure, Ok, Result};
+use anyhow::{anyhow, ensure, Ok, Result, bail};
 use clap::{Args, Parser, Subcommand};
 
 use crate::errors::AppError;
@@ -22,6 +22,21 @@ pub struct Cli {
         help = "Use the specified configuration file."
     )]
     pub config: Option<PathBuf>,
+}
+
+impl Cli {
+    pub fn config_file_path(&self) -> Result<String> {
+        let mut config_file_path = String::from("config.toml");
+
+        if let Some(config_file) = &self.config {
+            if !config_file.exists() {
+                bail!("specified configuration file does not exist: '{}'", config_file.display());
+            }
+            config_file_path = config_file.display().to_string();
+        }
+
+        Ok(config_file_path)
+    }
 }
 
 /// Enum which defines our root subcommands.

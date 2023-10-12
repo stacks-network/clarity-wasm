@@ -56,6 +56,7 @@ pub struct StatefulList<T> {
     items: Vec<T>,
 }
 
+#[allow(dead_code)]
 impl<T> StatefulList<T> {
     pub fn new() -> Self {
         Self::with_items(vec![])

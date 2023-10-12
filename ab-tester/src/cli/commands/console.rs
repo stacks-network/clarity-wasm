@@ -13,7 +13,7 @@ use crate::cli::{
     TuiArgs,
 };
 
-pub fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
+pub fn exec(_config: &crate::config::Config, _args: TuiArgs) -> Result<()> {
     // Create an application.
     let mut app = App::new();
 

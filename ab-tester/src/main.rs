@@ -21,14 +21,16 @@ use crate::errors::AppError;
 pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    println!("cli: {:?}", cli);
-
     // Initialize logging.
     env_logger::init();
 
-    // Load application configuration file.
-    let config = load_configuration_file(&cli)?;
+    // Parse command line arguments.
+    let cli = Cli::parse();
+
+    // Load the application configuration file. If the `--config` CLI parameter
+    // has been provided, attempt to use the provided path, otherwise use the
+    // default `config.toml`.
+    let config = Config::load(&cli.config_file_path()?)?;
 
     // Apply any pending database migrations. If the application database doesn't
     // exist it will be created.
@@ -53,17 +55,8 @@ fn main() -> Result<()> {
     ok!()
 }
 
-fn load_configuration_file(cli: &Cli) -> Result<Config> {
-    let mut config_file_path = String::from("config.toml");
-    if let Some(config_file) = &cli.config {
-        if !config_file.exists() {
-            bail!("specified configuration file does not exist: '{}'", config_file.display());
-        }
-        config_file_path = config_file.display().to_string();
-    }
-    Config::load(&config_file_path)
-}
-
+/// Applies any pending application database migrations. Initializes the
+/// database if it does not already exist.
 fn apply_db_migrations(config: &Config) -> Result<()> {
     let mut app_db = SqliteConnection::establish(&config.app.db_path)?;
     let has_pending_migrations = MigrationHarness::has_pending_migration(&mut app_db, DB_MIGRATIONS)
