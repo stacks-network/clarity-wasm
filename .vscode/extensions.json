@@ -1,0 +1,16 @@
+{
+    "recommendations": [
+        "rust-lang.rust-analyzer",
+        "hirosystems.clarity-lsp",
+        "vadimcn.vscode-lldb",
+        "serayuzgur.crates",
+        "EditorConfig.EditorConfig",
+        "tamasfe.even-better-toml",
+        "yzhang.markdown-all-in-one",
+        "skellock.just",
+        //"ConradLudgate.rust-playground",
+        "Gruntfuggly.todo-tree",
+        "dtsvet.vscode-wasm",
+        "qwtel.sqlite-viewer"
+    ]
+}

@@ -1,6 +1,9 @@
 {
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.check.features": "all",
+  "rust-analyzer.runnables.extraEnv": {
+    "ENV_ROOT_DIR": "${workspaceFolder}"
+  },
   "editor.rulers": [
     { // Ruler at 80 chars (soft limit)
         "column": 80,

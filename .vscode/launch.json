@@ -189,8 +189,9 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+            "args": ["data", "--to-height", "100"],
+            "cwd": "${workspaceFolder}",
+            "envFile": "./ab-tester/.env"
         },
         {
             "type": "lldb",
