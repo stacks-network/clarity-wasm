@@ -5,7 +5,7 @@ use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
 
 pub fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
-    let mut test_context = TestContext::new(&config.chainstate.path)?;
+    let mut test_context = TestContext::new(&config)?;
 
     test_context.with_baseline_env(|_ctx, env| {
         let mut contract_calls: Vec<TransactionContractCall> = Default::default();
@@ -39,8 +39,8 @@ pub fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
                 continue;
             }
 
-            let block_id = StacksBlockId::from_hex(&block_header.index_block_hash())?;
-            let block = env.get_stacks_block(&block_header.index_block_hash())?;
+            let block_id = StacksBlockId::from_hex(block_header.index_block_hash())?;
+            let block = env.get_stacks_block(block_header.index_block_hash())?;
 
             // Load the block
             env.load_block(&block_id)?;

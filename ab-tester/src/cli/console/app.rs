@@ -1,6 +1,6 @@
 use ratatui::widgets::*;
 
-use crate::model::BlockHeader;
+use crate::model::chainstate_db::BlockHeader;
 
 /// Application.
 #[derive(Debug)]

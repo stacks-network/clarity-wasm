@@ -1,5 +1,4 @@
 use anyhow::{bail, Result};
-use log::*;
 use serde_derive::Deserialize;
 use std::fs;
 
@@ -9,22 +8,26 @@ pub struct Chainstate {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct App {
+    pub db_path: String
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
     pub chainstate: Chainstate,
+    pub app: App
 }
 
 impl Config {
-    pub fn load() -> Result<Config> {
-        let config_filename = &std::env::var("CONFIG_FILE")?;
-
-        let contents = match fs::read_to_string(config_filename) {
+    pub fn load(path: &str) -> Result<Config> {
+        let contents = match fs::read_to_string(path) {
             Ok(c) => c,
-            Err(err) => bail!("Could not read file `{}`: {}", config_filename, err),
+            Err(err) => bail!("Could not read file `{}`: {}", path, err),
         };
 
         match toml::from_str(&contents) {
             Ok(config) => Ok(config),
-            Err(err) => bail!("Unable to load data from `{}`: {}", config_filename, err),
+            Err(err) => bail!("Unable to load data from `{}`: {}", path, err),
         }
     }
 }

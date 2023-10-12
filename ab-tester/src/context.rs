@@ -30,8 +30,8 @@ use blockstack_lib::{
 use clarity::vm::{
     clarity::ClarityConnection,
     database::{NULL_BURN_STATE_DB, NULL_HEADER_DB},
-    types::QualifiedContractIdentifier,
-    Value,
+    types::{QualifiedContractIdentifier, TypeSignature},
+    Value, analysis::ContractAnalysis, ClarityName,
 };
 use diesel::{
     sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
@@ -45,25 +45,42 @@ use stacks_common::types::{
 };
 
 use crate::{
-    model::{BlockHeader, DataEntry},
-    schema::clarity_marf::data_table,
+    model::{
+        chainstate_db::BlockHeader, 
+        clarity_db::DataEntry
+    },
+    schema::clarity_marf::data_table, config::Config,
 };
 
-#[derive(Debug)]
 pub struct TestContext {
     id: u64,
     baseline_env: Rc<RefCell<TestEnv>>,
     test_envs: HashMap<String, Rc<RefCell<TestEnv>>>,
+    appdb: SqliteConnection
+}
+
+impl std::fmt::Debug for TestContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TestContext")
+            .field("id", &self.id)
+            .field("baseline_env", &self.baseline_env)
+            .field("test_envs", &self.test_envs)
+            .field("appdb", &"...")
+            .finish()
+    }
 }
 
 impl TestContext {
-    pub fn new(chainstate_path: &str) -> Result<Self> {
-        let baseline_env = TestEnv::new(chainstate_path)?;
+    pub fn new(config: &Config) -> Result<Self> {
+        let baseline_env = TestEnv::new(&config.chainstate.path)?;
+
+        let appdb = SqliteConnection::establish(&config.app.db_path)?;
 
         Ok(Self {
             id: rand::thread_rng().gen_range(1000000000..9999999999),
             baseline_env: Rc::new(RefCell::new(baseline_env)),
             test_envs: Default::default(),
+            appdb
         })
     }
 
@@ -170,6 +187,25 @@ impl TestEnv {
     }
 }
 
+/// Represents a Clarity smart contract.
+#[derive(Debug)]
+pub struct Contract {
+    analysis: ContractAnalysis,
+}
+
+impl Contract {
+    pub fn new(analysis: ContractAnalysis) -> Self {
+        Self {
+            analysis
+        }
+    }
+
+    pub fn contract_analysis(&self) -> &ContractAnalysis {
+        &self.analysis
+    }
+}
+
+
 #[derive(Debug)]
 pub struct TestEnvContext<'a> {
     test_context: &'a TestContext,
@@ -206,7 +242,7 @@ impl<'a> TestEnvContext<'a> {
         Ok(cursor)
     }
 
-    pub fn load_contract_analysis(
+    pub fn load_contract(
         &self,
         at_block: &StacksBlockId,
         contract_id: &QualifiedContractIdentifier,
@@ -226,7 +262,7 @@ impl<'a> TestEnvContext<'a> {
             let contract_analysis = clarity_db.load_contract_analysis(contract_id);
 
             if contract_analysis.is_none() {
-                bail!("Failed to load contract");
+                bail!("Failed to load contract '{contract_id}'");
             }
 
             let contract_analysis = contract_analysis.unwrap();
@@ -242,6 +278,7 @@ impl<'a> TestEnvContext<'a> {
                     ClarityDatabase::make_key_for_trip(contract_id, StoreType::Variable, name);
 
                 let path = TriePath::from_key(&key);
+                variable_paths.push(path.to_hex());
                 //debug!("[{}](key='{}'; path='{}')", name, key, path);
 
                 // Retrieve the current value.
@@ -252,7 +289,7 @@ impl<'a> TestEnvContext<'a> {
                     &StacksEpochId::Epoch24,
                 )?;
 
-                //trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
+                trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
             }
 
             // Handle maps
@@ -267,11 +304,12 @@ impl<'a> TestEnvContext<'a> {
         Ok(())
     }
 
+    /// Loads the specified block from the MARF.
     pub fn load_block(&self, block_id: &StacksBlockId) -> Result<()> {
         let mut env = self.env.borrow_mut();
 
         info!("beginning to walk the block: {}", block_id);
-        let leaves = Self::walk_block(&mut env, block_id)?;
+        let leaves = Self::walk_block(&mut env, block_id, false)?;
 
         if !leaves.is_empty() {
             info!("finished walking, leaf count: {}", leaves.len());
@@ -298,7 +336,13 @@ impl<'a> TestEnvContext<'a> {
         Ok(())
     }
 
-    fn walk_block(env: &mut TestEnv, block_id: &StacksBlockId) -> Result<Vec<TrieLeaf>> {
+    /// Helper function for [`Self::load_block()`] which is used to walk the MARF,
+    /// looking for leaf nodes.
+    /// 
+    /// If `follow_backptrs` is true, the entire MARF from genesis _up to and 
+    /// including the specified `block_id`_ will be read. At higher blocks heights this
+    /// is very slow.
+    fn walk_block(env: &mut TestEnv, block_id: &StacksBlockId, follow_backptrs: bool) -> Result<Vec<TrieLeaf>> {
         let mut leaves: Vec<TrieLeaf> = Default::default();
 
         env.chainstate.with_clarity_marf(|marf| -> Result<()> {
@@ -311,7 +355,7 @@ impl<'a> TestEnvContext<'a> {
                 let (root_node_type, _) = Trie::read_root(storage)?;
 
                 let mut level: u32 = 0;
-                Self::inner_walk_block(storage, &root_node_type, &mut level, &mut leaves)?;
+                Self::inner_walk_block(storage, &root_node_type, &mut level, follow_backptrs, &mut leaves)?;
 
                 Ok(())
             });
@@ -321,10 +365,13 @@ impl<'a> TestEnvContext<'a> {
         Ok(leaves)
     }
 
+    /// Helper function for [`Self::walk_block()`] which is used for recursion
+    /// through the [MARF](blockstack_lib::chainstate::stacks::index::MARF).
     fn inner_walk_block<T: MarfTrieId>(
         storage: &mut TrieStorageConnection<T>,
         node: &TrieNodeType,
         level: &mut u32,
+        follow_backptrs: bool,
         leaves: &mut Vec<TrieLeaf>,
     ) -> Result<()> {
         *level += 1;
@@ -348,7 +395,9 @@ impl<'a> TestEnvContext<'a> {
                     trace!("[level {level}] [ptr no. {ptr_number}] ptr: {ptr:?}");
 
                     if is_backptr(ptr.id) {
-                        continue;
+                        if !follow_backptrs {
+                            continue;
+                        }
                         // Handle back-pointers
 
                         // Snapshot the current block hash & id so that we can rollback
@@ -369,7 +418,7 @@ impl<'a> TestEnvContext<'a> {
                             storage.read_nodetype_nohash(&ptr.from_backptr())?;
 
                         // Walk the newly opened block using the back-pointer.
-                        Self::inner_walk_block(storage, &backptr_node_type, level, leaves)?;
+                        Self::inner_walk_block(storage, &backptr_node_type, level, follow_backptrs, leaves)?;
 
                         // Return to the previous block
                         trace!(
@@ -402,7 +451,7 @@ impl<'a> TestEnvContext<'a> {
                             TrieNodeID::from_u8(ptr.id()),
                             node_type.ptrs().len()
                         );
-                        Self::inner_walk_block(storage, &node_type, level, leaves)?;
+                        Self::inner_walk_block(storage, &node_type, level, follow_backptrs, leaves)?;
                     }
                 }
             }

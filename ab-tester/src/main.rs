@@ -23,7 +23,8 @@ fn main() -> Result<()> {
     env_logger::init();
 
     // Load application configuration file.
-    let config = crate::config::Config::load()?;
+    let config_file = &std::env::var("CONFIG_FILE")?;
+    let config = crate::config::Config::load(config_file)?;
 
     // Execute the given command with args.
     let _ = match cli.command {

@@ -1,4 +1,7 @@
-# Configure chainstate for the baseline 
+[app]
+db_path = "./appdb.sqlite"
+
+# Configure chainstate for the baseline
 [chainstate]
 path = "/home/cylwit/stacks/mainnet/"
 
