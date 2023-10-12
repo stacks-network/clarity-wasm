@@ -24,8 +24,8 @@ fn main() -> Result<()> {
     // Initialize logging.
     env_logger::init();
 
-    // Parse command line arguments.
-    let cli = Cli::parse();
+    // Parse & validate command line arguments.
+    let cli = Cli::parse().validate()?;
 
     // Load the application configuration file. If the `--config` CLI parameter
     // has been provided, attempt to use the provided path, otherwise use the
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
             exit(0)
         }
         _ => {
-            error!("encountered a fatal error: {err:?}");
+            error!("the application encountered a fatal error: {err:?}");
             exit(2)
         }
     });

@@ -25,6 +25,8 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Retrieves the configuration file path, using `config.toml` as default
+    /// if no path has been specified.
     pub fn config_file_path(&self) -> Result<String> {
         let mut config_file_path = String::from("config.toml");
 
@@ -36,6 +38,16 @@ impl Cli {
         }
 
         Ok(config_file_path)
+    }
+
+    /// Performs validation of the parsed command line arguments.
+    pub fn validate(self) -> Result<Self> {
+        match &self.command {
+            Commands::Data(args) => DataArgs::validate(args)?,
+            Commands::Tui(args) => TuiArgs::validate(args)?
+        }
+
+        Ok(self)
     }
 }
 
@@ -51,6 +63,12 @@ pub enum Commands {
 #[derive(Debug, Args)]
 pub struct TuiArgs {
     
+}
+
+impl TuiArgs {
+    pub fn validate(args: &Self) -> Result<()> {
+        ok!()
+    }
 }
 
 /// Arguments for the `data` subcommand, used together with the [commands::data]
@@ -113,6 +131,10 @@ impl DataArgs {
             )
         }
 
+        ok!()
+    }
+
+    pub fn validate(args: &Self) -> Result<()> {
         ok!()
     }
 }
