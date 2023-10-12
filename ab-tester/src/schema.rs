@@ -1,3 +1,4 @@
+/// Tables from the chainstate Sqlite database.
 pub mod chainstate_marf {
     use diesel::prelude::*;
 
@@ -10,6 +11,7 @@ pub mod chainstate_marf {
     }
 }
 
+/// Tables from the Clarity Sqlite database.
 pub mod clarity_marf {
     use diesel::prelude::*;
 
@@ -29,6 +31,7 @@ pub mod clarity_marf {
     }
 }
 
+/// Tables for this application.
 pub mod appdb {
     use diesel::prelude::*;
 
@@ -40,7 +43,7 @@ pub mod appdb {
         }
     }
 
-    // Defines the available runtime environments. Environment `1` is always 
+    // Defines the available runtime environments. Environment `1` is always
     // baseline. The remaining environments are defined by the user.
     table! {
         environment (id) {
@@ -84,6 +87,27 @@ pub mod appdb {
         }
     }
 
+    // Contains information about persisted variables for each contract in the
+    // baseline environment.
+    table! {
+        contract_var (id) {
+            id -> Integer,
+            key -> Text,
+            contract_id -> Integer
+        }
+    }
+
+    // Contains information about maps for each contract in the baseline environment.
+    table! {
+        contract_map (id) {
+            id -> Integer,
+            name -> Text,
+            contract_id -> Integer
+        }
+    }
+
+    // Contains a log of all contract executions, both from baseline and for
+    // any additional executions in other environments.
     table! {
         contract_execution (id) {
             id -> Integer,
@@ -93,21 +117,7 @@ pub mod appdb {
         }
     }
 
-    table! {
-        contract_var_type (id) {
-            id -> Integer,
-            name -> Text
-        }
-    }
-
-    table! {
-        contract_var (id) {
-            id -> Integer,
-            key -> Text,
-            contract_id -> Integer
-        }
-    }
-
+    // Contains a changelog of contract variables across executions.
     table! {
         contract_var_instance (id) {
             id -> Integer,
@@ -118,14 +128,7 @@ pub mod appdb {
         }
     }
 
-    table! {
-        contract_map (id) {
-            id -> Integer,
-            name -> Text,
-            contract_id -> Integer
-        }
-    }
-
+    // Don't think we can actually implement this...
     table! {
         contract_map_entry (id) {
             id -> Integer,

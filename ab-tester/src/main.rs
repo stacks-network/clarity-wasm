@@ -7,17 +7,19 @@ mod schema;
 #[macro_use]
 mod macros;
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use clap::Parser;
 use cli::*;
 use config::Config;
-use diesel::{SqliteConnection, Connection};
+use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
 use std::process::exit;
 
 use crate::errors::AppError;
 
+// Embed our database migrations at compile-time so that they can easily be
+// run at applicaton execution without needing external SQL files.
 pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 fn main() -> Result<()> {
@@ -59,9 +61,10 @@ fn main() -> Result<()> {
 /// database if it does not already exist.
 fn apply_db_migrations(config: &Config) -> Result<()> {
     let mut app_db = SqliteConnection::establish(&config.app.db_path)?;
-    let has_pending_migrations = MigrationHarness::has_pending_migration(&mut app_db, DB_MIGRATIONS)
-        .or_else(|e| bail!("failed to determine database migration state: {:?}", e))?;
-    
+    let has_pending_migrations =
+        MigrationHarness::has_pending_migration(&mut app_db, DB_MIGRATIONS)
+            .or_else(|e| bail!("failed to determine database migration state: {:?}", e))?;
+
     if has_pending_migrations {
         info!("there are pending database migrations - updating the database");
 

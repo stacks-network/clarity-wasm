@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, ensure, Ok, Result, bail};
+use anyhow::{anyhow, bail, ensure, Ok, Result};
 use clap::{Args, Parser, Subcommand};
 
 use crate::errors::AppError;
@@ -32,7 +32,10 @@ impl Cli {
 
         if let Some(config_file) = &self.config {
             if !config_file.exists() {
-                bail!("specified configuration file does not exist: '{}'", config_file.display());
+                bail!(
+                    "specified configuration file does not exist: '{}'",
+                    config_file.display()
+                );
             }
             config_file_path = config_file.display().to_string();
         }
@@ -44,7 +47,7 @@ impl Cli {
     pub fn validate(self) -> Result<Self> {
         match &self.command {
             Commands::Data(args) => DataArgs::validate(args)?,
-            Commands::Tui(args) => TuiArgs::validate(args)?
+            Commands::Tui(args) => TuiArgs::validate(args)?,
         }
 
         Ok(self)
@@ -61,9 +64,7 @@ pub enum Commands {
 /// Arguments for the `tui` subcommand, used together with the [commands::tui]
 /// command implementation.
 #[derive(Debug, Args)]
-pub struct TuiArgs {
-    
-}
+pub struct TuiArgs {}
 
 impl TuiArgs {
     pub fn validate(args: &Self) -> Result<()> {

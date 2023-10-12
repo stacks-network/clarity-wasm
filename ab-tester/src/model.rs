@@ -1,6 +1,6 @@
 pub mod chainstate_db {
-    use diesel::prelude::*;
     use crate::schema::chainstate_marf::*;
+    use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
     #[diesel(primary_key(block_height))]
@@ -25,8 +25,8 @@ pub mod chainstate_db {
 }
 
 pub mod clarity_db {
-    use diesel::prelude::*;
     use crate::schema::clarity_marf::*;
+    use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
     #[diesel(primary_key(key))]
@@ -47,14 +47,14 @@ pub mod clarity_db {
 }
 
 pub mod app_db {
-    use diesel::prelude::*;
     use crate::schema::appdb::*;
+    use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
     #[diesel(table_name = runtime)]
     pub struct Runtime {
         pub id: i32,
-        name: String
+        name: String,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -62,7 +62,7 @@ pub mod app_db {
     pub struct Environment {
         id: i32,
         name: String,
-        runtime_id: i32
+        runtime_id: i32,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -73,7 +73,7 @@ pub mod app_db {
         stacks_block_id: i32,
         height: i32,
         index_hash: Vec<u8>,
-        marf_trie_root_hash: Vec<u8>
+        marf_trie_root_hash: Vec<u8>,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -82,7 +82,7 @@ pub mod app_db {
         id: i32,
         block_id: i32,
         key_hash: Vec<u8>,
-        value: Vec<u8>
+        value: Vec<u8>,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -91,7 +91,7 @@ pub mod app_db {
         id: i32,
         block_id: i32,
         qualified_contract_id: String,
-        source: Vec<u8>
+        source: Vec<u8>,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -100,7 +100,7 @@ pub mod app_db {
         id: i32,
         block_id: i32,
         contract_id: i32,
-        transaction_id: Vec<u8>
+        transaction_id: Vec<u8>,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -108,7 +108,7 @@ pub mod app_db {
     pub struct ContractVar {
         id: i32,
         contract_id: i32,
-        key: String
+        key: String,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -118,7 +118,7 @@ pub mod app_db {
         contract_var_id: i32,
         block_id: i32,
         contract_execution_id: i32,
-        value: Vec<u8>
+        value: Vec<u8>,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -126,6 +126,6 @@ pub mod app_db {
     pub struct ContractMap {
         id: i32,
         contract_id: i32,
-        name: String
+        name: String,
     }
 }

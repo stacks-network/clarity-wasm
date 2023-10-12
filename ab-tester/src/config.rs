@@ -3,19 +3,10 @@ use serde_derive::Deserialize;
 use std::fs;
 
 #[derive(Debug, Deserialize)]
-pub struct Chainstate {
-    pub path: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct App {
-    pub db_path: String
-}
-
-#[derive(Debug, Deserialize)]
 pub struct Config {
-    pub chainstate: Chainstate,
-    pub app: App
+    pub baseline: Baseline,
+    pub app: App,
+    pub environment: Vec<Environment>,
 }
 
 impl Config {
@@ -30,4 +21,27 @@ impl Config {
             Err(err) => bail!("Unable to load data from `{}`: {}", path, err),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Baseline {
+    pub chainstate_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct App {
+    pub db_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Environment {
+    pub name: String,
+    pub runtime: ClarityRuntime,
+    pub chainstate_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub enum ClarityRuntime {
+    Interpreter,
+    Wasm,
 }

@@ -1,21 +1,19 @@
 [app]
 db_path = "./appdb.sqlite"
 
-# Configure chainstate for the baseline
-[chainstate]
-path = "/home/cylwit/stacks/mainnet/"
-
-[env.baseline]
-# REQUIRED: Set this to the path of your node root.
+[baseline]
+# ;; Configure chainstate for the baseline
 chainstate_path = "/home/cylwit/stacks/mainnet/"
 
-
-[env.interpreter]
-# ;; Uncomment to provide a custom chainstate path for the 'wasm' environment.
+[[environment]]
+name = "interpreter"
+# ;; Uncomment to provide a custom chainstate path for this environment.
 # ;; If not provided, a randomly generated temporary directory will be used.
-#chainstate_path = ""
+# chainstate_path = ""
 
-[env.wasm]
-# ;; Uncomment to provide a custom chainstate path for the 'wasm' environment.
-# ;; If not provided, a randomly generated temporary directory will be used.
-#chainstate_path = ""
+# ;; Specify the Clarity runtime to be used in this environment.
+runtime = "Interpreter"
+
+[[environment]]
+name = "wasm"
+runtime = "Wasm"
