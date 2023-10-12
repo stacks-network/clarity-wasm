@@ -17,7 +17,7 @@ pub fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
                 data_args.from_height
             );
             let mut processed_block_count = 0;
-            for block_header in env.into_iter() {
+            for block_header in env.blocks(data_args.from_height)? {
                 // Ensure that we've reached the specified block-height before beginning
                 // processing.
                 if block_header.block_height() < data_args.from_height {
@@ -36,14 +36,14 @@ pub fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
                 if block_header.is_genesis() {
                     debug!(
                         "genesis block - skipping '{}'",
-                        block_header.index_block_hash
+                        block_header.index_block_hash()
                     );
                     continue;
                 }
 
                 let block_id = 
-                    StacksBlockId::from_hex(&block_header.index_block_hash)?;
-                let block = env.get_stacks_block(&block_header.index_block_hash)?;
+                    StacksBlockId::from_hex(&block_header.index_block_hash())?;
+                let block = env.get_stacks_block(&block_header.index_block_hash())?;
 
                 // Load the block
                 env.load_block(&block_id)?;

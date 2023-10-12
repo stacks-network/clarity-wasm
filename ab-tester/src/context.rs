@@ -1,6 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, io::{Cursor, Read}};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Result, Context};
 use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
@@ -168,12 +168,38 @@ impl TestEnv {
 #[derive(Debug)]
 pub struct TestEnvContext<'a> {
     test_context: &'a TestContext,
-    env: Rc<RefCell<TestEnv>>,
+    env: Rc<RefCell<TestEnv>>
 }
 
 impl<'a> TestEnvContext<'a> {
     pub fn new(test_context: &'a TestContext, env: Rc<RefCell<TestEnv>>) -> Self {
-        Self { test_context, env }
+        Self { 
+            test_context, 
+            env
+        }
+    }
+
+    pub fn blocks(&self, start_at: u32) -> Result<BlockCursor> {
+        let mut env = self.env.borrow_mut();
+
+        let blocks_query = format!("
+            SELECT DISTINCT
+                parent.block_height, 
+                parent.index_block_hash, 
+                parent.parent_block_id 
+            FROM block_headers parent 
+            INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash
+            WHERE parent.block_height >= {start_at}
+            ORDER BY parent.block_height ASC;");
+
+        let headers = sql_query(blocks_query)
+            .get_results::<BlockHeader>(&mut env.index_db)
+            .context("Failed to retrieve block inventory.")?;
+
+        debug!("retrieved {} block headers", headers.len());
+
+        let cursor = BlockCursor::new(&env.blocks_dir, headers);
+        Ok(cursor)
     }
 
     pub fn load_contract_analysis(
@@ -356,18 +382,6 @@ impl<'a> TestEnvContext<'a> {
                             current_id.unwrap()
                         );
 
-                        // Get the block hash for the block the back-pointer is pointing to
-                        // This doesn't seem to work, pointers are up in e.g. 4808741 (highest block is only 122k or so)
-                        //let ptr_block_hash = storage.get_block_from_local_id(ptr.ptr())?.clone();
-                        //let trie_hash = storage.read_node_hash_bytes(ptr)?;
-                        //storage.open_block(trie_hash);
-
-                        //trace!("[level {level}] normal ptr block hash: {ptr_block_hash}");
-
-                        // Open the block to which the back-pointer is pointing.
-                        //storage.open_block_known_id(&ptr_block_hash, ptr.ptr())?;
-                        //storage.open_block(&ptr_block_hash)?;
-
                         // Handle nodes contained within this block/trie
                         trace!("hello");
                         let type_id = TrieNodeID::from_u8(ptr.id()).unwrap();
@@ -379,32 +393,12 @@ impl<'a> TestEnvContext<'a> {
                         trace!("[level {level}] ptr node type: {type_id:?}");
                         let node_type = storage.read_nodetype_nohash(ptr).unwrap();
 
-                        //error!("node type: {:?}", node_type);
-
-                        /*match &node_type {
-                            TrieNodeType::Leaf(data) => {
-                                trace!("[level {level}] leaf => {ptr:?}");
-                                leaves.push(data.clone());
-                                *level -= 1;
-                                trace!("[level {level}] returned to level");
-                                continue;
-                            }
-                            _ => {
-                                trace!("[level {level}] {:?} => {ptr:?}, ptrs: {}", TrieNodeID::from_u8(ptr.id()), node_type.ptrs().len());
-                                Self::inner_walk_block(storage, &node_type, level, leaves)?;
-                            }
-                        }*/
-
                         trace!(
                             "[level {level}] {:?} => {ptr:?}, ptrs: {}",
                             TrieNodeID::from_u8(ptr.id()),
                             node_type.ptrs().len()
                         );
                         Self::inner_walk_block(storage, &node_type, level, leaves)?;
-
-                        // Return to the previous block
-                        //trace!("[level {level}] returning to context: {current_block} {current_id:?}");
-                        //storage.open_block_known_id(&current_block, current_id.unwrap())?;
                     }
                 }
             }
@@ -428,6 +422,154 @@ impl<'a> TestEnvContext<'a> {
     }
 }
 
+pub struct BlockCursor {
+    height: usize,
+    blocks_dir: String,
+    headers: Vec<BlockHeader>
+}
+
+/// Manually implement [std::fmt::Debug] for [BlockCursor] since some fields 
+/// don't implement [std::fmt::Debug].
+impl std::fmt::Debug for BlockCursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockCursor")
+            .field("pos", &self.height)
+            .field("conn", &"...")
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+/// Implementation of [BlockCursor].
+#[allow(dead_code)]
+impl BlockCursor {
+    pub fn new(
+        blocks_dir: &str, 
+        headers: Vec<BlockHeader>
+    ) -> Self {
+        Self { 
+            blocks_dir: blocks_dir.to_string(),
+            height: 0,
+            headers
+        }
+    }
+
+    /// Gets the current position of the cursor.
+    pub fn pos(&self) -> usize {
+        self.height
+    }
+
+    /// Moves the cursor to the specified position.
+    pub fn seek(&mut self, height: usize) -> Result<&mut Self> {
+        if height >= self.headers.len() {
+            bail!("Attempted to seek beyond chain tip");
+        }
+        self.height = height;
+        Ok(self)
+    }
+
+    /// Retrieves the next [Block] relative the current block height and 
+    /// increments the cursor position.
+    pub fn next(&mut self) -> Result<Option<Block>> {
+        debug!("cursor next, height = {}", self.height);
+        let height = self.height;
+
+        if height >= self.headers.len() {
+            debug!("height >= headers.len()");
+            return Ok(None);
+        }
+
+        self.height += 1;
+        debug!("getting block at height {height}");
+        let block = self.get_block(height)?;
+        debug!("block: {block:?}");
+        Ok(block)
+    }
+
+    /// Decrements the cursor position and retrieves the [Block] at the
+    /// decremented position (current position - 1). Returns [None] if there is
+    /// no previous block (current block height is zero).
+    pub fn prev(&mut self) -> Result<Option<Block>> {
+        if self.height == 0 {
+            return Ok(None);
+        }
+
+        self.height -= 1;
+        let block = self.get_block(self.height)?;
+        Ok(block)
+    }
+
+    /// Retrieves the [Block] at the specified height without moving the cursor.
+    /// Returns [None] if there is no [Block] at the specified height.
+    pub fn peek(&mut self, height: usize) -> Result<Option<Block>> {
+        let block = self.get_block(height)?;
+        Ok(block)
+    }
+
+    /// Retrieves the next [Block] without moving the cursor position. If the 
+    /// next height exceeds the chain tip this function will return [None].
+    pub fn peek_next(&mut self) -> Result<Option<Block>> {
+        let block = self.get_block(self.height + 1)?;
+        Ok(block)
+    }
+
+    /// Retrieves the previous [Block] in relation to the current block height
+    /// without moving the cursor position. If there is no previous block (the
+    /// current height is zero) then this function will return [None].
+    pub fn peek_prev(&mut self) -> Result<Option<Block>> {
+        let block = self.get_block(self.height - 1)?;
+        Ok(block)
+    }
+
+    /// Loads the block with the specified block hash from chainstate (the `blocks`
+    /// directory for the node).
+    fn get_block(&self, height: usize) -> Result<Option<Block>> {
+        if height >= self.headers.len() {
+            return Ok(None);
+        }
+        
+        let header = self.headers[height].clone();
+
+        // Get the block's path in chainstate.
+        let block_id = StacksBlockId::from_hex(&header.index_block_hash)?;
+        let block_path = StacksChainState::get_index_block_path(
+            &self.blocks_dir, 
+            &block_id
+        )?;
+        // Load the block from chainstate.
+        debug!("loading block with id {block_id} and path '{block_path}'");
+        let stacks_block = 
+            StacksChainState::consensus_load(&block_path)
+            .ok();
+        debug!("block loaded: {stacks_block:?}");
+
+        let block = Block {
+            header,
+            block: stacks_block
+        };
+
+        Ok(Some(block))
+    }
+}
+
+impl Iterator for BlockCursor {
+    type Item = Block;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next().unwrap_or(None)
+    }
+}
+
+/*impl<'a> IntoIterator for BlockCursor<'a> {
+    type Item = Block<'a>;
+
+    type IntoIter = BlockCursor<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        todo!()
+    }
+}*/
+/*
 impl<'a> IntoIterator for &'a TestEnvContext<'a> {
     type Item = BlockHeader;
     type IntoIter = BlockIntoIterator<'a>;
@@ -483,15 +625,29 @@ impl<'a> Iterator for BlockIntoIterator<'a> {
             self.blocks[0].take()
         }
     }
-}
+}*/
 
+#[derive(Debug)]
 pub struct Block {
-    header: BlockHeader,
-    block: StacksBlock,
+    pub header: BlockHeader,
+    pub block: Option<StacksBlock>,
 }
 
+#[allow(dead_code)]
 impl Block {
     pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
-        Self { header, block }
+        Self { header, block: Some(block) }
+    }
+
+    pub fn block_height(&self) -> u32 {
+        self.header.block_height()
+    }
+
+    pub fn is_genesis(&self) -> bool {
+        self.header.is_genesis()
+    }
+
+    pub fn index_block_hash(&self) -> &str {
+        &self.header.index_block_hash
     }
 }

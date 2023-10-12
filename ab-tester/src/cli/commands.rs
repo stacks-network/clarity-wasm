@@ -1,2 +1,2 @@
 pub mod data;
-pub mod tui;
+pub mod console;

@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     // Execute the given command with args.
     let _ = match cli.command {
         Commands::Tui(args) => {
-            commands::tui::exec(&config, args)
+            commands::console::exec(&config, args)
         }
         Commands::Data(args) => {
             commands::data::exec(&config, args)
