@@ -1,18 +1,16 @@
-
-
 use std::io;
 
 use anyhow::Result;
 use ratatui::prelude::*;
 
 use crate::cli::{
-    TuiArgs,
     console::{
         app::App,
-        event::{EventHandler, Event}, 
-        tui::Tui, 
-        handler::handle_key_events
-    }
+        event::{Event, EventHandler},
+        handler::handle_key_events,
+        tui::Tui,
+    },
+    TuiArgs,
 };
 
 pub fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {

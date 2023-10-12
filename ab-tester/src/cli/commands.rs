@@ -1,2 +1,2 @@
-pub mod data;
 pub mod console;
+pub mod data;

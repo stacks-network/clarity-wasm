@@ -1,12 +1,12 @@
 use super::app::App;
 use super::event::EventHandler;
 use super::ui;
+use anyhow::Result;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::prelude::*;
 use std::io;
 use std::panic;
-use ratatui::prelude::*;
-use anyhow::Result;
 
 /// Representation of a terminal user interface.
 ///

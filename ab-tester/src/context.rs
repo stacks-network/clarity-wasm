@@ -1,6 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, io::{Cursor, Read}};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    io::{Cursor, Read},
+    rc::Rc,
+};
 
-use anyhow::{bail, Result, Context};
+use anyhow::{bail, Context, Result};
 use blockstack_lib::{
     burnchains::PoxConstants,
     chainstate::{
@@ -168,21 +173,19 @@ impl TestEnv {
 #[derive(Debug)]
 pub struct TestEnvContext<'a> {
     test_context: &'a TestContext,
-    env: Rc<RefCell<TestEnv>>
+    env: Rc<RefCell<TestEnv>>,
 }
 
 impl<'a> TestEnvContext<'a> {
     pub fn new(test_context: &'a TestContext, env: Rc<RefCell<TestEnv>>) -> Self {
-        Self { 
-            test_context, 
-            env
-        }
+        Self { test_context, env }
     }
 
     pub fn blocks(&self, start_at: u32) -> Result<BlockCursor> {
         let mut env = self.env.borrow_mut();
 
-        let blocks_query = format!("
+        let blocks_query = format!(
+            "
             SELECT DISTINCT
                 parent.block_height, 
                 parent.index_block_hash, 
@@ -190,7 +193,8 @@ impl<'a> TestEnvContext<'a> {
             FROM block_headers parent 
             INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash
             WHERE parent.block_height >= {start_at}
-            ORDER BY parent.block_height ASC;");
+            ORDER BY parent.block_height ASC;"
+        );
 
         let headers = sql_query(blocks_query)
             .get_results::<BlockHeader>(&mut env.index_db)
@@ -422,13 +426,14 @@ impl<'a> TestEnvContext<'a> {
     }
 }
 
+/// Provides a cursor for navigating and iterating through [Block]s.
 pub struct BlockCursor {
     height: usize,
     blocks_dir: String,
-    headers: Vec<BlockHeader>
+    headers: Vec<BlockHeader>,
 }
 
-/// Manually implement [std::fmt::Debug] for [BlockCursor] since some fields 
+/// Manually implement [std::fmt::Debug] for [BlockCursor] since some fields
 /// don't implement [std::fmt::Debug].
 impl std::fmt::Debug for BlockCursor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -440,17 +445,24 @@ impl std::fmt::Debug for BlockCursor {
     }
 }
 
+/// Provides an implementation of [Iterator] for [BlockCursor] to allow for
+/// simple iteration through blocks.
+impl Iterator for BlockCursor {
+    type Item = Block;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next().unwrap_or(None)
+    }
+}
+
 /// Implementation of [BlockCursor].
 #[allow(dead_code)]
 impl BlockCursor {
-    pub fn new(
-        blocks_dir: &str, 
-        headers: Vec<BlockHeader>
-    ) -> Self {
-        Self { 
+    pub fn new(blocks_dir: &str, headers: Vec<BlockHeader>) -> Self {
+        Self {
             blocks_dir: blocks_dir.to_string(),
             height: 0,
-            headers
+            headers,
         }
     }
 
@@ -468,21 +480,17 @@ impl BlockCursor {
         Ok(self)
     }
 
-    /// Retrieves the next [Block] relative the current block height and 
+    /// Retrieves the next [Block] relative the current block height and
     /// increments the cursor position.
     pub fn next(&mut self) -> Result<Option<Block>> {
-        debug!("cursor next, height = {}", self.height);
         let height = self.height;
 
         if height >= self.headers.len() {
-            debug!("height >= headers.len()");
             return Ok(None);
         }
 
         self.height += 1;
-        debug!("getting block at height {height}");
         let block = self.get_block(height)?;
-        debug!("block: {block:?}");
         Ok(block)
     }
 
@@ -506,7 +514,7 @@ impl BlockCursor {
         Ok(block)
     }
 
-    /// Retrieves the next [Block] without moving the cursor position. If the 
+    /// Retrieves the next [Block] without moving the cursor position. If the
     /// next height exceeds the chain tip this function will return [None].
     pub fn peek_next(&mut self) -> Result<Option<Block>> {
         let block = self.get_block(self.height + 1)?;
@@ -527,116 +535,43 @@ impl BlockCursor {
         if height >= self.headers.len() {
             return Ok(None);
         }
-        
+
         let header = self.headers[height].clone();
 
         // Get the block's path in chainstate.
         let block_id = StacksBlockId::from_hex(&header.index_block_hash)?;
-        let block_path = StacksChainState::get_index_block_path(
-            &self.blocks_dir, 
-            &block_id
-        )?;
+        let block_path = StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
         // Load the block from chainstate.
         debug!("loading block with id {block_id} and path '{block_path}'");
-        let stacks_block = 
-            StacksChainState::consensus_load(&block_path)
-            .ok();
+        let stacks_block = StacksChainState::consensus_load(&block_path).ok();
         debug!("block loaded: {stacks_block:?}");
 
         let block = Block {
             header,
-            block: stacks_block
+            block: stacks_block,
         };
 
         Ok(Some(block))
     }
 }
 
-impl Iterator for BlockCursor {
-    type Item = Block;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next().unwrap_or(None)
-    }
-}
-
-/*impl<'a> IntoIterator for BlockCursor<'a> {
-    type Item = Block<'a>;
-
-    type IntoIter = BlockCursor<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        todo!()
-    }
-}*/
-/*
-impl<'a> IntoIterator for &'a TestEnvContext<'a> {
-    type Item = BlockHeader;
-    type IntoIter = BlockIntoIterator<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let mut env = self.env.borrow_mut();
-        let db = &mut env.index_db;
-
-        let blocks_query = "
-            SELECT DISTINCT
-                parent.block_height, 
-                parent.index_block_hash, 
-                parent.parent_block_id 
-            FROM block_headers parent 
-            INNER JOIN block_headers child ON child.parent_block_id = parent.index_block_hash 
-            ORDER BY parent.block_height ASC;";
-
-        let blocks_result = sql_query(blocks_query)
-            .get_results::<BlockHeader>(db)
-            .expect("Failed to retrieve block inventory.");
-
-        BlockIntoIterator {
-            env_ctx: self,
-            index: None,
-            blocks: blocks_result.into_iter().map(Some).collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct BlockIntoIterator<'a> {
-    env_ctx: &'a TestEnvContext<'a>,
-    index: Option<usize>,
-    blocks: Vec<Option<BlockHeader>>,
-}
-
-impl<'a> Iterator for BlockIntoIterator<'a> {
-    type Item = BlockHeader;
-
-    // TODO: Return `Block` instead.
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(index) = self.index {
-            let next_index = index + 1;
-
-            if next_index >= self.blocks.len() {
-                return None;
-            }
-
-            self.index = Some(next_index);
-            self.blocks[next_index].take()
-        } else {
-            self.index = Some(0);
-            self.blocks[0].take()
-        }
-    }
-}*/
-
+/// Provides an abstracted view of a Stacks block as well as functions for
+/// reading various information about blocks.
 #[derive(Debug)]
 pub struct Block {
     pub header: BlockHeader,
     pub block: Option<StacksBlock>,
 }
 
+/// Implementation of [Block] which provides various functions to consumers for
+/// reading information about a Stacks block.
 #[allow(dead_code)]
 impl Block {
     pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
-        Self { header, block: Some(block) }
+        Self {
+            header,
+            block: Some(block),
+        }
     }
 
     pub fn block_height(&self) -> u32 {

@@ -7,12 +7,11 @@ mod schema;
 #[macro_use]
 mod macros;
 
-use std::process::exit;
 use anyhow::Result;
 use clap::Parser;
 use cli::*;
 use log::*;
-
+use std::process::exit;
 
 use crate::errors::AppError;
 
@@ -28,13 +27,10 @@ fn main() -> Result<()> {
 
     // Execute the given command with args.
     let _ = match cli.command {
-        Commands::Tui(args) => {
-            commands::console::exec(&config, args)
-        }
-        Commands::Data(args) => {
-            commands::data::exec(&config, args)
-        }
-    }.map_err(|err| match err.downcast_ref() {
+        Commands::Tui(args) => commands::console::exec(&config, args),
+        Commands::Data(args) => commands::data::exec(&config, args),
+    }
+    .map_err(|err| match err.downcast_ref() {
         Some(AppError::Graceful(graceful)) => {
             info!("terminating gracefully: {graceful:?}");
             exit(0)

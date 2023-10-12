@@ -10,7 +10,7 @@ pub struct App {
     /// counter
     pub counter: u8,
     // list of blocks
-    pub blocks: StatefulList<BlockHeader>
+    pub blocks: StatefulList<BlockHeader>,
 }
 
 impl Default for App {
@@ -18,7 +18,7 @@ impl Default for App {
         Self {
             running: true,
             counter: 0,
-            blocks: StatefulList::new()
+            blocks: StatefulList::new(),
         }
     }
 }
@@ -53,7 +53,7 @@ impl App {
 #[derive(Debug)]
 pub struct StatefulList<T> {
     state: ListState,
-    items: Vec<T>
+    items: Vec<T>,
 }
 
 impl<T> StatefulList<T> {
