@@ -3322,11 +3322,11 @@ impl WasmGenerator {
 
     fn traverse_dynamic_contract_call(
         &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        trait_ref: &'a SymbolicExpression,
-        function_name: &'a ClarityName,
-        args: &'a [SymbolicExpression],
+        _builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        _trait_ref: &SymbolicExpression,
+        _function_name: &ClarityName,
+        _args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         todo!("dynamic contract calls are not yet supported")
     }
