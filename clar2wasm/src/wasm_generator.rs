@@ -105,7 +105,7 @@ impl ArgumentsExt for &[SymbolicExpression] {
         self.get_expr(n)?
             .match_atom()
             .ok_or(GeneratorError::InternalError(format!(
-                "{self:?} does not have an argument of index {n}"
+                "{self:?} does not have a name at argument index {n}"
             )))
     }
 }
@@ -253,7 +253,7 @@ impl WasmGenerator {
             SymbolicExpressionType::LiteralValue(value) => {
                 self.visit_literal_value(builder, expr, value)
             }
-            _ => todo!(),
+            _ => Ok(()),
         }
     }
 
@@ -1270,7 +1270,9 @@ impl WasmGenerator {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                return Err(GeneratorError::NotImplemented);
+                return Err(GeneratorError::InternalError(
+                    "invalid type for shift".to_string(),
+                ));
             }
         };
         let helper_func = match func {
@@ -1324,7 +1326,9 @@ impl WasmGenerator {
             }
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buffer",
             _ => {
-                return Err(GeneratorError::NotImplemented);
+                return Err(GeneratorError::InternalError(
+                    "invalid type for comparison".to_string(),
+                ))
             }
         };
         let helper_func = match func {
@@ -1400,7 +1404,9 @@ impl WasmGenerator {
         let ty = match self.get_expr_type(expr) {
             Some(ty) => ty.clone(),
             None => {
-                return Err(GeneratorError::NotImplemented);
+                return Err(GeneratorError::InternalError(
+                    "atom expression must be typed".to_string(),
+                ));
             }
         };
 
@@ -1418,7 +1424,10 @@ impl WasmGenerator {
             let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
                 Some(local) => *local,
                 None => {
-                    return Err(GeneratorError::NotImplemented);
+                    return Err(GeneratorError::InternalError(format!(
+                        "unable to find local for {}",
+                        atom.as_str()
+                    )));
                 }
             };
             builder.local_get(local);
@@ -1950,7 +1959,9 @@ impl WasmGenerator {
         {
             TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
             _ => {
-                return Err(GeneratorError::NotImplemented);
+                return Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                ));
             }
         };
 
