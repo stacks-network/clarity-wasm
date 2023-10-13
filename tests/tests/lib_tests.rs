@@ -23,7 +23,8 @@ use std::collections::HashMap;
 /// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:
 /// - the name of the test to create,
-/// - the names of the contracts to initialize,
+/// - the names of the contracts to initialize (optionally including a
+///   subdirectory, e.g. `multi-contract/contract-caller`),
 /// - a closure with type
 ///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>|`
 ///   and that contains all the assertions we want to test.
@@ -43,17 +44,15 @@ macro_rules! test_multi_contract_init {
             db.set_clarity_epoch_version(StacksEpochId::latest());
             db.commit();
 
-            for contract_name in $contract_names.iter() {
+            for contract in $contract_names.iter() {
+                let contract_name = contract.rsplit('/').next().unwrap();
                 let contract_id = QualifiedContractIdentifier::new(
                     StandardPrincipalData::transient(),
                     (*contract_name).into(),
                 );
 
-                let contract_path = format!(
-                    "{}/contracts/{}.clar",
-                    env!("CARGO_MANIFEST_DIR"),
-                    contract_name
-                );
+                let contract_path =
+                    format!("{}/contracts/{}.clar", env!("CARGO_MANIFEST_DIR"), contract);
                 let contract_str = std::fs::read_to_string(contract_path).unwrap();
 
                 let mut compile_result = clarity_store
@@ -116,7 +115,7 @@ macro_rules! test_multi_contract_init {
                 global_context.commit().unwrap();
                 cost_tracker = global_context.cost_track;
 
-                contract_contexts.insert(*contract_name, contract_context);
+                contract_contexts.insert(contract_name, contract_context);
             }
 
             // Do this once for all contracts
@@ -1541,7 +1540,7 @@ test_contract_call_response!(
 
 test_multi_contract_call_response!(
     test_contract_call_no_args,
-    ["contract-callee", "contract-caller"],
+    ["contract-callee", "multi-contract/contract-caller"],
     "contract-caller",
     "no-args",
     |response: ResponseData| {
@@ -1552,7 +1551,7 @@ test_multi_contract_call_response!(
 
 test_multi_contract_call_response!(
     test_contract_call_one_simple_arg,
-    ["contract-callee", "contract-caller"],
+    ["contract-callee", "multi-contract/contract-caller"],
     "contract-caller",
     "one-simple-arg",
     |response: ResponseData| {
@@ -1563,7 +1562,7 @@ test_multi_contract_call_response!(
 
 test_multi_contract_call_response!(
     test_contract_call_one_arg,
-    ["contract-callee", "contract-caller"],
+    ["contract-callee", "multi-contract/contract-caller"],
     "contract-caller",
     "one-arg",
     |response: ResponseData| {
@@ -1577,7 +1576,7 @@ test_multi_contract_call_response!(
 
 test_multi_contract_call_response!(
     test_contract_call_two_simple_args,
-    ["contract-callee", "contract-caller"],
+    ["contract-callee", "multi-contract/contract-caller"],
     "contract-caller",
     "two-simple-args",
     |response: ResponseData| {
@@ -1588,7 +1587,7 @@ test_multi_contract_call_response!(
 
 test_multi_contract_call_response!(
     test_contract_call_two_args,
-    ["contract-callee", "contract-caller"],
+    ["contract-callee", "multi-contract/contract-caller"],
     "contract-caller",
     "two-args",
     |response: ResponseData| {
