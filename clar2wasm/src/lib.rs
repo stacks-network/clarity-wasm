@@ -12,6 +12,7 @@ use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
 mod wasm_generator;
+mod words;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
