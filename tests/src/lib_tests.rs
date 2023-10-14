@@ -6,11 +6,12 @@ use clarity::{
     vm::{
         callables::DefineType,
         clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, GlobalContext},
+        contexts::{CallStack, EventBatch, GlobalContext},
         contracts::Contract,
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
         errors::{Error, WasmError},
+        events::StacksTransactionEvent,
         types::{
             PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
             TypeSignature,
@@ -82,6 +83,7 @@ macro_rules! test_multi_contract_init {
 
                 let mut contract_context =
                     ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+                compile_result.module.emit_wasm_file("test.wasm").unwrap();
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
                 let mut global_context = GlobalContext::new(
@@ -315,6 +317,184 @@ macro_rules! test_contract_call_response {
         test_contract_call_response!($func, $contract_name, $contract_func, &[], $test);
     };
 }
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of all contracts to initialize,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_multi_contract_call_events {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_init!(
+            $func,
+            $init_contracts,
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>,
+             _return_val: Option<Value>| {
+                // Initialize a call stack
+                let mut call_stack = CallStack::new();
+
+                let result = call_function(
+                    $contract_func,
+                    $params,
+                    global_context,
+                    &contract_contexts.get($contract_name).unwrap(),
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                );
+
+                // https://github.com/rust-lang/rust-clippy/issues/1553
+                #[allow(clippy::redundant_closure_call)]
+                $test_result(result);
+
+                #[allow(clippy::redundant_closure_call)]
+                $test_events(&global_context.event_batches);
+            }
+        );
+    };
+
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_result,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+#[allow(unused_macros)]
+macro_rules! test_contract_call_events {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            [$contract_name],
+            $contract_name,
+            $contract_func,
+            $params,
+            $test_result,
+            $test_events
+        );
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test_result: expr, $test_events: expr) => {
+        test_contract_call_events!(
+            $func,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_result,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of all contracts to initialize,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`,
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_multi_contract_call_response_events {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            $params,
+            |result: Result<Value, Error>| {
+                let result = result.expect("Function call failed.");
+
+                if let Value::Response(response_data) = result {
+                    // https://github.com/rust-lang/rust-clippy/issues/1553
+                    #[allow(clippy::redundant_closure_call)]
+                    $test_response(response_data);
+                } else {
+                    panic!("Unexpected result received from WASM function call.");
+                }
+            },
+            $test_events
+        );
+    };
+
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_response_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_response,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|response: ResponseData|`,
+///   that contains all the assertions we want to test on the response, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_contract_call_response_events {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_response_events!(
+            $func,
+            [$contract_name],
+            $contract_name,
+            $contract_func,
+            $params,
+            $test_response,
+            $test_events
+        );
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test_response: expr, $test_events: expr) => {
+        test_contract_call_response_events!(
+            $func,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_response,
+            $test_events
+        );
+    };
+}
+
+// ****************************************************************************
+//  TESTS START HERE
+// ****************************************************************************
 
 test_contract_init!(
     test_top_level,
@@ -1768,12 +1948,27 @@ test_multi_contract_call_response!(
     }
 );
 
-test_contract_call_response!(
-    test_print,
+test_contract_call_response_events!(
+    test_print_int,
     "print",
-    "print-hello",
+    "print-int",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(12345));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Int(12345));
+        } else {
+            panic!("Unexpected event received from WASM function call.");
+        }
     }
 );

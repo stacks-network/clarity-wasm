@@ -1,4 +1,5 @@
 use clarity::vm::functions::define::DefineFunctions;
+use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
@@ -859,19 +860,19 @@ impl WasmGenerator {
         let memory = self.module.memories.iter().next().expect("no memory found");
         let size = match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
-                // Data stack: TOP | Low | High | ...
+                // Data stack: TOP | High | Low | ...
                 // Save the high/low to locals.
                 let high = self.module.locals.add(ValType::I64);
                 let low = self.module.locals.add(ValType::I64);
-                builder.local_set(low).local_set(high);
+                builder.local_set(high).local_set(low);
 
                 // Store the high/low to memory.
-                builder.local_get(offset_local).local_get(high).store(
+                builder.local_get(offset_local).local_get(low).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
-                builder.local_get(offset_local).local_get(low).store(
+                builder.local_get(offset_local).local_get(high).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
                     MemArg {
@@ -1007,6 +1008,146 @@ impl WasmGenerator {
             _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
         };
         size
+    }
+
+    /// Serialize the value of type `ty` on the top of the data stack using
+    /// consensus serialization. Returns the length of the data written.
+    fn serialize_to_memory(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        offset_local: LocalId,
+        offset: u32,
+        ty: &TypeSignature,
+    ) -> i32 {
+        let memory = self.module.memories.iter().next().expect("no memory found");
+        let mut written = 0;
+
+        // TODO: Write the prefix in each case below, and then write the value
+        // w.write_all(&[TypePrefix::from(self) as u8])?;
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            IntType => {
+                // Data stack: TOP | High | Low |
+                // Save the high/low to locals.
+                let high = self.module.locals.add(ValType::I64);
+                let low = self.module.locals.add(ValType::I64);
+                builder.local_set(high).local_set(low);
+
+                // Create a local for the write pointer by adjusting the
+                // offset local by the offset amount.
+                let write_ptr = self.module.locals.add(ValType::I32);
+                if offset > 0 {
+                    builder
+                        .local_get(offset_local)
+                        .i32_const(offset as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(write_ptr);
+                } else {
+                    builder.local_get(offset_local).local_tee(write_ptr);
+                }
+
+                // Write the type prefix first
+                builder.i32_const(TypePrefix::Int as i32).store(
+                    memory.id(),
+                    StoreKind::I32_8 { atomic: false },
+                    MemArg { align: 1, offset },
+                );
+
+                // Adjust the write pointer
+                builder
+                    .local_get(write_ptr)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+                written += 1;
+
+                // Serialize the high to memory.
+                builder.local_get(high).call(
+                    self.module
+                        .funcs
+                        .by_name("store-i64-be")
+                        .expect("store-i64-be not found"),
+                );
+
+                // Adjust the write pointer
+                builder
+                    .local_get(write_ptr)
+                    .i32_const(8)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+                written += 8;
+
+                // Adjust the offset by 8, then serialize the low to memory.
+                builder.local_get(low).call(
+                    self.module
+                        .funcs
+                        .by_name("store-i64-be")
+                        .expect("store-i64-be not found"),
+                );
+                written += 8;
+            }
+
+            // Int(value) => w.write_all(&value.to_be_bytes())?,
+            // UInt(value) => w.write_all(&value.to_be_bytes())?,
+            // Principal(Standard(data)) => data.serialize_write(w)?,
+            // Principal(Contract(contract_identifier))
+            // | CallableContract(CallableData {
+            //     contract_identifier,
+            //     trait_identifier: _,
+            // }) => {
+            //     contract_identifier.issuer.serialize_write(w)?;
+            //     contract_identifier.name.serialize_write(w)?;
+            // }
+            // Response(response) => response.data.serialize_write(w)?,
+            // // Bool types don't need any more data.
+            // Bool(_) => {}
+            // // None types don't need any more data.
+            // Optional(OptionalData { data: None }) => {}
+            // Optional(OptionalData { data: Some(value) }) => {
+            //     value.serialize_write(w)?;
+            // }
+            // Sequence(List(data)) => {
+            //     w.write_all(&data.len().to_be_bytes())?;
+            //     for item in data.data.iter() {
+            //         item.serialize_write(w)?;
+            //     }
+            // }
+            // Sequence(Buffer(value)) => {
+            //     w.write_all(&(u32::from(value.len()).to_be_bytes()))?;
+            //     w.write_all(&value.data)?
+            // }
+            // Sequence(SequenceData::String(UTF8(value))) => {
+            //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
+            //     w.write_all(&(total_len.to_be_bytes()))?;
+            //     for bytes in value.data.iter() {
+            //         w.write_all(&bytes)?
+            //     }
+            // }
+            // Sequence(SequenceData::String(ASCII(value))) => {
+            //     w.write_all(&(u32::from(value.len()).to_be_bytes()))?;
+            //     w.write_all(&value.data)?
+            // }
+            // Tuple(data) => {
+            //     w.write_all(&u32::try_from(data.data_map.len()).unwrap().to_be_bytes())?;
+            //     for (key, value) in data.data_map.iter() {
+            //         key.serialize_write(w)?;
+            //         value.serialize_write(w)?;
+            //     }
+            // }
+            NoType => todo!(),
+            UIntType => todo!(),
+            BoolType => todo!(),
+            SequenceType(_) => todo!(),
+            PrincipalType => todo!(),
+            TupleType(_) => todo!(),
+            OptionalType(_) => todo!(),
+            ResponseType(_) => todo!(),
+            CallableType(_) => todo!(),
+            ListUnionType(_) => todo!(),
+            TraitReferenceType(_) => todo!(),
+        };
+
+        written
     }
 
     fn traverse_statement_list(
@@ -3203,19 +3344,20 @@ impl WasmGenerator {
         // Traverse the value, leaving it on the data stack
         self.traverse_expr(builder, value)?;
 
-        // Create space on the call stack to write the value
         let ty = self
             .get_expr_type(value)
             .expect("print value expression must be typed")
             .clone();
-        let (offset, size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
 
-        // Write the value to the memory (it's already on the data stack)
-        self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
+        // Save the offset (current stack pointer) into a local
+        let offset = self.module.locals.add(ValType::I32);
+        builder.global_get(self.stack_pointer).local_set(offset);
+
+        // Write the serialized value to the top of the data stack
+        let length = self.serialize_to_memory(builder, offset, 0, &ty);
 
         // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(size);
+        builder.local_get(offset).i32_const(length);
 
         // Call the host interface function, `print`
         builder.call(
@@ -3225,9 +3367,8 @@ impl WasmGenerator {
                 .expect("function not found"),
         );
 
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
-        self.read_from_memory(builder, offset, 0, &ty);
+        // Print always returns its input, so traverse the input again.
+        self.traverse_expr(builder, value)?;
 
         Ok(())
     }

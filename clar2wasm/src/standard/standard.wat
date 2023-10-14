@@ -1683,6 +1683,17 @@
         (i32.add (local.get $k))
     )
 
+    (func $store-i64-be (param $address i32) (param $value i64)
+        (i64.store8 (local.get $address) (i64.shr_u (local.get $value) (i64.const 56)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 1)) (i64.shr_u (local.get $value) (i64.const 48)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 2)) (i64.shr_u (local.get $value) (i64.const 40)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 3)) (i64.shr_u (local.get $value) (i64.const 32)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 4)) (i64.shr_u (local.get $value) (i64.const 24)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 5)) (i64.shr_u (local.get $value) (i64.const 16)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 6)) (i64.shr_u (local.get $value) (i64.const 8)))
+        (i64.store8 (i32.add (local.get $address) (i32.const 7)) (local.get $value))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1724,4 +1735,5 @@
     (export "sha256-int" (func $sha256-int))
     (export "hash160-buf" (func $hash160-buf))
     (export "hash160-int" (func $hash160-int))
+    (export "store-i64-be" (func $store-i64-be))
 )
