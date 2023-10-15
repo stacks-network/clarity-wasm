@@ -1,3 +1,4 @@
+use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
 use clarity::vm::functions::define::DefineFunctions;
 use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::ClarityVersion;
@@ -772,8 +773,6 @@ impl WasmGenerator {
                 PrincipalData::Standard(standard) => {
                     let mut data = vec![standard.0];
                     data.extend_from_slice(&standard.1);
-                    let contract_length = 0i32.to_le_bytes();
-                    data.extend_from_slice(&contract_length);
                     // Append a 0 for the length of the contract name
                     data.extend_from_slice(&[0u8; 4]);
                     data
@@ -1011,22 +1010,22 @@ impl WasmGenerator {
     }
 
     /// Serialize the value of type `ty` on the top of the data stack using
-    /// consensus serialization. Returns the length of the data written.
+    /// consensus serialization. Leaves the length of the data written on the
+    /// top of the data stack.
     fn serialize_to_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
         offset: u32,
         ty: &TypeSignature,
-    ) -> i32 {
+    ) {
         let memory = self.module.memories.iter().next().expect("no memory found");
-        let mut written = 0;
 
-        // TODO: Write the prefix in each case below, and then write the value
-        // w.write_all(&[TypePrefix::from(self) as u8])?;
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {
-            IntType => {
+            IntType | UIntType => {
+                let mut written = 0;
+
                 // Data stack: TOP | High | Low |
                 // Save the high/low to locals.
                 let high = self.module.locals.add(ValType::I64);
@@ -1047,7 +1046,12 @@ impl WasmGenerator {
                 }
 
                 // Write the type prefix first
-                builder.i32_const(TypePrefix::Int as i32).store(
+                let prefix = if ty == &IntType {
+                    TypePrefix::Int
+                } else {
+                    TypePrefix::UInt
+                };
+                builder.i32_const(prefix as i32).store(
                     memory.id(),
                     StoreKind::I32_8 { atomic: false },
                     MemArg { align: 1, offset },
@@ -1085,19 +1089,123 @@ impl WasmGenerator {
                         .expect("store-i64-be not found"),
                 );
                 written += 8;
+
+                // Push the written length onto the data stack
+                builder.i32_const(written);
+            }
+            PrincipalType | CallableType(_) => {
+                // Data stack: TOP | Length | Offset |
+                // Save the offset/length to locals.
+                let poffset = self.module.locals.add(ValType::I32);
+                let plength = self.module.locals.add(ValType::I32);
+                builder.local_set(plength).local_set(poffset);
+
+                // Create a local for the write pointer by adjusting the
+                // offset local by the offset amount.
+                let write_ptr = self.module.locals.add(ValType::I32);
+                if offset > 0 {
+                    builder
+                        .local_get(offset_local)
+                        .i32_const(offset as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(write_ptr);
+                } else {
+                    builder.local_get(offset_local).local_tee(write_ptr);
+                }
+
+                // Copy the standard principal part to the buffer, offset by 1
+                // byte for the type prefix, which we will write next, so that
+                // we don't need two branches.
+                builder
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .local_get(poffset)
+                    .i32_const(PRINCIPAL_BYTES as i32)
+                    .memory_copy(memory.id(), memory.id());
+
+                // If `plength` is greater than STANDARD_PRINCIPAL_BYTES, then
+                // this is a contract principal, else, it's a standard
+                // principal.
+                builder
+                    .local_get(plength)
+                    .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                    .binop(BinaryOp::I32GtS)
+                    .if_else(
+                        InstrSeqType::new(&mut self.module.types, &[], &[ValType::I32]),
+                        |then| {
+                            // Write the total length of the contract to the buffer
+                            then
+                                // Compute the destination offset
+                                .local_get(write_ptr)
+                                .i32_const(PRINCIPAL_BYTES as i32 + 1)
+                                .binop(BinaryOp::I32Add)
+                                // Compute the length
+                                .local_get(plength)
+                                .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                                .binop(BinaryOp::I32Sub)
+                                // Write the length
+                                .store(
+                                    memory.id(),
+                                    StoreKind::I32_8 { atomic: false },
+                                    MemArg {
+                                        align: 1,
+                                        offset: 0,
+                                    },
+                                );
+
+                            // Copy the contract name to the buffer
+                            then
+                                // Compute the destination offset
+                                .local_get(write_ptr)
+                                .i32_const(PRINCIPAL_BYTES as i32 + 2)
+                                .binop(BinaryOp::I32Add)
+                                // Compute the source offset
+                                .local_get(poffset)
+                                .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                                .binop(BinaryOp::I32Add)
+                                // Compute the length
+                                .local_get(plength)
+                                .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                                .binop(BinaryOp::I32Sub)
+                                // Copy the data
+                                .memory_copy(memory.id(), memory.id());
+
+                            // Push the total length written onto the data stack.
+                            // It is the same as plength, minus 3.
+                            then.local_get(plength).i32_const(2).binop(BinaryOp::I32Sub);
+
+                            // Push the type prefix for a contract principal
+                            then.local_get(write_ptr)
+                                .i32_const(TypePrefix::PrincipalContract as i32)
+                                .store(
+                                    memory.id(),
+                                    StoreKind::I32_8 { atomic: false },
+                                    MemArg {
+                                        align: 1,
+                                        offset: 0,
+                                    },
+                                );
+                        },
+                        |else_| {
+                            // Push the total length written onto the data stack.
+                            else_.i32_const(PRINCIPAL_BYTES as i32 + 1);
+
+                            // Store the type prefix for a standard principal
+                            else_
+                                .local_get(write_ptr)
+                                .i32_const(TypePrefix::PrincipalStandard as i32)
+                                .store(
+                                    memory.id(),
+                                    StoreKind::I32_8 { atomic: false },
+                                    MemArg {
+                                        align: 1,
+                                        offset: 0,
+                                    },
+                                );
+                        },
+                    );
             }
 
-            // Int(value) => w.write_all(&value.to_be_bytes())?,
-            // UInt(value) => w.write_all(&value.to_be_bytes())?,
-            // Principal(Standard(data)) => data.serialize_write(w)?,
-            // Principal(Contract(contract_identifier))
-            // | CallableContract(CallableData {
-            //     contract_identifier,
-            //     trait_identifier: _,
-            // }) => {
-            //     contract_identifier.issuer.serialize_write(w)?;
-            //     contract_identifier.name.serialize_write(w)?;
-            // }
             // Response(response) => response.data.serialize_write(w)?,
             // // Bool types don't need any more data.
             // Bool(_) => {}
@@ -1135,19 +1243,14 @@ impl WasmGenerator {
             //     }
             // }
             NoType => todo!(),
-            UIntType => todo!(),
             BoolType => todo!(),
             SequenceType(_) => todo!(),
-            PrincipalType => todo!(),
             TupleType(_) => todo!(),
             OptionalType(_) => todo!(),
             ResponseType(_) => todo!(),
-            CallableType(_) => todo!(),
             ListUnionType(_) => todo!(),
             TraitReferenceType(_) => todo!(),
         };
-
-        written
     }
 
     fn traverse_statement_list(
@@ -1380,7 +1483,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType => vec![
+        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
@@ -3341,6 +3444,13 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
+        // Save the offset (current stack pointer) into a local
+        let offset = self.module.locals.add(ValType::I32);
+        builder.global_get(self.stack_pointer).local_set(offset);
+
+        // Push the offset to the data stack
+        builder.local_get(offset);
+
         // Traverse the value, leaving it on the data stack
         self.traverse_expr(builder, value)?;
 
@@ -3349,15 +3459,8 @@ impl WasmGenerator {
             .expect("print value expression must be typed")
             .clone();
 
-        // Save the offset (current stack pointer) into a local
-        let offset = self.module.locals.add(ValType::I32);
-        builder.global_get(self.stack_pointer).local_set(offset);
-
-        // Write the serialized value to the top of the data stack
-        let length = self.serialize_to_memory(builder, offset, 0, &ty);
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(length);
+        // Write the serialized value to the top of the call stack
+        self.serialize_to_memory(builder, offset, 0, &ty);
 
         // Call the host interface function, `print`
         builder.call(

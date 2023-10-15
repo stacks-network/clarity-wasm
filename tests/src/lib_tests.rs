@@ -275,7 +275,7 @@ macro_rules! test_multi_contract_call_response {
                     #[allow(clippy::redundant_closure_call)]
                     $test(response_data);
                 } else {
-                    panic!("Unexpected result received from WASM function call.");
+                    panic!("Unexpected result received from Wasm function call.");
                 }
             }
         );
@@ -437,7 +437,7 @@ macro_rules! test_multi_contract_call_response_events {
                     #[allow(clippy::redundant_closure_call)]
                     $test_response(response_data);
                 } else {
-                    panic!("Unexpected result received from WASM function call.");
+                    panic!("Unexpected result received from Wasm function call.");
                 }
             },
             $test_events
@@ -958,7 +958,7 @@ test_contract_call_response!(
                     &Value::UInt(0)
                 );
             }
-            _ => panic!("Unexpected result received from WASM function call."),
+            _ => panic!("Unexpected result received from Wasm function call."),
         }
     }
 );
@@ -1968,7 +1968,77 @@ test_contract_call_response_events!(
             assert_eq!(label, "print");
             assert_eq!(event.value, Value::Int(12345));
         } else {
-            panic!("Unexpected event received from WASM function call.");
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_standard_principal,
+    "print",
+    "print-standard-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_contract_principal,
+    "print",
+    "print-contract-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo").unwrap()
+                )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
         }
     }
 );
