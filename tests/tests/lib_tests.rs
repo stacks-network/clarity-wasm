@@ -27,7 +27,7 @@ use std::collections::HashMap;
 /// - the names of the contracts to initialize (optionally including a
 ///   subdirectory, e.g. `multi-contract/contract-caller`),
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>|`
+///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_multi_contract_init {
     ($func: ident, $contract_names: expr, $context_test: expr) => {
@@ -45,6 +45,9 @@ macro_rules! test_multi_contract_init {
             db.set_clarity_epoch_version(StacksEpochId::latest());
             db.commit();
 
+            // Iterate through all of the contracts and initialize them,
+            // saving the return value of the last one.
+            let mut return_val = None;
             for contract in $contract_names.iter() {
                 let contract_name = contract.rsplit('/').next().unwrap();
                 let contract_id = QualifiedContractIdentifier::new(
@@ -93,7 +96,7 @@ macro_rules! test_multi_contract_init {
                     .execute(|g| g.database.insert_contract_hash(&contract_id, &contract_str))
                     .expect("Failed to insert contract hash.");
 
-                initialize_contract(
+                return_val = initialize_contract(
                     &mut global_context,
                     &mut contract_context,
                     None,
@@ -142,7 +145,7 @@ macro_rules! test_multi_contract_init {
             global_context.begin();
 
             #[allow(clippy::redundant_closure_call)]
-            $context_test(&mut global_context, &contract_contexts);
+            $context_test(&mut global_context, &contract_contexts, return_val);
 
             global_context.commit().unwrap();
         }
@@ -154,17 +157,18 @@ macro_rules! test_multi_contract_init {
 /// - the name of the test to create,
 /// - the name of the contracts to initialize,
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &ContractContext|`
+///  `|global_context: &mut GlobalContext, contract_context: &ContractContext, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_contract_init {
     ($func: ident, $contract_name: literal, $context_test: expr) => {
         test_multi_contract_init!(
             $func,
             [$contract_name],
-            |_global_context: &mut GlobalContext,
-             contract_contexts: &HashMap<&str, ContractContext>| {
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>,
+             return_val: Option<Value>| {
                 let contract_context = contract_contexts.get($contract_name).unwrap();
-                $context_test(_global_context, contract_context);
+                $context_test(global_context, contract_context, return_val);
             }
         );
     };
@@ -185,7 +189,8 @@ macro_rules! test_multi_contract_call {
             $func,
             $init_contracts,
             |global_context: &mut GlobalContext,
-             contract_contexts: &HashMap<&str, ContractContext>| {
+             contract_contexts: &HashMap<&str, ContractContext>,
+             _return_val: Option<Value>| {
                 // Initialize a call stack
                 let mut call_stack = CallStack::new();
 
@@ -311,6 +316,46 @@ macro_rules! test_contract_call_response {
     };
 }
 
+test_contract_init!(
+    test_top_level,
+    "top-level",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::Int(42)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_multi_statement,
+    "multi-statement",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::Int(4)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_define_first,
+    "top-level-define-first",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::UInt(123456789)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_define_last,
+    "top-level-define-last",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, None);
+    }
+);
+
 test_contract_call_response!(test_add, "add", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(3));
@@ -319,7 +364,9 @@ test_contract_call_response!(test_add, "add", "simple", |response: ResponseData|
 test_contract_init!(
     test_define_private,
     "call-private-with-args",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let public_function = contract_context.lookup_function("simple").unwrap();
         assert_eq!(public_function.define_type, DefineType::Private);
         assert_eq!(
@@ -387,7 +434,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_public,
     "define-public-ok",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let public_function = contract_context.lookup_function("simple").unwrap();
         assert_eq!(public_function.define_type, DefineType::Public);
         assert!(public_function.get_arg_types().is_empty());
@@ -424,7 +473,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_data_var,
     "var-get",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let metadata = contract_context.meta_data_var.get("something").unwrap();
         assert_eq!(metadata.value_type, TypeSignature::IntType);
     }
@@ -858,7 +909,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_ft,
     "define-tokens",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let ft_metadata = contract_context
             .meta_ft
             .get("foo")
@@ -876,7 +929,9 @@ test_contract_init!(
 test_contract_init!(
     test_define_nft,
     "define-tokens",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let nft_metadata = contract_context
             .meta_nft
             .get("baz")
@@ -937,7 +992,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_map,
     "define-map",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let map_metadata = contract_context
             .meta_data_map
             .get("my-map")

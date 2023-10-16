@@ -135,17 +135,6 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
     }
 }
 
-pub fn traverse(
-    visitor: &mut WasmGenerator,
-    builder: &mut InstrSeqBuilder,
-    exprs: &[SymbolicExpression],
-) -> Result<(), GeneratorError> {
-    for expr in exprs {
-        visitor.traverse_expr(builder, expr)?;
-    }
-    Ok(())
-}
-
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -182,19 +171,29 @@ impl WasmGenerator {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
 
-        let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
+        // Get the type of the last top-level expression
+        let clarity_return_ty = if let Some(last_expr) = expressions.last() {
+            self.get_expr_type(last_expr)
+        } else {
+            None
+        };
 
-        if traverse(&mut self, &mut current_function.func_body(), &expressions).is_err() {
-            return Err(GeneratorError::InternalError(
-                "ast traversal failed".to_string(),
-            ));
+        let return_ty = if let Some(ty) = clarity_return_ty {
+            clar2wasm_ty(ty)
+        } else {
+            vec![]
+        };
+
+        let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
+
+        if !expressions.is_empty() {
+            self.traverse_statement_list(&mut current_function.func_body(), &expressions)?;
         }
 
         self.contract_analysis.expressions = expressions;
 
         // Insert a return instruction at the end of the top-level function so
         // that the top level always has no return value.
-        current_function.func_body().return_();
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
@@ -1016,7 +1015,7 @@ impl WasmGenerator {
         statements: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         assert!(
-            statements.len() > 1,
+            !statements.is_empty(),
             "statement list must have at least one statement"
         );
         // Traverse all but the last statement and drop any unused values.
