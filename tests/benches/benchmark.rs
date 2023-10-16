@@ -31,19 +31,22 @@ fn wasm_fold_add_square(c: &mut Criterion) {
     conn.begin();
     conn.set_clarity_epoch_version(StacksEpochId::latest());
     conn.commit();
-    let cost_tracker = LimitedCostTracker::new_free();
     let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
     let contract_str = std::fs::read_to_string("contracts/fold-bench.clar").unwrap();
-    let mut compile_result = compile(
-        contract_str.as_str(),
-        &contract_id,
-        cost_tracker,
-        ClarityVersion::latest(),
-        StacksEpochId::latest(),
-        &mut clarity_store,
-    )
-    .expect("Failed to compile contract.");
+    let mut compile_result = clarity_store
+        .as_analysis_db()
+        .execute(|analysis_db| {
+            compile(
+                contract_str.as_str(),
+                &contract_id,
+                LimitedCostTracker::new_free(),
+                ClarityVersion::latest(),
+                StacksEpochId::latest(),
+                analysis_db,
+            )
+        })
+        .expect("Failed to compile contract.");
 
     contract_context.set_wasm_module(compile_result.module.emit_wasm());
 

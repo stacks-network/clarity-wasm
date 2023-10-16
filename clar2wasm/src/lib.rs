@@ -2,7 +2,6 @@ extern crate lazy_static;
 
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
-use clarity::vm::database::ClarityBackingStore;
 use clarity::vm::diagnostic::Diagnostic;
 use clarity::{
     types::StacksEpochId,
@@ -45,7 +44,7 @@ pub fn compile(
     mut cost_tracker: LimitedCostTracker,
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
-    datastore: &mut dyn ClarityBackingStore,
+    analysis_db: &mut AnalysisDatabase,
 ) -> Result<CompileResult, CompileError> {
     // Parse the contract
     let (mut ast, mut diagnostics, success) = build_ast_with_diagnostics(
@@ -63,14 +62,11 @@ pub fn compile(
         });
     }
 
-    // Create a new analysis database
-    let mut analysis_db = AnalysisDatabase::new(datastore);
-
     // Run the analysis passes
     let mut contract_analysis = match run_analysis(
         contract_id,
         &mut ast.expressions,
-        &mut analysis_db,
+        analysis_db,
         false,
         cost_tracker,
         epoch,

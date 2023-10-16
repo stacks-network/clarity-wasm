@@ -1,3 +1,5 @@
+use std::ffi::OsStr;
+
 #[test]
 fn test_clar2wasm_no_args() {
     assert_cmd::Command::cargo_bin("clar2wasm")
@@ -13,7 +15,7 @@ fn test_clar2wasm_with_input() {
 
     for file in std::fs::read_dir("./contracts/").unwrap() {
         let file = file.unwrap();
-        if file.path().extension().unwrap() != "clar" {
+        if file.path().extension().unwrap_or(OsStr::new("")) != "clar" {
             continue;
         }
         let outfile = temp.join(

@@ -395,6 +395,24 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "static_contract_call",
+            |_contract_offset: i32,
+             _contract_length: i32,
+             _function_offset: i32,
+             _function_length: i32,
+             _args_offset: i32,
+             _args_length: i32,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("static_contract_call");
+                Ok(())
+            },
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
