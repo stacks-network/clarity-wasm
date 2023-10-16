@@ -17,7 +17,7 @@ use clarity::vm::{
 };
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::{
-    ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp},
+    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -1019,7 +1019,13 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) {
-        let memory = self.module.memories.iter().next().expect("no memory found");
+        let memory = self
+            .module
+            .memories
+            .iter()
+            .next()
+            .expect("no memory found")
+            .id();
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {
@@ -1052,9 +1058,12 @@ impl WasmGenerator {
                     TypePrefix::UInt
                 };
                 builder.i32_const(prefix as i32).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32_8 { atomic: false },
-                    MemArg { align: 1, offset },
+                    MemArg {
+                        align: 1,
+                        offset: 0,
+                    },
                 );
 
                 // Adjust the write pointer
@@ -1121,7 +1130,7 @@ impl WasmGenerator {
                     .binop(BinaryOp::I32Add)
                     .local_get(poffset)
                     .i32_const(PRINCIPAL_BYTES as i32)
-                    .memory_copy(memory.id(), memory.id());
+                    .memory_copy(memory, memory);
 
                 // If `plength` is greater than STANDARD_PRINCIPAL_BYTES, then
                 // this is a contract principal, else, it's a standard
@@ -1145,7 +1154,7 @@ impl WasmGenerator {
                                 .binop(BinaryOp::I32Sub)
                                 // Write the length
                                 .store(
-                                    memory.id(),
+                                    memory,
                                     StoreKind::I32_8 { atomic: false },
                                     MemArg {
                                         align: 1,
@@ -1168,7 +1177,7 @@ impl WasmGenerator {
                                 .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
                                 .binop(BinaryOp::I32Sub)
                                 // Copy the data
-                                .memory_copy(memory.id(), memory.id());
+                                .memory_copy(memory, memory);
 
                             // Push the total length written onto the data stack.
                             // It is the same as plength, minus 3.
@@ -1178,7 +1187,7 @@ impl WasmGenerator {
                             then.local_get(write_ptr)
                                 .i32_const(TypePrefix::PrincipalContract as i32)
                                 .store(
-                                    memory.id(),
+                                    memory,
                                     StoreKind::I32_8 { atomic: false },
                                     MemArg {
                                         align: 1,
@@ -1195,7 +1204,7 @@ impl WasmGenerator {
                                 .local_get(write_ptr)
                                 .i32_const(TypePrefix::PrincipalStandard as i32)
                                 .store(
-                                    memory.id(),
+                                    memory,
                                     StoreKind::I32_8 { atomic: false },
                                     MemArg {
                                         align: 1,
@@ -1205,8 +1214,97 @@ impl WasmGenerator {
                         },
                     );
             }
+            ResponseType(types) => {
+                // Data stack: TOP | Err Value | Ok Value | Indicator |
+                let err_types = clar2wasm_ty(&types.1);
+                let ok_types = clar2wasm_ty(&types.0);
 
-            // Response(response) => response.data.serialize_write(w)?,
+                // Save the error values to locals
+                let mut err_locals = Vec::with_capacity(err_types.len());
+                for err_ty in err_types.iter().rev() {
+                    let local = self.module.locals.add(*err_ty);
+                    err_locals.push(local);
+                    builder.local_set(local);
+                }
+                err_locals.reverse();
+
+                // Save the ok values to locals
+                let mut ok_locals = Vec::with_capacity(ok_types.len());
+                for ok_ty in ok_types.iter().rev() {
+                    let local = self.module.locals.add(*ok_ty);
+                    ok_locals.push(local);
+                    builder.local_set(local);
+                }
+                ok_locals.reverse();
+
+                // Create a block for the ok case
+                let mut ok_block = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut self.module.types,
+                    &[],
+                    &[ValType::I32],
+                ));
+                let ok_block_id = ok_block.id();
+
+                // Write the type prefix to memory
+                ok_block
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::ResponseOk as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                // Push the ok value back onto the stack
+                for local in ok_locals.iter() {
+                    ok_block.local_get(*local);
+                }
+
+                // Now serialize the ok value to memory
+                self.serialize_to_memory(&mut ok_block, offset_local, offset + 1, &types.0);
+
+                // Create a block for the err case
+                let mut err_block = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut self.module.types,
+                    &[],
+                    &[ValType::I32],
+                ));
+                let err_block_id = err_block.id();
+
+                // Write the type prefix to memory
+                err_block
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::ResponseErr as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                // Push the err value back onto the stack
+                for local in err_locals.iter() {
+                    err_block.local_get(*local);
+                }
+
+                // Now serialize the ok value to memory
+                self.serialize_to_memory(&mut err_block, offset_local, offset + 1, &types.1);
+
+                // The top of the stack is currently the indicator, which is
+                // `1` for `ok` and `0` for err.
+                builder.instr(IfElse {
+                    consequent: ok_block_id,
+                    alternative: err_block_id,
+                });
+
+                // Increment the amount written by 1 for the indicator
+                builder.i32_const(1).binop(BinaryOp::I32Add);
+            }
+            NoType => {
+                // This type should not actually be serialized. It is
+                // reporesented as an `i32` value of `0`, so we can leave
+                // that on top of the stack indicating 0 bytes written.
+            }
+
             // // Bool types don't need any more data.
             // Bool(_) => {}
             // // None types don't need any more data.
@@ -1242,12 +1340,10 @@ impl WasmGenerator {
             //         value.serialize_write(w)?;
             //     }
             // }
-            NoType => todo!(),
             BoolType => todo!(),
             SequenceType(_) => todo!(),
             TupleType(_) => todo!(),
             OptionalType(_) => todo!(),
-            ResponseType(_) => todo!(),
             ListUnionType(_) => todo!(),
             TraitReferenceType(_) => todo!(),
         };

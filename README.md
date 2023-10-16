@@ -94,6 +94,7 @@ WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We
 - `tuple`: each value in the tuple concatenated
 - `optional`: `i32` indicator (`0` for `none`, `1` for `some`), followed by value for `some`
 - `response`: `i32` indicator (`0` for `err`, `1` for `ok`) followed by ok value, then err value
+- When a type is not known, for example, in a `response` where either the `ok` or the `err` are never used, the `NoType` is represented with an `i32` with a value of `0`.
 
 When the return value of a function requires memory space, this space should be allocated by the caller and the offset for that space should be passed to the callee, following the arguments. For example, we can look at the following function:
 

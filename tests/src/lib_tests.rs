@@ -83,7 +83,7 @@ macro_rules! test_multi_contract_init {
 
                 let mut contract_context =
                     ContractContext::new(contract_id.clone(), ClarityVersion::latest());
-                compile_result.module.emit_wasm_file("test.wasm").unwrap();
+                // compile_result.module.emit_wasm_file("test.wasm").unwrap();
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
                 let mut global_context = GlobalContext::new(
@@ -1974,6 +1974,31 @@ test_contract_call_response_events!(
 );
 
 test_contract_call_response_events!(
+    test_print_uint,
+    "print",
+    "print-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(98765));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::UInt(98765));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
     test_print_standard_principal,
     "print",
     "print-standard-principal",
@@ -2036,6 +2061,128 @@ test_contract_call_response_events!(
                 Value::Principal(
                     PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo").unwrap()
                 )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_ok_int,
+    "print",
+    "print-response-ok-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(12345));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::okay(Value::Int(12345)).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_err_uint,
+    "print",
+    "print-response-err-uint",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(98765));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::error(Value::UInt(98765)).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_ok_principal,
+    "print",
+    "print-response-ok-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::okay(Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ))
+                .unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_err_principal,
+    "print",
+    "print-response-err-principal",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::error(Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ))
+                .unwrap()
             );
         } else {
             panic!("Unexpected event received from Wasm function call.");
