@@ -1435,7 +1435,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_buffer,
-    "sha256",
+    "hashes",
     "sha256-buffer",
     |response: ResponseData| {
         assert!(response.committed);
@@ -1455,7 +1455,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_int,
-    "sha256",
+    "hashes",
     "sha256-integer",
     |response: ResponseData| {
         assert!(response.committed);
@@ -1475,7 +1475,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_uint,
-    "sha256",
+    "hashes",
     "sha256-unsigned",
     |response: ResponseData| {
         assert!(response.committed);
