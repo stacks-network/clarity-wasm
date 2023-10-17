@@ -23,7 +23,7 @@ use walrus::{
 use crate::words;
 
 /// First free position after data directly defined in standard.wat
-pub const END_OF_STANDARD_DATA: u32 = 288;
+pub const END_OF_STANDARD_DATA: u32 = 648;
 
 /// `Trap` should match the values used in the standard library and is used to
 /// indicate the reason for a runtime error from the Clarity code.
@@ -3137,8 +3137,12 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         let offset_res = self.literal_memory_end;
         let hash_kind = match func {
+            NativeFunctions::Hash160 => {
+                self.literal_memory_end += 5 * 4; // 5 u32
+                "hash160"
+            }
             NativeFunctions::Sha256 => {
-                self.literal_memory_end += 8 * 4;
+                self.literal_memory_end += 8 * 4; // 8 u32
                 "sha256"
             }
             _ => {
