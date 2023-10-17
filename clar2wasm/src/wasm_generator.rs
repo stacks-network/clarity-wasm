@@ -3797,6 +3797,19 @@ impl WasmGenerator {
         // Traverse the value, leaving it on the data stack
         self.traverse_expr(builder, value)?;
 
+        // Save the value to locals
+        let wasm_types = clar2wasm_ty(
+            self.get_expr_type(value)
+                .expect("print value expression must be typed"),
+        );
+        let mut val_locals = Vec::with_capacity(wasm_types.len());
+        for local_ty in wasm_types.iter().rev() {
+            let local = self.module.locals.add(*local_ty);
+            val_locals.push(local);
+            builder.local_set(local);
+        }
+        val_locals.reverse();
+
         // Save the offset (current stack pointer) into a local.
         // This is where we will serialize the value to.
         let offset = self.module.locals.add(ValType::I32);
@@ -3807,6 +3820,11 @@ impl WasmGenerator {
             .get_expr_type(value)
             .expect("print value expression must be typed")
             .clone();
+
+        // Push the value back onto the data stack
+        for val_local in &val_locals {
+            builder.local_get(*val_local);
+        }
 
         // Write the serialized value to the top of the call stack
         self.serialize_to_memory(builder, offset, 0, &ty);
@@ -3825,8 +3843,11 @@ impl WasmGenerator {
                 .expect("function not found"),
         );
 
-        // Print always returns its input, so traverse the input again.
-        self.traverse_expr(builder, value)?;
+        // Print always returns its input, so read the input value back from
+        // the locals.
+        for val_local in val_locals {
+            builder.local_get(val_local);
+        }
 
         Ok(())
     }

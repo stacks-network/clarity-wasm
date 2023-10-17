@@ -2450,3 +2450,28 @@ test_contract_call_response_events!(
         }
     }
 );
+
+test_contract_call_response_events!(
+    test_print_side_effect,
+    "print",
+    "print-side-effect",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Bool(true));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);

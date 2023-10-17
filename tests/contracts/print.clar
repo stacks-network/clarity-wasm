@@ -65,3 +65,15 @@
 (define-public (print-buffer-empty)
   (ok (print 0x))
 )
+
+(define-data-var my-data uint u0)
+(define-private (increment)
+  (var-set my-data (+ (var-get my-data) u1))
+)
+
+(define-public (print-side-effect)
+  (begin
+    (print (increment))
+    (ok (var-get my-data))
+  )
+)
