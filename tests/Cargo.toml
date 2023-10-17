@@ -8,11 +8,8 @@ path = "./src/lib.rs"
 
 [dependencies]
 clarity = { path = "../stacks-blockchain/clarity" }
-clar2wasm = { path = "../clar2wasm" }
+clar2wasm = { path = "../clar2wasm", features = ["developer-mode"]}
 wasmtime = "13.0.0"
-sha2 = "0.10.7"
-chrono = "0.4.20"
-rusqlite = "0.27.0"
 
 [[bench]]
 name = "benchmark"
