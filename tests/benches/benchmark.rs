@@ -1,5 +1,5 @@
 use clar2wasm::compile;
-use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
 use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::clarity_wasm::{call_function, initialize_contract};
