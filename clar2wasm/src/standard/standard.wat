@@ -1635,34 +1635,6 @@
         (i32.store offset=8 (local.get $offset-result) (i32.add (i32.add (local.get $h3) (local.get $e1)) (local.get $a2)))
         (i32.store offset=12 (local.get $offset-result) (i32.add (i32.add (local.get $h4) (local.get $a1)) (local.get $b2)))
         (i32.store offset=16 (local.get $offset-result) (i32.add (i32.add (local.get $h0) (local.get $b1)) (local.get $c2)))
-
-        ;; fix endianness
-        (v128.store
-            (local.get $offset-result)
-            (i8x16.swizzle
-                (v128.load (local.get $offset-result))
-                (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
-            )
-        )
-        (local.set $i (i32.load offset=16 (local.get $offset-result)))
-        (i32.store offset=16 (local.get $offset-result)
-            (i32.or
-                (i32.or
-                    (i32.shl (local.get $i) (i32.const 24))
-                    (i32.shl
-                        (i32.and (local.get $i) (i32.const 0xff00))
-                        (i32.const 8)
-                    )
-                )
-                (i32.or
-                    (i32.and
-                        (i32.shr_u (local.get $i) (i32.const 8))
-                        (i32.const 0xff00)
-                    )
-                    (i32.shr_u (local.get $i) (i32.const 24))
-                )
-            )
-        )
     )
 
     (func $hash160-f1 (type $hash160-compress-function)

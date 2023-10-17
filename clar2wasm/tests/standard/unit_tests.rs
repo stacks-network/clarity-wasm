@@ -2457,3 +2457,77 @@ fn hash160_prerequisite() {
         .collect();
     assert_eq!(buffer, [0x50a28be6, 0x5c4dd124, 0x6d703ef3, 0x7a6d76e9, 0]);
 }
+
+#[test]
+fn hash160_buf() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let sha256 = instance.get_func(&mut store, "hash160-buf").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // test with "Hello, World!"
+    let text = b"Hello, World!";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to hash160-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 20);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result = Vec::from_hex("e3c83f9d9adb8fcbccc4399da8ebe609ba4352e4").unwrap();
+    assert_eq!(&buffer, &expected_result);
+
+    // test with Lorem Ipsum
+    let text = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to hash160-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 20);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result = Vec::from_hex("d6f2b43388048a339abd861be2babd817e3717cd").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}
