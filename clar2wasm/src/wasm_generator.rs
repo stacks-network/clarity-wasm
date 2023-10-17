@@ -3142,7 +3142,6 @@ impl WasmGenerator {
                 "sha256"
             }
             _ => {
-                self.error = Some(GeneratorError::NotImplemented);
                 return Err(GeneratorError::NotImplemented);
             }
         };
@@ -3153,7 +3152,6 @@ impl WasmGenerator {
             TypeSignature::IntType | TypeSignature::UIntType => "int",
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
             _ => {
-                self.error = Some(GeneratorError::NotImplemented);
                 return Err(GeneratorError::NotImplemented);
             }
         };
