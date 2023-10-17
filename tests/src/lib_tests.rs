@@ -2394,3 +2394,59 @@ test_contract_call_response_events!(
         }
     }
 );
+
+test_contract_call_response_events!(
+    test_print_buffer,
+    "print",
+    "print-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(vec![0xde, 0xad, 0xbe, 0xef]).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::buff_from(vec![0xde, 0xad, 0xbe, 0xef]).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_buffer_empty,
+    "print",
+    "print-buffer-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::buff_from(vec![]).unwrap());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::buff_from(vec![]).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);

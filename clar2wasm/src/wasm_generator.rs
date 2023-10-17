@@ -1512,6 +1512,62 @@ impl WasmGenerator {
                     .local_get(offset_local)
                     .binop(BinaryOp::I32Sub);
             }
+            SequenceType(SequenceSubtype::BufferType(_)) => {
+                // Data stack: TOP | Length | Offset |
+                let write_ptr = self.module.locals.add(ValType::I32);
+                let read_ptr = self.module.locals.add(ValType::I32);
+                let length = self.module.locals.add(ValType::I32);
+
+                // Save the length and offset to locals
+                builder.local_set(length).local_set(read_ptr);
+
+                // Write the type prefix first
+                builder
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::Buffer as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                // Create a local for the write pointer by adjusting the
+                // offset local by the offset amount + 1 for the prefix.
+                builder
+                    .local_get(offset_local)
+                    .i32_const(offset as i32 + 1)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+
+                // Serialize the length to memory (big endian)
+                builder.local_get(length).call(
+                    self.module
+                        .funcs
+                        .by_name("store-i32-be")
+                        .expect("store-i32-be not found"),
+                );
+
+                // Adjust the write pointer by 4
+                builder
+                    .local_get(write_ptr)
+                    .i32_const(4)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+
+                // Copy the buffer
+                builder
+                    .local_get(read_ptr)
+                    .local_get(length)
+                    .memory_copy(memory, memory);
+
+                // Push the length written to the data stack:
+                //  length    +    1    +    4
+                //      type prefix^         ^length
+                builder
+                    .local_get(length)
+                    .i32_const(5)
+                    .binop(BinaryOp::I32Add);
+            }
             NoType => {
                 // This type should not actually be serialized. It is
                 // reporesented as an `i32` value of `0`, so we can leave
@@ -1540,7 +1596,7 @@ impl WasmGenerator {
             //         value.serialize_write(w)?;
             //     }
             // }
-            SequenceType(_) => todo!(),
+            SequenceType(SequenceSubtype::StringType(_)) => todo!(),
             TupleType(_) => todo!(),
             TraitReferenceType(_) => todo!(),
             ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),

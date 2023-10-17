@@ -57,3 +57,11 @@
 (define-public (print-list-empty)
   (ok (print (list)))
 )
+
+(define-public (print-buffer)
+  (ok (print 0xdeadbeef))
+)
+
+(define-public (print-buffer-empty)
+  (ok (print 0x))
+)
