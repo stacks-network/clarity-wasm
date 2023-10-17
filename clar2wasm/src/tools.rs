@@ -16,7 +16,7 @@ use crate::{
     datastore::{BurnDatastore, StacksConstants},
 };
 
-pub fn evaluate(snippet: &str) -> Option<Value> {
+pub fn evaluate_at(snippet: &str, epoch: StacksEpochId, version: ClarityVersion) -> Option<Value> {
     let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
     let mut clarity_store = MemoryBackingStore::new();
@@ -24,7 +24,7 @@ pub fn evaluate(snippet: &str) -> Option<Value> {
 
     let mut db = ClarityDatabase::new(&mut clarity_store, &burn_datastore, &burn_datastore);
     db.begin();
-    db.set_clarity_epoch_version(StacksEpochId::latest());
+    db.set_clarity_epoch_version(epoch);
     db.commit();
 
     let contract_id =
@@ -37,8 +37,8 @@ pub fn evaluate(snippet: &str) -> Option<Value> {
                 snippet,
                 &contract_id,
                 LimitedCostTracker::new_free(),
-                ClarityVersion::latest(),
-                StacksEpochId::latest(),
+                version,
+                epoch,
                 analysis_db,
             )
         })
@@ -51,7 +51,7 @@ pub fn evaluate(snippet: &str) -> Option<Value> {
         })
         .expect("Failed to insert contract analysis.");
 
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+    let mut contract_context = ContractContext::new(contract_id.clone(), version);
     contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
     let mut global_context = GlobalContext::new(
@@ -59,7 +59,7 @@ pub fn evaluate(snippet: &str) -> Option<Value> {
         CHAIN_ID_TESTNET,
         clarity_store.as_clarity_db(),
         cost_tracker,
-        StacksEpochId::latest(),
+        epoch,
     );
     global_context.begin();
     global_context
@@ -73,6 +73,10 @@ pub fn evaluate(snippet: &str) -> Option<Value> {
         &compile_result.contract_analysis,
     )
     .expect("Failed to initialize contract.")
+}
+
+pub fn evaluate(snippet: &str) -> Option<Value> {
+    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
 #[test]
