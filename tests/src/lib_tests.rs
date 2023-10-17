@@ -2289,3 +2289,108 @@ test_contract_call_response_events!(
         }
     }
 );
+
+test_contract_call_response_events!(
+    test_print_list,
+    "print",
+    "print-list",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_list_principals,
+    "print",
+    "print-list-principals",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ),
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.contract")
+                        .unwrap()
+                )
+            ])
+            .unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::list_from(vec![
+                    Value::Principal(
+                        PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                    ),
+                    Value::Principal(
+                        PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.contract")
+                            .unwrap()
+                    )
+                ])
+                .unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_list_empty,
+    "print",
+    "print-list-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::list_from(vec![]).unwrap());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::list_from(vec![]).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);

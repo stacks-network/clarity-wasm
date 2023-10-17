@@ -45,3 +45,15 @@
 (define-public (print-some)
   (ok (print (some 42)))
 )
+
+(define-public (print-list)
+  (ok (print (list 1 2 3)))
+)
+
+(define-public (print-list-principals)
+  (ok (print (list 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.contract)))
+)
+
+(define-public (print-list-empty)
+  (ok (print (list)))
+)

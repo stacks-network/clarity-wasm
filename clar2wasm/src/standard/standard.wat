@@ -1683,6 +1683,13 @@
         (i32.add (local.get $k))
     )
 
+    (func $store-i32-be (param $address i32) (param $value i32)
+        (i32.store8 (local.get $address) (i32.shr_u (local.get $value) (i32.const 24)))
+        (i32.store8 (i32.add (local.get $address) (i32.const 1)) (i32.shr_u (local.get $value) (i32.const 16)))
+        (i32.store8 (i32.add (local.get $address) (i32.const 2)) (i32.shr_u (local.get $value) (i32.const 8)))
+        (i32.store8 (i32.add (local.get $address) (i32.const 3)) (local.get $value))
+    )
+    
     (func $store-i64-be (param $address i32) (param $value i64)
         (i64.store8 (local.get $address) (i64.shr_u (local.get $value) (i64.const 56)))
         (i64.store8 (i32.add (local.get $address) (i32.const 1)) (i64.shr_u (local.get $value) (i64.const 48)))
@@ -1735,5 +1742,6 @@
     (export "sha256-int" (func $sha256-int))
     (export "hash160-buf" (func $hash160-buf))
     (export "hash160-int" (func $hash160-int))
+    (export "store-i32-be" (func $store-i32-be))
     (export "store-i64-be" (func $store-i64-be))
 )
