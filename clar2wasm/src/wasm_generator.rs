@@ -1324,6 +1324,75 @@ impl WasmGenerator {
                 // Push the amount written to the data stack
                 builder.i32_const(1);
             }
+            OptionalType(inner) => {
+                // Data stack: TOP | Value | Indicator |
+                let val_types = clar2wasm_ty(inner);
+
+                // Save the values to locals
+                let mut locals = Vec::with_capacity(val_types.len());
+                for val_ty in val_types.iter().rev() {
+                    let local = self.module.locals.add(*val_ty);
+                    locals.push(local);
+                    builder.local_set(local);
+                }
+                locals.reverse();
+
+                // Create a block for the some case
+                let mut some_block = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut self.module.types,
+                    &[],
+                    &[ValType::I32],
+                ));
+                let some_block_id = some_block.id();
+
+                // Write the type prefix to memory
+                some_block
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::OptionalSome as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                // Push the some value back onto the stack
+                for local in locals.iter() {
+                    some_block.local_get(*local);
+                }
+
+                // Now serialize the value to memory
+                self.serialize_to_memory(&mut some_block, offset_local, offset + 1, inner);
+
+                // Increment the amount written by 1 for the indicator
+                some_block.i32_const(1).binop(BinaryOp::I32Add);
+
+                // Create a block for the none case
+                let mut none_block = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut self.module.types,
+                    &[],
+                    &[ValType::I32],
+                ));
+                let none_block_id = none_block.id();
+
+                // Write the type prefix to memory
+                none_block
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::OptionalNone as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                none_block.i32_const(1);
+
+                // The top of the stack is currently the indicator, which is
+                // `1` for `some` and `0` for none.
+                builder.instr(IfElse {
+                    consequent: some_block_id,
+                    alternative: none_block_id,
+                });
+            }
             NoType => {
                 // This type should not actually be serialized. It is
                 // reporesented as an `i32` value of `0`, so we can leave
@@ -1365,9 +1434,8 @@ impl WasmGenerator {
             // }
             SequenceType(_) => todo!(),
             TupleType(_) => todo!(),
-            OptionalType(_) => todo!(),
-            ListUnionType(_) => todo!(),
             TraitReferenceType(_) => todo!(),
+            ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
         };
     }
 
@@ -3564,10 +3632,7 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
-        builder.global_get(self.stack_pointer).local_set(offset);
-
-        // Push the offset to the data stack
-        builder.local_get(offset);
+        builder.global_get(self.stack_pointer).local_tee(offset);
 
         // Traverse the value, leaving it on the data stack
         self.traverse_expr(builder, value)?;

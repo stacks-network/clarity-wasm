@@ -37,3 +37,11 @@
 (define-public (print-false)
   (ok (print false))
 )
+
+(define-public (print-none)
+  (ok (print none))
+)
+
+(define-public (print-some)
+  (ok (print (some 42)))
+)
