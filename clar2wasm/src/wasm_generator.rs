@@ -1299,14 +1299,37 @@ impl WasmGenerator {
                 // Increment the amount written by 1 for the indicator
                 builder.i32_const(1).binop(BinaryOp::I32Add);
             }
+            BoolType => {
+                // Save the bool to a local
+                let local = self.module.locals.add(ValType::I32);
+                builder.local_set(local);
+
+                // Load the location to write to
+                builder.local_get(offset_local);
+
+                // Select the appropriate type prefix
+                builder
+                    .i32_const(TypePrefix::BoolTrue as i32)
+                    .i32_const(TypePrefix::BoolFalse as i32)
+                    .local_get(local)
+                    .select(Some(ValType::I32));
+
+                // Write the type prefix to memory
+                builder.store(
+                    memory,
+                    StoreKind::I32_8 { atomic: false },
+                    MemArg { align: 1, offset },
+                );
+
+                // Push the amount written to the data stack
+                builder.i32_const(1);
+            }
             NoType => {
                 // This type should not actually be serialized. It is
                 // reporesented as an `i32` value of `0`, so we can leave
                 // that on top of the stack indicating 0 bytes written.
             }
 
-            // // Bool types don't need any more data.
-            // Bool(_) => {}
             // // None types don't need any more data.
             // Optional(OptionalData { data: None }) => {}
             // Optional(OptionalData { data: Some(value) }) => {
@@ -1340,7 +1363,6 @@ impl WasmGenerator {
             //         value.serialize_write(w)?;
             //     }
             // }
-            BoolType => todo!(),
             SequenceType(_) => todo!(),
             TupleType(_) => todo!(),
             OptionalType(_) => todo!(),

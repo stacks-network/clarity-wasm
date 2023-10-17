@@ -29,3 +29,11 @@
 (define-public (print-response-err-principal)
   (print (err 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))
 )
+
+(define-public (print-true)
+  (ok (print true))
+)
+
+(define-public (print-false)
+  (ok (print false))
+)
