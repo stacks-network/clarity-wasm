@@ -1493,6 +1493,57 @@ test_contract_call_response!(
     }
 );
 
+test_contract_call_response!(
+    test_hash160_buffer,
+    "hashes",
+    "hash160-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("d6f2b43388048a339abd861be2babd817e3717cd").unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_hash160_int,
+    "hashes",
+    "hash160-integer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("9b85445a5562baee1c22211ac662e1c580006ca7").unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_hash160_uint,
+    "hashes",
+    "hash160-unsigned",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("105ba6e56008b7de1c41f752db695fca0588f530").unwrap(),
+                },
+            )),
+        );
+    }
+);
+
 // These tests are disabled because they require a block to be present in the
 // chain, which is not the case when running the tests. Once the test framework
 // supports this, these tests can be re-enabled.
