@@ -395,6 +395,7 @@ checksum = "cd7cc57abe963c6d3b9d8be5b06ba7c8957a930305ca90304f24ef040aa6f961"
 name = "clar2wasm"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "clar2wasm-tests",
  "clarity",
@@ -404,6 +405,8 @@ dependencies = [
  "num-integer",
  "proptest",
  "regex",
+ "rusqlite",
+ "sha2 0.10.7",
  "walrus",
  "wasmtime",
  "wat",
@@ -415,14 +418,11 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "assert_fs",
- "chrono",
  "clar2wasm",
  "clarity",
  "criterion",
  "hex",
  "predicates",
- "rusqlite",
- "sha2 0.10.7",
  "wasmparser 0.110.0",
  "wasmtime",
 ]

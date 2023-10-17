@@ -1,5 +1,5 @@
 use clar2wasm::compile;
-use clar2wasm_tests::datastore::{BurnDatastore, StacksConstants};
+use clar2wasm::datastore::{BurnDatastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
