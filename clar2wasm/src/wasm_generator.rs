@@ -22,6 +22,9 @@ use walrus::{
 
 use crate::words;
 
+/// First free position after data directly defined in standard.wat
+pub const END_OF_STANDARD_DATA: u32 = 288;
+
 /// `Trap` should match the values used in the standard library and is used to
 /// indicate the reason for a runtime error from the Clarity code.
 #[allow(dead_code)]
@@ -166,7 +169,7 @@ impl WasmGenerator {
         WasmGenerator {
             contract_analysis,
             module,
-            literal_memory_end: 0,
+            literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),
@@ -3117,11 +3120,52 @@ impl WasmGenerator {
     fn traverse_hash(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _func: NativeFunctions,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
         value: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
+        self.traverse_expr(builder, value)?;
+        self.visit_hash(builder, expr, func, value)
+    }
+
+    fn visit_hash(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        func: NativeFunctions,
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        let offset_res = self.literal_memory_end;
+        let hash_kind = match func {
+            NativeFunctions::Sha256 => {
+                self.literal_memory_end += 8 * 4;
+                "sha256"
+            }
+            _ => {
+                return Err(GeneratorError::NotImplemented);
+            }
+        };
+        let ty = self
+            .get_expr_type(value)
+            .expect("Hash value should be typed");
+        let hash_type = match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => "int",
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
+            _ => {
+                return Err(GeneratorError::NotImplemented);
+            }
+        };
+        let hash_func = self
+            .module
+            .funcs
+            .by_name(&format!("{hash_kind}-{hash_type}"))
+            .unwrap_or_else(|| panic!("function not found: {hash_kind}-{hash_type}"));
+
+        builder
+            .i32_const(offset_res as i32) // result offset
+            .call(hash_func);
+
+        Ok(())
     }
 
     fn traverse_secp256k1_recover(

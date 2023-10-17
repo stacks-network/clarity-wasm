@@ -399,6 +399,7 @@ dependencies = [
  "clar2wasm-tests",
  "clarity",
  "criterion",
+ "hex",
  "lazy_static",
  "num-integer",
  "proptest",
@@ -418,6 +419,7 @@ dependencies = [
  "clar2wasm",
  "clarity",
  "criterion",
+ "hex",
  "predicates",
  "rusqlite",
  "sha2 0.10.7",
@@ -1083,6 +1085,12 @@ name = "hermit-abi"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
+
+[[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "iana-time-zone"

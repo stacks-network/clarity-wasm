@@ -10,7 +10,7 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
-mod wasm_generator;
+pub mod wasm_generator;
 mod words;
 
 // FIXME: This is copied from stacks-blockchain

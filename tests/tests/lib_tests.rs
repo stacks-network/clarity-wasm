@@ -18,6 +18,7 @@ use clarity::{
         ClarityVersion, ContractContext, Value,
     },
 };
+use hex::FromHex;
 use std::collections::HashMap;
 
 /// This macro provides a convenient way to test contract initialization.
@@ -1429,6 +1430,66 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_sha256_buffer,
+    "sha256",
+    "sha256-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex(
+                        "973153f86ec2da1748e63f0cf85b89835b42f8ee8018c549868a1308a19f6ca3"
+                    )
+                    .unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_sha256_int,
+    "sha256",
+    "sha256-integer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex(
+                        "bf9d9b2cf6fa58e2d98fe7357d73ddf052aba366ea543741510591fbf64cd60d"
+                    )
+                    .unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_sha256_uint,
+    "sha256",
+    "sha256-unsigned",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex(
+                        "3c9f0d5d10486e680b92df0124aaa55ec061c7684e5e67241b44ed42a323aa5b"
+                    )
+                    .unwrap(),
+                },
+            )),
+        );
     }
 );
 
