@@ -2465,7 +2465,7 @@ fn hash160_buf() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "hash160-buf").unwrap();
+    let hash160 = instance.get_func(&mut store, "hash160-buf").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2483,7 +2483,7 @@ fn hash160_buf() {
         .write(&mut store, END_OF_STANDARD_DATA as usize, text)
         .expect("Should be able to write to memory");
 
-    sha256
+    hash160
         .call(
             &mut store,
             &[
@@ -2510,7 +2510,7 @@ fn hash160_buf() {
         .write(&mut store, END_OF_STANDARD_DATA as usize, text)
         .expect("Should be able to write to memory");
 
-    sha256
+    hash160
         .call(
             &mut store,
             &[
@@ -2539,7 +2539,7 @@ fn hash160_int() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "hash160-int").unwrap();
+    let hash160 = instance.get_func(&mut store, "hash160-int").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2552,7 +2552,7 @@ fn hash160_int() {
     let res_offset = 3000i32;
 
     // Test on 0xfeedc0dedeadbeefcafed00dcafebabe
-    sha256
+    hash160
         .call(
             &mut store,
             &[
