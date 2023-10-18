@@ -7,6 +7,8 @@
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
+    (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
+    (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -1219,7 +1221,7 @@
         )
     )
 
-    (func $sha256-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1257,7 +1259,7 @@
         (local.get $offset-result) (i32.const 32)
     )
 
-    (func $sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
@@ -1491,7 +1493,7 @@
         (i32.store offset=28 (local.get $origin) (i32.add (i32.load offset=28 (local.get $origin)) (local.get $h)))
     )
 
-    (func $hash160-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
@@ -1510,7 +1512,7 @@
         (local.get $offset-result) (i32.const 20)
     )
 
-    (func $hash160-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
