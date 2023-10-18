@@ -77,3 +77,11 @@
     (ok (var-get my-data))
   )
 )
+
+(define-public (print-string-ascii)
+  (ok (print "hello world"))
+)
+
+(define-public (print-string-ascii-empty)
+  (ok (print ""))
+)

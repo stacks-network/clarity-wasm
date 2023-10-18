@@ -1101,7 +1101,7 @@ impl WasmGenerator {
                 // Push the written length onto the data stack
                 builder.i32_const(written);
             }
-            PrincipalType | CallableType(_) => {
+            PrincipalType | CallableType(_) | TraitReferenceType(_) => {
                 // Data stack: TOP | Length | Offset |
                 // Save the offset/length to locals.
                 let poffset = self.module.locals.add(ValType::I32);
@@ -1568,26 +1568,74 @@ impl WasmGenerator {
                     .i32_const(5)
                     .binop(BinaryOp::I32Add);
             }
+            SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                // Data stack: TOP | Length | Offset |
+                let write_ptr = self.module.locals.add(ValType::I32);
+                let read_ptr = self.module.locals.add(ValType::I32);
+                let length = self.module.locals.add(ValType::I32);
+
+                // Save the length and offset to locals
+                builder.local_set(length).local_set(read_ptr);
+
+                // Write the type prefix first
+                builder
+                    .local_get(offset_local)
+                    .i32_const(TypePrefix::StringASCII as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg { align: 1, offset },
+                    );
+
+                // Create a local for the write pointer by adjusting the
+                // offset local by the offset amount + 1 for the prefix.
+                builder
+                    .local_get(offset_local)
+                    .i32_const(offset as i32 + 1)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+
+                // Serialize the length to memory (big endian)
+                builder.local_get(length).call(
+                    self.module
+                        .funcs
+                        .by_name("store-i32-be")
+                        .expect("store-i32-be not found"),
+                );
+
+                // Adjust the write pointer by 4
+                builder
+                    .local_get(write_ptr)
+                    .i32_const(4)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(write_ptr);
+
+                // Copy the string
+                builder
+                    .local_get(read_ptr)
+                    .local_get(length)
+                    .memory_copy(memory, memory);
+
+                // Push the length written to the data stack:
+                //  length    +    1    +    4
+                //      type prefix^         ^length
+                builder
+                    .local_get(length)
+                    .i32_const(5)
+                    .binop(BinaryOp::I32Add);
+            }
             NoType => {
                 // This type should not actually be serialized. It is
                 // reporesented as an `i32` value of `0`, so we can leave
                 // that on top of the stack indicating 0 bytes written.
             }
 
-            // Sequence(Buffer(value)) => {
-            //     w.write_all(&(u32::from(value.len()).to_be_bytes()))?;
-            //     w.write_all(&value.data)?
-            // }
             // Sequence(SequenceData::String(UTF8(value))) => {
             //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
             //     w.write_all(&(total_len.to_be_bytes()))?;
             //     for bytes in value.data.iter() {
             //         w.write_all(&bytes)?
             //     }
-            // }
-            // Sequence(SequenceData::String(ASCII(value))) => {
-            //     w.write_all(&(u32::from(value.len()).to_be_bytes()))?;
-            //     w.write_all(&value.data)?
             // }
             // Tuple(data) => {
             //     w.write_all(&u32::try_from(data.data_map.len()).unwrap().to_be_bytes())?;
@@ -1596,9 +1644,8 @@ impl WasmGenerator {
             //         value.serialize_write(w)?;
             //     }
             // }
-            SequenceType(SequenceSubtype::StringType(_)) => todo!(),
+            SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
             TupleType(_) => todo!(),
-            TraitReferenceType(_) => todo!(),
             ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
         };
     }
