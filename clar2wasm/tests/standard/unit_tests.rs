@@ -2573,3 +2573,57 @@ fn hash160_int() {
     let expected_result = Vec::from_hex("aeae89e821d429940dff0d3412377815dae9ab07").unwrap();
     assert_eq!(&buffer, &expected_result);
 }
+
+#[test]
+fn store_i32_be() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let store_i32_be = instance.get_func(&mut store, "store-i32-be").unwrap();
+    let mut result = [];
+
+    // Write to a random unused place in the memory
+    store_i32_be
+        .call(
+            &mut store,
+            &[Val::I32(1500), Val::I32(0x01234567)],
+            &mut result,
+        )
+        .expect("call to store-i32-be failed");
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    // check value of memory at offset 1500 with size 4
+    let mut buffer = vec![0u8; 4];
+    memory
+        .read(&mut store, 1500, &mut buffer)
+        .expect("Could not read value from memory");
+    assert_eq!(buffer, [0x01, 0x23, 0x45, 0x67]);
+}
+
+#[test]
+fn store_i64_be() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let store_i64_be = instance.get_func(&mut store, "store-i64-be").unwrap();
+    let mut result = [];
+
+    // Write to a random unused place in the memory
+    store_i64_be
+        .call(
+            &mut store,
+            &[Val::I32(1500), Val::I64(0x0123_4567_89ab_cdef)],
+            &mut result,
+        )
+        .expect("call to store-i64-be failed");
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    // check value of memory at offset 1500 with size 8
+    let mut buffer = vec![0u8; 8];
+    memory
+        .read(&mut store, 1500, &mut buffer)
+        .expect("Could not read value from memory");
+    assert_eq!(buffer, [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]);
+}
