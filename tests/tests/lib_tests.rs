@@ -1435,7 +1435,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_buffer,
-    "sha256",
+    "hashes",
     "sha256-buffer",
     |response: ResponseData| {
         assert!(response.committed);
@@ -1455,7 +1455,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_int,
-    "sha256",
+    "hashes",
     "sha256-integer",
     |response: ResponseData| {
         assert!(response.committed);
@@ -1475,7 +1475,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_sha256_uint,
-    "sha256",
+    "hashes",
     "sha256-unsigned",
     |response: ResponseData| {
         assert!(response.committed);
@@ -1487,6 +1487,57 @@ test_contract_call_response!(
                         "3c9f0d5d10486e680b92df0124aaa55ec061c7684e5e67241b44ed42a323aa5b"
                     )
                     .unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_hash160_buffer,
+    "hashes",
+    "hash160-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("d6f2b43388048a339abd861be2babd817e3717cd").unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_hash160_int,
+    "hashes",
+    "hash160-integer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("9b85445a5562baee1c22211ac662e1c580006ca7").unwrap(),
+                },
+            )),
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_hash160_uint,
+    "hashes",
+    "hash160-unsigned",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                clarity::vm::types::BuffData {
+                    data: Vec::from_hex("105ba6e56008b7de1c41f752db695fca0588f530").unwrap(),
                 },
             )),
         );

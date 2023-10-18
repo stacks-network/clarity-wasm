@@ -2366,3 +2366,210 @@ fn sha256_int() {
         Vec::from_hex("2099af4a709288ebee47cad01952a37d2d04b8003b3f4f2d520a94f3fdfe4210").unwrap();
     assert_eq!(&buffer, &expected_result);
 }
+
+#[test]
+fn hash160_prerequisite() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    // check selection of message word at offset 288 with size 80
+    let mut buffer = vec![0u8; 80];
+    memory
+        .read(&mut store, 288, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    assert_eq!(
+        buffer,
+        [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 7, 4, 13, 1, 10, 6, 15, 3, 12, 0,
+            9, 5, 2, 14, 11, 8, 3, 10, 14, 4, 9, 15, 8, 1, 2, 7, 0, 6, 13, 11, 5, 12, 1, 9, 11, 10,
+            0, 8, 12, 4, 13, 3, 7, 15, 14, 5, 6, 2, 4, 0, 5, 9, 7, 12, 2, 10, 14, 1, 3, 8, 11, 6,
+            15, 13
+        ]
+    );
+
+    // check parallel selection of message word at offset 368 with size 80
+    let mut buffer = vec![0u8; 80];
+    memory
+        .read(&mut store, 368, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    assert_eq!(
+        buffer,
+        [
+            5, 14, 7, 0, 9, 2, 11, 4, 13, 6, 15, 8, 1, 10, 3, 12, 6, 11, 3, 7, 0, 13, 5, 10, 14,
+            15, 8, 12, 4, 9, 1, 2, 15, 5, 1, 3, 7, 14, 6, 9, 11, 8, 12, 2, 10, 0, 4, 13, 8, 6, 4,
+            1, 3, 11, 15, 0, 5, 12, 2, 13, 9, 7, 10, 14, 12, 15, 10, 4, 1, 5, 8, 7, 6, 2, 13, 14,
+            0, 3, 9, 11
+        ]
+    );
+
+    // check left-rotation value at offset 448 with size 80
+    let mut buffer = vec![0u8; 80];
+    memory
+        .read(&mut store, 448, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    assert_eq!(
+        buffer,
+        [
+            11, 14, 15, 12, 5, 8, 7, 9, 11, 13, 14, 15, 6, 7, 9, 8, 7, 6, 8, 13, 11, 9, 7, 15, 7,
+            12, 15, 9, 11, 7, 13, 12, 11, 13, 6, 7, 14, 9, 13, 15, 14, 8, 13, 6, 5, 12, 7, 5, 11,
+            12, 14, 15, 14, 15, 9, 8, 9, 14, 5, 6, 8, 6, 5, 12, 9, 15, 5, 11, 6, 8, 13, 12, 5, 12,
+            13, 14, 11, 8, 5, 6
+        ]
+    );
+
+    // check parallel left-rotation value at offset 528 with size 80
+    let mut buffer = vec![0u8; 80];
+    memory
+        .read(&mut store, 528, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    assert_eq!(
+        buffer,
+        [
+            8, 9, 9, 11, 13, 15, 15, 5, 7, 7, 8, 11, 14, 14, 12, 6, 9, 13, 15, 7, 12, 8, 9, 11, 7,
+            7, 12, 7, 6, 15, 13, 11, 9, 7, 15, 11, 8, 6, 6, 14, 12, 13, 5, 14, 13, 13, 7, 5, 15, 5,
+            8, 11, 14, 14, 6, 14, 6, 9, 12, 9, 12, 5, 15, 8, 8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6,
+            5, 15, 13, 11, 11
+        ]
+    );
+
+    // check constants K values at offset 608 with size 20
+    let mut buffer = vec![0u8; 20];
+    memory
+        .read(&mut store, 608, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    let buffer: Vec<_> = buffer
+        .chunks_exact(4)
+        .map(|i| u32::from_le_bytes(i.try_into().unwrap()))
+        .collect();
+    assert_eq!(buffer, [0, 0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xa953fd4e]);
+
+    // check parallel constants K' values at offset 628 with size 20
+    let mut buffer = vec![0u8; 20];
+    memory
+        .read(&mut store, 628, &mut buffer)
+        .expect("Could not read initial hash from memory");
+    let buffer: Vec<_> = buffer
+        .chunks_exact(4)
+        .map(|i| u32::from_le_bytes(i.try_into().unwrap()))
+        .collect();
+    assert_eq!(buffer, [0x50a28be6, 0x5c4dd124, 0x6d703ef3, 0x7a6d76e9, 0]);
+}
+
+#[test]
+fn hash160_buf() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let hash160 = instance.get_func(&mut store, "hash160-buf").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // test with "Hello, World!"
+    let text = b"Hello, World!";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    hash160
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to hash160-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 20);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result = Vec::from_hex("e3c83f9d9adb8fcbccc4399da8ebe609ba4352e4").unwrap();
+    assert_eq!(&buffer, &expected_result);
+
+    // test with Lorem Ipsum
+    let text = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    hash160
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to hash160-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 20);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result = Vec::from_hex("d6f2b43388048a339abd861be2babd817e3717cd").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}
+
+#[test]
+fn hash160_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let hash160 = instance.get_func(&mut store, "hash160-int").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // Test on 0xfeedc0dedeadbeefcafed00dcafebabe
+    hash160
+        .call(
+            &mut store,
+            &[
+                Val::I64(0xcafed00dcafebabe_u64 as i64),
+                Val::I64(0xfeedc0dedeadbeef_u64 as i64),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to hash160-int failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 20);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result = Vec::from_hex("aeae89e821d429940dff0d3412377815dae9ab07").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}

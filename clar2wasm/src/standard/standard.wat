@@ -7,6 +7,8 @@
     (type (;3;) (func (param i64 i64) (result i64 i64)))
     (type (;4;) (func (param i32 i32 i32) (result i32)))
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
+    (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
+    (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -184,6 +186,29 @@
 
     ;; (sha256) K constants: first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311
     (data (i32.const 32) "\98\2f\8a\42\91\44\37\71\cf\fb\c0\b5\a5\db\b5\e9\5b\c2\56\39\f1\11\f1\59\a4\82\3f\92\d5\5e\1c\ab\98\aa\07\d8\01\5b\83\12\be\85\31\24\c3\7d\0c\55\74\5d\be\72\fe\b1\de\80\a7\06\dc\9b\74\f1\9b\c1\c1\69\9b\e4\86\47\be\ef\c6\9d\c1\0f\cc\a1\0c\24\6f\2c\e9\2d\aa\84\74\4a\dc\a9\b0\5c\da\88\f9\76\52\51\3e\98\6d\c6\31\a8\c8\27\03\b0\c7\7f\59\bf\f3\0b\e0\c6\47\91\a7\d5\51\63\ca\06\67\29\29\14\85\0a\b7\27\38\21\1b\2e\fc\6d\2c\4d\13\0d\38\53\54\73\0a\65\bb\0a\6a\76\2e\c9\c2\81\85\2c\72\92\a1\e8\bf\a2\4b\66\1a\a8\70\8b\4b\c2\a3\51\6c\c7\19\e8\92\d1\24\06\99\d6\85\35\0e\f4\70\a0\6a\10\16\c1\a4\19\08\6c\37\1e\4c\77\48\27\b5\bc\b0\34\b3\0c\1c\39\4a\aa\d8\4e\4f\ca\9c\5b\f3\6f\2e\68\ee\82\8f\74\6f\63\a5\78\14\78\c8\84\08\02\c7\8c\fa\ff\be\90\eb\6c\50\a4\f7\a3\f9\be\f2\78\71\c6")
+
+    ;; (hash-160) selection of message word (r)
+    (data (i32.const 288) "\00\01\02\03\04\05\06\07\08\09\0a\0b\0c\0d\0e\0f\07\04\0d\01\0a\06\0f\03\0c\00\09\05\02\0e\0b\08\03\0a\0e\04\09\0f\08\01\02\07\00\06\0d\0b\05\0c\01\09\0b\0a\00\08\0c\04\0d\03\07\0f\0e\05\06\02\04\00\05\09\07\0c\02\0a\0e\01\03\08\0b\06\0f\0d")
+
+    ;; (hash-160) selection of message word (r')
+    (data (i32.const 368) "\05\0e\07\00\09\02\0b\04\0d\06\0f\08\01\0a\03\0c\06\0b\03\07\00\0d\05\0a\0e\0f\08\0c\04\09\01\02\0f\05\01\03\07\0e\06\09\0b\08\0c\02\0a\00\04\0d\08\06\04\01\03\0b\0f\00\05\0c\02\0d\09\07\0a\0e\0c\0f\0a\04\01\05\08\07\06\02\0d\0e\00\03\09\0b")
+
+    ;; (hash-160) rotate-left amount (s)
+    (data (i32.const 448) "\0b\0e\0f\0c\05\08\07\09\0b\0d\0e\0f\06\07\09\08\07\06\08\0d\0b\09\07\0f\07\0c\0f\09\0b\07\0d\0c\0b\0d\06\07\0e\09\0d\0f\0e\08\0d\06\05\0c\07\05\0b\0c\0e\0f\0e\0f\09\08\09\0e\05\06\08\06\05\0c\09\0f\05\0b\06\08\0d\0c\05\0c\0d\0e\0b\08\05\06")
+
+    ;; (hash-160) rotate-left amount (s')
+    (data (i32.const 528) "\08\09\09\0b\0d\0f\0f\05\07\07\08\0b\0e\0e\0c\06\09\0d\0f\07\0c\08\09\0b\07\07\0c\07\06\0f\0d\0b\09\07\0f\0b\08\06\06\0e\0c\0d\05\0e\0d\0d\07\05\0f\05\08\0b\0e\0e\06\0e\06\09\0c\09\0c\05\0f\08\08\05\0c\09\0c\05\0e\06\08\0d\06\05\0f\0d\0b\0b")
+
+    ;; (hash-160) K constants
+    (data (i32.const 608) "\00\00\00\00\99\79\82\5a\a1\eb\d9\6e\dc\bc\1b\8f\4e\fd\53\a9")
+
+    ;; (hash-160) K' constants
+    (data (i32.const 628) "\e6\8b\a2\50\24\d1\4d\5c\f3\3e\70\6d\e9\76\6d\7a\00\00\00\00")
+
+    ;; table that contains the 5 hash160 functions used during compression
+    (type $hash160-compress-function (func (param i32 i32 i32 i32) (result i32)))
+    (table 5 funcref) ;; table for hash160 compress function
+    (elem (i32.const 0) $hash160-f1 $hash160-f2 $hash160-f3 $hash160-f4 $hash160-f5)
 
     ;; The error code is one of:
         ;; 0: overflow
@@ -1196,7 +1221,7 @@
         )
     )
 
-    (func $sha256-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1234,7 +1259,7 @@
         (local.get $offset-result) (i32.const 32)
     )
 
-    (func $sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
@@ -1468,6 +1493,194 @@
         (i32.store offset=28 (local.get $origin) (i32.add (i32.load offset=28 (local.get $origin)) (local.get $h)))
     )
 
+    (func $hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+        (local $i i32)
+        ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
+        ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
+        ;; and thus always have the same length.
+
+        ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
+        (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
+        ;; compute sha256
+        (call $sha256-buf (local.get $offset) (local.get $length) (local.get $i))
+        drop ;; we don't need the length of sha256, it is always 32
+        (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
+
+        (call $hash160-pad)
+        (call $hash160-compress (local.get $offset-result))
+
+        (local.get $offset-result) (i32.const 20)
+    )
+
+    (func $hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+        (local $i i32)
+        ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
+        ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
+        ;; and thus always have the same length.
+
+        ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
+        (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
+        ;; compute sha256
+        (call $sha256-int (local.get $lo) (local.get $hi) (local.get $i))
+        drop ;; we don't need the length of sha256, it is always 32
+        (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
+
+        (call $hash160-pad)
+        (call $hash160-compress (local.get $offset-result))
+
+        (local.get $offset-result) (i32.const 20)
+    )
+
+    (func $hash160-pad
+        ;; MD-padding: (already placed sha256 +) "1" + "00000..." + size as i64 big endian
+        (i64.store offset=32 (global.get $stack-pointer) (i64.const 0x80))
+        (memory.fill 
+            (i32.add (global.get $stack-pointer) (i32.const 40))
+            (i32.const 0)
+            (i32.const 16)
+        )
+        (i64.store offset=56 (global.get $stack-pointer) (i64.const 256))
+    )
+
+    (func $hash160-compress (param $offset-result i32)
+        (local $h0 i32) (local $h1 i32) (local $h2 i32) (local $h3 i32) (local $h4 i32)
+        (local $a1 i32) (local $b1 i32) (local $c1 i32) (local $d1 i32) (local $e1 i32)
+        (local $a2 i32) (local $b2 i32) (local $c2 i32) (local $d2 i32) (local $e2 i32)
+        (local $i i32) (local $round i32)
+
+        (local.set $a2 (local.tee $a1 (local.tee $h0 (i32.const 0x67452301))))
+        (local.set $b2 (local.tee $b1 (local.tee $h1 (i32.const 0xefcdab89))))
+        (local.set $c2 (local.tee $c1 (local.tee $h2 (i32.const 0x98badcfe))))
+        (local.set $d2 (local.tee $d1 (local.tee $h3 (i32.const 0x10325476))))
+        (local.set $e2 (local.tee $e1 (local.tee $h4 (i32.const 0xc3d2e1f0))))
+
+        (local.set $i (i32.const 0))
+        (loop
+            (local.set $round (i32.shr_u (local.get $i) (i32.const 4)))
+            ;; ROUND
+            ;; a
+            (local.get $a1)
+      
+            ;; + f(round, b, c, d) + K(i)
+            (local.get $b1) (local.get $c1) (local.get $d1)
+            (i32.load offset=608 (i32.shl (local.get $round) (i32.const 2)))
+            (call_indirect (type $hash160-compress-function) (local.get $round))
+            i32.add
+
+            ;; + word[r[i]]
+            (i32.load
+                (i32.add
+                    (global.get $stack-pointer) 
+                    (i32.shl (i32.load8_u offset=288 (local.get $i)) (i32.const 2))
+                )
+            )
+            i32.add
+      
+            ;; left-rotate the addition by s[i]
+            (i32.load8_u offset=448 (local.get $i))
+            i32.rotl
+
+            ;; + e
+            (i32.add (local.get $e1))
+
+            ;; set new vars
+            (local.set $a1 (local.get $e1))
+            (local.set $e1 (local.get $d1))
+            (local.set $d1 (i32.rotl (local.get $c1) (i32.const 10)))
+            (local.set $c1 (local.get $b1))
+            (local.set $b1) ;; set with addition on the top of the stack
+
+            ;; PARALLEL ROUND
+            ;; a'
+            (local.get $a2)
+
+            ;; + f(round, b', c', d') + K'(i)
+            (local.get $b2) (local.get $c2) (local.get $d2)
+            (i32.load offset=628 (i32.shl (local.get $round) (i32.const 2)))
+            (call_indirect (type $hash160-compress-function) (i32.sub (i32.const 4) (local.get $round)))
+            i32.add
+
+            ;; + word[r'[i]]
+            (i32.load
+                (i32.add
+                    (global.get $stack-pointer) 
+                    (i32.shl (i32.load8_u offset=368 (local.get $i)) (i32.const 2))
+                )
+            )
+            i32.add
+
+            ;; left-rotate the addition by s'[i]
+            (i32.load8_u offset=528 (local.get $i))
+            i32.rotl
+
+            ;; + e'
+            (i32.add (local.get $e2))
+
+            ;; set new vars
+            (local.set $a2 (local.get $e2))
+            (local.set $e2 (local.get $d2))
+            (local.set $d2 (i32.rotl (local.get $c2) (i32.const 10)))
+            (local.set $c2 (local.get $b2))
+            (local.set $b2) ;; set with addition on the top of the stack
+
+            (br_if 0 
+                (i32.lt_u 
+                    (local.tee $i (i32.add (local.get $i) (i32.const 1)))
+                    (i32.const 80)
+                )
+            )
+        )
+
+        ;; compute and save result to $offset-result
+        (i32.store (local.get $offset-result) (i32.add (i32.add (local.get $h1) (local.get $c1)) (local.get $d2)))
+        (i32.store offset=4 (local.get $offset-result) (i32.add (i32.add (local.get $h2) (local.get $d1)) (local.get $e2)))
+        (i32.store offset=8 (local.get $offset-result) (i32.add (i32.add (local.get $h3) (local.get $e1)) (local.get $a2)))
+        (i32.store offset=12 (local.get $offset-result) (i32.add (i32.add (local.get $h4) (local.get $a1)) (local.get $b2)))
+        (i32.store offset=16 (local.get $offset-result) (i32.add (i32.add (local.get $h0) (local.get $b1)) (local.get $c2)))
+    )
+
+    (func $hash160-f1 (type $hash160-compress-function)
+        (param $x i32) (param $y i32) (param $z i32) (param $k i32) (result i32)
+        (i32.xor (i32.xor (local.get $x) (local.get $y)) (local.get $z))
+        (i32.add (local.get $k))
+    )
+
+    (func $hash160-f2 (type $hash160-compress-function)
+        (param $x i32) (param $y i32) (param $z i32) (param $k i32) (result i32)
+        (i32.or
+            (i32.and (local.get $x) (local.get $y))
+            (i32.and (i32.xor (local.get $x) (i32.const -1)) (local.get $z))
+        )
+        (i32.add (local.get $k))
+    )
+
+    (func $hash160-f3 (type $hash160-compress-function)
+        (param $x i32) (param $y i32) (param $z i32) (param $k i32) (result i32)
+        (i32.xor
+            (i32.or (local.get $x) (i32.xor (local.get $y) (i32.const -1)))
+            (local.get $z)
+        )
+        (i32.add (local.get $k))
+    )
+
+    (func $hash160-f4 (type $hash160-compress-function)
+        (param $x i32) (param $y i32) (param $z i32) (param $k i32) (result i32)
+        (i32.or
+            (i32.and (local.get $x) (local.get $z))
+            (i32.and (local.get $y) (i32.xor (local.get $z) (i32.const -1)))
+        )
+        (i32.add (local.get $k))
+    )
+
+    (func $hash160-f5 (type $hash160-compress-function)
+        (param $x i32) (param $y i32) (param $z i32) (param $k i32) (result i32)
+        (i32.xor
+            (local.get $x)
+            (i32.or (local.get $y) (i32.xor (local.get $z) (i32.const -1)))
+        )
+        (i32.add (local.get $k))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1507,4 +1720,6 @@
     (export "pow-int" (func $pow-int))
     (export "sha256-buf" (func $sha256-buf))
     (export "sha256-int" (func $sha256-int))
+    (export "hash160-buf" (func $hash160-buf))
+    (export "hash160-int" (func $hash160-int))
 )
