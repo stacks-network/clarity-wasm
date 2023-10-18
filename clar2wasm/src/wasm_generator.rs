@@ -174,17 +174,10 @@ impl WasmGenerator {
         // println!("{:?}", expressions);
 
         // Get the type of the last top-level expression
-        let clarity_return_ty = if let Some(last_expr) = expressions.last() {
-            self.get_expr_type(last_expr)
-        } else {
-            None
-        };
-
-        let return_ty = if let Some(ty) = clarity_return_ty {
-            clar2wasm_ty(ty)
-        } else {
-            vec![]
-        };
+        let return_ty = expressions
+            .last()
+            .and_then(|last_expr| self.get_expr_type(last_expr))
+            .map_or_else(Vec::new, clar2wasm_ty);
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
 
