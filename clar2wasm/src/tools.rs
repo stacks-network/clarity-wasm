@@ -1,3 +1,8 @@
+//! The `tools` module contains tools for evaluating Clarity snippets.
+//! It is intended for use in tooling and tests, but not intended to be used
+//! in production. The `tools` module is only available when the
+//! `developer-mode` feature is enabled.
+
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -16,6 +21,8 @@ use crate::{
     datastore::{BurnDatastore, StacksConstants},
 };
 
+/// Evaluate a Clarity snippet at a specific epoch and version.
+/// Returns an optional value -- the result of the evaluation.
 pub fn evaluate_at(snippet: &str, epoch: StacksEpochId, version: ClarityVersion) -> Option<Value> {
     let constants = StacksConstants::default();
     let burn_datastore = BurnDatastore::new(constants);
@@ -75,6 +82,8 @@ pub fn evaluate_at(snippet: &str, epoch: StacksEpochId, version: ClarityVersion)
     .expect("Failed to initialize contract.")
 }
 
+/// Evaluate a Clarity snippet at the latest epoch and clarity version.
+/// Returns an optional value -- the result of the evaluation.
 pub fn evaluate(snippet: &str) -> Option<Value> {
     evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }

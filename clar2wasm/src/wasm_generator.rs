@@ -187,8 +187,6 @@ impl WasmGenerator {
 
         self.contract_analysis.expressions = expressions;
 
-        // Insert a return instruction at the end of the top-level function so
-        // that the top level always has no return value.
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
