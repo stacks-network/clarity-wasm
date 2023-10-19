@@ -7,8 +7,8 @@ use wasmtime::Val;
 
 use crate::utils::{
     self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
-    test_on_buffer_hash, tiny_int128, tiny_uint128, FromWasmResult, SIGNED_STRATEGIES,
-    UNSIGNED_STRATEGIES,
+    test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128, tiny_uint128,
+    FromWasmResult, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
 };
 
 #[test]
@@ -502,4 +502,18 @@ fn prop_sha256_buff() {
         32,
         |buf| Sha256Sum::from_data(buf).as_bytes().to_vec(),
     )
+}
+
+#[test]
+fn prop_sha256_int_on_signed() {
+    test_on_int_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
+        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
+
+#[test]
+fn prop_sha256_int_on_unsigned() {
+    test_on_uint_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
+        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
 }
