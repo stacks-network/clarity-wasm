@@ -530,3 +530,17 @@ fn prop_hash160_buff() {
         |buf| Hash160::from_data(buf).as_bytes().to_vec(),
     )
 }
+
+#[test]
+fn prop_hash160_int_on_signed() {
+    test_on_int_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
+        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
+
+#[test]
+fn prop_hash160_int_on_unsigned() {
+    test_on_uint_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
+        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
