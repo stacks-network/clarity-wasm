@@ -2824,3 +2824,16 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_append_empty,
+    "sequences",
+    "list-append-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Bool(true)]).unwrap()
+        );
+    }
+);

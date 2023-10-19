@@ -5,3 +5,7 @@
 (define-public (list-append-strings)
   (ok (append (list "hello" "world") "!"))
 )
+
+(define-public (list-append-empty)
+  (ok (append (list) true))
+)

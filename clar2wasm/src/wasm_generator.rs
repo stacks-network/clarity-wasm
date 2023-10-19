@@ -454,6 +454,20 @@ impl WasmGenerator {
                 );
                 8
             }
+            TypeSignature::BoolType => {
+                // Data stack: TOP | Value | ...
+                // Save the value to a local.
+                let bool_val = self.module.locals.add(ValType::I32);
+                builder.local_set(bool_val);
+
+                // Store the value to memory.
+                builder.local_get(offset_local).local_get(bool_val).store(
+                    memory.id(),
+                    StoreKind::I32 { atomic: false },
+                    MemArg { align: 4, offset },
+                );
+                4
+            }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         }
     }
