@@ -1,4 +1,7 @@
+use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
 use clarity::vm::functions::define::DefineFunctions;
+use clarity::vm::types::serialization::TypePrefix;
+use clarity::vm::types::{ListTypeData, TupleTypeSignature};
 use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
@@ -14,8 +17,9 @@ use clarity::vm::{
     ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
 use std::{borrow::BorrowMut, collections::HashMap};
+use walrus::MemoryId;
 use walrus::{
-    ir::{BinaryOp, Block, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp},
+    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind, UnaryOp},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -135,17 +139,6 @@ fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSign
     }
 }
 
-pub fn traverse(
-    visitor: &mut WasmGenerator,
-    builder: &mut InstrSeqBuilder,
-    exprs: &[SymbolicExpression],
-) -> Result<(), GeneratorError> {
-    for expr in exprs {
-        visitor.traverse_expr(builder, expr)?;
-    }
-    Ok(())
-}
-
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -182,19 +175,20 @@ impl WasmGenerator {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
 
-        let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &[]);
+        // Get the type of the last top-level expression
+        let return_ty = expressions
+            .last()
+            .and_then(|last_expr| self.get_expr_type(last_expr))
+            .map_or_else(Vec::new, clar2wasm_ty);
 
-        if traverse(&mut self, &mut current_function.func_body(), &expressions).is_err() {
-            return Err(GeneratorError::InternalError(
-                "ast traversal failed".to_string(),
-            ));
+        let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
+
+        if !expressions.is_empty() {
+            self.traverse_statement_list(&mut current_function.func_body(), &expressions)?;
         }
 
         self.contract_analysis.expressions = expressions;
 
-        // Insert a return instruction at the end of the top-level function so
-        // that the top level always has no return value.
-        current_function.func_body().return_();
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
@@ -772,8 +766,6 @@ impl WasmGenerator {
                 PrincipalData::Standard(standard) => {
                     let mut data = vec![standard.0];
                     data.extend_from_slice(&standard.1);
-                    let contract_length = 0i32.to_le_bytes();
-                    data.extend_from_slice(&contract_length);
                     // Append a 0 for the length of the contract name
                     data.extend_from_slice(&[0u8; 4]);
                     data
@@ -858,21 +850,21 @@ impl WasmGenerator {
         ty: &TypeSignature,
     ) -> u32 {
         let memory = self.module.memories.iter().next().expect("no memory found");
-        let size = match ty {
+        match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
-                // Data stack: TOP | Low | High | ...
+                // Data stack: TOP | High | Low | ...
                 // Save the high/low to locals.
                 let high = self.module.locals.add(ValType::I64);
                 let low = self.module.locals.add(ValType::I64);
-                builder.local_set(low).local_set(high);
+                builder.local_set(high).local_set(low);
 
                 // Store the high/low to memory.
-                builder.local_get(offset_local).local_get(high).store(
+                builder.local_get(offset_local).local_get(low).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
-                builder.local_get(offset_local).local_get(low).store(
+                builder.local_get(offset_local).local_get(high).store(
                     memory.id(),
                     StoreKind::I64 { atomic: false },
                     MemArg {
@@ -906,8 +898,7 @@ impl WasmGenerator {
                 8
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
-        };
-        size
+        }
     }
 
     /// Read a value from memory at offset stored in local variable `offset`,
@@ -1010,13 +1001,834 @@ impl WasmGenerator {
         size
     }
 
+    /// Serialize an integer (`int` or `uint`) to memory using consensus
+    /// serialization. Leaves the length of the data written on the top of the
+    /// data stack. See SIP-005 for details.
+    ///
+    /// Representation:
+    ///   Int:
+    ///     | 0x00 | value: 16-bytes (big-endian) |
+    ///   UInt:
+    ///     | 0x01 | value: 16-bytes (big-endian) |
+    fn serialize_integer(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+        signed: bool,
+    ) {
+        let mut written = 0;
+
+        // Data stack: TOP | High | Low |
+        // Save the high/low to locals.
+        let high = self.module.locals.add(ValType::I64);
+        let low = self.module.locals.add(ValType::I64);
+        builder.local_set(high).local_set(low);
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount.
+        let write_ptr = self.module.locals.add(ValType::I32);
+        if offset > 0 {
+            builder
+                .local_get(offset_local)
+                .i32_const(offset as i32)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+        } else {
+            builder.local_get(offset_local).local_tee(write_ptr);
+        }
+
+        // Write the type prefix first
+        let prefix = if signed {
+            TypePrefix::Int
+        } else {
+            TypePrefix::UInt
+        };
+        builder.i32_const(prefix as i32).store(
+            memory,
+            StoreKind::I32_8 { atomic: false },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Adjust the write pointer
+        builder
+            .local_get(write_ptr)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+        written += 1;
+
+        // Serialize the high to memory.
+        builder.local_get(high).call(
+            self.module
+                .funcs
+                .by_name("store-i64-be")
+                .expect("store-i64-be not found"),
+        );
+
+        // Adjust the write pointer
+        builder
+            .local_get(write_ptr)
+            .i32_const(8)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+        written += 8;
+
+        // Adjust the offset by 8, then serialize the low to memory.
+        builder.local_get(low).call(
+            self.module
+                .funcs
+                .by_name("store-i64-be")
+                .expect("store-i64-be not found"),
+        );
+        written += 8;
+
+        // Push the written length onto the data stack
+        builder.i32_const(written);
+    }
+
+    /// Serialize a `principal` to memory using consensus serialization. Leaves
+    /// the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///   Standard:
+    ///    | 0x05 | version: 1 byte | public key(s)' hash160: 20-bytes |
+    ///   Contract:
+    ///    | 0x06 | version: 1 byte | public key(s)' hash160: 20-bytes
+    ///      | contract name length: 1 byte | contract name: variable length |
+    fn serialize_principal(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+    ) {
+        // Data stack: TOP | Length | Offset |
+        // Save the offset/length to locals.
+        let poffset = self.module.locals.add(ValType::I32);
+        let plength = self.module.locals.add(ValType::I32);
+        builder.local_set(plength).local_set(poffset);
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount.
+        let write_ptr = self.module.locals.add(ValType::I32);
+        if offset > 0 {
+            builder
+                .local_get(offset_local)
+                .i32_const(offset as i32)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+        } else {
+            builder.local_get(offset_local).local_tee(write_ptr);
+        }
+
+        // Copy the standard principal part to the buffer, offset by 1
+        // byte for the type prefix, which we will write next, so that
+        // we don't need two branches.
+        builder
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_get(poffset)
+            .i32_const(PRINCIPAL_BYTES as i32)
+            .memory_copy(memory, memory);
+
+        // If `plength` is greater than STANDARD_PRINCIPAL_BYTES, then
+        // this is a contract principal, else, it's a standard
+        // principal.
+        builder
+            .local_get(plength)
+            .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+            .binop(BinaryOp::I32GtS)
+            .if_else(
+                InstrSeqType::new(&mut self.module.types, &[], &[ValType::I32]),
+                |then| {
+                    // Write the total length of the contract to the buffer
+                    then
+                        // Compute the destination offset
+                        .local_get(write_ptr)
+                        .i32_const(PRINCIPAL_BYTES as i32 + 1)
+                        .binop(BinaryOp::I32Add)
+                        // Compute the length
+                        .local_get(plength)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Sub)
+                        // Write the length
+                        .store(
+                            memory,
+                            StoreKind::I32_8 { atomic: false },
+                            MemArg {
+                                align: 1,
+                                offset: 0,
+                            },
+                        );
+
+                    // Copy the contract name to the buffer
+                    then
+                        // Compute the destination offset
+                        .local_get(write_ptr)
+                        .i32_const(PRINCIPAL_BYTES as i32 + 2)
+                        .binop(BinaryOp::I32Add)
+                        // Compute the source offset
+                        .local_get(poffset)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add)
+                        // Compute the length
+                        .local_get(plength)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Sub)
+                        // Copy the data
+                        .memory_copy(memory, memory);
+
+                    // Push the total length written onto the data stack.
+                    // It is the same as plength, minus 3.
+                    then.local_get(plength).i32_const(2).binop(BinaryOp::I32Sub);
+
+                    // Push the type prefix for a contract principal
+                    then.local_get(write_ptr)
+                        .i32_const(TypePrefix::PrincipalContract as i32)
+                        .store(
+                            memory,
+                            StoreKind::I32_8 { atomic: false },
+                            MemArg {
+                                align: 1,
+                                offset: 0,
+                            },
+                        );
+                },
+                |else_| {
+                    // Push the total length written onto the data stack.
+                    else_.i32_const(PRINCIPAL_BYTES as i32 + 1);
+
+                    // Store the type prefix for a standard principal
+                    else_
+                        .local_get(write_ptr)
+                        .i32_const(TypePrefix::PrincipalStandard as i32)
+                        .store(
+                            memory,
+                            StoreKind::I32_8 { atomic: false },
+                            MemArg {
+                                align: 1,
+                                offset: 0,
+                            },
+                        );
+                },
+            );
+    }
+
+    /// Serialize a `response` to memory using consensus serialization. Leaves
+    /// the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///   Ok:
+    ///    | 0x07 | serialized ok value |
+    ///   Err:
+    ///    | 0x08 | serialized err value |
+    fn serialize_response(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+        types: &(TypeSignature, TypeSignature),
+    ) {
+        // Data stack: TOP | Err Value | Ok Value | Indicator |
+        let err_types = clar2wasm_ty(&types.1);
+        let ok_types = clar2wasm_ty(&types.0);
+
+        // Save the error values to locals
+        let mut err_locals = Vec::with_capacity(err_types.len());
+        for err_ty in err_types.iter().rev() {
+            let local = self.module.locals.add(*err_ty);
+            err_locals.push(local);
+            builder.local_set(local);
+        }
+        err_locals.reverse();
+
+        // Save the ok values to locals
+        let mut ok_locals = Vec::with_capacity(ok_types.len());
+        for ok_ty in ok_types.iter().rev() {
+            let local = self.module.locals.add(*ok_ty);
+            ok_locals.push(local);
+            builder.local_set(local);
+        }
+        ok_locals.reverse();
+
+        // Create a block for the ok case
+        let mut ok_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+        let ok_block_id = ok_block.id();
+
+        // Write the type prefix to memory
+        ok_block
+            .local_get(offset_local)
+            .i32_const(TypePrefix::ResponseOk as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Push the ok value back onto the stack
+        for local in ok_locals.iter() {
+            ok_block.local_get(*local);
+        }
+
+        // Now serialize the ok value to memory
+        self.serialize_to_memory(&mut ok_block, offset_local, offset + 1, &types.0);
+
+        // Create a block for the err case
+        let mut err_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+        let err_block_id = err_block.id();
+
+        // Write the type prefix to memory
+        err_block
+            .local_get(offset_local)
+            .i32_const(TypePrefix::ResponseErr as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Push the err value back onto the stack
+        for local in err_locals.iter() {
+            err_block.local_get(*local);
+        }
+
+        // Now serialize the ok value to memory
+        self.serialize_to_memory(&mut err_block, offset_local, offset + 1, &types.1);
+
+        // The top of the stack is currently the indicator, which is
+        // `1` for `ok` and `0` for err.
+        builder.instr(IfElse {
+            consequent: ok_block_id,
+            alternative: err_block_id,
+        });
+
+        // Increment the amount written by 1 for the indicator
+        builder.i32_const(1).binop(BinaryOp::I32Add);
+    }
+
+    /// Serialize a `bool` to memory using consensus serialization. Leaves the
+    /// length of the data written on the top of the data stack. See SIP-005
+    /// for details.
+    /// Representation:
+    ///   True:
+    ///    | 0x03 |
+    ///   False:
+    ///    | 0x04 |
+    fn serialize_bool(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+    ) {
+        // Save the bool to a local
+        let local = self.module.locals.add(ValType::I32);
+        builder.local_set(local);
+
+        // Load the location to write to
+        builder.local_get(offset_local);
+
+        // Select the appropriate type prefix
+        builder
+            .i32_const(TypePrefix::BoolTrue as i32)
+            .i32_const(TypePrefix::BoolFalse as i32)
+            .local_get(local)
+            .select(Some(ValType::I32));
+
+        // Write the type prefix to memory
+        builder.store(
+            memory,
+            StoreKind::I32_8 { atomic: false },
+            MemArg { align: 1, offset },
+        );
+
+        // Push the amount written to the data stack
+        builder.i32_const(1);
+    }
+
+    /// Serialize an `optional` to memory using consensus serialization. Leaves
+    /// the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///   None:
+    ///    | 0x09 |
+    ///   Some:
+    ///    | 0x0a | serialized value |
+    fn serialize_optional(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+        value_ty: &TypeSignature,
+    ) {
+        // Data stack: TOP | Value | Indicator |
+        let val_types = clar2wasm_ty(value_ty);
+
+        // Save the values to locals
+        let mut locals = Vec::with_capacity(val_types.len());
+        for val_ty in val_types.iter().rev() {
+            let local = self.module.locals.add(*val_ty);
+            locals.push(local);
+            builder.local_set(local);
+        }
+        locals.reverse();
+
+        // Create a block for the some case
+        let mut some_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+        let some_block_id = some_block.id();
+
+        // Write the type prefix to memory
+        some_block
+            .local_get(offset_local)
+            .i32_const(TypePrefix::OptionalSome as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Push the some value back onto the stack
+        for local in locals.iter() {
+            some_block.local_get(*local);
+        }
+
+        // Now serialize the value to memory
+        self.serialize_to_memory(&mut some_block, offset_local, offset + 1, value_ty);
+
+        // Increment the amount written by 1 for the indicator
+        some_block.i32_const(1).binop(BinaryOp::I32Add);
+
+        // Create a block for the none case
+        let mut none_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+        let none_block_id = none_block.id();
+
+        // Write the type prefix to memory
+        none_block
+            .local_get(offset_local)
+            .i32_const(TypePrefix::OptionalNone as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        none_block.i32_const(1);
+
+        // The top of the stack is currently the indicator, which is
+        // `1` for `some` and `0` for none.
+        builder.instr(IfElse {
+            consequent: some_block_id,
+            alternative: none_block_id,
+        });
+    }
+
+    /// Serialize an `optional` to memory using consensus serialization. Leaves
+    /// the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///   None:
+    ///    | 0x09 |
+    ///   Some:
+    ///    | 0x0a | serialized value |
+    fn serialize_list(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+        list_ty: &ListTypeData,
+    ) {
+        // Data stack: TOP | Length | Offset |
+        // Create a local for the write pointer.
+        let write_ptr = self.module.locals.add(ValType::I32);
+        let read_ptr = self.module.locals.add(ValType::I32);
+        let end_read_ptr = self.module.locals.add(ValType::I32);
+        let bytes_length = self.module.locals.add(ValType::I32);
+
+        // Write the type prefix to memory
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::List as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Save the length of the list to a local
+        builder.local_set(bytes_length);
+
+        // Push the write pointer onto the stack, to prepare for
+        // serializing the length.
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Compute the length of the list in elements. The length on
+        // the top of the stack is in bytes, so divide by the size of
+        // the element.
+        let element_ty = list_ty.get_list_item_type();
+        let element_size = get_type_size(element_ty);
+        builder
+            .local_get(bytes_length)
+            .i32_const(element_size)
+            .binop(BinaryOp::I32DivU);
+
+        // Write the length of the list to memory (big-endian)
+        builder.call(
+            self.module
+                .funcs
+                .by_name("store-i32-be")
+                .expect("store-i32-be not found"),
+        );
+
+        // Adjust the write pointer by 4
+        builder
+            .local_get(write_ptr)
+            .i32_const(4)
+            .binop(BinaryOp::I32Add)
+            .local_set(write_ptr);
+
+        // Save the offset of the list (still at the top of the stack)
+        builder.local_set(read_ptr);
+
+        // Compute the pointer to the end of the list
+        builder
+            .local_get(read_ptr)
+            .local_get(bytes_length)
+            .binop(BinaryOp::I32Add)
+            .local_set(end_read_ptr);
+
+        // Loop over the list, serializing each element to memory.
+        // Wrap the loop inside of a block so that we can put the check
+        // at the top of the loop, allowing us to skip the loop body
+        // in the case where the loop is empty
+        let loop_wrap_block =
+            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
+        let loop_wrap_block_id = loop_wrap_block.id();
+
+        let mut loop_block =
+            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
+        let loop_block_id = loop_block.id();
+
+        loop_block
+            .local_get(read_ptr)
+            .local_get(end_read_ptr)
+            .binop(BinaryOp::I32GeU)
+            .br_if(loop_wrap_block_id);
+
+        // Load the element at the read pointer to the top of the stack
+        self.read_from_memory(&mut loop_block, read_ptr, 0, element_ty);
+
+        // Increment the read pointer by the size read
+        loop_block
+            .local_get(read_ptr)
+            .i32_const(element_size)
+            .binop(BinaryOp::I32Add)
+            .local_set(read_ptr);
+
+        // Serialize the element to memory
+        self.serialize_to_memory(&mut loop_block, write_ptr, 0, element_ty);
+
+        // Increment the write pointer by the size written (which is on
+        // the top of the stack)
+        loop_block
+            .local_get(write_ptr)
+            .binop(BinaryOp::I32Add)
+            .local_set(write_ptr);
+
+        // Loop back to the top.
+        loop_block.br(loop_block_id);
+
+        // Add the loop block to the loop wrap block
+        let mut loop_wrap_block = builder.instr_seq(loop_wrap_block_id);
+        loop_wrap_block.instr(Loop { seq: loop_block_id });
+
+        // Add the loop wrap block to the main block
+        builder.instr(Block {
+            seq: loop_wrap_block_id,
+        });
+
+        // Push the amount written to the data stack
+        builder
+            .local_get(write_ptr)
+            .local_get(offset_local)
+            .binop(BinaryOp::I32Sub);
+    }
+
+    /// Serialize a `buffer` to memory using consensus serialization. Leaves
+    /// the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///  | 0x02 | length: 4-bytes (big-endian) | data: variable length |
+    fn serialize_buffer(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+    ) {
+        // Data stack: TOP | Length | Offset |
+        let write_ptr = self.module.locals.add(ValType::I32);
+        let read_ptr = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+
+        // Save the length and offset to locals
+        builder.local_set(length).local_set(read_ptr);
+
+        // Write the type prefix first
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::Buffer as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount + 1 for the prefix.
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Serialize the length to memory (big endian)
+        builder.local_get(length).call(
+            self.module
+                .funcs
+                .by_name("store-i32-be")
+                .expect("store-i32-be not found"),
+        );
+
+        // Adjust the write pointer by 4
+        builder
+            .local_get(write_ptr)
+            .i32_const(4)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Copy the buffer
+        builder
+            .local_get(read_ptr)
+            .local_get(length)
+            .memory_copy(memory, memory);
+
+        // Push the length written to the data stack:
+        //  length    +    1    +    4
+        //      type prefix^         ^length
+        builder
+            .local_get(length)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add);
+    }
+
+    /// Serialize a `string-ascii` to memory using consensus serialization.
+    /// Leaves the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///  | 0x0d | length: 4-bytes (big-endian) | ascii-encoded string: variable length |
+    fn serialize_string_ascii(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+    ) {
+        // Data stack: TOP | Length | Offset |
+        let write_ptr = self.module.locals.add(ValType::I32);
+        let read_ptr = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+
+        // Save the length and offset to locals
+        builder.local_set(length).local_set(read_ptr);
+
+        // Write the type prefix first
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::StringASCII as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount + 1 for the prefix.
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Serialize the length to memory (big endian)
+        builder.local_get(length).call(
+            self.module
+                .funcs
+                .by_name("store-i32-be")
+                .expect("store-i32-be not found"),
+        );
+
+        // Adjust the write pointer by 4
+        builder
+            .local_get(write_ptr)
+            .i32_const(4)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Copy the string
+        builder
+            .local_get(read_ptr)
+            .local_get(length)
+            .memory_copy(memory, memory);
+
+        // Push the length written to the data stack:
+        //  length    +    1    +    4
+        //      type prefix^         ^length
+        builder
+            .local_get(length)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add);
+    }
+
+    /// Serialize a `string-utf8` to memory using consensus serialization.
+    /// Leaves the length of the data written on the top of the data stack. See
+    /// SIP-005 for details.
+    /// Representation:
+    ///  | 0x0e | length: 4-bytes (big-endian) | utf8-encoded string: variable length |
+    fn serialize_string_utf8(
+        &mut self,
+        _builder: &mut InstrSeqBuilder,
+        _memory: MemoryId,
+        _offset_local: LocalId,
+        _offset: u32,
+    ) {
+        // Sequence(SequenceData::String(UTF8(value))) => {
+        //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
+        //     w.write_all(&(total_len.to_be_bytes()))?;
+        //     for bytes in value.data.iter() {
+        //         w.write_all(&bytes)?
+        //     }
+        // }
+        todo!("serialize_string_utf8");
+    }
+
+    /// Serialize a `tuple` to memory using consensus serialization. Leaves the
+    /// length of the data written on the top of the data stack. See SIP-005
+    /// for details.
+    /// Representation:
+    ///  | 0x0c | number of keys: 4-bytes (big-endian)
+    ///    | key 0 length: 1-byte | key 0: variable length | serialized value 0
+    ///    ...
+    ///    | key N length: 1-byte | key N: variable length | serialized value N
+    fn serialize_tuple(
+        &mut self,
+        _builder: &mut InstrSeqBuilder,
+        _memory: MemoryId,
+        _offset_local: LocalId,
+        _offset: u32,
+        _tuple_ty: &TupleTypeSignature,
+    ) {
+        // Tuple(data) => {
+        //     w.write_all(&u32::try_from(data.data_map.len()).unwrap().to_be_bytes())?;
+        //     for (key, value) in data.data_map.iter() {
+        //         key.serialize_write(w)?;
+        //         value.serialize_write(w)?;
+        //     }
+        // }
+        todo!("serialize_tuple");
+    }
+
+    /// Serialize the value of type `ty` on the top of the data stack using
+    /// consensus serialization. Leaves the length of the data written on the
+    /// top of the data stack. See SIP-005 for details.
+    fn serialize_to_memory(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        offset_local: LocalId,
+        offset: u32,
+        ty: &TypeSignature,
+    ) {
+        let memory = self
+            .module
+            .memories
+            .iter()
+            .next()
+            .expect("no memory found")
+            .id();
+
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            IntType | UIntType => {
+                self.serialize_integer(builder, memory, offset_local, offset, ty == &IntType)
+            }
+            PrincipalType | CallableType(_) | TraitReferenceType(_) => {
+                self.serialize_principal(builder, memory, offset_local, offset)
+            }
+            ResponseType(types) => {
+                self.serialize_response(builder, memory, offset_local, offset, types)
+            }
+            BoolType => self.serialize_bool(builder, memory, offset_local, offset),
+            OptionalType(value_ty) => {
+                self.serialize_optional(builder, memory, offset_local, offset, value_ty)
+            }
+            SequenceType(SequenceSubtype::ListType(list_ty)) => {
+                self.serialize_list(builder, memory, offset_local, offset, list_ty)
+            }
+            SequenceType(SequenceSubtype::BufferType(_)) => {
+                self.serialize_buffer(builder, memory, offset_local, offset)
+            }
+            SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                self.serialize_string_ascii(builder, memory, offset_local, offset)
+            }
+            SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                self.serialize_string_utf8(builder, memory, offset_local, offset)
+            }
+            TupleType(tuple_ty) => {
+                self.serialize_tuple(builder, memory, offset_local, offset, tuple_ty)
+            }
+            NoType => {
+                // This type should not actually be serialized. It is
+                // reporesented as an `i32` value of `0`, so we can leave
+                // that on top of the stack indicating 0 bytes written.
+            }
+            ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
+        };
+    }
+
     fn traverse_statement_list(
         &mut self,
         builder: &mut InstrSeqBuilder,
         statements: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         assert!(
-            statements.len() > 1,
+            !statements.is_empty(),
             "statement list must have at least one statement"
         );
         // Traverse all but the last statement and drop any unused values.
@@ -1240,7 +2052,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType => vec![
+        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
@@ -3201,7 +4013,62 @@ impl WasmGenerator {
         _expr: &SymbolicExpression,
         value: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, value)
+        // Traverse the value, leaving it on the data stack
+        self.traverse_expr(builder, value)?;
+
+        // Save the value to locals
+        let wasm_types = clar2wasm_ty(
+            self.get_expr_type(value)
+                .expect("print value expression must be typed"),
+        );
+        let mut val_locals = Vec::with_capacity(wasm_types.len());
+        for local_ty in wasm_types.iter().rev() {
+            let local = self.module.locals.add(*local_ty);
+            val_locals.push(local);
+            builder.local_set(local);
+        }
+        val_locals.reverse();
+
+        // Save the offset (current stack pointer) into a local.
+        // This is where we will serialize the value to.
+        let offset = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+        builder.global_get(self.stack_pointer).local_set(offset);
+
+        let ty = self
+            .get_expr_type(value)
+            .expect("print value expression must be typed")
+            .clone();
+
+        // Push the value back onto the data stack
+        for val_local in &val_locals {
+            builder.local_get(*val_local);
+        }
+
+        // Write the serialized value to the top of the call stack
+        self.serialize_to_memory(builder, offset, 0, &ty);
+
+        // Save the length to a local
+        builder.local_set(length);
+
+        // Push the offset and size to the data stack
+        builder.local_get(offset).local_get(length);
+
+        // Call the host interface function, `print`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("print")
+                .expect("function not found"),
+        );
+
+        // Print always returns its input, so read the input value back from
+        // the locals.
+        for val_local in val_locals {
+            builder.local_get(val_local);
+        }
+
+        Ok(())
     }
 
     fn traverse_unwrap(

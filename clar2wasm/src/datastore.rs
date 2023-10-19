@@ -1,3 +1,9 @@
+//! The `datastore` module contains simple in-memory imnplementations of the
+//! various data storage traits used during program execution.
+//! It is intended for use in tooling and tests, but not intended to be used
+//! in production. The `datastore` module is only available when the
+//! `developer-mode` feature is enabled.
+
 use sha2::{Digest, Sha512_256};
 
 use clarity::types::chainstate::BlockHeaderHash;

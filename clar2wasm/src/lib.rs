@@ -13,6 +13,12 @@ use wasm_generator::{GeneratorError, WasmGenerator};
 pub mod wasm_generator;
 mod words;
 
+#[cfg(feature = "developer-mode")]
+pub mod datastore;
+
+#[cfg(feature = "developer-mode")]
+pub mod tools;
+
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
 pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {

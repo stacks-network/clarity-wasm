@@ -1,4 +1,4 @@
-use clar2wasm_tests::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -100,6 +100,16 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             "set_variable",
             |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
                 println!("var-set");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "print",
+            |_value_offset: i32, _value_length: i32| {
+                println!("print");
             },
         )
         .unwrap();

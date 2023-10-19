@@ -423,3 +423,67 @@ fn prop_pow_int() {
         }
     }
 }
+
+#[test]
+fn prop_store_i32_be() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let store_i32_be = instance
+        .get_func(store.borrow_mut().deref_mut(), "store-i32-be")
+        .unwrap();
+
+    proptest!(|(val in proptest::num::i32::ANY)| {
+        let mut result = [];
+        // Write to a random unused place in the memory
+        store_i32_be
+            .call(
+                store.borrow_mut().deref_mut(),
+                &[Val::I32(1500), Val::I32(val)],
+                &mut result,
+            )
+            .expect("call to store-i32-be failed");
+
+        let memory = instance
+            .get_memory(store.borrow_mut().deref_mut(), "memory")
+            .expect("Could not find memory");
+
+        // check value of mememory at offset 1500 with size 4
+        let mut buffer = vec![0u8; 4];
+        memory
+            .read(store.borrow_mut().deref_mut(), 1500, &mut buffer)
+            .expect("Could not read value from memory");
+        prop_assert_eq!(buffer, val.to_be_bytes());
+    });
+}
+
+#[test]
+fn prop_store_i64_be() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let store_i64_be = instance
+        .get_func(store.borrow_mut().deref_mut(), "store-i64-be")
+        .unwrap();
+
+    proptest!(|(val in proptest::num::i64::ANY)| {
+        let mut result = [];
+        // Write to a random unused place in the memory
+        store_i64_be
+            .call(
+                store.borrow_mut().deref_mut(),
+                &[Val::I32(1500), Val::I64(val)],
+                &mut result,
+            )
+            .expect("call to store-i64-be failed");
+
+        let memory = instance
+            .get_memory(store.borrow_mut().deref_mut(), "memory")
+            .expect("Could not find memory");
+
+        // check value of mememory at offset 1500 with size 4
+        let mut buffer = vec![0u8; 8];
+        memory
+            .read(store.borrow_mut().deref_mut(), 1500, &mut buffer)
+            .expect("Could not read value from memory");
+        prop_assert_eq!(buffer, val.to_be_bytes());
+    });
+}

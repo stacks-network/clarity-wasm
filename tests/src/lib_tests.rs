@@ -1,16 +1,17 @@
 use clar2wasm::compile;
-use clar2wasm_tests::datastore::{BurnDatastore, StacksConstants};
+use clar2wasm::datastore::{BurnDatastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
     vm::{
         callables::DefineType,
         clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, GlobalContext},
+        contexts::{CallStack, EventBatch, GlobalContext},
         contracts::Contract,
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
         errors::{Error, WasmError},
+        events::StacksTransactionEvent,
         types::{
             PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
             TypeSignature,
@@ -27,7 +28,7 @@ use std::collections::HashMap;
 /// - the names of the contracts to initialize (optionally including a
 ///   subdirectory, e.g. `multi-contract/contract-caller`),
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>|`
+///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_multi_contract_init {
     ($func: ident, $contract_names: expr, $context_test: expr) => {
@@ -45,6 +46,9 @@ macro_rules! test_multi_contract_init {
             db.set_clarity_epoch_version(StacksEpochId::latest());
             db.commit();
 
+            // Iterate through all of the contracts and initialize them,
+            // saving the return value of the last one.
+            let mut return_val = None;
             for contract in $contract_names.iter() {
                 let contract_name = contract.rsplit('/').next().unwrap();
                 let contract_id = QualifiedContractIdentifier::new(
@@ -79,6 +83,7 @@ macro_rules! test_multi_contract_init {
 
                 let mut contract_context =
                     ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+                // compile_result.module.emit_wasm_file("test.wasm").unwrap();
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
                 let mut global_context = GlobalContext::new(
@@ -93,7 +98,7 @@ macro_rules! test_multi_contract_init {
                     .execute(|g| g.database.insert_contract_hash(&contract_id, &contract_str))
                     .expect("Failed to insert contract hash.");
 
-                initialize_contract(
+                return_val = initialize_contract(
                     &mut global_context,
                     &mut contract_context,
                     None,
@@ -142,7 +147,7 @@ macro_rules! test_multi_contract_init {
             global_context.begin();
 
             #[allow(clippy::redundant_closure_call)]
-            $context_test(&mut global_context, &contract_contexts);
+            $context_test(&mut global_context, &contract_contexts, return_val);
 
             global_context.commit().unwrap();
         }
@@ -154,17 +159,18 @@ macro_rules! test_multi_contract_init {
 /// - the name of the test to create,
 /// - the name of the contracts to initialize,
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &ContractContext|`
+///  `|global_context: &mut GlobalContext, contract_context: &ContractContext, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_contract_init {
     ($func: ident, $contract_name: literal, $context_test: expr) => {
         test_multi_contract_init!(
             $func,
             [$contract_name],
-            |_global_context: &mut GlobalContext,
-             contract_contexts: &HashMap<&str, ContractContext>| {
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>,
+             return_val: Option<Value>| {
                 let contract_context = contract_contexts.get($contract_name).unwrap();
-                $context_test(_global_context, contract_context);
+                $context_test(global_context, contract_context, return_val);
             }
         );
     };
@@ -185,7 +191,8 @@ macro_rules! test_multi_contract_call {
             $func,
             $init_contracts,
             |global_context: &mut GlobalContext,
-             contract_contexts: &HashMap<&str, ContractContext>| {
+             contract_contexts: &HashMap<&str, ContractContext>,
+             _return_val: Option<Value>| {
                 // Initialize a call stack
                 let mut call_stack = CallStack::new();
 
@@ -268,7 +275,7 @@ macro_rules! test_multi_contract_call_response {
                     #[allow(clippy::redundant_closure_call)]
                     $test(response_data);
                 } else {
-                    panic!("Unexpected result received from WASM function call.");
+                    panic!("Unexpected result received from Wasm function call.");
                 }
             }
         );
@@ -311,6 +318,224 @@ macro_rules! test_contract_call_response {
     };
 }
 
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of all contracts to initialize,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_multi_contract_call_events {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_init!(
+            $func,
+            $init_contracts,
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>,
+             _return_val: Option<Value>| {
+                // Initialize a call stack
+                let mut call_stack = CallStack::new();
+
+                let result = call_function(
+                    $contract_func,
+                    $params,
+                    global_context,
+                    &contract_contexts.get($contract_name).unwrap(),
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                );
+
+                // https://github.com/rust-lang/rust-clippy/issues/1553
+                #[allow(clippy::redundant_closure_call)]
+                $test_result(result);
+
+                #[allow(clippy::redundant_closure_call)]
+                $test_events(&global_context.event_batches);
+            }
+        );
+    };
+
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_result,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+#[allow(unused_macros)]
+macro_rules! test_contract_call_events {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test_result: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            [$contract_name],
+            $contract_name,
+            $contract_func,
+            $params,
+            $test_result,
+            $test_events
+        );
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test_result: expr, $test_events: expr) => {
+        test_contract_call_events!(
+            $func,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_result,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of all contracts to initialize,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|result: Result<Value, Error>|`,
+///   that contains all the assertions we want to test on the result, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_multi_contract_call_response_events {
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $params: expr, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            $params,
+            |result: Result<Value, Error>| {
+                let result = result.expect("Function call failed.");
+
+                if let Value::Response(response_data) = result {
+                    // https://github.com/rust-lang/rust-clippy/issues/1553
+                    #[allow(clippy::redundant_closure_call)]
+                    $test_response(response_data);
+                } else {
+                    panic!("Unexpected result received from Wasm function call.");
+                }
+            },
+            $test_events
+        );
+    };
+
+    ($func: ident, $init_contracts: expr, $contract_name: literal, $contract_func: literal, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_response_events!(
+            $func,
+            $init_contracts,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_response,
+            $test_events
+        );
+    };
+}
+
+/// This macro provides a convenient way to test functions inside contracts.
+/// In order, it takes as parameters:
+/// - the name of the test to create,
+/// - the name of the contract containing the function,
+/// - the name of the function to test,
+/// - an optional list of parameters,
+/// - a closure with type `|response: ResponseData|`,
+///   that contains all the assertions we want to test on the response, and
+/// - a closure with type `|events: &Vec<EventBatch>|`,
+///   that contains all the assertions we want to test on the events.
+macro_rules! test_contract_call_response_events {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test_response: expr, $test_events: expr) => {
+        test_multi_contract_call_response_events!(
+            $func,
+            [$contract_name],
+            $contract_name,
+            $contract_func,
+            $params,
+            $test_response,
+            $test_events
+        );
+    };
+
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test_response: expr, $test_events: expr) => {
+        test_contract_call_response_events!(
+            $func,
+            $contract_name,
+            $contract_func,
+            &[],
+            $test_response,
+            $test_events
+        );
+    };
+}
+
+// ****************************************************************************
+//  TESTS START HERE
+// ****************************************************************************
+
+test_contract_init!(
+    test_top_level,
+    "top-level",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::Int(42)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_multi_statement,
+    "multi-statement",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::Int(4)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_define_first,
+    "top-level-define-first",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, Some(Value::UInt(123456789)));
+    }
+);
+
+test_contract_init!(
+    test_top_level_define_last,
+    "top-level-define-last",
+    |_global_context: &mut GlobalContext,
+     _contract_context: &ContractContext,
+     return_val: Option<Value>| {
+        assert_eq!(return_val, None);
+    }
+);
+
 test_contract_call_response!(test_add, "add", "simple", |response: ResponseData| {
     assert!(response.committed);
     assert_eq!(*response.data, Value::Int(3));
@@ -319,7 +544,9 @@ test_contract_call_response!(test_add, "add", "simple", |response: ResponseData|
 test_contract_init!(
     test_define_private,
     "call-private-with-args",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let public_function = contract_context.lookup_function("simple").unwrap();
         assert_eq!(public_function.define_type, DefineType::Private);
         assert_eq!(
@@ -387,7 +614,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_public,
     "define-public-ok",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let public_function = contract_context.lookup_function("simple").unwrap();
         assert_eq!(public_function.define_type, DefineType::Public);
         assert!(public_function.get_arg_types().is_empty());
@@ -424,7 +653,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_data_var,
     "var-get",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let metadata = contract_context.meta_data_var.get("something").unwrap();
         assert_eq!(metadata.value_type, TypeSignature::IntType);
     }
@@ -727,7 +958,7 @@ test_contract_call_response!(
                     &Value::UInt(0)
                 );
             }
-            _ => panic!("Unexpected result received from WASM function call."),
+            _ => panic!("Unexpected result received from Wasm function call."),
         }
     }
 );
@@ -858,7 +1089,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_ft,
     "define-tokens",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let ft_metadata = contract_context
             .meta_ft
             .get("foo")
@@ -876,7 +1109,9 @@ test_contract_init!(
 test_contract_init!(
     test_define_nft,
     "define-tokens",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let nft_metadata = contract_context
             .meta_nft
             .get("baz")
@@ -937,7 +1172,9 @@ test_contract_call_response!(
 test_contract_init!(
     test_define_map,
     "define-map",
-    |_global_context: &mut GlobalContext, contract_context: &ContractContext| {
+    |_global_context: &mut GlobalContext,
+     contract_context: &ContractContext,
+     _return_val: Option<Value>| {
         let map_metadata = contract_context
             .meta_data_map
             .get("my-map")
@@ -1708,5 +1945,592 @@ test_multi_contract_call_response!(
             *response.data,
             Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
         );
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_int,
+    "print",
+    "print-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(12345));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Int(12345));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_uint,
+    "print",
+    "print-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(98765));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::UInt(98765));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_standard_principal,
+    "print",
+    "print-standard-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_contract_principal,
+    "print",
+    "print-contract-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo").unwrap()
+                )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_ok_int,
+    "print",
+    "print-response-ok-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(12345));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::okay(Value::Int(12345)).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_err_uint,
+    "print",
+    "print-response-err-uint",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(*response.data, Value::UInt(98765));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::error(Value::UInt(98765)).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_ok_principal,
+    "print",
+    "print-response-ok-principal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::okay(Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ))
+                .unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_response_err_principal,
+    "print",
+    "print-response-err-principal",
+    |response: ResponseData| {
+        assert!(!response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(
+                PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::error(Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ))
+                .unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_true,
+    "print",
+    "print-true",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Bool(true));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_false,
+    "print",
+    "print-false",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Bool(false));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_none,
+    "print",
+    "print-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::none());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_some,
+    "print",
+    "print-some",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::Int(42)).unwrap());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::some(Value::Int(42)).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_list,
+    "print",
+    "print-list",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_list_principals,
+    "print",
+    "print-list-principals",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                ),
+                Value::Principal(
+                    PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.contract")
+                        .unwrap()
+                )
+            ])
+            .unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::list_from(vec![
+                    Value::Principal(
+                        PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
+                    ),
+                    Value::Principal(
+                        PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.contract")
+                            .unwrap()
+                    )
+                ])
+                .unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_list_empty,
+    "print",
+    "print-list-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::list_from(vec![]).unwrap());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::list_from(vec![]).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_buffer,
+    "print",
+    "print-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(vec![0xde, 0xad, 0xbe, 0xef]).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::buff_from(vec![0xde, 0xad, 0xbe, 0xef]).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_buffer_empty,
+    "print",
+    "print-buffer-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::buff_from(vec![]).unwrap());
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::buff_from(vec![]).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_side_effect,
+    "print",
+    "print-side-effect",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(1));
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::Bool(true));
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_string_ascii,
+    "print",
+    "print-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_string_ascii_empty,
+    "print",
+    "print-string-ascii-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes(vec![]).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(event.value, Value::string_ascii_from_bytes(vec![]).unwrap());
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
     }
 );
