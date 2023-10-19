@@ -251,7 +251,11 @@ impl WasmGenerator {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
         if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            return (*offset, s.to_string().len() as u32);
+            let length = match s {
+                CharType::ASCII(s) => s.data.len() as u32,
+                CharType::UTF8(_u) => todo!("UTF8"),
+            };
+            return (*offset, length);
         }
 
         let data = match s {

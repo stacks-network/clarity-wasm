@@ -1,5 +1,12 @@
-use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::{ir::BinaryOp, ValType};
+use clarity::vm::{
+    clarity_wasm::get_type_size,
+    types::{SequenceSubtype, StringSubtype, TypeSignature},
+    ClarityName, SymbolicExpression,
+};
+use walrus::{
+    ir::{BinaryOp, UnaryOp},
+    ValType,
+};
 
 use crate::wasm_generator::GeneratorError;
 
@@ -75,6 +82,103 @@ impl Word for Append {
 
         // Store the element at the write pointer.
         generator.write_to_memory(builder, write_ptr, 0, &elem_ty);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct AsMaxLen;
+
+impl Word for AsMaxLen {
+    fn name(&self) -> ClarityName {
+        "as-max-len?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(
+                "expected two arguments to 'as-max-len?'".to_string(),
+            ));
+        }
+
+        // Push a `0` and a `1` to the stack, to be used by the `select`
+        // instruction later.
+        builder.i32_const(0).i32_const(1);
+
+        // Traverse the input list, leaving the offset and length on top of
+        // the stack.
+        generator.traverse_expr(builder, &args[0])?;
+
+        // Save the offset and length to locals for later. Leave the length on
+        // top of the stack.
+        let length_local = generator.module.locals.add(ValType::I32);
+        builder.local_set(length_local);
+        let offset_local = generator.module.locals.add(ValType::I32);
+        builder.local_set(offset_local);
+        builder.local_get(length_local);
+
+        // We need to check if the list is longer than the second argument.
+        // If it is, then return `none`, otherwise, return `(some input)`.
+        // Push the length of the value onto the stack.
+
+        // Get the length of each element.
+        generator
+            .get_expr_type(&args[0])
+            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .and_then(|ty| match ty {
+                TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+                    // The length of the list in bytes is on the top of the stack. If we
+                    // divide that by the length of each element, then we'll have the
+                    // length of the list in elements.
+                    let element_length = get_type_size(list.get_list_item_type());
+                    builder.i32_const(element_length);
+
+                    // Divide the length of the list by the length of each element to get
+                    // the number of elements in the list.
+                    builder.binop(BinaryOp::I32DivU);
+
+                    Ok(())
+                }
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    _,
+                ))) => Err(GeneratorError::NotImplemented),
+                // The byte length of buffers and ASCII strings is the same as
+                // the value length, so just leave it as-is.
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+                | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    _,
+                ))) => Ok(()),
+                _ => Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                )),
+            })?;
+
+        // Convert this 32-bit length to a 64-bit value, for comparison.
+        builder.unop(UnaryOp::I64ExtendUI32);
+
+        // Traverse the second argument, the desired length, leaving the low
+        // and high parts on the stack, then drop the high part.
+        generator.traverse_expr(builder, &args[1])?;
+        builder.drop();
+
+        // Compare the length of the list to the desired length.
+        builder.binop(BinaryOp::I64GeU);
+
+        // Select from the `0` and `1` that we pushed to the stack earlier,
+        // based on the result of the comparison.
+        builder.select(Some(ValType::I32));
+
+        // Now, put the original offset and length back on the stack. In the
+        // case where the result is `none`, these will be ignored, but it
+        // doesn't hurt to have them there.
+        builder.local_get(offset_local).local_get(length_local);
 
         Ok(())
     }

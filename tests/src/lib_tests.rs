@@ -2837,3 +2837,66 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_list_as_max_len_some,
+    "sequences",
+    "list-as-max-len-some",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![Value::Int(1), Value::Int(2)]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_as_max_len_none,
+    "sequences",
+    "list-as-max-len-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_list_as_max_len_empty,
+    "sequences",
+    "list-as-max-len-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_as_max_len,
+    "sequences",
+    "buffer-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![0x12, 0x34, 0x56]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_as_max_len,
+    "sequences",
+    "string-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+);
