@@ -1016,7 +1016,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         signed: bool,
-    ) {
+    ) -> Result<(), GeneratorError> {
         let mut written = 0;
 
         // Data stack: TOP | High | Low |
@@ -1088,6 +1088,8 @@ impl WasmGenerator {
 
         // Push the written length onto the data stack
         builder.i32_const(written);
+
+        Ok(())
     }
 
     /// Serialize a `principal` to memory using consensus serialization. Leaves
@@ -1105,7 +1107,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         offset: u32,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
         // Save the offset/length to locals.
         let poffset = self.module.locals.add(ValType::I32);
@@ -1216,6 +1218,7 @@ impl WasmGenerator {
                         );
                 },
             );
+        Ok(())
     }
 
     /// Serialize a `response` to memory using consensus serialization. Leaves
@@ -1233,7 +1236,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         types: &(TypeSignature, TypeSignature),
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Err Value | Ok Value | Indicator |
         let err_types = clar2wasm_ty(&types.1);
         let ok_types = clar2wasm_ty(&types.0);
@@ -1280,7 +1283,7 @@ impl WasmGenerator {
         }
 
         // Now serialize the ok value to memory
-        self.serialize_to_memory(&mut ok_block, offset_local, offset + 1, &types.0);
+        self.serialize_to_memory(&mut ok_block, offset_local, offset + 1, &types.0)?;
 
         // Create a block for the err case
         let mut err_block = builder.dangling_instr_seq(InstrSeqType::new(
@@ -1306,7 +1309,7 @@ impl WasmGenerator {
         }
 
         // Now serialize the ok value to memory
-        self.serialize_to_memory(&mut err_block, offset_local, offset + 1, &types.1);
+        self.serialize_to_memory(&mut err_block, offset_local, offset + 1, &types.1)?;
 
         // The top of the stack is currently the indicator, which is
         // `1` for `ok` and `0` for err.
@@ -1317,6 +1320,8 @@ impl WasmGenerator {
 
         // Increment the amount written by 1 for the indicator
         builder.i32_const(1).binop(BinaryOp::I32Add);
+
+        Ok(())
     }
 
     /// Serialize a `bool` to memory using consensus serialization. Leaves the
@@ -1333,7 +1338,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         offset: u32,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Save the bool to a local
         let local = self.module.locals.add(ValType::I32);
         builder.local_set(local);
@@ -1357,6 +1362,8 @@ impl WasmGenerator {
 
         // Push the amount written to the data stack
         builder.i32_const(1);
+
+        Ok(())
     }
 
     /// Serialize an `optional` to memory using consensus serialization. Leaves
@@ -1374,7 +1381,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         value_ty: &TypeSignature,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Value | Indicator |
         let val_types = clar2wasm_ty(value_ty);
 
@@ -1411,7 +1418,7 @@ impl WasmGenerator {
         }
 
         // Now serialize the value to memory
-        self.serialize_to_memory(&mut some_block, offset_local, offset + 1, value_ty);
+        self.serialize_to_memory(&mut some_block, offset_local, offset + 1, value_ty)?;
 
         // Increment the amount written by 1 for the indicator
         some_block.i32_const(1).binop(BinaryOp::I32Add);
@@ -1442,6 +1449,8 @@ impl WasmGenerator {
             consequent: some_block_id,
             alternative: none_block_id,
         });
+
+        Ok(())
     }
 
     /// Serialize an `optional` to memory using consensus serialization. Leaves
@@ -1459,7 +1468,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         list_ty: &ListTypeData,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
         // Create a local for the write pointer.
         let write_ptr = self.module.locals.add(ValType::I32);
@@ -1552,7 +1561,7 @@ impl WasmGenerator {
             .local_set(read_ptr);
 
         // Serialize the element to memory
-        self.serialize_to_memory(&mut loop_block, write_ptr, 0, element_ty);
+        self.serialize_to_memory(&mut loop_block, write_ptr, 0, element_ty)?;
 
         // Increment the write pointer by the size written (which is on
         // the top of the stack)
@@ -1578,6 +1587,8 @@ impl WasmGenerator {
             .local_get(write_ptr)
             .local_get(offset_local)
             .binop(BinaryOp::I32Sub);
+
+        Ok(())
     }
 
     /// Serialize a `buffer` to memory using consensus serialization. Leaves
@@ -1591,7 +1602,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         offset: u32,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
         let write_ptr = self.module.locals.add(ValType::I32);
         let read_ptr = self.module.locals.add(ValType::I32);
@@ -1646,6 +1657,8 @@ impl WasmGenerator {
             .local_get(length)
             .i32_const(5)
             .binop(BinaryOp::I32Add);
+
+        Ok(())
     }
 
     /// Serialize a `string-ascii` to memory using consensus serialization.
@@ -1659,7 +1672,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         offset: u32,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
         let write_ptr = self.module.locals.add(ValType::I32);
         let read_ptr = self.module.locals.add(ValType::I32);
@@ -1714,6 +1727,8 @@ impl WasmGenerator {
             .local_get(length)
             .i32_const(5)
             .binop(BinaryOp::I32Add);
+
+        Ok(())
     }
 
     /// Serialize a `string-utf8` to memory using consensus serialization.
@@ -1727,7 +1742,7 @@ impl WasmGenerator {
         _memory: MemoryId,
         _offset_local: LocalId,
         _offset: u32,
-    ) {
+    ) -> Result<(), GeneratorError> {
         // Sequence(SequenceData::String(UTF8(value))) => {
         //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
         //     w.write_all(&(total_len.to_be_bytes()))?;
@@ -1748,20 +1763,121 @@ impl WasmGenerator {
     ///    | key N length: 1-byte | key N: variable length | serialized value N
     fn serialize_tuple(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _memory: MemoryId,
-        _offset_local: LocalId,
-        _offset: u32,
-        _tuple_ty: &TupleTypeSignature,
-    ) {
-        // Tuple(data) => {
-        //     w.write_all(&u32::try_from(data.data_map.len()).unwrap().to_be_bytes())?;
-        //     for (key, value) in data.data_map.iter() {
-        //         key.serialize_write(w)?;
-        //         value.serialize_write(w)?;
-        //     }
-        // }
-        todo!("serialize_tuple");
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
+        ty: &TypeSignature,
+        tuple_ty: &TupleTypeSignature,
+    ) -> Result<(), GeneratorError> {
+        // In Wasm, tuples are represented as a sequence of values
+        // concatenated together. The keys are not included in the Wasm
+        // representation of a tuple, so we get the keys from the type
+        // and the values from the data stack.
+
+        let write_ptr = self.module.locals.add(ValType::I32);
+
+        // First, save the values to locals, so that we can get them in
+        // the correct order.
+        let val_types = clar2wasm_ty(ty);
+        let mut locals = Vec::with_capacity(val_types.len());
+        for val_ty in val_types.iter().rev() {
+            let local = self.module.locals.add(*val_ty);
+            locals.push(local);
+            builder.local_set(local);
+        }
+
+        // Now write the type prefix to memory
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::Tuple as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Initialize the write pointer
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Serialize the length of the data map to memory (big endian)
+        builder
+            .i32_const(tuple_ty.get_type_map().len() as i32)
+            .call(
+                self.module
+                    .funcs
+                    .by_name("store-i32-be")
+                    .expect("store-i32-be not found"),
+            );
+
+        // Adjust the write pointer by 4
+        builder
+            .local_get(write_ptr)
+            .i32_const(4)
+            .binop(BinaryOp::I32Add)
+            .local_tee(write_ptr);
+
+        // Now serialize the keys/values to memory
+        for (key, value_ty) in tuple_ty.get_type_map() {
+            // Serialize the key length
+            builder.i32_const(key.len() as i32).store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            );
+
+            // Adjust the write pointer
+            builder
+                .local_get(write_ptr)
+                .i32_const(1)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+
+            // Serialize the key name
+            let (offset, length) = self.add_identifier_string_literal(key);
+            builder
+                .i32_const(offset as i32)
+                .i32_const(length as i32)
+                .memory_copy(memory, memory);
+
+            // Adjust the write pointer
+            builder
+                .local_get(write_ptr)
+                .i32_const(length as i32)
+                .binop(BinaryOp::I32Add)
+                .local_set(write_ptr);
+
+            // Push the next value back onto the stack
+            let wasm_types = clar2wasm_ty(value_ty);
+            for _ in 0..wasm_types.len() {
+                builder.local_get(
+                    locals
+                        .pop()
+                        .ok_or(GeneratorError::InternalError("invalid tuple value".into()))?,
+                );
+            }
+
+            // Serialize the value
+            self.serialize_to_memory(builder, write_ptr, 0, value_ty)?;
+
+            // Adjust the write pointer by the length left on the stack
+            builder
+                .local_get(write_ptr)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+        }
+
+        // Push the amount written to the data stack
+        builder.local_get(offset_local).binop(BinaryOp::I32Sub);
+
+        Ok(())
     }
 
     /// Serialize the value of type `ty` on the top of the data stack using
@@ -1773,7 +1889,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         ty: &TypeSignature,
-    ) {
+    ) -> Result<(), GeneratorError> {
         let memory = self
             .module
             .memories
@@ -1810,15 +1926,16 @@ impl WasmGenerator {
                 self.serialize_string_utf8(builder, memory, offset_local, offset)
             }
             TupleType(tuple_ty) => {
-                self.serialize_tuple(builder, memory, offset_local, offset, tuple_ty)
+                self.serialize_tuple(builder, memory, offset_local, offset, ty, tuple_ty)
             }
             NoType => {
                 // This type should not actually be serialized. It is
                 // reporesented as an `i32` value of `0`, so we can leave
                 // that on top of the stack indicating 0 bytes written.
+                Ok(())
             }
             ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
-        };
+        }
     }
 
     fn traverse_statement_list(
@@ -4045,7 +4162,7 @@ impl WasmGenerator {
         }
 
         // Write the serialized value to the top of the call stack
-        self.serialize_to_memory(builder, offset, 0, &ty);
+        self.serialize_to_memory(builder, offset, 0, &ty)?;
 
         // Save the length to a local
         builder.local_set(length);

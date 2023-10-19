@@ -85,3 +85,7 @@
 (define-public (print-string-ascii-empty)
   (ok (print ""))
 )
+
+(define-public (print-tuple)
+  (ok (print {key1: 1, key2: true}))
+)
