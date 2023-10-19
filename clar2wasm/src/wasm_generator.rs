@@ -9,10 +9,7 @@ use clarity::vm::{
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     representations::Span,
-    types::{
-        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
-        TypeSignature,
-    },
+    types::{CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, TypeSignature},
     variables::NativeVariables,
     ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
@@ -60,7 +57,7 @@ pub struct WasmGenerator {
     /// Offset of the end of the literal memory.
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
-    stack_pointer: GlobalId,
+    pub(crate) stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
     literal_memory_offet: HashMap<String, u32>,
     /// Map constants to an offset in the literal memory.
@@ -97,7 +94,7 @@ enum FunctionKind {
     ReadOnly,
 }
 
-trait ArgumentsExt {
+pub trait ArgumentsExt {
     fn get_expr(&self, n: usize) -> Result<&SymbolicExpression, GeneratorError>;
     fn get_name(&self, n: usize) -> Result<&ClarityName, GeneratorError>;
 }
@@ -298,11 +295,6 @@ impl WasmGenerator {
                 ) {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
-                        func @ (CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals) => {
-                            self.traverse_args(builder, args)?;
-                            self.visit_comparison(builder, expr, func, args)
-                        }
-                        And | Or => todo!(),
                         Fold => {
                             let name = args.get_name(0)?;
                             self.traverse_fold(
@@ -313,13 +305,6 @@ impl WasmGenerator {
                                 args.get_expr(2)?,
                             )
                         }
-                        Concat => self.traverse_concat(
-                            builder,
-                            expr,
-                            args.get_expr(0)?,
-                            args.get_expr(1)?,
-                        ),
-                        ListCons => self.traverse_list_cons(builder, expr, args),
                         FetchVar => {
                             let name = args.get_name(0)?;
                             self.visit_var_get(builder, expr, name)
@@ -780,7 +765,7 @@ impl WasmGenerator {
     ///   representation of the value (e.g. the offset, length for an in-memory
     ///   type)
     /// - `include_value` indicates if space should be reserved for the value
-    fn create_call_stack_local(
+    pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
         stack_pointer: GlobalId,
@@ -816,7 +801,7 @@ impl WasmGenerator {
     /// Write the value that is on the top of the data stack, which has type
     /// `ty`, to the memory, at offset stored in local variable,
     /// `offset_local`, plus constant offset `offset`.
-    fn write_to_memory(
+    pub(crate) fn write_to_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
@@ -2287,62 +2272,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_comparison(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        func: NativeFunctions,
-        operands: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        let ty = self
-            .get_expr_type(&operands[0])
-            .expect("comparison operands must be typed");
-        let type_suffix = match ty {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
-                "string-ascii"
-            }
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                "string-utf8"
-            }
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buffer",
-            _ => {
-                return Err(GeneratorError::InternalError(
-                    "invalid type for comparison".to_string(),
-                ))
-            }
-        };
-        let helper_func = match func {
-            NativeFunctions::CmpLess => self
-                .module
-                .funcs
-                .by_name(&format!("lt-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: lt-{type_suffix}")),
-            NativeFunctions::CmpGreater => self
-                .module
-                .funcs
-                .by_name(&format!("gt-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: gt-{type_suffix}")),
-            NativeFunctions::CmpLeq => self
-                .module
-                .funcs
-                .by_name(&format!("le-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: le-{type_suffix}")),
-            NativeFunctions::CmpGeq => self
-                .module
-                .funcs
-                .by_name(&format!("ge-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: ge-{type_suffix}")),
-            _ => {
-                return Err(GeneratorError::NotImplemented);
-            }
-        };
-        builder.call(helper_func);
-
-        Ok(())
-    }
-
     fn visit_literal_value(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -2723,58 +2652,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_concat(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        lhs: &SymbolicExpression,
-        rhs: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Create a new sequence to hold the result in the stack frame
-        let ty = self
-            .get_expr_type(expr)
-            .expect("concat expression must be typed")
-            .clone();
-        let (offset, _) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, false, true);
-
-        // Traverse the lhs, leaving it on the data stack (offset, size)
-        self.traverse_expr(builder, lhs)?;
-
-        // Retrieve the memcpy function:
-        // memcpy(src_offset, length, dst_offset)
-        let memcpy = self
-            .module
-            .funcs
-            .by_name("memcpy")
-            .expect("function not found: memcpy");
-
-        // Copy the lhs to the new sequence
-        builder.local_get(offset).call(memcpy);
-
-        // Save the new destination offset
-        let end_offset = self.module.locals.add(ValType::I32);
-        builder.local_set(end_offset);
-
-        // Traverse the rhs, leaving it on the data stack (offset, size)
-        self.traverse_expr(builder, rhs)?;
-
-        // Copy the rhs to the new sequence
-        builder.local_get(end_offset).call(memcpy);
-
-        // Total size = end_offset - offset
-        let size = self.module.locals.add(ValType::I32);
-        builder
-            .local_get(offset)
-            .binop(BinaryOp::I32Sub)
-            .local_set(size);
-
-        // Return the new sequence (offset, size)
-        builder.local_get(offset).local_get(size);
-
-        Ok(())
-    }
-
     fn visit_var_get(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -2861,49 +2738,6 @@ impl WasmGenerator {
 
         // `var-set` always returns `true`
         builder.i32_const(1);
-
-        Ok(())
-    }
-
-    fn traverse_list_cons(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        list: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        let ty = self
-            .get_expr_type(expr)
-            .expect("list expression must be typed")
-            .clone();
-        let (elem_ty, num_elem) =
-            if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
-                (list_type.get_list_item_type(), list_type.get_max_len())
-            } else {
-                panic!(
-                    "Expected list type for list expression, but found: {:?}",
-                    ty
-                );
-            };
-
-        assert_eq!(num_elem as usize, list.len(), "list size mismatch");
-
-        // Allocate space on the data stack for the entire list
-        let (offset, size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, false, true);
-
-        // Loop through the expressions in the list and store them onto the
-        // data stack.
-        let mut total_size = 0;
-        for expr in list.iter() {
-            self.traverse_expr(builder, expr)?;
-            // Write this element to memory
-            let elem_size = self.write_to_memory(builder.borrow_mut(), offset, total_size, elem_ty);
-            total_size += elem_size;
-        }
-        assert_eq!(total_size, size as u32, "list size mismatch");
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(size);
 
         Ok(())
     }
@@ -3917,7 +3751,7 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_args(
+    pub fn traverse_args(
         &mut self,
         builder: &mut InstrSeqBuilder,
         args: &[SymbolicExpression],

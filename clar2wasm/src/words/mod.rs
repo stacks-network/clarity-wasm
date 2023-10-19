@@ -7,7 +7,9 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub mod arithmetic;
+pub mod comparison;
 pub mod definitions;
+pub mod list_manipulation;
 pub mod traits;
 pub mod tuples;
 
@@ -18,20 +20,15 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &arithmetic::Div,
     &arithmetic::Sqrti,
     &arithmetic::Power,
-    // &definitions::DefineConstant,
-    // &definitions::DefinePrivate,
-    // &definitions::DefinePublic,
-    // &definitions::DefineReadOnly,
-    // &definitions::DefineMap,
-    // &definitions::DefineDataVar,
-    // &definitions::DefineFungibleToken,
-    // &definitions::DefineNonFungibleToken,
-    // &traits::DefineTrait,
-    // &traits::UseTrait,
-    // &traits::ImplTrait,
     &tuples::TupleCons,
     &tuples::TupleGet,
     &tuples::TupleMerge,
+    &comparison::CmpLess,
+    &comparison::CmpGreater,
+    &comparison::CmpLeq,
+    &comparison::CmpGeq,
+    &list_manipulation::Concat,
+    &list_manipulation::ListCons,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
