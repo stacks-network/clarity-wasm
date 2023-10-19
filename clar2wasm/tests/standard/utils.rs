@@ -1,4 +1,5 @@
 use proptest::prelude::*;
+use std::ops::Deref;
 use std::{cell::RefCell, ops::DerefMut};
 use wasmtime::Val;
 use wasmtime::{Caller, Engine, Instance, Linker, Module, Store};
@@ -760,4 +761,115 @@ where
     C: Fn(N) -> Option<R>,
 {
     test_export_one_arg_checked(&SIGNED_STRATEGIES, name, closure)
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PropBuffer {
+    buffer: Vec<u8>,
+    offset: usize,
+}
+
+impl PropBuffer {
+    pub(crate) fn new(buffer: Vec<u8>, offset: usize) -> Self {
+        Self { buffer, offset }
+    }
+
+    pub(crate) fn read_from_memory(
+        memory: wasmtime::Memory,
+        store: impl wasmtime::AsContext,
+        offset: usize,
+        length: usize,
+    ) -> Option<Self> {
+        let mut buffer = vec![0u8; length];
+        memory.read(store, offset, &mut buffer).ok()?;
+        Some(Self { buffer, offset })
+    }
+
+    pub(crate) fn write_to_memory(
+        &self,
+        memory: wasmtime::Memory,
+        store: impl wasmtime::AsContextMut,
+    ) -> Option<(i32, i32)> {
+        memory.write(store, self.offset, &self.buffer).ok()?;
+        Some((self.offset as i32, self.buffer.len() as i32))
+    }
+}
+
+impl From<PropBuffer> for Vec<u8> {
+    fn from(value: PropBuffer) -> Self {
+        value.buffer
+    }
+}
+
+impl Deref for PropBuffer {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
+impl AsRef<[u8]> for PropBuffer {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer
+    }
+}
+
+prop_compose! {
+    fn buffer(offset: usize, max_length: usize)
+        (buf in proptest::collection::vec(any::<u8>(), 1..max_length))
+        -> PropBuffer {
+            PropBuffer::new(buf, offset)
+        }
+}
+
+pub(crate) fn test_on_buffer_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    data_offset: usize,
+    data_max_length: usize,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(&[u8]) -> Vec<u8>,
+) {
+    debug_assert!(stack_pointer >= 0);
+    debug_assert!(result_offset >= 0);
+
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let sp = instance
+        .get_global(store.borrow_mut().deref_mut(), "stack-pointer")
+        .expect("Standard does not contain a $stack-pointer global");
+    sp.set(store.borrow_mut().deref_mut(), stack_pointer.into())
+        .expect("could not set $stack-pointer");
+
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap_or_else(|| panic!("could not find function {func_name}"));
+
+    proptest!(|(buf in buffer(data_offset, data_max_length))| {
+        let expected_result = reference_function(&buf);
+
+        let mut res = [Val::I32(0), Val::I32(0)];
+
+        let (offset, len)  = buf.write_to_memory(memory, store.borrow_mut().deref_mut()).expect("could not write buffer to memory");
+
+        fun.call(
+            store.borrow_mut().deref_mut(),
+            &[offset.into(), len.into(), result_offset.into()],
+            &mut res
+        ).unwrap_or_else(|_| panic!("call to {func_name} failed"));
+
+        assert_eq!(res[0].unwrap_i32(), result_offset);
+        assert_eq!(res[1].unwrap_i32(), result_length);
+
+        let wasm_result = PropBuffer::read_from_memory(memory, store.borrow_mut().deref_mut(), result_offset as usize, result_length as usize).expect("could not read result buffer from memory");
+
+        prop_assert_eq!(expected_result, wasm_result.as_ref());
+    });
 }
