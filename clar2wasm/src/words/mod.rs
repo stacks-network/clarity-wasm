@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 pub mod arithmetic;
 pub mod comparison;
-pub mod definitions;
+pub mod data_vars;
 pub mod list_manipulation;
 pub mod traits;
 pub mod tuples;
@@ -29,6 +29,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &comparison::CmpGeq,
     &list_manipulation::Concat,
     &list_manipulation::ListCons,
+    &data_vars::DefineDataVar,
+    &data_vars::SetDataVar,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

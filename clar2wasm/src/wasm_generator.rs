@@ -55,11 +55,11 @@ pub struct WasmGenerator {
     /// The WebAssembly module that is being generated.
     pub(crate) module: Module,
     /// Offset of the end of the literal memory.
-    literal_memory_end: u32,
+    pub(crate) literal_memory_end: u32,
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
-    literal_memory_offet: HashMap<String, u32>,
+    pub(crate) literal_memory_offet: HashMap<String, u32>,
     /// Map constants to an offset in the literal memory.
     constants: HashMap<String, u32>,
 
@@ -280,14 +280,7 @@ impl WasmGenerator {
 
                             self.visit_define_map(builder, expr, name, key_type, value_type)
                         }
-                        DefineFunctions::PersistedVariable => self.traverse_define_data_var(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                            args.get_expr(2)?,
-                        ),
-                        _ => Ok(()),
+                        _ => todo!(),
                     }?;
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
                     function_name,
@@ -308,11 +301,6 @@ impl WasmGenerator {
                         FetchVar => {
                             let name = args.get_name(0)?;
                             self.visit_var_get(builder, expr, name)
-                        }
-                        SetVar => {
-                            let value = args.get_expr(1)?;
-                            self.traverse_expr(builder, value)?;
-                            self.visit_var_set(builder, args.get_name(0)?, value)
                         }
                         FetchEntry => {
                             let name = args.get_name(0)?;
@@ -2388,62 +2376,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_data_var(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _data_type: &SymbolicExpression,
-        initial: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = self.add_identifier_string_literal(name);
-
-        // The initial value can be placed on the top of the memory, since at
-        // the top-level, we have not set up the call stack yet.
-        let ty = self
-            .get_expr_type(initial)
-            .expect("initial value expression must be typed")
-            .clone();
-        let offset = self.module.locals.add(ValType::I32);
-        builder
-            .i32_const(self.literal_memory_end as i32)
-            .local_set(offset);
-
-        // Traverse the initial value for the data variable (result is on the
-        // data stack)
-        self.traverse_expr(builder, initial)?;
-
-        // Write the initial value to the memory, to be read by the host.
-        let size = self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
-
-        // Increment the literal memory end
-        // FIXME: These initial values do not need to be saved in the literal
-        //        memory forever... we just need them once, when .top-level
-        //        is called.
-        self.literal_memory_end += size;
-
-        // Push the name onto the data stack
-        builder
-            .i32_const(name_offset as i32)
-            .i32_const(name_length as i32);
-
-        // Push the offset onto the data stack
-        builder.local_get(offset);
-
-        // Push the size onto the data stack
-        builder.i32_const(size as i32);
-
-        // Call the host interface function, `define_variable`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_variable")
-                .expect("function not found"),
-        );
-        Ok(())
-    }
-
     fn visit_define_ft(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -2692,52 +2624,6 @@ impl WasmGenerator {
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
         self.read_from_memory(builder.borrow_mut(), offset, 0, &ty);
-
-        Ok(())
-    }
-
-    fn visit_var_set(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        name: &ClarityName,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Get the offset and length for this identifier in the literal memory
-        let id_offset = *self
-            .literal_memory_offet
-            .get(name.as_str())
-            .expect("variable not found: {name}");
-        let id_length = name.len();
-
-        // Create space on the call stack to write the value
-        let ty = self
-            .get_expr_type(value)
-            .expect("var-set value expression must be typed")
-            .clone();
-        let (offset, size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
-
-        // Write the value to the memory, to be read by the host
-        self.write_to_memory(builder.borrow_mut(), offset, 0, &ty);
-
-        // Push the identifier offset and length onto the data stack
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(size);
-
-        // Call the host interface function, `set_variable`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("set_variable")
-                .expect("function not found"),
-        );
-
-        // `var-set` always returns `true`
-        builder.i32_const(1);
 
         Ok(())
     }
