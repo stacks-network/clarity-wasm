@@ -56,7 +56,7 @@ pub struct WasmGenerator {
     /// information for the contract.
     contract_analysis: ContractAnalysis,
     /// The WebAssembly module that is being generated.
-    module: Module,
+    pub(crate) module: Module,
     /// Offset of the end of the literal memory.
     literal_memory_end: u32,
     /// Global ID of the stack pointer.
@@ -721,7 +721,10 @@ impl WasmGenerator {
     }
 
     /// Adds a new string literal into the memory for an identifier
-    fn add_identifier_string_literal(&mut self, name: &clarity::vm::ClarityName) -> (u32, u32) {
+    pub(crate) fn add_identifier_string_literal(
+        &mut self,
+        name: &clarity::vm::ClarityName,
+    ) -> (u32, u32) {
         // If this identifier has already been saved in the literal memory,
         // just return the offset and length.
         if let Some(offset) = self.literal_memory_offet.get(name.as_str()) {
@@ -2152,7 +2155,7 @@ impl WasmGenerator {
 }
 
 /// Convert a Clarity type signature to a wasm type signature.
-fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
+pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     match ty {
         TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
         TypeSignature::IntType => vec![ValType::I64, ValType::I64],
@@ -2189,7 +2192,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
 }
 
 /// Drop a value of type `ty` from the data stack.
-fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+pub(crate) fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     let wasm_types = clar2wasm_ty(ty);
     (0..wasm_types.len()).for_each(|_| {
         builder.drop();

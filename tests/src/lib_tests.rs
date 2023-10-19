@@ -2687,3 +2687,44 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_tuple_get_first,
+    "tuple",
+    "get-first",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_get_last,
+    "tuple",
+    "get-last",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes(
+                "Great ideas often receive violent opposition from mediocre minds."
+                    .to_string()
+                    .into_bytes()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_get_only,
+    "tuple",
+    "get-only",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(0x12345678i32.to_be_bytes().to_vec()).unwrap()
+        );
+    }
+);
