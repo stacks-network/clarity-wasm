@@ -1,5 +1,6 @@
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
+use clarity::vm::types::TupleData;
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -2532,5 +2533,114 @@ test_contract_call_response_events!(
         } else {
             panic!("Unexpected event received from Wasm function call.");
         }
+    }
+);
+
+test_contract_call_response!(test_tuple, "tuple", "simple", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(
+        *response.data,
+        Value::Tuple(
+            TupleData::from_data(vec![
+                ("a".into(), Value::Int(1)),
+                ("b".into(), Value::UInt(2))
+            ])
+            .unwrap()
+        )
+    );
+});
+
+test_contract_call_response!(
+    test_tuple_out_of_order,
+    "tuple",
+    "out-of-order",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::UInt(2))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_list_syntax,
+    "tuple",
+    "list-syntax",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::UInt(2))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_strings,
+    "tuple",
+    "strings",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    (
+                        "one".into(),
+                        Value::string_ascii_from_bytes("one".to_string().into_bytes()).unwrap()
+                    ),
+                    (
+                        "two".into(),
+                        Value::string_ascii_from_bytes("two".to_string().into_bytes()).unwrap()
+                    ),
+                    (
+                        "three".into(),
+                        Value::string_ascii_from_bytes("three".to_string().into_bytes()).unwrap()
+                    )
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_nested,
+    "tuple",
+    "nested",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    (
+                        "b".into(),
+                        Value::Tuple(
+                            TupleData::from_data(vec![
+                                ("c".into(), Value::Int(2)),
+                                ("d".into(), Value::Int(3))
+                            ])
+                            .unwrap()
+                        )
+                    )
+                ])
+                .unwrap()
+            )
+        );
     }
 );

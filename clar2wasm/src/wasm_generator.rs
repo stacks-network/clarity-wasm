@@ -370,7 +370,6 @@ impl WasmGenerator {
                             let name = args.get_name(0)?;
                             self.traverse_map_delete(builder, expr, name, args.get_expr(1)?)
                         }
-                        TupleCons => todo!(),
                         TupleGet => {
                             self.traverse_get(builder, expr, args.get_name(0)?, args.get_expr(1)?)
                         }
