@@ -873,3 +873,85 @@ pub(crate) fn test_on_buffer_hash(
         prop_assert_eq!(expected_result, wasm_result.as_ref());
     });
 }
+
+fn test_on_integer_hash(
+    strategies: &[PropIntStrategy],
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    debug_assert!(result_offset >= 0);
+
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let sp = instance
+        .get_global(store.borrow_mut().deref_mut(), "stack-pointer")
+        .expect("Standard does not contain a $stack-pointer global");
+    sp.set(store.borrow_mut().deref_mut(), stack_pointer.into())
+        .expect("could not set $stack-pointer");
+
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap_or_else(|| panic!("could not find function {func_name}"));
+
+    for st in strategies {
+        proptest!(|(n in st())| {
+            let expected_result = reference_function(n.into());
+
+            let mut res = [Val::I32(0), Val::I32(0)];
+
+            fun.call(
+                store.borrow_mut().deref_mut(),
+                &[n.low().into(), n.high().into(), result_offset.into()],
+                &mut res
+            ).unwrap_or_else(|_| panic!("call to {func_name} failed"));
+            assert_eq!(res[0].unwrap_i32(), result_offset);
+            assert_eq!(res[1].unwrap_i32(), result_length);
+
+            let wasm_result = PropBuffer::read_from_memory(memory, store.borrow_mut().deref_mut(), result_offset as usize, result_length as usize).expect("could not read result buffer from memory");
+
+            prop_assert_eq!(expected_result, wasm_result.as_ref());
+        })
+    }
+}
+
+pub(crate) fn test_on_int_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    test_on_integer_hash(
+        &SIGNED_STRATEGIES,
+        func_name,
+        stack_pointer,
+        result_offset,
+        result_length,
+        reference_function,
+    )
+}
+
+pub(crate) fn test_on_uint_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    test_on_integer_hash(
+        &UNSIGNED_STRATEGIES,
+        func_name,
+        stack_pointer,
+        result_offset,
+        result_length,
+        reference_function,
+    )
+}
