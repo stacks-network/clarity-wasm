@@ -168,6 +168,15 @@ impl WasmGenerator {
         Ok(self.module)
     }
 
+    pub fn get_memory(&self) -> MemoryId {
+        self.module
+            .memories
+            .iter()
+            .next()
+            .expect("no memory found")
+            .id()
+    }
+
     pub fn traverse_expr(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -358,7 +367,6 @@ impl WasmGenerator {
     pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        stack_pointer: GlobalId,
         ty: &TypeSignature,
         include_repr: bool,
         include_value: bool,
@@ -373,7 +381,7 @@ impl WasmGenerator {
 
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
-        builder.global_get(stack_pointer).local_tee(offset);
+        builder.global_get(self.stack_pointer).local_tee(offset);
 
         // TODO: The frame stack size can be computed at compile time, so we
         //       should be able to increment the stack pointer once in the function
@@ -382,7 +390,7 @@ impl WasmGenerator {
         builder
             .i32_const(size)
             .binop(BinaryOp::I32Add)
-            .global_set(stack_pointer);
+            .global_set(self.stack_pointer);
         self.frame_size += size;
 
         (offset, size)
@@ -1529,7 +1537,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,
@@ -1552,7 +1559,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,
@@ -1575,7 +1581,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,

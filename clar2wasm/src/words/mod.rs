@@ -20,6 +20,7 @@ pub mod hashing;
 pub mod list_manipulation;
 pub mod maps;
 pub mod print;
+pub mod sequences;
 pub mod stx;
 pub mod tokens;
 pub mod traits;
@@ -88,6 +89,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
     &print::Print,
+    &sequences::Append,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

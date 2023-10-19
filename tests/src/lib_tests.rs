@@ -2793,3 +2793,34 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_append,
+    "sequences",
+    "list-append",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_append_strings,
+    "sequences",
+    "list-append-strings",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap(),
+                Value::string_ascii_from_bytes("world".to_string().into_bytes()).unwrap(),
+                Value::string_ascii_from_bytes("!".to_string().into_bytes()).unwrap(),
+            ])
+            .unwrap()
+        );
+    }
+);
