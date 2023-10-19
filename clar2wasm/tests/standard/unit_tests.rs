@@ -2322,6 +2322,34 @@ fn sha256_buf() {
     let expected_result =
         Vec::from_hex("973153f86ec2da1748e63f0cf85b89835b42f8ee8018c549868a1308a19f6ca3").unwrap();
     assert_eq!(&buffer, &expected_result);
+
+    // test with buffer of size 55, the limit between 1 and 2 blocks
+    let text = &[0; 55];
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha256-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 32);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("02779466cdec163811d078815c633f21901413081449002f24aa3e80f0b88ef7").unwrap();
+    assert_eq!(&buffer, &expected_result);
 }
 
 #[test]
