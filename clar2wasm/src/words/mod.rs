@@ -31,6 +31,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     // &traits::ImplTrait,
     &tuples::TupleCons,
     &tuples::TupleGet,
+    &tuples::TupleMerge,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

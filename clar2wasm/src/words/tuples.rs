@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
@@ -97,21 +97,18 @@ impl Word for TupleGet {
             .match_atom()
             .ok_or(GeneratorError::InternalError("expected key name".into()))?;
 
-        let ty = generator
+        let tuple_ty = generator
             .get_expr_type(&args[1])
-            .ok_or(GeneratorError::InternalError(
-                "tuple expression must be typed".to_string(),
-            ))?
-            .clone();
-
-        let tuple_ty = match ty {
-            TypeSignature::TupleType(tuple) => tuple,
-            _ => {
-                return Err(GeneratorError::InternalError(
+            .ok_or_else(|| {
+                GeneratorError::InternalError("tuple expression must be typed".to_string())
+            })
+            .and_then(|lhs_ty| match lhs_ty {
+                TypeSignature::TupleType(tuple) => Ok(tuple),
+                _ => Err(GeneratorError::InternalError(
                     "expected tuple type".to_string(),
-                ))
-            }
-        };
+                )),
+            })?
+            .clone();
 
         // Traverse the tuple argument, leaving it on top of the stack.
         generator.traverse_expr(builder, &args[1])?;
@@ -147,6 +144,109 @@ impl Word for TupleGet {
         // Load the target field from the locals we created above.
         for local in val_locals.iter().rev() {
             builder.local_get(*local);
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct TupleMerge;
+
+impl Word for TupleMerge {
+    fn name(&self) -> ClarityName {
+        "merge".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(
+                "expected two arguments to tuple merge".to_string(),
+            ));
+        }
+
+        let lhs_tuple_ty = generator
+            .get_expr_type(&args[0])
+            .ok_or_else(|| {
+                GeneratorError::InternalError("tuple expression must be typed".to_string())
+            })
+            .and_then(|lhs_ty| match lhs_ty {
+                TypeSignature::TupleType(tuple) => Ok(tuple),
+                _ => Err(GeneratorError::InternalError(
+                    "expected tuple type".to_string(),
+                )),
+            })?
+            .clone();
+
+        let rhs_tuple_ty = generator
+            .get_expr_type(&args[1])
+            .ok_or_else(|| {
+                GeneratorError::InternalError("tuple expression must be typed".to_string())
+            })
+            .and_then(|lhs_ty| match lhs_ty {
+                TypeSignature::TupleType(tuple) => Ok(tuple),
+                _ => Err(GeneratorError::InternalError(
+                    "expected tuple type".to_string(),
+                )),
+            })?
+            .clone();
+
+        // Traverse the LHS tuple argument, leaving it on top of the stack.
+        generator.traverse_expr(builder, &args[0])?;
+
+        // We need to merge the two tuples and then push the combined tuple
+        // back onto the stack in the correct order. To do this, we'll store
+        // the values of the LHS tuple in locals, and then store the values of
+        // the RHS tuple in locals (overwriting LHS values when there are name
+        // collisions). Finally, we'll load the values from those locals in the
+        // correct order.
+        let mut locals = BTreeMap::new();
+        // LHS
+        for (field_name, field_ty) in lhs_tuple_ty.get_type_map().iter().rev() {
+            let wasm_types = clar2wasm_ty(field_ty);
+            let mut field_locals = Vec::with_capacity(wasm_types.len());
+            for local_ty in wasm_types.iter().rev() {
+                let local = generator.module.locals.add(*local_ty);
+                builder.local_set(local);
+                field_locals.push(local);
+            }
+            locals.insert(field_name, field_locals);
+        }
+
+        // Traverse the LHS tuple argument, leaving it on top of the stack.
+        generator.traverse_expr(builder, &args[1])?;
+
+        // RHS
+        for (field_name, field_ty) in rhs_tuple_ty.get_type_map().iter().rev() {
+            let wasm_types = clar2wasm_ty(field_ty);
+            let mut field_locals = Vec::with_capacity(wasm_types.len());
+            // If this field was in the LHS, then we'll store to the existing
+            // locals instead of creating new ones.
+            if let Some(field_locals) = locals.get(field_name) {
+                for local in field_locals {
+                    builder.local_set(*local);
+                }
+            } else {
+                for local_ty in wasm_types.iter().rev() {
+                    let local = generator.module.locals.add(*local_ty);
+                    builder.local_set(local);
+                    field_locals.push(local);
+                }
+                locals.insert(field_name, field_locals);
+            }
+        }
+
+        // Now load the combined values from the locals we created above.
+        for (_, field_locals) in locals {
+            for local in field_locals.iter().rev() {
+                builder.local_get(*local);
+            }
         }
 
         Ok(())

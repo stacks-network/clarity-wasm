@@ -33,3 +33,16 @@
 (define-public (get-only)
   (ok (get only {only: 0x12345678}))
 )
+
+(define-public (tuple-merge)
+  (ok (merge {a: 1} {b: false}))
+)
+
+(define-public (tuple-merge-multiple)
+  (ok (merge {a: 1, b: "ok"} {c: false, d: 0x}))
+)
+
+
+(define-public (tuple-merge-overwrite)
+  (ok (merge {a: u42, b: "hello"} {b: "goodbye"}))
+)

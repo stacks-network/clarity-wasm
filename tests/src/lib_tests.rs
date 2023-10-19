@@ -2728,3 +2728,68 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_tuple_merge,
+    "tuple",
+    "tuple-merge",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::Bool(false))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_merge_multiple,
+    "tuple",
+    "tuple-merge-multiple",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    (
+                        "b".into(),
+                        Value::string_ascii_from_bytes("ok".to_string().into_bytes()).unwrap()
+                    ),
+                    ("c".into(), Value::Bool(false)),
+                    ("d".into(), Value::buff_from(vec![]).unwrap())
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_merge_overwrite,
+    "tuple",
+    "tuple-merge-overwrite",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::UInt(42)),
+                    (
+                        "b".into(),
+                        Value::string_ascii_from_bytes("goodbye".to_string().into_bytes()).unwrap()
+                    )
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
