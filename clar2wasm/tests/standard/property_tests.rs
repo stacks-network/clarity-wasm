@@ -1,11 +1,14 @@
 use std::{cell::RefCell, ops::DerefMut};
 
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use clarity::util::hash::Sha256Sum;
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
 use crate::utils::{
-    self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128, tiny_int128,
-    tiny_uint128, FromWasmResult, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
+    self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
+    test_on_buffer_hash, tiny_int128, tiny_uint128, FromWasmResult, SIGNED_STRATEGIES,
+    UNSIGNED_STRATEGIES,
 };
 
 #[test]
@@ -486,4 +489,17 @@ fn prop_store_i64_be() {
             .expect("Could not read value from memory");
         prop_assert_eq!(buffer, val.to_be_bytes());
     });
+}
+
+#[test]
+fn prop_sha256_buff() {
+    test_on_buffer_hash(
+        "sha256-buf",
+        1024,
+        END_OF_STANDARD_DATA as usize + 32,
+        300,
+        END_OF_STANDARD_DATA as i32,
+        32,
+        |buf| Sha256Sum::from_data(buf).as_bytes().to_vec(),
+    )
 }
