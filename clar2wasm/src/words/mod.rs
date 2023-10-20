@@ -31,6 +31,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &comparison::CmpGeq,
     &list_manipulation::Concat,
     &list_manipulation::ListCons,
+    &list_manipulation::Fold,
     &data_vars::DefineDataVar,
     &data_vars::SetDataVar,
     &data_vars::GetDataVar,
