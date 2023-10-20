@@ -342,6 +342,7 @@ impl WasmGenerator {
                             self.traverse_get(builder, expr, args.get_name(0)?, args.get_expr(1)?)
                         }
                         Begin => self.traverse_begin(builder, expr, args),
+                        Print => self.traverse_print(builder, expr, args.get_expr(0)?),
                         AsContract => self.traverse_as_contract(builder, expr, args.get_expr(0)?),
                         GetBlockInfo => self.traverse_get_block_info(
                             builder,
@@ -2631,6 +2632,16 @@ impl WasmGenerator {
         Ok(())
     }
 
+    fn traverse_get(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        _key: &ClarityName,
+        tuple: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, tuple)
+    }
+
     fn traverse_fold(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3713,6 +3724,70 @@ impl WasmGenerator {
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
         self.read_from_memory(builder.borrow_mut(), return_offset, 0, &return_ty);
+
+        Ok(())
+    }
+
+    fn traverse_print(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        value: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        // Traverse the value, leaving it on the data stack
+        self.traverse_expr(builder, value)?;
+
+        // Save the value to locals
+        let wasm_types = clar2wasm_ty(
+            self.get_expr_type(value)
+                .expect("print value expression must be typed"),
+        );
+        let mut val_locals = Vec::with_capacity(wasm_types.len());
+        for local_ty in wasm_types.iter().rev() {
+            let local = self.module.locals.add(*local_ty);
+            val_locals.push(local);
+            builder.local_set(local);
+        }
+        val_locals.reverse();
+
+        // Save the offset (current stack pointer) into a local.
+        // This is where we will serialize the value to.
+        let offset = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+        builder.global_get(self.stack_pointer).local_set(offset);
+
+        let ty = self
+            .get_expr_type(value)
+            .expect("print value expression must be typed")
+            .clone();
+
+        // Push the value back onto the data stack
+        for val_local in &val_locals {
+            builder.local_get(*val_local);
+        }
+
+        // Write the serialized value to the top of the call stack
+        self.serialize_to_memory(builder, offset, 0, &ty)?;
+
+        // Save the length to a local
+        builder.local_set(length);
+
+        // Push the offset and size to the data stack
+        builder.local_get(offset).local_get(length);
+
+        // Call the host interface function, `print`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("print")
+                .expect("function not found"),
+        );
+
+        // Print always returns its input, so read the input value back from
+        // the locals.
+        for val_local in val_locals {
+            builder.local_get(val_local);
+        }
 
         Ok(())
     }
