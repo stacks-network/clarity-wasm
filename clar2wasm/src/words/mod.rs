@@ -46,6 +46,9 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &bitwise::BitwiseRShift,
     &maps::MapDefinition,
     &maps::MapGet,
+    &maps::MapSet,
+    &maps::MapInsert,
+    &maps::MapDelete,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
