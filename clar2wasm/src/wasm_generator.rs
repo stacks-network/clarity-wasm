@@ -276,13 +276,6 @@ impl WasmGenerator {
                         DefineFunctions::FungibleToken => {
                             self.visit_define_ft(builder, expr, args.get_name(0)?, args.get(1))
                         }
-                        DefineFunctions::Map => {
-                            let name = args.get_name(0)?;
-                            let key_type = args.get_expr(1)?;
-                            let value_type = args.get_expr(2)?;
-
-                            self.visit_define_map(builder, expr, name, key_type, value_type)
-                        }
                         _ => todo!(),
                     }?;
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
@@ -291,10 +284,6 @@ impl WasmGenerator {
                 ) {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
-                        FetchEntry => {
-                            let name = args.get_name(0)?;
-                            self.traverse_map_get(builder, expr, name, args.get_expr(1)?)
-                        }
                         SetEntry => {
                             let name = args.get_name(0)?;
                             self.traverse_map_set(
@@ -2364,31 +2353,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_define_map(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _key_type: &SymbolicExpression,
-        _value_type: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = self.add_identifier_string_literal(name);
-
-        // Push the name onto the data stack
-        builder
-            .i32_const(name_offset as i32)
-            .i32_const(name_length as i32);
-
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_map")
-                .expect("function not found"),
-        );
-        Ok(())
-    }
-
     fn traverse_begin(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3020,68 +2984,6 @@ impl WasmGenerator {
             }
             _ => Err(GeneratorError::NotImplemented),
         }
-    }
-
-    fn traverse_map_get(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        name: &ClarityName,
-        key: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Get the offset and length for this identifier in the literal memory
-        let id_offset = *self
-            .literal_memory_offet
-            .get(name.as_str())
-            .expect("map not found: {name}");
-        let id_length = name.len();
-
-        // Push the identifier offset and length onto the data stack
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Create space on the call stack to write the key
-        let ty = self
-            .get_expr_type(key)
-            .expect("map-set value expression must be typed")
-            .clone();
-        let (key_offset, key_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, false);
-
-        // Push the key to the data stack
-        self.traverse_expr(builder, key)?;
-
-        // Write the key to the memory (it's already on the data stack)
-        self.write_to_memory(builder.borrow_mut(), key_offset, 0, &ty);
-
-        // Push the key offset and size to the data stack
-        builder.local_get(key_offset).i32_const(key_size);
-
-        // Create a new local to hold the result on the call stack
-        let ty = self
-            .get_expr_type(expr)
-            .expect("map-get? expression must be typed")
-            .clone();
-        let (return_offset, return_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, true);
-
-        // Push the return value offset and size to the data stack
-        builder.local_get(return_offset).i32_const(return_size);
-
-        // Call the host-interface function, `map_get`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("map_get")
-                .expect("map_get not found"),
-        );
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
-        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &ty);
-
-        Ok(())
     }
 
     fn traverse_map_set(

@@ -138,7 +138,7 @@ impl Word for Fold {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let func = args.get_name(0)?;

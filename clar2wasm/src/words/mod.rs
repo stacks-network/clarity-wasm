@@ -12,6 +12,7 @@ pub mod comparison;
 pub mod data_vars;
 pub mod hashing;
 pub mod list_manipulation;
+pub mod maps;
 pub mod traits;
 pub mod tuples;
 
@@ -43,6 +44,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &bitwise::BitwiseXor,
     &bitwise::BitwiseLShift,
     &bitwise::BitwiseRShift,
+    &maps::MapDefinition,
+    &maps::MapGet,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

@@ -16,7 +16,7 @@ impl Word for BitwiseNot {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_expr(builder, args.get_expr(0)?)?;
@@ -62,7 +62,7 @@ impl Word for BitwiseOr {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         traverse_bitwise("bit-or", generator, builder, args)
@@ -81,7 +81,7 @@ impl Word for BitwiseAnd {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         traverse_bitwise("bit-and", generator, builder, args)
@@ -100,7 +100,7 @@ impl Word for BitwiseXor {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         traverse_bitwise("bit-xor", generator, builder, args)
@@ -130,7 +130,7 @@ impl Word for BitwiseLShift {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         let input = args.get_expr(0)?;
@@ -156,7 +156,7 @@ impl Word for BitwiseRShift {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         let input = args.get_expr(0)?;

@@ -11,7 +11,7 @@ pub fn traverse_hash(
     mem_size: usize,
     generator: &mut crate::wasm_generator::WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    expr: &SymbolicExpression,
+    _expr: &SymbolicExpression,
     args: &[clarity::vm::SymbolicExpression],
 ) -> Result<(), crate::wasm_generator::GeneratorError> {
     let value = args.get_expr(0)?;
