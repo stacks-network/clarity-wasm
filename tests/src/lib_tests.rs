@@ -1,5 +1,6 @@
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
+use clarity::vm::types::TupleData;
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
@@ -2532,5 +2533,263 @@ test_contract_call_response_events!(
         } else {
             panic!("Unexpected event received from Wasm function call.");
         }
+    }
+);
+
+test_contract_call_response_events!(
+    test_print_tuple,
+    "print",
+    "print-tuple",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("key1".into(), Value::Int(1)),
+                    ("key2".into(), Value::Bool(true))
+                ])
+                .unwrap()
+            )
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::Tuple(
+                    TupleData::from_data(vec![
+                        ("key1".into(), Value::Int(1)),
+                        ("key2".into(), Value::Bool(true))
+                    ])
+                    .unwrap()
+                )
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response!(test_tuple, "tuple", "simple", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(
+        *response.data,
+        Value::Tuple(
+            TupleData::from_data(vec![
+                ("a".into(), Value::Int(1)),
+                ("b".into(), Value::UInt(2))
+            ])
+            .unwrap()
+        )
+    );
+});
+
+test_contract_call_response!(
+    test_tuple_out_of_order,
+    "tuple",
+    "out-of-order",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::UInt(2))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_list_syntax,
+    "tuple",
+    "list-syntax",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::UInt(2))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_strings,
+    "tuple",
+    "strings",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    (
+                        "one".into(),
+                        Value::string_ascii_from_bytes("one".to_string().into_bytes()).unwrap()
+                    ),
+                    (
+                        "two".into(),
+                        Value::string_ascii_from_bytes("two".to_string().into_bytes()).unwrap()
+                    ),
+                    (
+                        "three".into(),
+                        Value::string_ascii_from_bytes("three".to_string().into_bytes()).unwrap()
+                    )
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_nested,
+    "tuple",
+    "nested",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    (
+                        "b".into(),
+                        Value::Tuple(
+                            TupleData::from_data(vec![
+                                ("c".into(), Value::Int(2)),
+                                ("d".into(), Value::Int(3))
+                            ])
+                            .unwrap()
+                        )
+                    )
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_get_first,
+    "tuple",
+    "get-first",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_get_last,
+    "tuple",
+    "get-last",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes(
+                "Great ideas often receive violent opposition from mediocre minds."
+                    .to_string()
+                    .into_bytes()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_get_only,
+    "tuple",
+    "get-only",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(0x12345678i32.to_be_bytes().to_vec()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_merge,
+    "tuple",
+    "tuple-merge",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    ("b".into(), Value::Bool(false))
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_merge_multiple,
+    "tuple",
+    "tuple-merge-multiple",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(1)),
+                    (
+                        "b".into(),
+                        Value::string_ascii_from_bytes("ok".to_string().into_bytes()).unwrap()
+                    ),
+                    ("c".into(), Value::Bool(false)),
+                    ("d".into(), Value::buff_from(vec![]).unwrap())
+                ])
+                .unwrap()
+            )
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_tuple_merge_overwrite,
+    "tuple",
+    "tuple-merge-overwrite",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::UInt(42)),
+                    (
+                        "b".into(),
+                        Value::string_ascii_from_bytes("goodbye".to_string().into_bytes()).unwrap()
+                    )
+                ])
+                .unwrap()
+            )
+        );
     }
 );

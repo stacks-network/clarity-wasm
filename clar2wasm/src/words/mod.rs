@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod definitions;
 pub mod traits;
+pub mod tuples;
 
 pub(crate) static WORDS: &[&'static dyn Word] = &[
     &arithmetic::Add,
@@ -28,6 +29,9 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     // &traits::DefineTrait,
     // &traits::UseTrait,
     // &traits::ImplTrait,
+    &tuples::TupleCons,
+    &tuples::TupleGet,
+    &tuples::TupleMerge,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
