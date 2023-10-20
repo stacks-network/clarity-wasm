@@ -447,14 +447,6 @@ impl WasmGenerator {
                             self.traverse_args(builder, &args[0..1])?;
                             self.visit_stx_get_account(builder, expr, args.get_expr(0)?)
                         }
-                        func @ (BitwiseLShift | BitwiseRShift) => {
-                            let input = args.get_expr(0)?;
-                            let shamt = args.get_expr(1)?;
-
-                            self.traverse_expr(builder, input)?;
-                            self.traverse_expr(builder, shamt)?;
-                            self.visit_bit_shift(builder, expr, func, input, shamt)
-                        }
                         ContractCall => {
                             let function_name = args.get_name(1)?;
                             let params = if args.len() >= 2 { &args[2..] } else { &[] };
@@ -2155,46 +2147,6 @@ impl WasmGenerator {
             .funcs
             .by_name(name)
             .unwrap_or_else(|| panic!("function not found: {name}"))
-    }
-
-    fn visit_bit_shift(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        func: NativeFunctions,
-        input: &SymbolicExpression,
-        _shamt: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        let ty = self
-            .get_expr_type(input)
-            .expect("bit shift operands must be typed");
-        let type_suffix = match ty {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
-            _ => {
-                return Err(GeneratorError::InternalError(
-                    "invalid type for shift".to_string(),
-                ));
-            }
-        };
-        let helper_func = match func {
-            NativeFunctions::BitwiseLShift => self
-                .module
-                .funcs
-                .by_name("bit-shift-left")
-                .unwrap_or_else(|| panic!("function not found: bit-shift-left")),
-            NativeFunctions::BitwiseRShift => self
-                .module
-                .funcs
-                .by_name(&format!("bit-shift-right-{type_suffix}"))
-                .unwrap_or_else(|| panic!("function not found: bit-shift-right-{type_suffix}")),
-            _ => {
-                return Err(GeneratorError::NotImplemented);
-            }
-        };
-        builder.call(helper_func);
-
-        Ok(())
     }
 
     fn visit_bitwise_not(&mut self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {

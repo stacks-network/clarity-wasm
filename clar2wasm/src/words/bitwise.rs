@@ -106,3 +106,82 @@ impl Word for BitwiseXor {
         traverse_bitwise("bit-xor", generator, builder, args)
     }
 }
+
+// fn traverse_bit_shift(
+//     generator: &mut crate::wasm_generator::WasmGenerator,
+//     builder: &mut InstrSeqBuilder,
+//     _expr: &SymbolicExpression,
+//     func: NativeFunctions,
+//     input: &SymbolicExpression,
+//     _shamt: &SymbolicExpression,
+// ) -> Result<(), GeneratorError> {
+
+// }
+
+#[derive(Debug)]
+pub struct BitwiseLShift;
+
+impl Word for BitwiseLShift {
+    fn name(&self) -> ClarityName {
+        "bit-shift-left".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let input = args.get_expr(0)?;
+        let shamt = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+        generator.traverse_expr(builder, shamt)?;
+        let func = generator.func_by_name("bit-shift-left");
+        builder.call(func);
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct BitwiseRShift;
+
+impl Word for BitwiseRShift {
+    fn name(&self) -> ClarityName {
+        "bit-shift-right".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let input = args.get_expr(0)?;
+        let shamt = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+        generator.traverse_expr(builder, shamt)?;
+
+        let ty = generator
+            .get_expr_type(input)
+            .expect("bit shift operands must be typed");
+        let type_suffix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "invalid type for shift".to_string(),
+                ));
+            }
+        };
+
+        let helper = generator.func_by_name(&format!("bit-shift-right-{type_suffix}"));
+
+        builder.call(helper);
+
+        Ok(())
+    }
+}

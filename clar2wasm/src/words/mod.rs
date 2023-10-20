@@ -40,6 +40,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &bitwise::BitwiseAnd,
     &bitwise::BitwiseOr,
     &bitwise::BitwiseXor,
+    &bitwise::BitwiseLShift,
+    &bitwise::BitwiseRShift,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
