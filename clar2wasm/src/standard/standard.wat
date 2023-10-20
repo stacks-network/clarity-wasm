@@ -1684,10 +1684,19 @@
     )
 
     (func $store-i32-be (param $address i32) (param $value i32)
-        (i32.store8 (local.get $address) (i32.shr_u (local.get $value) (i32.const 24)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 1)) (i32.shr_u (local.get $value) (i32.const 16)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 2)) (i32.shr_u (local.get $value) (i32.const 8)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 3)) (local.get $value))
+        (i32.store 
+            (local.get $address)
+            (i32.or
+                (i32.or
+                    (i32.shl (local.get $value) (i32.const 24))
+                    (i32.shl (i32.and (local.get $value) (i32.const 0xff00)) (i32.const 8))
+                )
+                (i32.or
+                    (i32.and (i32.shr_u (local.get $value) (i32.const 8)) (i32.const 0xff00))
+                    (i32.shr_u (local.get $value) (i32.const 24))
+                )
+            )
+        )
     )
     
     (func $store-i64-be (param $address i32) (param $value i64)
