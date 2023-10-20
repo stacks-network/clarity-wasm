@@ -1,3 +1,4 @@
+use hex::ToHex;
 use proptest::prelude::*;
 use std::ops::Deref;
 use std::{cell::RefCell, ops::DerefMut};
@@ -763,10 +764,22 @@ where
     test_export_one_arg_checked(&SIGNED_STRATEGIES, name, closure)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct PropBuffer {
     buffer: Vec<u8>,
     offset: usize,
+}
+
+impl std::fmt::Debug for PropBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PropBuffer")
+            .field(
+                "buffer",
+                &format!("0x{}", self.buffer.encode_hex::<String>()),
+            )
+            .field("offset", &self.offset)
+            .finish()
+    }
 }
 
 impl PropBuffer {
