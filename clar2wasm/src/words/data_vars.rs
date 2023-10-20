@@ -134,3 +134,60 @@ impl Word for SetDataVar {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct GetDataVar;
+
+impl Word for GetDataVar {
+    fn name(&self) -> ClarityName {
+        "var-get".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let name = args.get_name(0)?;
+
+        // Get the offset and length for this identifier in the literal memory
+        let id_offset = *generator
+            .literal_memory_offet
+            .get(name.as_str())
+            .expect("variable not found: {name}");
+        let id_length = name.len();
+
+        // Create a new local to hold the result on the call stack
+        let ty = generator
+            .get_expr_type(expr)
+            .expect("var-get expression must be typed")
+            .clone();
+        let (offset, size) =
+            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, true);
+
+        // Push the identifier offset and length onto the data stack
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the offset and size to the data stack
+        builder.local_get(offset).i32_const(size);
+
+        // Call the host interface function, `get_variable`
+        builder.call(
+            generator
+                .module
+                .funcs
+                .by_name("get_variable")
+                .expect("function not found"),
+        );
+
+        // Host interface fills the result into the specified memory. Read it
+        // back out, and place the value on the data stack.
+        generator.read_from_memory(builder, offset, 0, &ty);
+
+        Ok(())
+    }
+}

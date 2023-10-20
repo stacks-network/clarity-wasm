@@ -31,6 +31,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &list_manipulation::ListCons,
     &data_vars::DefineDataVar,
     &data_vars::SetDataVar,
+    &data_vars::GetDataVar,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

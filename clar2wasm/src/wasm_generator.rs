@@ -301,10 +301,6 @@ impl WasmGenerator {
                                 args.get_expr(2)?,
                             )
                         }
-                        FetchVar => {
-                            let name = args.get_name(0)?;
-                            self.visit_var_get(builder, expr, name)
-                        }
                         FetchEntry => {
                             let name = args.get_name(0)?;
                             self.traverse_map_get(builder, expr, name, args.get_expr(1)?)
@@ -854,7 +850,7 @@ impl WasmGenerator {
 
     /// Read a value from memory at offset stored in local variable `offset`,
     /// with type `ty`, and push it onto the top of the data stack.
-    fn read_from_memory(
+    pub(crate) fn read_from_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset: LocalId,
@@ -2588,60 +2584,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_var_get(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        name: &ClarityName,
-    ) -> Result<(), GeneratorError> {
-        // Get the offset and length for this identifier in the literal memory
-        let id_offset = *self
-            .literal_memory_offet
-            .get(name.as_str())
-            .expect("variable not found: {name}");
-        let id_length = name.len();
-
-        // Create a new local to hold the result on the call stack
-        let ty = self
-            .get_expr_type(expr)
-            .expect("var-get expression must be typed")
-            .clone();
-        let (offset, size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &ty, true, true);
-
-        // Push the identifier offset and length onto the data stack
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(size);
-
-        // Call the host interface function, `get_variable`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("get_variable")
-                .expect("function not found"),
-        );
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
-        self.read_from_memory(builder.borrow_mut(), offset, 0, &ty);
-
-        Ok(())
-    }
-
-    fn traverse_get(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _key: &ClarityName,
-        tuple: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, tuple)
-    }
-
     fn traverse_fold(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -3606,6 +3548,16 @@ impl WasmGenerator {
         );
 
         Ok(())
+    }
+
+    fn traverse_get(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        _key: &ClarityName,
+        tuple: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        self.traverse_expr(builder, tuple)
     }
 
     fn traverse_get_block_info(
