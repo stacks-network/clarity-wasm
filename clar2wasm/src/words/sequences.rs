@@ -128,7 +128,7 @@ impl Word for AsMaxLen {
         // If it is, then return `none`, otherwise, return `(some input)`.
         // Push the length of the value onto the stack.
 
-        // Get the length of each element.
+        // Get the length.
         generator
             .get_expr_type(&args[0])
             .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
@@ -249,6 +249,79 @@ impl Word for Concat {
             .local_get(lhs_length)
             .local_get(rhs_length)
             .binop(BinaryOp::I32Add);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Len;
+
+impl Word for Len {
+    fn name(&self) -> ClarityName {
+        "len".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(
+                "expected one argument to 'len'".to_string(),
+            ));
+        }
+
+        // Traverse the list, leaving the offset and length on top of the stack.
+        generator.traverse_expr(builder, &args[0])?;
+
+        // Save the length, then drop the offset and push the length back.
+        let length_local = generator.module.locals.add(ValType::I32);
+        builder
+            .local_set(length_local)
+            .drop()
+            .local_get(length_local);
+
+        // Get the length
+        generator
+            .get_expr_type(&args[0])
+            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .and_then(|ty| match ty {
+                TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+                    // The length of the list in bytes is on the top of the stack. If we
+                    // divide that by the length of each element, then we'll have the
+                    // length of the list in elements.
+                    let element_length = get_type_size(list.get_list_item_type());
+                    builder.i32_const(element_length);
+
+                    // Divide the length of the list by the length of each element to get
+                    // the number of elements in the list.
+                    builder.binop(BinaryOp::I32DivU);
+
+                    Ok(())
+                }
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    _,
+                ))) => Err(GeneratorError::NotImplemented),
+                // The byte length of buffers and ASCII strings is the same as
+                // the value length, so just leave it as-is.
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+                | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    _,
+                ))) => Ok(()),
+                _ => Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                )),
+            })?;
+
+        // Convert this 32-bit length to a 64-bit value.
+        builder.unop(UnaryOp::I64ExtendUI32);
+
+        // Then push a 0 for the upper 64 bits.
+        builder.i64_const(0);
 
         Ok(())
     }

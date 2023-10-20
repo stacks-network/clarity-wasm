@@ -41,3 +41,27 @@
 (define-public (buffer-concat)
   (ok (concat 0x123456 0x789abc))
 )
+
+(define-public (list-len)
+  (ok (len (list 1 2 3)))
+)
+
+(define-public (string-len)
+  (ok (len "sup"))
+)
+
+(define-public (buffer-len)
+  (ok (len 0x123456))
+)
+
+(define-public (list-len-0)
+  (ok (len (list)))
+)
+
+(define-public (string-len-0)
+  (ok (len ""))
+)
+
+(define-public (buffer-len-0)
+  (ok (len 0x))
+)

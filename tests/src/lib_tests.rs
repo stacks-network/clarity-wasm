@@ -2945,3 +2945,81 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_list_len,
+    "sequences",
+    "list-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(3)
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_len,
+    "sequences",
+    "string-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(3)
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_len,
+    "sequences",
+    "buffer-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(3)
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_len_0,
+    "sequences",
+    "list-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(0)
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_len_0,
+    "sequences",
+    "string-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(0)
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_len_0,
+    "sequences",
+    "buffer-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(0)
+        );
+    }
+);
