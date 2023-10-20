@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod comparison;
 pub mod data_vars;
+pub mod hashing;
 pub mod list_manipulation;
 pub mod traits;
 pub mod tuples;
@@ -32,6 +33,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &data_vars::DefineDataVar,
     &data_vars::SetDataVar,
     &data_vars::GetDataVar,
+    &hashing::Hash160,
+    &hashing::Sha256,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

@@ -305,11 +305,6 @@ impl WasmGenerator {
                             let name = args.get_name(0)?;
                             self.traverse_map_get(builder, expr, name, args.get_expr(1)?)
                         }
-                        func @ (Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256) => {
-                            let value = args.get_expr(0)?;
-                            self.traverse_expr(builder, value)?;
-                            self.visit_hash(builder, func, value)
-                        }
                         SetEntry => {
                             let name = args.get_name(0)?;
                             self.traverse_map_set(
@@ -3266,49 +3261,6 @@ impl WasmGenerator {
             }
             _ => Err(GeneratorError::NotImplemented),
         }
-    }
-
-    fn visit_hash(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        func: NativeFunctions,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        let offset_res = self.literal_memory_end;
-        let hash_kind = match func {
-            NativeFunctions::Hash160 => {
-                self.literal_memory_end += 5 * 4; // 5 u32
-                "hash160"
-            }
-            NativeFunctions::Sha256 => {
-                self.literal_memory_end += 8 * 4; // 8 u32
-                "sha256"
-            }
-            _ => {
-                return Err(GeneratorError::NotImplemented);
-            }
-        };
-        let ty = self
-            .get_expr_type(value)
-            .expect("Hash value should be typed");
-        let hash_type = match ty {
-            TypeSignature::IntType | TypeSignature::UIntType => "int",
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
-            _ => {
-                return Err(GeneratorError::NotImplemented);
-            }
-        };
-        let hash_func = self
-            .module
-            .funcs
-            .by_name(&format!("{hash_kind}-{hash_type}"))
-            .unwrap_or_else(|| panic!("function not found: {hash_kind}-{hash_type}"));
-
-        builder
-            .i32_const(offset_res as i32) // result offset
-            .call(hash_func);
-
-        Ok(())
     }
 
     fn traverse_map_get(
