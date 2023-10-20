@@ -9,7 +9,10 @@ use clarity::vm::{
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
     representations::Span,
-    types::{CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, TypeSignature},
+    types::{
+        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+        TypeSignature,
+    },
     variables::NativeVariables,
     ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
