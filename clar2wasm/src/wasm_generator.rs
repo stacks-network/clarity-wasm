@@ -447,13 +447,6 @@ impl WasmGenerator {
                             self.traverse_args(builder, &args[0..1])?;
                             self.visit_stx_get_account(builder, expr, args.get_expr(0)?)
                         }
-                        BitwiseAnd | BitwiseOr | BitwiseXor2 => {
-                            self.traverse_bitwise(builder, expr, native_function, args)
-                        }
-                        BitwiseNot => {
-                            self.traverse_expr(builder, args.get_expr(0)?)?;
-                            self.visit_bitwise_not(builder)
-                        }
                         func @ (BitwiseLShift | BitwiseRShift) => {
                             let input = args.get_expr(0)?;
                             let shamt = args.get_expr(1)?;
@@ -2162,47 +2155,6 @@ impl WasmGenerator {
             .funcs
             .by_name(name)
             .unwrap_or_else(|| panic!("function not found: {name}"))
-    }
-
-    fn traverse_bitwise(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        func: NativeFunctions,
-        operands: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        let helper_func = match func {
-            NativeFunctions::BitwiseAnd => self
-                .module
-                .funcs
-                .by_name("bit-and")
-                .unwrap_or_else(|| panic!("function not found: bit-and")),
-            NativeFunctions::BitwiseOr => self
-                .module
-                .funcs
-                .by_name("bit-or")
-                .unwrap_or_else(|| panic!("function not found: bit-or")),
-            NativeFunctions::BitwiseXor2 => self
-                .module
-                .funcs
-                .by_name("bit-xor")
-                .unwrap_or_else(|| panic!("function not found: bit-xor")),
-            _ => {
-                return Err(GeneratorError::NotImplemented);
-            }
-        };
-
-        // Start off with operand 0, then loop over the rest, calling the
-        // helper function with a pair of operands, either operand 0 and 1, or
-        // the result of the previous call and the next operand.
-        // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
-        self.traverse_expr(builder, &operands[0])?;
-        for operand in operands.iter().skip(1) {
-            self.traverse_expr(builder, operand)?;
-            builder.call(helper_func);
-        }
-
-        Ok(())
     }
 
     fn visit_bit_shift(

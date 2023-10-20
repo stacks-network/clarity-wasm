@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub mod arithmetic;
+pub mod bitwise;
 pub mod comparison;
 pub mod data_vars;
 pub mod hashing;
@@ -35,6 +36,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &data_vars::GetDataVar,
     &hashing::Hash160,
     &hashing::Sha256,
+    &bitwise::BitwiseNot,
+    &bitwise::BitwiseAnd,
+    &bitwise::BitwiseOr,
+    &bitwise::BitwiseXor,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
