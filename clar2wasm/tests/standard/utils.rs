@@ -1,3 +1,4 @@
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::ToHex;
 use proptest::prelude::*;
 use std::ops::Deref;
@@ -437,18 +438,24 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     Ok((instance, store))
 }
 
+/// The Property Int type.
+/// Used for convenience when pasing 128 bits type to Wasm
+/// as a pair of `(i64, i64)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PropInt(u128);
 
 impl PropInt {
+    /// Creates a new PropInt.
     pub const fn new(n: u128) -> Self {
         Self(n)
     }
 
+    /// Gets the 64 most significant bits.
     pub const fn high(&self) -> i64 {
         (self.0 >> 64) as i64
     }
 
+    /// Gets the 64 least significant bits.
     pub const fn low(&self) -> i64 {
         self.0 as i64
     }
@@ -468,7 +475,10 @@ impl From<PropInt> for i128 {
 
 /// Convenience trait to unify the result handling of different return values
 pub(crate) trait FromWasmResult {
+    /// Converts a Wasm result to a type.
     fn from_wasm_result(v: &[Val]) -> Self;
+
+    /// Retrieves the useful values in the slice to create the type.
     fn relevant_slice(s: &mut [Val]) -> &mut [Val];
 }
 
@@ -512,6 +522,7 @@ impl FromWasmResult for bool {
 macro_rules! propints {
     ($(($name: ident, $range: ty)),+ $(,)?) => {
         $(
+            #[doc = std::concat!("Creates a Proptest Strategy for [PropInt] in the range of ", std::stringify!($range), ".")]
             pub(crate) fn $name() -> proptest::strategy::BoxedStrategy<crate::utils::PropInt> {
                 any::<$range>().prop_map(|n| crate::utils::PropInt::new(n as u128)).boxed()
             }
@@ -552,6 +563,8 @@ pub(crate) const SIGNED_STRATEGIES: [PropIntStrategy; 5] = [
     huge_int128,
 ];
 
+/// Test for a two arguments Wasm arithmetic function `name` using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_two_args<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -586,6 +599,8 @@ where
     }
 }
 
+/// Test for a two arguments Wasm arithmetic function `name` for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_unsigned_args<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -596,6 +611,8 @@ where
     test_export_two_args(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name` for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_signed_args<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -606,6 +623,8 @@ where
     test_export_two_args(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_two_args_checked<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -643,6 +662,8 @@ where
     }
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_unsigned_args_checked<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -653,6 +674,8 @@ where
     test_export_two_args_checked(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_signed_args_checked<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -663,6 +686,8 @@ where
     test_export_two_args_checked(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name` using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_one_arg<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -694,6 +719,8 @@ where
     }
 }
 
+/// Test for a one argument Wasm arithmetic function `name` for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_unsigned_arg<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -703,6 +730,8 @@ where
     test_export_one_arg(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name` for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_signed_arg<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -712,6 +741,8 @@ where
     test_export_one_arg(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_one_arg_checked<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -746,6 +777,8 @@ where
     }
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_unsigned_arg_checked<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -755,6 +788,8 @@ where
     test_export_one_arg_checked(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_signed_arg_checked<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -764,6 +799,9 @@ where
     test_export_one_arg_checked(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// The Property Buffer type.
+/// Used for convenience when dealing with buffers, to read them
+/// and write them to memory, and dealing with the pair `(offset, length)`.
 #[derive(Clone)]
 pub(crate) struct PropBuffer {
     buffer: Vec<u8>,
@@ -783,10 +821,13 @@ impl std::fmt::Debug for PropBuffer {
 }
 
 impl PropBuffer {
+    /// Creates a new PropBuffer.
     pub(crate) fn new(buffer: Vec<u8>, offset: usize) -> Self {
         Self { buffer, offset }
     }
 
+    /// Read a buffer from memory at a specified `offset` and `length`
+    /// , and create a PropBuffer if the operation is a success.
     pub(crate) fn read_from_memory(
         memory: wasmtime::Memory,
         store: impl wasmtime::AsContext,
@@ -798,6 +839,8 @@ impl PropBuffer {
         Some(Self { buffer, offset })
     }
 
+    /// Write a buffer to memory, returning a `(offset, length)` if the
+    /// operation is a success.
     pub(crate) fn write_to_memory(
         &self,
         memory: wasmtime::Memory,
@@ -829,6 +872,7 @@ impl AsRef<[u8]> for PropBuffer {
 }
 
 prop_compose! {
+    /// Generates random PropBuffer with given `offset`. The length will be between 1 and `max_length`.
     fn buffer(offset: usize, max_length: usize)
         (buf in proptest::collection::vec(any::<u8>(), 1..max_length))
         -> PropBuffer {
@@ -836,6 +880,10 @@ prop_compose! {
         }
 }
 
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The buffers tested will be written in memory at offset `data_offset` and can have a length up to `data_max_length`.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
 pub(crate) fn test_on_buffer_hash(
     func_name: &str,
     stack_pointer: i32,
@@ -847,6 +895,7 @@ pub(crate) fn test_on_buffer_hash(
 ) {
     debug_assert!(stack_pointer >= 0);
     debug_assert!(result_offset >= 0);
+    debug_assert!(stack_pointer >= END_OF_STANDARD_DATA as i32);
 
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
@@ -887,6 +936,10 @@ pub(crate) fn test_on_buffer_hash(
     });
 }
 
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated for each strategy passed to the function.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
 fn test_on_integer_hash(
     strategies: &[PropIntStrategy],
     func_name: &str,
@@ -896,6 +949,7 @@ fn test_on_integer_hash(
     reference_function: impl Fn(i128) -> Vec<u8>,
 ) {
     debug_assert!(result_offset >= 0);
+    debug_assert!(stack_pointer >= END_OF_STANDARD_DATA as i32);
 
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
@@ -935,6 +989,10 @@ fn test_on_integer_hash(
     }
 }
 
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated from all signed strategies.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
 pub(crate) fn test_on_int_hash(
     func_name: &str,
     stack_pointer: i32,
@@ -952,6 +1010,10 @@ pub(crate) fn test_on_int_hash(
     )
 }
 
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated from all unsigned strategies.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
 pub(crate) fn test_on_uint_hash(
     func_name: &str,
     stack_pointer: i32,
