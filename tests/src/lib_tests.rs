@@ -2900,3 +2900,48 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_list_concat,
+    "sequences",
+    "list-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4)
+            ])
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_concat,
+    "sequences",
+    "string-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_concat,
+    "sequences",
+    "buffer-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc]).unwrap()
+        );
+    }
+);

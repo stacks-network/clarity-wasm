@@ -91,6 +91,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &print::Print,
     &sequences::Append,
     &sequences::AsMaxLen,
+    &sequences::Concat,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

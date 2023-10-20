@@ -183,3 +183,73 @@ impl Word for AsMaxLen {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct Concat;
+
+impl Word for Concat {
+    fn name(&self) -> ClarityName {
+        "concat".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(
+                "expected two arguments to 'as-max-len?'".to_string(),
+            ));
+        }
+
+        let memory = generator.get_memory();
+
+        // Create a new sequence to hold the result in the stack frame
+        let ty = generator
+            .get_expr_type(expr)
+            .expect("concat expression must be typed")
+            .clone();
+        let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
+        builder.local_get(offset);
+
+        // Traverse the lhs, leaving it on the data stack (offset, size)
+        generator.traverse_expr(builder, &args[0])?;
+
+        // Save the length of the lhs
+        let lhs_length = generator.module.locals.add(ValType::I32);
+        builder.local_tee(lhs_length);
+
+        // Copy the lhs to the new sequence
+        builder.memory_copy(memory, memory);
+
+        // Load the adjusted destination offset
+        builder
+            .local_get(offset)
+            .local_get(lhs_length)
+            .binop(BinaryOp::I32Add);
+
+        // Traverse the rhs, leaving it on the data stack (offset, size)
+        generator.traverse_expr(builder, &args[1])?;
+
+        // Save the length of the rhs
+        let rhs_length = generator.module.locals.add(ValType::I32);
+        builder.local_tee(rhs_length);
+
+        // Copy the rhs to the new sequence
+        builder.memory_copy(memory, memory);
+
+        // Load the offset of the new sequence
+        builder.local_get(offset);
+
+        // Total size = lhs_length + rhs_length
+        builder
+            .local_get(lhs_length)
+            .local_get(rhs_length)
+            .binop(BinaryOp::I32Add);
+
+        Ok(())
+    }
+}

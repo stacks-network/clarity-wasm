@@ -29,3 +29,15 @@
 (define-public (buffer-as-max-len)
   (ok (as-max-len? 0x123456 u4))
 )
+
+(define-public (list-concat)
+  (ok (concat (list 1 2) (list 3 4)))
+)
+
+(define-public (string-concat)
+  (ok (concat "hello" " world"))
+)
+
+(define-public (buffer-concat)
+  (ok (concat 0x123456 0x789abc))
+)
