@@ -19,7 +19,7 @@ use clarity::vm::{
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::MemoryId;
 use walrus::{
-    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind, UnaryOp},
+    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -260,9 +260,6 @@ impl WasmGenerator {
                             args.get_name(0)?,
                             args.get_expr(1)?,
                         ),
-                        DefineFunctions::FungibleToken => {
-                            self.visit_define_ft(builder, expr, args.get_name(0)?, args.get(1))
-                        }
                         _ => todo!(),
                     }?;
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
@@ -285,12 +282,6 @@ impl WasmGenerator {
                         ConsError => self.traverse_err(builder, expr, args.get_expr(0)?),
                         ConsOkay => self.traverse_ok(builder, expr, args.get_expr(0)?),
                         ConsSome => self.traverse_some(builder, expr, args.get_expr(0)?),
-                        UnwrapErr => {
-                            let input = args.get_expr(0)?;
-                            let throws = args.get_expr(1)?;
-                            self.traverse_expr(builder, input)?;
-                            self.traverse_expr(builder, throws)
-                        }
                         StxBurn => {
                             let amount = args.get_expr(0)?;
                             let sender = args.get_expr(1)?;
@@ -2201,39 +2192,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_define_ft(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        supply: Option<&SymbolicExpression>,
-    ) -> Result<(), GeneratorError> {
-        // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = self.add_identifier_string_literal(name);
-
-        // Push the name onto the data stack
-        builder
-            .i32_const(name_offset as i32)
-            .i32_const(name_length as i32);
-
-        // Push the supply to the stack, as an optional uint
-        // (first i32 indicates some/none)
-        if let Some(supply) = supply {
-            builder.i32_const(1);
-            self.traverse_expr(builder, supply)?;
-        } else {
-            builder.i32_const(0).i64_const(0).i64_const(0);
-        }
-
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_ft")
-                .expect("function not found"),
-        );
-        Ok(())
-    }
-
     fn visit_define_nft(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -2298,15 +2256,6 @@ impl WasmGenerator {
         self.constants.insert(name.to_string(), offset);
 
         Ok(())
-    }
-
-    fn traverse_begin(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        statements: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        self.traverse_statement_list(builder, statements)
     }
 
     fn traverse_some(

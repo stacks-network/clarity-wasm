@@ -14,6 +14,7 @@ pub mod data_vars;
 pub mod hashing;
 pub mod list_manipulation;
 pub mod maps;
+pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
@@ -52,6 +53,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &maps::MapDelete,
     &control_flow::Begin,
     &control_flow::Unwrap,
+    &control_flow::UnwrapErr,
+    &tokens::DefineFungibleToken,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

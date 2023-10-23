@@ -29,7 +29,7 @@ impl Word for Begin {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_statement_list(builder, args)
@@ -48,7 +48,7 @@ impl Word for Unwrap {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         let input = args.get_expr(0)?;
@@ -170,9 +170,12 @@ impl Word for UnwrapErr {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        todo!()
+        let input = args.get_expr(0)?;
+        let throws = args.get_expr(1)?;
+        generator.traverse_expr(builder, input)?;
+        generator.traverse_expr(builder, throws)
     }
 }
