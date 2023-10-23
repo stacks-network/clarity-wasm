@@ -1,12 +1,10 @@
 use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
 use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::types::{ListTypeData, TupleTypeSignature};
-use clarity::vm::ClarityVersion;
 use clarity::vm::{
     analysis::ContractAnalysis,
     clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
     diagnostic::DiagnosableError,
-    functions::NativeFunctions,
     types::{CharType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
     variables::NativeVariables,
     ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
@@ -202,15 +200,6 @@ impl WasmGenerator {
             )) => {
                 if let Some(word) = words::lookup(function_name) {
                     word.traverse(self, builder, expr, args)?;
-                } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
-                    function_name,
-                    &ClarityVersion::latest(), // FIXME(brice): this should probably be passed in
-                ) {
-                    use clarity::vm::functions::NativeFunctions::*;
-                    match native_function {
-                        Print => self.traverse_print(builder, expr, args.get_expr(0)?),
-                        e => todo!("{:?}", e),
-                    }?;
                 } else {
                     self.traverse_args(builder, args)?;
                     self.visit_call_user_defined(builder, expr, function_name, args)?;
@@ -1444,7 +1433,7 @@ impl WasmGenerator {
     /// Serialize the value of type `ty` on the top of the data stack using
     /// consensus serialization. Leaves the length of the data written on the
     /// top of the data stack. See SIP-005 for details.
-    fn serialize_to_memory(
+    pub(crate) fn serialize_to_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
@@ -1864,70 +1853,6 @@ impl WasmGenerator {
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
-        Ok(())
-    }
-
-    fn traverse_print(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Traverse the value, leaving it on the data stack
-        self.traverse_expr(builder, value)?;
-
-        // Save the value to locals
-        let wasm_types = clar2wasm_ty(
-            self.get_expr_type(value)
-                .expect("print value expression must be typed"),
-        );
-        let mut val_locals = Vec::with_capacity(wasm_types.len());
-        for local_ty in wasm_types.iter().rev() {
-            let local = self.module.locals.add(*local_ty);
-            val_locals.push(local);
-            builder.local_set(local);
-        }
-        val_locals.reverse();
-
-        // Save the offset (current stack pointer) into a local.
-        // This is where we will serialize the value to.
-        let offset = self.module.locals.add(ValType::I32);
-        let length = self.module.locals.add(ValType::I32);
-        builder.global_get(self.stack_pointer).local_set(offset);
-
-        let ty = self
-            .get_expr_type(value)
-            .expect("print value expression must be typed")
-            .clone();
-
-        // Push the value back onto the data stack
-        for val_local in &val_locals {
-            builder.local_get(*val_local);
-        }
-
-        // Write the serialized value to the top of the call stack
-        self.serialize_to_memory(builder, offset, 0, &ty)?;
-
-        // Save the length to a local
-        builder.local_set(length);
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).local_get(length);
-
-        // Call the host interface function, `print`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("print")
-                .expect("function not found"),
-        );
-
-        // Print always returns its input, so read the input value back from
-        // the locals.
-        for val_local in val_locals {
-            builder.local_get(val_local);
-        }
-
         Ok(())
     }
 }

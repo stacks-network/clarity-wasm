@@ -87,6 +87,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::AsContract,
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
+    &print::Print,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
