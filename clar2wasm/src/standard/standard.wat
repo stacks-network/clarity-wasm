@@ -1684,21 +1684,47 @@
     )
 
     (func $store-i32-be (param $address i32) (param $value i32)
-        (i32.store8 (local.get $address) (i32.shr_u (local.get $value) (i32.const 24)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 1)) (i32.shr_u (local.get $value) (i32.const 16)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 2)) (i32.shr_u (local.get $value) (i32.const 8)))
-        (i32.store8 (i32.add (local.get $address) (i32.const 3)) (local.get $value))
+        (i32.store 
+            (local.get $address)
+            (i32.or
+                (i32.or
+                    (i32.shl (local.get $value) (i32.const 24))
+                    (i32.shl (i32.and (local.get $value) (i32.const 0xff00)) (i32.const 8))
+                )
+                (i32.or
+                    (i32.and (i32.shr_u (local.get $value) (i32.const 8)) (i32.const 0xff00))
+                    (i32.shr_u (local.get $value) (i32.const 24))
+                )
+            )
+        )
     )
     
     (func $store-i64-be (param $address i32) (param $value i64)
-        (i64.store8 (local.get $address) (i64.shr_u (local.get $value) (i64.const 56)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 1)) (i64.shr_u (local.get $value) (i64.const 48)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 2)) (i64.shr_u (local.get $value) (i64.const 40)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 3)) (i64.shr_u (local.get $value) (i64.const 32)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 4)) (i64.shr_u (local.get $value) (i64.const 24)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 5)) (i64.shr_u (local.get $value) (i64.const 16)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 6)) (i64.shr_u (local.get $value) (i64.const 8)))
-        (i64.store8 (i32.add (local.get $address) (i32.const 7)) (local.get $value))
+        (i64.store 
+            (local.get $address)
+            (i64.or
+                (i64.or
+                    (i64.or
+                        (i64.shl (local.get $value) (i64.const 56))
+                        (i64.shl (i64.and (local.get $value) (i64.const 0xff00)) (i64.const 40))
+                    )
+                    (i64.or
+                        (i64.shl (i64.and (local.get $value) (i64.const 0xff0000)) (i64.const 24))
+                        (i64.shl (i64.and (local.get $value) (i64.const 0xff000000)) (i64.const 8))
+                    )
+                )
+                (i64.or
+                    (i64.or 
+                        (i64.and (i64.shr_u (local.get $value) (i64.const 8)) (i64.const 0xff000000))
+                        (i64.and (i64.shr_u (local.get $value) (i64.const 24)) (i64.const 0xff0000))
+                    )
+                    (i64.or
+                        (i64.and (i64.shr_u (local.get $value) (i64.const 40)) (i64.const 0xff00))
+                        (i64.shr_u (local.get $value) (i64.const 56))
+                    )
+                )
+            )
+        )
     )
 
     (export "memcpy" (func $memcpy))
