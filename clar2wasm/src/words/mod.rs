@@ -7,7 +7,21 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub mod arithmetic;
-pub mod definitions;
+pub mod bitwise;
+pub mod blockinfo;
+pub mod comparison;
+pub mod constants;
+pub mod contract;
+pub mod control_flow;
+pub mod data_vars;
+pub mod enums;
+pub mod functions;
+pub mod hashing;
+pub mod list_manipulation;
+pub mod maps;
+pub mod print;
+pub mod stx;
+pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
@@ -18,20 +32,62 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &arithmetic::Div,
     &arithmetic::Sqrti,
     &arithmetic::Power,
-    // &definitions::DefineConstant,
-    // &definitions::DefinePrivate,
-    // &definitions::DefinePublic,
-    // &definitions::DefineReadOnly,
-    // &definitions::DefineMap,
-    // &definitions::DefineDataVar,
-    // &definitions::DefineFungibleToken,
-    // &definitions::DefineNonFungibleToken,
-    // &traits::DefineTrait,
-    // &traits::UseTrait,
-    // &traits::ImplTrait,
     &tuples::TupleCons,
     &tuples::TupleGet,
     &tuples::TupleMerge,
+    &comparison::CmpLess,
+    &comparison::CmpGreater,
+    &comparison::CmpLeq,
+    &comparison::CmpGeq,
+    &list_manipulation::Concat,
+    &list_manipulation::ListCons,
+    &list_manipulation::Fold,
+    &data_vars::DefineDataVar,
+    &data_vars::SetDataVar,
+    &data_vars::GetDataVar,
+    &hashing::Hash160,
+    &hashing::Sha256,
+    &bitwise::BitwiseNot,
+    &bitwise::BitwiseAnd,
+    &bitwise::BitwiseOr,
+    &bitwise::BitwiseXor,
+    &bitwise::BitwiseLShift,
+    &bitwise::BitwiseRShift,
+    &maps::MapDefinition,
+    &maps::MapGet,
+    &maps::MapSet,
+    &maps::MapInsert,
+    &maps::MapDelete,
+    &control_flow::Begin,
+    &control_flow::Unwrap,
+    &control_flow::UnwrapErr,
+    &tokens::DefineFungibleToken,
+    &tokens::BurnFungibleToken,
+    &tokens::MintFungibleToken,
+    &tokens::TransferFungibleToken,
+    &tokens::GetSupplyOfFungibleToken,
+    &tokens::GetBalanceOfFungibleToken,
+    &tokens::DefineNonFungibleToken,
+    &tokens::BurnNonFungibleToken,
+    &tokens::MintNonFungibleToken,
+    &tokens::TransferNonFungibleToken,
+    &tokens::GetOwnerOfNonFungibleToken,
+    &stx::StxBurn,
+    &stx::StxTransfer,
+    &stx::StxTransferMemo,
+    &stx::StxGetAccount,
+    &stx::StxGetBalance,
+    &constants::DefineConstant,
+    &functions::DefineReadonlyFunction,
+    &functions::DefinePrivateFunction,
+    &functions::DefinePublicFunction,
+    &enums::ClarityOk,
+    &enums::ClaritySome,
+    &enums::ClarityErr,
+    &contract::AsContract,
+    &contract::ContractCall,
+    &blockinfo::GetBlockInfo,
+    &print::Print,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

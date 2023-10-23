@@ -1,3 +1,4 @@
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
@@ -12,11 +13,11 @@ impl Word for DefineTrait {
 
     fn traverse(
         &self,
-        _generator: &mut crate::wasm_generator::WasmGenerator,
+        _generator: &mut WasmGenerator,
         _builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        _args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         todo!()
     }
 }
@@ -31,11 +32,11 @@ impl Word for UseTrait {
 
     fn traverse(
         &self,
-        _generator: &mut crate::wasm_generator::WasmGenerator,
+        _generator: &mut WasmGenerator,
         _builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        _args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         todo!()
     }
 }
@@ -50,11 +51,11 @@ impl Word for ImplTrait {
 
     fn traverse(
         &self,
-        _generator: &mut crate::wasm_generator::WasmGenerator,
+        _generator: &mut WasmGenerator,
         _builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        _args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         todo!()
     }
 }

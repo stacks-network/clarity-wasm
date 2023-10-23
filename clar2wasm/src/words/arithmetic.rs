@@ -1,16 +1,16 @@
-use crate::wasm_generator::GeneratorError;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
 use super::Word;
 
 // Wrapper function for multi-value typed functions, such as +, - etc
 pub fn traverse_typed_multi_value(
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     expr: &SymbolicExpression,
-    args: &[clarity::vm::SymbolicExpression],
+    args: &[SymbolicExpression],
     name: &str,
-) -> Result<(), crate::wasm_generator::GeneratorError> {
+) -> Result<(), GeneratorError> {
     let ty = generator
         .get_expr_type(expr)
         .expect("arithmetic expression must be typed");
@@ -46,11 +46,11 @@ impl Word for Add {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "add")
     }
 }
@@ -65,11 +65,11 @@ impl Word for Sub {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "sub")
     }
 }
@@ -84,11 +84,11 @@ impl Word for Mul {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "mul")
     }
 }
@@ -103,11 +103,11 @@ impl Word for Div {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "div")
     }
 }
@@ -122,11 +122,11 @@ impl Word for Modulo {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "mod")
     }
 }
@@ -141,11 +141,11 @@ impl Word for Log2 {
 
     fn traverse<'b>(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "log2")
     }
 }
@@ -160,11 +160,11 @@ impl Word for Power {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "pow")
     }
 }
@@ -179,11 +179,11 @@ impl Word for Sqrti {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_typed_multi_value(generator, builder, expr, args, "sqrti")
     }
 }
