@@ -1,5 +1,4 @@
 use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
-use clarity::vm::functions::define::DefineFunctions;
 use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::types::{ListTypeData, TupleTypeSignature};
 use clarity::vm::ClarityVersion;
@@ -8,11 +7,7 @@ use clarity::vm::{
     clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
     diagnostic::DiagnosableError,
     functions::NativeFunctions,
-    representations::Span,
-    types::{
-        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
-        TypeSignature,
-    },
+    types::{CharType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
     variables::NativeVariables,
     ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
@@ -29,19 +24,12 @@ use crate::words;
 /// First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 648;
 
-#[derive(Clone)]
-pub struct TypedVar<'a> {
-    pub name: &'a ClarityName,
-    pub type_expr: &'a SymbolicExpression,
-    pub decl_span: Span,
-}
-
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
 pub struct WasmGenerator {
     /// The contract analysis, which contains the expressions and type
     /// information for the contract.
-    contract_analysis: ContractAnalysis,
+    pub(crate) contract_analysis: ContractAnalysis,
     /// The WebAssembly module that is being generated.
     pub(crate) module: Module,
     /// Offset of the end of the literal memory.
@@ -51,10 +39,10 @@ pub struct WasmGenerator {
     /// Map strings saved in the literal memory to their offset.
     pub(crate) literal_memory_offet: HashMap<String, u32>,
     /// Map constants to an offset in the literal memory.
-    constants: HashMap<String, u32>,
+    pub(crate) constants: HashMap<String, u32>,
 
     /// The locals for the current function.
-    locals: HashMap<String, LocalId>,
+    pub(crate) locals: HashMap<String, LocalId>,
     /// Size of the current function's stack frame.
     frame_size: i32,
 }
@@ -76,12 +64,6 @@ impl DiagnosableError for GeneratorError {
     fn suggestion(&self) -> Option<String> {
         None
     }
-}
-
-enum FunctionKind {
-    Public,
-    Private,
-    ReadOnly,
 }
 
 pub trait ArgumentsExt {
@@ -220,48 +202,6 @@ impl WasmGenerator {
             )) => {
                 if let Some(word) = words::lookup(function_name) {
                     word.traverse(self, builder, expr, args)?;
-                } else if let Some(define_function) = DefineFunctions::lookup_by_name(function_name)
-                {
-                    match define_function {
-                        DefineFunctions::Constant => self.traverse_define_constant(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                        ),
-                        DefineFunctions::PrivateFunction
-                        | DefineFunctions::ReadOnlyFunction
-                        | DefineFunctions::PublicFunction => match args.get_expr(0)?.match_list() {
-                            Some(signature) => {
-                                let name = signature.get_name(0)?;
-                                let params = match signature.len() {
-                                    0 | 1 => None,
-                                    _ => match_pairs_list(&signature[1..]),
-                                };
-                                let body = args.get_expr(1)?;
-
-                                match define_function {
-                                    DefineFunctions::PrivateFunction => self
-                                        .traverse_define_private(builder, expr, name, params, body),
-                                    DefineFunctions::ReadOnlyFunction => self
-                                        .traverse_define_read_only(
-                                            builder, expr, name, params, body,
-                                        ),
-                                    DefineFunctions::PublicFunction => self
-                                        .traverse_define_public(builder, expr, name, params, body),
-                                    _ => unreachable!(),
-                                }
-                            }
-                            _ => Err(GeneratorError::NotImplemented),
-                        },
-                        DefineFunctions::NonFungibleToken => self.visit_define_nft(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                        ),
-                        _ => todo!(),
-                    }?;
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name_at_version(
                     function_name,
                     &ClarityVersion::latest(), // FIXME(brice): this should probably be passed in
@@ -413,117 +353,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_define_function(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        name: &ClarityName,
-        body: &SymbolicExpression,
-        kind: FunctionKind,
-    ) -> Result<FunctionId, GeneratorError> {
-        let opt_function_type = match kind {
-            FunctionKind::ReadOnly => {
-                builder.i32_const(0);
-                self.contract_analysis
-                    .get_read_only_function_type(name.as_str())
-            }
-            FunctionKind::Public => {
-                builder.i32_const(1);
-                self.contract_analysis
-                    .get_public_function_type(name.as_str())
-            }
-            FunctionKind::Private => {
-                builder.i32_const(2);
-                self.contract_analysis.get_private_function(name.as_str())
-            }
-        };
-        let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
-            fixed.clone()
-        } else {
-            return Err(GeneratorError::InternalError(match opt_function_type {
-                Some(_) => "expected fixed function type".to_string(),
-                None => format!("unable to find function type for {}", name.as_str()),
-            }));
-        };
-
-        // Call the host interface to save this function
-        // Arguments are kind (already pushed) and name (offset, length)
-        let (id_offset, id_length) = self.add_identifier_string_literal(name);
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Call the host interface function, `define_function`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_function")
-                .expect("define_function not found"),
-        );
-
-        let mut locals = HashMap::new();
-
-        // Setup the parameters
-        let mut param_locals = Vec::new();
-        let mut params_types = Vec::new();
-        for param in function_type.args.iter() {
-            let param_types = clar2wasm_ty(&param.signature);
-            for (n, ty) in param_types.iter().enumerate() {
-                let local = self.module.locals.add(*ty);
-                locals.insert(format!("{}.{}", param.name, n), local);
-                param_locals.push(local);
-                params_types.push(*ty);
-            }
-        }
-
-        let results_types = clar2wasm_ty(&function_type.returns);
-        let mut func_builder = FunctionBuilder::new(
-            &mut self.module.types,
-            params_types.as_slice(),
-            results_types.as_slice(),
-        );
-        func_builder.name(name.as_str().to_string());
-        let mut func_body = func_builder.func_body();
-
-        // Function prelude
-        // Save the frame pointer in a local variable.
-        let frame_pointer = self.module.locals.add(ValType::I32);
-        func_body
-            .global_get(self.stack_pointer)
-            .local_set(frame_pointer);
-
-        // Setup the locals map for this function, saving the top-level map to
-        // restore after.
-        let top_level_locals = std::mem::replace(&mut self.locals, locals);
-
-        let mut block = func_body.dangling_instr_seq(InstrSeqType::new(
-            &mut self.module.types,
-            &[],
-            results_types.as_slice(),
-        ));
-        let block_id = block.id();
-
-        // Traverse the body of the function
-        self.traverse_expr(&mut block, body)?;
-
-        // TODO: We need to ensure that all exits from the function go through
-        // the postlude. Maybe put the body in a block, and then have any exits
-        // from the block go to the postlude with a `br` instruction?
-
-        // Insert the function body block into the function
-        func_body.instr(Block { seq: block_id });
-
-        // Function postlude
-        // Restore the initial stack pointer.
-        func_body
-            .local_get(frame_pointer)
-            .global_set(self.stack_pointer);
-
-        // Restore the top-level locals map.
-        self.locals = top_level_locals;
-
-        Ok(func_builder.finish(param_locals, &mut self.module.funcs))
-    }
-
     /// Gets the result type of the given `SymbolicExpression`.
     pub fn get_expr_type(&self, expr: &SymbolicExpression) -> Option<&TypeSignature> {
         self.contract_analysis
@@ -602,7 +431,7 @@ impl WasmGenerator {
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
-    fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
+    pub(crate) fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
         let data = match value {
             clarity::vm::Value::Int(i) => {
                 let mut data = (((*i as u128) & 0xFFFFFFFFFFFFFFFF) as i64)
@@ -2051,23 +1880,6 @@ pub(crate) fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     });
 }
 
-fn match_pairs_list(list: &[SymbolicExpression]) -> Option<Vec<TypedVar<'_>>> {
-    let mut vars = Vec::new();
-    for pair_list in list {
-        let pair = pair_list.match_list()?;
-        if pair.len() != 2 {
-            return None;
-        }
-        let name = pair[0].match_atom()?;
-        vars.push(TypedVar {
-            name,
-            type_expr: &pair[1],
-            decl_span: pair[0].span.clone(),
-        });
-    }
-    Some(vars)
-}
-
 impl WasmGenerator {
     pub fn func_by_name(&self, name: &str) -> FunctionId {
         self.module
@@ -2147,113 +1959,6 @@ impl WasmGenerator {
             };
             builder.local_get(local);
         }
-
-        Ok(())
-    }
-
-    fn traverse_define_private(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _parameters: Option<Vec<TypedVar<'_>>>,
-        body: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_define_function(builder, name, body, FunctionKind::Private)
-            .map(|_| ())
-    }
-
-    fn traverse_define_read_only(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _parameters: Option<Vec<TypedVar<'_>>>,
-        body: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        let function_id =
-            self.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
-        self.module.exports.add(name.as_str(), function_id);
-        Ok(())
-    }
-
-    fn traverse_define_public(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _parameters: Option<Vec<TypedVar<'_>>>,
-        body: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        let function_id =
-            self.traverse_define_function(builder, name, body, FunctionKind::Public)?;
-
-        self.module.exports.add(name.as_str(), function_id);
-        Ok(())
-    }
-
-    fn visit_define_nft(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        _nft_type: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = self.add_identifier_string_literal(name);
-
-        // Push the name onto the data stack
-        builder
-            .i32_const(name_offset as i32)
-            .i32_const(name_length as i32);
-
-        builder.call(
-            self.module
-                .funcs
-                .by_name("define_nft")
-                .expect("function not found"),
-        );
-        Ok(())
-    }
-
-    fn traverse_define_constant(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        name: &ClarityName,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // If the initial value is a literal, then we can directly add it to
-        // the literal memory.
-        let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
-            let (offset, _len) = self.add_literal(value);
-            offset
-        } else {
-            // If the initial expression is not a literal, then we need to
-            // reserve the space for it, and then execute the expression and
-            // write the result into the reserved space.
-            let offset = self.literal_memory_end;
-            let offset_local = self.module.locals.add(ValType::I32);
-            builder.i32_const(offset as i32).local_set(offset_local);
-
-            let ty = self
-                .get_expr_type(value)
-                .expect("constant value must be typed")
-                .clone();
-
-            let len = get_type_in_memory_size(&ty, true) as u32;
-            self.literal_memory_end += len;
-
-            // Traverse the initial value expression.
-            self.traverse_expr(builder, value)?;
-
-            // Write the initial value to the memory, to be read by the host.
-            self.write_to_memory(builder, offset_local, 0, &ty);
-
-            offset
-        };
-
-        self.constants.insert(name.to_string(), offset);
 
         Ok(())
     }

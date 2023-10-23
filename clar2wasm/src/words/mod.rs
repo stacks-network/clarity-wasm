@@ -9,8 +9,10 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod bitwise;
 pub mod comparison;
+pub mod constants;
 pub mod control_flow;
 pub mod data_vars;
+pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
 pub mod maps;
@@ -55,6 +57,11 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &control_flow::Unwrap,
     &control_flow::UnwrapErr,
     &tokens::DefineFungibleToken,
+    &tokens::DefineNonFungibleToken,
+    &constants::DefineConstant,
+    &functions::DefineReadonlyFunction,
+    &functions::DefinePrivateFunction,
+    &functions::DefinePublicFunction,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
