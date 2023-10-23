@@ -65,3 +65,44 @@
 (define-public (buffer-len-0)
   (ok (len 0x))
 )
+
+(define-public (list-element-at)
+  (ok (element-at (list 1 2 3) u1))
+)
+
+(define-public (string-element-at)
+  (ok (element-at "hello" u4))
+)
+
+(define-public (buffer-element-at)
+  (ok (element-at 0x123456 u2))
+)
+
+(define-public (list-element-at?)
+  (ok (element-at? (list 1 2 3) u1))
+)
+
+(define-public (string-element-at?)
+  (ok (element-at? "hello" u4))
+)
+
+(define-public (buffer-element-at?)
+  (ok (element-at? 0x123456 u2))
+)
+
+(define-public (list-element-at-none)
+  (ok (element-at? (list 1 2 3) u3))
+)
+
+(define-public (string-element-at-none)
+  (ok (element-at? "hello" u5))
+)
+
+(define-public (buffer-element-at-none)
+  (ok (element-at? 0x123456 u3))
+)
+
+;; 18446744073709551617 == 2^64 + 1
+(define-public (element-at-upper-offset)
+  (ok (element-at (list 1 2 3 4 5) u18446744073709551617))
+)

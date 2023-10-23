@@ -99,7 +99,7 @@ pub(crate) fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValTyp
 }
 
 /// Push a placeholder value for Clarity type `ty` onto the data stack.
-fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+pub(crate) fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     let wasm_types = clar2wasm_ty(ty);
     for wasm_type in wasm_types.iter() {
         add_placeholder_for_type(builder, *wasm_type);

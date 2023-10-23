@@ -2952,10 +2952,7 @@ test_contract_call_response!(
     "list-len",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(3)
-        );
+        assert_eq!(*response.data, Value::UInt(3));
     }
 );
 
@@ -2965,10 +2962,7 @@ test_contract_call_response!(
     "string-len",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(3)
-        );
+        assert_eq!(*response.data, Value::UInt(3));
     }
 );
 
@@ -2978,10 +2972,7 @@ test_contract_call_response!(
     "buffer-len",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(3)
-        );
+        assert_eq!(*response.data, Value::UInt(3));
     }
 );
 
@@ -2991,10 +2982,7 @@ test_contract_call_response!(
     "list-len-0",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(0)
-        );
+        assert_eq!(*response.data, Value::UInt(0));
     }
 );
 
@@ -3004,10 +2992,7 @@ test_contract_call_response!(
     "string-len-0",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(0)
-        );
+        assert_eq!(*response.data, Value::UInt(0));
     }
 );
 
@@ -3017,9 +3002,118 @@ test_contract_call_response!(
     "buffer-len-0",
     |response: ResponseData| {
         assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at,
+    "sequences",
+    "list-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::Int(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at,
+    "sequences",
+    "string-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::UInt(0)
+            Value::some(Value::string_ascii_from_bytes(vec![b'o']).unwrap()).unwrap()
         );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at,
+    "sequences",
+    "buffer-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from_byte(0x56)).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at_alias,
+    "sequences",
+    "list-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::Int(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at_alias,
+    "sequences",
+    "string-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at_alias,
+    "sequences",
+    "buffer-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from_byte(0x56)).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at_none,
+    "sequences",
+    "list-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at_none,
+    "sequences",
+    "string-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at_none,
+    "sequences",
+    "buffer-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_element_at_upper_offset,
+    "sequences",
+    "element-at-upper-offset",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
     }
 );

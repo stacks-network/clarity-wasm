@@ -4,11 +4,11 @@ use clarity::vm::{
     ClarityName, SymbolicExpression,
 };
 use walrus::{
-    ir::{BinaryOp, UnaryOp},
+    ir::{BinaryOp, InstrSeqType, UnaryOp},
     ValType,
 };
 
-use crate::wasm_generator::GeneratorError;
+use crate::wasm_generator::{add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError};
 
 use super::Word;
 
@@ -322,6 +322,181 @@ impl Word for Len {
 
         // Then push a 0 for the upper 64 bits.
         builder.i64_const(0);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum ElementAt {
+    Original,
+    Alias,
+}
+
+impl Word for ElementAt {
+    fn name(&self) -> ClarityName {
+        match self {
+            ElementAt::Original => "element-at".into(),
+            ElementAt::Alias => "element-at?".into(),
+        }
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(
+                "expected two arguments to 'element-at?'".to_string(),
+            ));
+        }
+
+        // Traverse the list, leaving the offset and length on top of the stack.
+        generator.traverse_expr(builder, &args[0])?;
+
+        // Extend the length to 64-bits.
+        builder.unop(UnaryOp::I64ExtendUI32);
+
+        // Traverse the index, leaving the value on top of the stack.
+        generator.traverse_expr(builder, &args[1])?;
+
+        // Check if the upper 64-bits are greater than 0.
+        builder.i64_const(0).binop(BinaryOp::I64GtU);
+
+        // Save the overflow indicator to a local.
+        let overflow_local = generator.module.locals.add(ValType::I32);
+        builder.local_set(overflow_local);
+
+        // Save the lower part of the index to a local.
+        let index_local = generator.module.locals.add(ValType::I64);
+        builder.local_tee(index_local);
+
+        // Check if the lower 64-bits are greater than 1024x1024 (max value
+        // size). We do this check before comparing with the length of the list
+        // because it ensures that the multiplication will not overflow.
+        builder.i64_const(1024 * 1024).binop(BinaryOp::I64GtU);
+
+        // Or with the overflow indicator.
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
+
+        // Push the index onto the stack again.
+        builder.local_get(index_local);
+
+        // Record the element type, for use later. `None` indicates that the
+        // element type is just a byte (for `string-ascii` or `buff`).
+        let mut element_ty = None;
+
+        // Get the offset of the specified index.
+        generator
+            .get_expr_type(&args[0])
+            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .and_then(|ty| match ty {
+                TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+                    // The length of the list in bytes is on the top of the stack. If we
+                    // divide that by the length of each element, then we'll have the
+                    // length of the list in elements.
+                    let elem_ty = list.get_list_item_type().clone();
+                    let element_length = get_type_size(&elem_ty);
+                    builder.i64_const(element_length as i64);
+
+                    // Save the element type for later.
+                    element_ty = Some(elem_ty.clone());
+
+                    // Multiply the index by the length of each element to get
+                    // byte-offset into the list.
+                    builder.binop(BinaryOp::I64Mul);
+
+                    Ok(())
+                }
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+                | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    _,
+                ))) => {
+                    // The index is the same as the byte-offset, so just leave
+                    // it as-is.
+                    Ok(())
+                }
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    _,
+                ))) => Err(GeneratorError::NotImplemented),
+                _ => Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                )),
+            })?;
+
+        // Save the element offset to the local.
+        builder.local_tee(index_local);
+
+        // Check if the element offset is out of range by comparing it to the
+        // length of the list.
+        builder.binop(BinaryOp::I64LeU);
+
+        // Or with the overflow indicator.
+        builder.local_get(overflow_local).binop(BinaryOp::I32Or);
+
+        let placeholder_ty = element_ty.clone();
+
+        // If the index is out of range, then return `none`, else load the
+        // value at the specified index and return `(some value)`.
+        let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
+            GeneratorError::InternalError("append result must be typed".to_string())
+        })?;
+        let result_wasm_types = clar2wasm_ty(result_ty);
+        builder.if_else(
+            InstrSeqType::new(
+                &mut generator.module.types,
+                &[ValType::I32],
+                &result_wasm_types,
+            ),
+            |then| {
+                // First, drop the offset.
+                then.drop();
+
+                // Push the `none` indicator.
+                then.i32_const(0);
+
+                // Then push a placeholder for the element type.
+                if let Some(elem_ty) = placeholder_ty {
+                    // Read the element type from the list.
+                    add_placeholder_for_clarity_type(then, &elem_ty)
+                } else {
+                    // The element type is an in-memory type, so we need
+                    // placeholders for offset and length
+                    then.i32_const(0).i32_const(0);
+                }
+            },
+            |else_| {
+                let offset_local = generator.module.locals.add(ValType::I32);
+
+                // Add the element offset to the offset of the list.
+                else_
+                    .local_get(index_local)
+                    // We know this offset is in range, so it must be a 32-bit
+                    // value, so this operation is safe.
+                    .unop(UnaryOp::I32WrapI64)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(offset_local);
+
+                // Push the `some` indicator
+                else_.i32_const(1);
+
+                // Load the value at the specified offset.
+                if let Some(elem_ty) = &element_ty {
+                    generator.read_from_memory(else_, offset_local, 0, elem_ty);
+                } else {
+                    // The element type is a byte (from a string or buffer), so
+                    // we need to push the offset and length (1) to the
+                    // stack.
+                    else_.local_get(offset_local).i32_const(1);
+                }
+            },
+        );
 
         Ok(())
     }
