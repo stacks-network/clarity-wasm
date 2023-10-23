@@ -1,4 +1,4 @@
-use crate::wasm_generator::ArgumentsExt;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
@@ -13,11 +13,11 @@ impl Word for StxBurn {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
 
@@ -42,11 +42,11 @@ impl Word for StxGetBalance {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let owner = args.get_expr(0)?;
         generator.traverse_expr(builder, owner)?;
         builder.call(generator.func_by_name("stx_get_balance"));
@@ -64,11 +64,11 @@ impl Word for StxTransfer {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -94,11 +94,11 @@ impl Word for StxTransferMemo {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -124,11 +124,11 @@ impl Word for StxGetAccount {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         generator.traverse_args(builder, &args[0..1])?;
         builder.call(generator.func_by_name("stx_account"));
         Ok(())

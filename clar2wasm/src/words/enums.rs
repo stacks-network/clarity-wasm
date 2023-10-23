@@ -1,4 +1,6 @@
-use crate::wasm_generator::{add_placeholder_for_type, clar2wasm_ty, ArgumentsExt};
+use crate::wasm_generator::{
+    add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
 use super::Word;
@@ -13,11 +15,11 @@ impl Word for ClaritySome {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
@@ -35,11 +37,11 @@ impl Word for ClarityOk {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (ok <val>) is represented by an i32 1, followed by the ok value,
         // followed by a placeholder for the err value
@@ -70,11 +72,11 @@ impl Word for ClarityErr {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value

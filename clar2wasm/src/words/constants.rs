@@ -1,4 +1,5 @@
 use crate::wasm_generator::ArgumentsExt;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{
     clarity_wasm::get_type_in_memory_size, ClarityName, SymbolicExpression, SymbolicExpressionType,
 };
@@ -16,11 +17,11 @@ impl Word for DefineConstant {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 

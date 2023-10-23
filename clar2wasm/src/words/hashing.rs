@@ -1,4 +1,4 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{
     types::{SequenceSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
@@ -9,11 +9,11 @@ use super::Word;
 pub fn traverse_hash(
     name: &'static str,
     mem_size: usize,
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     _expr: &SymbolicExpression,
-    args: &[clarity::vm::SymbolicExpression],
-) -> Result<(), crate::wasm_generator::GeneratorError> {
+    args: &[SymbolicExpression],
+) -> Result<(), GeneratorError> {
     let value = args.get_expr(0)?;
     generator.traverse_expr(builder, value)?;
 
@@ -54,11 +54,11 @@ impl Word for Hash160 {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_hash(
             "hash160",
             core::mem::size_of::<u32>() * 5,
@@ -80,11 +80,11 @@ impl Word for Sha256 {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_hash(
             "sha256",
             core::mem::size_of::<u32>() * 8,

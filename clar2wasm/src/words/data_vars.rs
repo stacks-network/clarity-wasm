@@ -1,4 +1,4 @@
-use crate::wasm_generator::ArgumentsExt;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use walrus::ValType;
@@ -15,11 +15,11 @@ impl Word for DefineDataVar {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let _data_type = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -84,11 +84,11 @@ impl Word for SetDataVar {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
         generator.traverse_expr(builder, value)?;
@@ -145,11 +145,11 @@ impl Word for GetDataVar {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory

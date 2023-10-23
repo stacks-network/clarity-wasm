@@ -1,4 +1,4 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{
     types::PrincipalData, ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
 };
@@ -16,10 +16,10 @@ impl Word for AsContract {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let inner = args.get_expr(0)?;
 
@@ -46,10 +46,10 @@ impl Word for ContractCall {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let function_name = args.get_name(1)?;
         let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(

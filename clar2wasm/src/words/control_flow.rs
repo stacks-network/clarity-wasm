@@ -1,4 +1,6 @@
-use crate::wasm_generator::{clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::ir::{InstrSeqType, UnaryOp};
 
@@ -27,11 +29,11 @@ impl Word for Begin {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         generator.traverse_statement_list(builder, args)
     }
 }
@@ -46,11 +48,11 @@ impl Word for Unwrap {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // There must be either an `optional` or a `response` on the top of the
@@ -168,11 +170,11 @@ impl Word for UnwrapErr {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let throws = args.get_expr(1)?;
         generator.traverse_expr(builder, input)?;

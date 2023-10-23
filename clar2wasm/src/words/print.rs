@@ -1,4 +1,4 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt};
+use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
@@ -14,11 +14,11 @@ impl Word for Print {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
 
         // Traverse the value, leaving it on the data stack

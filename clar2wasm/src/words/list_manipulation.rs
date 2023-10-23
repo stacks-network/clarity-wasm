@@ -1,4 +1,4 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::{
     types::{SequenceSubtype, TypeSignature},
@@ -19,10 +19,10 @@ impl Word for Concat {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let lhs = args.get_expr(0)?;
         let rhs = args.get_expr(1)?;
@@ -83,7 +83,7 @@ impl Word for ListCons {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
@@ -136,7 +136,7 @@ impl Word for Fold {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],

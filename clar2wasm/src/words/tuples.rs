@@ -1,10 +1,8 @@
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use std::collections::{BTreeMap, HashMap};
 
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
-
-use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError};
-
 use super::Word;
+use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -16,11 +14,11 @@ impl Word for TupleCons {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
             .ok_or(GeneratorError::InternalError(
@@ -82,11 +80,11 @@ impl Word for TupleGet {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
             return Err(GeneratorError::InternalError(
                 "expected two arguments to tuple get".to_string(),
@@ -160,11 +158,11 @@ impl Word for TupleMerge {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
             return Err(GeneratorError::InternalError(
                 "expected two arguments to tuple merge".to_string(),

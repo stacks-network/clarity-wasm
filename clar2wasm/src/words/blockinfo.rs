@@ -1,4 +1,5 @@
 use crate::wasm_generator::ArgumentsExt;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
@@ -13,11 +14,11 @@ impl Word for GetBlockInfo {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 

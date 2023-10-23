@@ -1,4 +1,4 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::InstrSeqBuilder;
 
@@ -14,11 +14,11 @@ impl Word for BitwiseNot {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 
         let helper_func = generator.func_by_name("bit-not");
@@ -31,7 +31,7 @@ impl Word for BitwiseNot {
 
 fn traverse_bitwise(
     name: &'static str,
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     operands: &[SymbolicExpression],
 ) -> Result<(), GeneratorError> {
@@ -60,11 +60,11 @@ impl Word for BitwiseOr {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_bitwise("bit-or", generator, builder, args)
     }
 }
@@ -79,11 +79,11 @@ impl Word for BitwiseAnd {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_bitwise("bit-and", generator, builder, args)
     }
 }
@@ -98,25 +98,14 @@ impl Word for BitwiseXor {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_bitwise("bit-xor", generator, builder, args)
     }
 }
-
-// fn traverse_bit_shift(
-//     generator: &mut crate::wasm_generator::WasmGenerator,
-//     builder: &mut InstrSeqBuilder,
-//     _expr: &SymbolicExpression,
-//     func: NativeFunctions,
-//     input: &SymbolicExpression,
-//     _shamt: &SymbolicExpression,
-// ) -> Result<(), GeneratorError> {
-
-// }
 
 #[derive(Debug)]
 pub struct BitwiseLShift;
@@ -128,11 +117,11 @@ impl Word for BitwiseLShift {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let shamt = args.get_expr(1)?;
 
@@ -154,11 +143,11 @@ impl Word for BitwiseRShift {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let shamt = args.get_expr(1)?;
 

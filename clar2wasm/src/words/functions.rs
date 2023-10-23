@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError};
+use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{representations::Span, types::FunctionType, ClarityName, SymbolicExpression};
 use walrus::{
     ir::{Block, InstrSeqType},
@@ -23,7 +23,7 @@ enum FunctionKind {
 }
 
 fn traverse_define_function(
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     name: &ClarityName,
     body: &SymbolicExpression,
@@ -148,11 +148,11 @@ impl Word for DefinePrivateFunction {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -174,11 +174,11 @@ impl Word for DefineReadonlyFunction {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -202,11 +202,11 @@ impl Word for DefinePublicFunction {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };

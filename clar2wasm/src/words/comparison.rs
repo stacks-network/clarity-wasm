@@ -1,4 +1,4 @@
-use crate::wasm_generator::GeneratorError;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{
     types::{SequenceSubtype, StringSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
@@ -8,9 +8,9 @@ use super::Word;
 
 fn traverse_comparison(
     name: &str,
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    args: &[clarity::vm::SymbolicExpression],
+    args: &[SymbolicExpression],
 ) -> Result<(), GeneratorError> {
     generator.traverse_args(builder, args)?;
 
@@ -56,11 +56,11 @@ impl Word for CmpLess {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("lt", generator, builder, args)
     }
 }
@@ -75,11 +75,11 @@ impl Word for CmpLeq {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("le", generator, builder, args)
     }
 }
@@ -94,11 +94,11 @@ impl Word for CmpGreater {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("gt", generator, builder, args)
     }
 }
@@ -113,11 +113,11 @@ impl Word for CmpGeq {
 
     fn traverse(
         &self,
-        generator: &mut crate::wasm_generator::WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("ge", generator, builder, args)
     }
 }
