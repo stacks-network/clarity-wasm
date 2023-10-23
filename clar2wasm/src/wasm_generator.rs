@@ -209,31 +209,12 @@ impl WasmGenerator {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
                         Print => self.traverse_print(builder, expr, args.get_expr(0)?),
-                        AsContract => self.traverse_as_contract(builder, expr, args.get_expr(0)?),
                         GetBlockInfo => self.traverse_get_block_info(
                             builder,
                             expr,
                             args.get_name(0)?,
                             args.get_expr(1)?,
                         ),
-                        ContractCall => {
-                            let function_name = args.get_name(1)?;
-                            let params = if args.len() >= 2 { &args[2..] } else { &[] };
-                            if let SymbolicExpressionType::LiteralValue(Value::Principal(
-                                PrincipalData::Contract(ref contract_identifier),
-                            )) = args.get_expr(0)?.expr
-                            {
-                                self.traverse_static_contract_call(
-                                    builder,
-                                    expr,
-                                    contract_identifier,
-                                    function_name,
-                                    params,
-                                )
-                            } else {
-                                todo!("dynamic contract calls are not yet supported")
-                            }
-                        }
                         e => todo!("{:?}", e),
                     }?;
                 } else {
@@ -1881,34 +1862,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_as_contract(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        inner: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Call the host interface function, `enter_as_contract`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("enter_as_contract")
-                .expect("enter_as_contract not found"),
-        );
-
-        // Traverse the inner expression
-        self.traverse_expr(builder, inner)?;
-
-        // Call the host interface function, `exit_as_contract`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("exit_as_contract")
-                .expect("exit_as_contract not found"),
-        );
-
-        Ok(())
-    }
-
     fn traverse_get_block_info(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -1960,72 +1913,6 @@ impl WasmGenerator {
         for arg in args.iter() {
             self.traverse_expr(builder, arg)?;
         }
-        Ok(())
-    }
-
-    fn traverse_static_contract_call(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        contract_identifier: &clarity::vm::types::QualifiedContractIdentifier,
-        function_name: &ClarityName,
-        args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
-        // Push the contract identifier onto the stack
-        // TODO(#111): These should be tracked for reuse, similar to the string literals
-        let (id_offset, id_length) = self.add_literal(&contract_identifier.clone().into());
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the function name onto the stack
-        let (fn_offset, fn_length) = self.add_identifier_string_literal(function_name);
-        builder
-            .i32_const(fn_offset as i32)
-            .i32_const(fn_length as i32);
-
-        // Write the arguments to the call stack, to be read by the host
-        let arg_offset = self.module.locals.add(ValType::I32);
-        builder.global_get(self.stack_pointer).local_set(arg_offset);
-        let mut arg_length = 0;
-        for arg in args {
-            // Traverse the argument, pushing it onto the stack
-            self.traverse_expr(builder, arg)?;
-
-            let arg_ty = self
-                .get_expr_type(arg)
-                .expect("contract-call? argument must be typed")
-                .clone();
-
-            arg_length += self.write_to_memory(builder, arg_offset, arg_length, &arg_ty);
-        }
-
-        // Push the arguments offset and length onto the data stack
-        builder.local_get(arg_offset).i32_const(arg_length as i32);
-
-        // Reserve space for the return value
-        let return_ty = self
-            .get_expr_type(expr)
-            .expect("contract-call? expression must be typed")
-            .clone();
-        let (return_offset, return_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &return_ty, true, true);
-
-        // Push the return offset and size to the data stack
-        builder.local_get(return_offset).i32_const(return_size);
-
-        // Call the host interface function, `static_contract_call`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("static_contract_call")
-                .expect("static_contract_call not found"),
-        );
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
-        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &return_ty);
-
         Ok(())
     }
 

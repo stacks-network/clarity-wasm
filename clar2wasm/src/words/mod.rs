@@ -10,6 +10,7 @@ pub mod arithmetic;
 pub mod bitwise;
 pub mod comparison;
 pub mod constants;
+pub mod contract;
 pub mod control_flow;
 pub mod data_vars;
 pub mod enums;
@@ -81,6 +82,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &enums::ClarityOk,
     &enums::ClaritySome,
     &enums::ClarityErr,
+    &contract::AsContract,
+    &contract::ContractCall,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
