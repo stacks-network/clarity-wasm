@@ -1,5 +1,5 @@
 use crate::wasm_generator::ArgumentsExt;
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
 use super::Word;
 
@@ -249,6 +249,252 @@ impl Word for DefineNonFungibleToken {
                 .by_name("define_nft")
                 .expect("function not found"),
         );
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct BurnNonFungibleToken;
+
+impl Word for BurnNonFungibleToken {
+    fn name(&self) -> ClarityName {
+        "nft-burn?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let token = args.get_name(0)?;
+        let identifier = args.get_expr(1)?;
+        let sender = args.get_expr(2)?;
+
+        // Push the token name onto the stack
+        let (id_offset, id_length) = generator.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the identifier onto the stack
+        generator.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = generator
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let (id_offset, id_size) = generator.create_call_stack_local(
+            builder,
+            generator.stack_pointer,
+            &identifier_ty,
+            true,
+            false,
+        );
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        generator.traverse_expr(builder, sender)?;
+
+        // Call the host interface function `nft_burn`
+        builder.call(generator.func_by_name("nft_burn"));
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct TransferNonFungibleToken;
+
+impl Word for TransferNonFungibleToken {
+    fn name(&self) -> ClarityName {
+        "nft-transfer?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let token = args.get_name(0)?;
+        let identifier = args.get_expr(1)?;
+        let sender = args.get_expr(2)?;
+        let recipient = args.get_expr(3)?;
+
+        // Push the token name onto the stack
+        let (id_offset, id_length) = generator.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the identifier onto the stack
+        generator.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = generator
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let (id_offset, id_size) = generator.create_call_stack_local(
+            builder,
+            generator.stack_pointer,
+            &identifier_ty,
+            true,
+            false,
+        );
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the sender onto the stack
+        generator.traverse_expr(builder, sender)?;
+
+        // Push the recipient onto the stack
+        generator.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_transfer`
+        builder.call(generator.func_by_name("nft_transfer"));
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct MintNonFungibleToken;
+
+impl Word for MintNonFungibleToken {
+    fn name(&self) -> ClarityName {
+        "nft-mint?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let token = args.get_name(0)?;
+        let identifier = args.get_expr(1)?;
+        let recipient = args.get_expr(2)?;
+
+        // Push the token name onto the stack
+        let (id_offset, id_length) = generator.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the identifier onto the stack
+        generator.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = generator
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let (id_offset, id_size) = generator.create_call_stack_local(
+            builder,
+            generator.stack_pointer,
+            &identifier_ty,
+            true,
+            false,
+        );
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Push the recipient onto the stack
+        generator.traverse_expr(builder, recipient)?;
+
+        // Call the host interface function `nft_mint`
+        builder.call(generator.func_by_name("nft_mint"));
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct GetOwnerOfNonFungibleToken;
+
+impl Word for GetOwnerOfNonFungibleToken {
+    fn name(&self) -> ClarityName {
+        "nft-get-owner?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        let token = args.get_name(0)?;
+        let identifier = args.get_expr(1)?;
+
+        // Push the token name onto the stack
+        let (id_offset, id_length) = generator.add_identifier_string_literal(token);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Push the identifier onto the stack
+        generator.traverse_expr(builder, identifier)?;
+
+        let identifier_ty = generator
+            .get_expr_type(identifier)
+            .expect("NFT identifier must be typed")
+            .clone();
+
+        // Allocate space on the stack for the identifier
+        let (id_offset, id_size) = generator.create_call_stack_local(
+            builder,
+            generator.stack_pointer,
+            &identifier_ty,
+            true,
+            false,
+        );
+
+        // Write the identifier to the stack (since the host needs to handle generic types)
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+
+        // Push the offset and size to the data stack
+        builder.local_get(id_offset).i32_const(id_size);
+
+        // Reserve stack space for the return value, a principal
+        let return_offset;
+        let return_size;
+        (return_offset, return_size) = generator.create_call_stack_local(
+            builder,
+            generator.stack_pointer,
+            &TypeSignature::PrincipalType,
+            false,
+            true,
+        );
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
+        // Call the host interface function `nft_get_owner`
+        builder.call(generator.func_by_name("nft_get_owner"));
+
         Ok(())
     }
 }
