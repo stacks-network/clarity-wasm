@@ -12,6 +12,7 @@ pub mod comparison;
 pub mod constants;
 pub mod control_flow;
 pub mod data_vars;
+pub mod enums;
 pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
@@ -62,6 +63,9 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &functions::DefineReadonlyFunction,
     &functions::DefinePrivateFunction,
     &functions::DefinePublicFunction,
+    &enums::ClarityOk,
+    &enums::ClaritySome,
+    &enums::ClarityErr,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

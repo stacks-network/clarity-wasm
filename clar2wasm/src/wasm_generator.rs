@@ -88,7 +88,7 @@ impl ArgumentsExt for &[SymbolicExpression] {
 }
 
 /// Push a placeholder value for Wasm type `ty` onto the data stack.
-fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
+pub(crate) fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
     match ty {
         ValType::I32 => builder.i32_const(0),
         ValType::I64 => builder.i64_const(0),
@@ -208,9 +208,6 @@ impl WasmGenerator {
                 ) {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
-                        TupleGet => {
-                            self.traverse_get(builder, expr, args.get_name(0)?, args.get_expr(1)?)
-                        }
                         Print => self.traverse_print(builder, expr, args.get_expr(0)?),
                         AsContract => self.traverse_as_contract(builder, expr, args.get_expr(0)?),
                         GetBlockInfo => self.traverse_get_block_info(
@@ -219,9 +216,6 @@ impl WasmGenerator {
                             args.get_name(0)?,
                             args.get_expr(1)?,
                         ),
-                        ConsError => self.traverse_err(builder, expr, args.get_expr(0)?),
-                        ConsOkay => self.traverse_ok(builder, expr, args.get_expr(0)?),
-                        ConsSome => self.traverse_some(builder, expr, args.get_expr(0)?),
                         StxBurn => {
                             let amount = args.get_expr(0)?;
                             let sender = args.get_expr(1)?;
@@ -1963,65 +1957,6 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn traverse_some(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // (some <val>) is represented by an i32 1, followed by the value
-        builder.i32_const(1);
-        self.traverse_expr(builder, value)?;
-        Ok(())
-    }
-
-    fn traverse_ok(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // (ok <val>) is represented by an i32 1, followed by the ok value,
-        // followed by a placeholder for the err value
-        builder.i32_const(1);
-        self.traverse_expr(builder, value)?;
-        let ty = self
-            .get_expr_type(expr)
-            .expect("ok expression must be typed");
-        if let TypeSignature::ResponseType(inner_types) = ty {
-            let err_types = clar2wasm_ty(&inner_types.1);
-            for err_type in err_types.iter() {
-                add_placeholder_for_type(builder, *err_type);
-            }
-        } else {
-            panic!("expected response type");
-        }
-        Ok(())
-    }
-
-    fn traverse_err(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        value: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // (err <val>) is represented by an i32 0, followed by a placeholder
-        // for the ok value, followed by the err value
-        builder.i32_const(0);
-        let ty = self
-            .get_expr_type(expr)
-            .expect("err expression must be typed");
-        if let TypeSignature::ResponseType(inner_types) = ty {
-            let ok_types = clar2wasm_ty(&inner_types.0);
-            for ok_type in ok_types.iter() {
-                add_placeholder_for_type(builder, *ok_type);
-            }
-        } else {
-            panic!("expected response type");
-        }
-        self.traverse_expr(builder, value)
-    }
-
     fn visit_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -2477,16 +2412,6 @@ impl WasmGenerator {
         );
 
         Ok(())
-    }
-
-    fn traverse_get(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _key: &ClarityName,
-        tuple: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        self.traverse_expr(builder, tuple)
     }
 
     fn traverse_get_block_info(
