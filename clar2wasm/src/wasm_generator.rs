@@ -216,39 +216,6 @@ impl WasmGenerator {
                             args.get_name(0)?,
                             args.get_expr(1)?,
                         ),
-                        StxBurn => {
-                            let amount = args.get_expr(0)?;
-                            let sender = args.get_expr(1)?;
-
-                            self.traverse_expr(builder, amount)?;
-                            self.traverse_expr(builder, sender)?;
-
-                            self.visit_stx_burn(builder, expr, amount, sender)
-                        }
-                        StxTransfer | StxTransferMemo => {
-                            let amount = args.get_expr(0)?;
-                            let sender = args.get_expr(1)?;
-                            let recipient = args.get_expr(2)?;
-                            let memo = args.get(3);
-
-                            self.traverse_expr(builder, amount)?;
-                            self.traverse_expr(builder, sender)?;
-                            self.traverse_expr(builder, recipient)?;
-                            if let Some(memo) = memo {
-                                self.traverse_expr(builder, memo)?;
-                            }
-
-                            self.visit_stx_transfer(builder, expr, amount, sender, recipient, memo)
-                        }
-                        GetStxBalance => {
-                            let owner = args.get_expr(0)?;
-                            self.traverse_expr(builder, owner)?;
-                            self.visit_stx_get_balance(builder, expr, owner)
-                        }
-                        StxGetAccount => {
-                            self.traverse_args(builder, &args[0..1])?;
-                            self.visit_stx_get_account(builder, expr, args.get_expr(0)?)
-                        }
                         ContractCall => {
                             let function_name = args.get_name(1)?;
                             let params = if args.len() >= 2 { &args[2..] } else { &[] };
@@ -1939,82 +1906,6 @@ impl WasmGenerator {
                 .expect("exit_as_contract not found"),
         );
 
-        Ok(())
-    }
-
-    fn visit_stx_get_balance(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _owner: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Owner is on the stack, so just call the host interface function,
-        // `stx_get_balance`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stx_get_balance")
-                .expect("stx_get_balance not found"),
-        );
-        Ok(())
-    }
-
-    fn visit_stx_get_account(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _owner: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Owner is on the stack, so just call the host interface function,
-        // `stx_get_account`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stx_account")
-                .expect("stx_account not found"),
-        );
-        Ok(())
-    }
-
-    fn visit_stx_burn(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Amount and sender are on the stack, so just call the host interface
-        // function, `stx_burn`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stx_burn")
-                .expect("stx_burn not found"),
-        );
-        Ok(())
-    }
-
-    fn visit_stx_transfer(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _amount: &SymbolicExpression,
-        _sender: &SymbolicExpression,
-        _recipient: &SymbolicExpression,
-        _memo: Option<&SymbolicExpression>,
-    ) -> Result<(), GeneratorError> {
-        // Amount, sender, and recipient are on the stack. If memo is none, we
-        // need to add a placeholder to the stack, then we can call the host
-        // interface function, `stx_transfer`
-        if _memo.is_none() {
-            builder.i32_const(0).i32_const(0);
-        }
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stx_transfer")
-                .expect("stx_transfer not found"),
-        );
         Ok(())
     }
 

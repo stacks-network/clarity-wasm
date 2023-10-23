@@ -17,6 +17,7 @@ pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
 pub mod maps;
+pub mod stx;
 pub mod tokens;
 pub mod traits;
 pub mod tuples;
@@ -68,6 +69,11 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &tokens::MintNonFungibleToken,
     &tokens::TransferNonFungibleToken,
     &tokens::GetOwnerOfNonFungibleToken,
+    &stx::StxBurn,
+    &stx::StxTransfer,
+    &stx::StxTransferMemo,
+    &stx::StxGetAccount,
+    &stx::StxGetBalance,
     &constants::DefineConstant,
     &functions::DefineReadonlyFunction,
     &functions::DefinePrivateFunction,
