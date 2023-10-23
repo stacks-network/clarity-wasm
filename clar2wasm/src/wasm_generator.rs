@@ -209,12 +209,6 @@ impl WasmGenerator {
                     use clarity::vm::functions::NativeFunctions::*;
                     match native_function {
                         Print => self.traverse_print(builder, expr, args.get_expr(0)?),
-                        GetBlockInfo => self.traverse_get_block_info(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                        ),
                         e => todo!("{:?}", e),
                     }?;
                 } else {
@@ -1859,49 +1853,6 @@ impl WasmGenerator {
                 .by_name(name.as_str())
                 .expect("function not found"),
         );
-        Ok(())
-    }
-
-    fn traverse_get_block_info(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        prop_name: &ClarityName,
-        block: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Push the property name onto the stack
-        let (id_offset, id_length) = self.add_identifier_string_literal(prop_name);
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the block number onto the stack
-        self.traverse_expr(builder, block)?;
-
-        // Reserve space on the stack for the return value
-        let return_ty = self
-            .get_expr_type(expr)
-            .expect("get-block-info? expression must be typed")
-            .clone();
-
-        let (return_offset, return_size) =
-            self.create_call_stack_local(builder, self.stack_pointer, &return_ty, true, true);
-
-        // Push the offset and size to the data stack
-        builder.local_get(return_offset).i32_const(return_size);
-
-        // Call the host interface function, `get_block_info`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("get_block_info")
-                .expect("get_block_info not found"),
-        );
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
-        self.read_from_memory(builder.borrow_mut(), return_offset, 0, &return_ty);
-
         Ok(())
     }
 

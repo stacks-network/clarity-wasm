@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 pub mod arithmetic;
 pub mod bitwise;
+pub mod blockinfo;
 pub mod comparison;
 pub mod constants;
 pub mod contract;
@@ -18,6 +19,7 @@ pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
 pub mod maps;
+pub mod print;
 pub mod stx;
 pub mod tokens;
 pub mod traits;
@@ -84,6 +86,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &enums::ClarityErr,
     &contract::AsContract,
     &contract::ContractCall,
+    &blockinfo::GetBlockInfo,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
