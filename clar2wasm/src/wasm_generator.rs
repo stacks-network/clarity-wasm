@@ -245,21 +245,6 @@ impl WasmGenerator {
                             self.traverse_expr(builder, owner)?;
                             self.visit_stx_get_balance(builder, expr, owner)
                         }
-                        BurnToken => self.traverse_ft_burn(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                            args.get_expr(2)?,
-                        ),
-                        TransferToken => self.traverse_ft_transfer(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                            args.get_expr(2)?,
-                            args.get_expr(3)?,
-                        ),
                         GetTokenBalance => self.traverse_ft_get_balance(
                             builder,
                             expr,
@@ -269,13 +254,6 @@ impl WasmGenerator {
                         GetTokenSupply => {
                             self.visit_ft_get_supply(builder, expr, args.get_name(0)?)
                         }
-                        MintToken => self.traverse_ft_mint(
-                            builder,
-                            expr,
-                            args.get_name(0)?,
-                            args.get_expr(1)?,
-                            args.get_expr(2)?,
-                        ),
                         BurnAsset => self.traverse_nft_burn(
                             builder,
                             expr,
@@ -2122,95 +2100,6 @@ impl WasmGenerator {
                 .funcs
                 .by_name("ft_get_balance")
                 .expect("ft_get_balance not found"),
-        );
-
-        Ok(())
-    }
-
-    fn traverse_ft_burn(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        token: &ClarityName,
-        amount: &SymbolicExpression,
-        sender: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Push the token name onto the stack
-        let (id_offset, id_length) = self.add_identifier_string_literal(token);
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the amount and sender onto the stack
-        self.traverse_expr(builder, amount)?;
-        self.traverse_expr(builder, sender)?;
-
-        // Call the host interface function `ft_burn`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("ft_burn")
-                .expect("ft_burn not found"),
-        );
-
-        Ok(())
-    }
-
-    fn traverse_ft_mint(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        token: &ClarityName,
-        amount: &SymbolicExpression,
-        recipient: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Push the token name onto the stack
-        let (id_offset, id_length) = self.add_identifier_string_literal(token);
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the amount and recipient onto the stack
-        self.traverse_expr(builder, amount)?;
-        self.traverse_expr(builder, recipient)?;
-
-        // Call the host interface function `ft_mint`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("ft_mint")
-                .expect("ft_mint not found"),
-        );
-
-        Ok(())
-    }
-
-    fn traverse_ft_transfer(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        token: &ClarityName,
-        amount: &SymbolicExpression,
-        sender: &SymbolicExpression,
-        recipient: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
-        // Push the token name onto the stack
-        let (id_offset, id_length) = self.add_identifier_string_literal(token);
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
-        // Push the amount, sender, and recipient onto the stack
-        self.traverse_expr(builder, amount)?;
-        self.traverse_expr(builder, sender)?;
-        self.traverse_expr(builder, recipient)?;
-
-        // Call the host interface function `ft_transfer`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("ft_transfer")
-                .expect("ft_transfer not found"),
         );
 
         Ok(())
