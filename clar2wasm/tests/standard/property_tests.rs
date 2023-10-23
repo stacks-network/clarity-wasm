@@ -1,11 +1,14 @@
 use std::{cell::RefCell, ops::DerefMut};
 
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use clarity::util::hash::{Hash160, Sha256Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
 use crate::utils::{
-    self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128, tiny_int128,
-    tiny_uint128, FromWasmResult, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
+    self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
+    test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128, tiny_uint128,
+    FromWasmResult, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
 };
 
 #[test]
@@ -486,4 +489,58 @@ fn prop_store_i64_be() {
             .expect("Could not read value from memory");
         prop_assert_eq!(buffer, val.to_be_bytes());
     });
+}
+
+#[test]
+fn prop_sha256_buff() {
+    test_on_buffer_hash(
+        "sha256-buf",
+        1024,
+        END_OF_STANDARD_DATA as usize + 32,
+        300,
+        END_OF_STANDARD_DATA as i32,
+        32,
+        |buf| Sha256Sum::from_data(buf).as_bytes().to_vec(),
+    )
+}
+
+#[test]
+fn prop_sha256_int_on_signed() {
+    test_on_int_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
+        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
+
+#[test]
+fn prop_sha256_int_on_unsigned() {
+    test_on_uint_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
+        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
+
+#[test]
+fn prop_hash160_buff() {
+    test_on_buffer_hash(
+        "hash160-buf",
+        2048,
+        END_OF_STANDARD_DATA as usize + 20,
+        300,
+        END_OF_STANDARD_DATA as i32,
+        20,
+        |buf| Hash160::from_data(buf).as_bytes().to_vec(),
+    )
+}
+
+#[test]
+fn prop_hash160_int_on_signed() {
+    test_on_int_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
+        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
+}
+
+#[test]
+fn prop_hash160_int_on_unsigned() {
+    test_on_uint_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
+        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
+    })
 }

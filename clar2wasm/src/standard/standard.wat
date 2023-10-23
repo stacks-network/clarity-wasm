@@ -1309,8 +1309,8 @@
         (local.set $res_len ;; total size of data with expansion
             (i32.add
                 (i32.or
-                    ;; len + 1 byte for the added "1" + 8 bytes for the size
-                    (i32.add (local.get $length) (i32.const 9))
+                    ;; len + 8 bytes for the size
+                    (i32.add (local.get $length) (i32.const 8))
                     (i32.const 0x3f)
                 )
                 (i32.const 1)

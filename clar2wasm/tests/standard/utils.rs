@@ -1,4 +1,7 @@
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use hex::ToHex;
 use proptest::prelude::*;
+use std::ops::Deref;
 use std::{cell::RefCell, ops::DerefMut};
 use wasmtime::Val;
 use wasmtime::{Caller, Engine, Instance, Linker, Module, Store};
@@ -435,18 +438,24 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     Ok((instance, store))
 }
 
+/// The Property Int type.
+/// Used for convenience when pasing 128 bits type to Wasm
+/// as a pair of `(i64, i64)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PropInt(u128);
 
 impl PropInt {
+    /// Creates a new PropInt.
     pub const fn new(n: u128) -> Self {
         Self(n)
     }
 
+    /// Gets the 64 most significant bits.
     pub const fn high(&self) -> i64 {
         (self.0 >> 64) as i64
     }
 
+    /// Gets the 64 least significant bits.
     pub const fn low(&self) -> i64 {
         self.0 as i64
     }
@@ -466,7 +475,10 @@ impl From<PropInt> for i128 {
 
 /// Convenience trait to unify the result handling of different return values
 pub(crate) trait FromWasmResult {
+    /// Converts a Wasm result to a type.
     fn from_wasm_result(v: &[Val]) -> Self;
+
+    /// Retrieves the useful values in the slice to create the type.
     fn relevant_slice(s: &mut [Val]) -> &mut [Val];
 }
 
@@ -510,6 +522,7 @@ impl FromWasmResult for bool {
 macro_rules! propints {
     ($(($name: ident, $range: ty)),+ $(,)?) => {
         $(
+            #[doc = std::concat!("Creates a Proptest Strategy for [PropInt] in the range of ", std::stringify!($range), ".")]
             pub(crate) fn $name() -> proptest::strategy::BoxedStrategy<crate::utils::PropInt> {
                 any::<$range>().prop_map(|n| crate::utils::PropInt::new(n as u128)).boxed()
             }
@@ -550,6 +563,8 @@ pub(crate) const SIGNED_STRATEGIES: [PropIntStrategy; 5] = [
     huge_int128,
 ];
 
+/// Test for a two arguments Wasm arithmetic function `name` using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_two_args<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -584,6 +599,8 @@ where
     }
 }
 
+/// Test for a two arguments Wasm arithmetic function `name` for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_unsigned_args<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -594,6 +611,8 @@ where
     test_export_two_args(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name` for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_signed_args<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -604,6 +623,8 @@ where
     test_export_two_args(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_two_args_checked<N, M, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -641,6 +662,8 @@ where
     }
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_unsigned_args_checked<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -651,6 +674,8 @@ where
     test_export_two_args_checked(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a two arguments Wasm arithmetic function `name`, which can fail, for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_two_signed_args_checked<N, M, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -661,6 +686,8 @@ where
     test_export_two_args_checked(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name` using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_one_arg<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -692,6 +719,8 @@ where
     }
 }
 
+/// Test for a one argument Wasm arithmetic function `name` for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_unsigned_arg<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -701,6 +730,8 @@ where
     test_export_one_arg(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name` for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_signed_arg<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -710,6 +741,8 @@ where
     test_export_one_arg(&SIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, using a list of PropInt strategies.
+/// The result is compared to the output of `closure`.
 fn test_export_one_arg_checked<N, R, C>(strategies: &[PropIntStrategy], name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -744,6 +777,8 @@ where
     }
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, for all unsigned PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_unsigned_arg_checked<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -753,6 +788,8 @@ where
     test_export_one_arg_checked(&UNSIGNED_STRATEGIES, name, closure)
 }
 
+/// Test for a one argument Wasm arithmetic function `name`, which can fail, for all signed PropInt strategies.
+/// The result is compared to the output of `closure`.
 pub(crate) fn test_export_one_signed_arg_checked<N, R, C>(name: &str, closure: C)
 where
     N: From<PropInt>,
@@ -760,4 +797,236 @@ where
     C: Fn(N) -> Option<R>,
 {
     test_export_one_arg_checked(&SIGNED_STRATEGIES, name, closure)
+}
+
+/// The Property Buffer type.
+/// Used for convenience when dealing with buffers, to read them
+/// and write them to memory, and dealing with the pair `(offset, length)`.
+#[derive(Clone)]
+pub(crate) struct PropBuffer {
+    buffer: Vec<u8>,
+    offset: usize,
+}
+
+impl std::fmt::Debug for PropBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PropBuffer")
+            .field(
+                "buffer",
+                &format!("0x{}", self.buffer.encode_hex::<String>()),
+            )
+            .field("offset", &self.offset)
+            .finish()
+    }
+}
+
+impl PropBuffer {
+    /// Creates a new PropBuffer.
+    pub(crate) fn new(buffer: Vec<u8>, offset: usize) -> Self {
+        Self { buffer, offset }
+    }
+
+    /// Read a buffer from memory at a specified `offset` and `length`
+    /// , and create a PropBuffer if the operation is a success.
+    pub(crate) fn read_from_memory(
+        memory: wasmtime::Memory,
+        store: impl wasmtime::AsContext,
+        offset: usize,
+        length: usize,
+    ) -> Option<Self> {
+        let mut buffer = vec![0u8; length];
+        memory.read(store, offset, &mut buffer).ok()?;
+        Some(Self { buffer, offset })
+    }
+
+    /// Write a buffer to memory, returning a `(offset, length)` if the
+    /// operation is a success.
+    pub(crate) fn write_to_memory(
+        &self,
+        memory: wasmtime::Memory,
+        store: impl wasmtime::AsContextMut,
+    ) -> Option<(i32, i32)> {
+        memory.write(store, self.offset, &self.buffer).ok()?;
+        Some((self.offset as i32, self.buffer.len() as i32))
+    }
+}
+
+impl From<PropBuffer> for Vec<u8> {
+    fn from(value: PropBuffer) -> Self {
+        value.buffer
+    }
+}
+
+impl Deref for PropBuffer {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
+impl AsRef<[u8]> for PropBuffer {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer
+    }
+}
+
+prop_compose! {
+    /// Generates random PropBuffer with given `offset`. The length will be between 1 and `max_length`.
+    fn buffer(offset: usize, max_length: usize)
+        (buf in proptest::collection::vec(any::<u8>(), 1..max_length))
+        -> PropBuffer {
+            PropBuffer::new(buf, offset)
+        }
+}
+
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The buffers tested will be written in memory at offset `data_offset` and can have a length up to `data_max_length`.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
+pub(crate) fn test_on_buffer_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    data_offset: usize,
+    data_max_length: usize,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(&[u8]) -> Vec<u8>,
+) {
+    debug_assert!(stack_pointer >= 0);
+    debug_assert!(result_offset >= 0);
+    debug_assert!(stack_pointer >= END_OF_STANDARD_DATA as i32);
+
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let sp = instance
+        .get_global(store.borrow_mut().deref_mut(), "stack-pointer")
+        .expect("Standard does not contain a $stack-pointer global");
+    sp.set(store.borrow_mut().deref_mut(), stack_pointer.into())
+        .expect("could not set $stack-pointer");
+
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap_or_else(|| panic!("could not find function {func_name}"));
+
+    proptest!(|(buf in buffer(data_offset, data_max_length))| {
+        let expected_result = reference_function(&buf);
+
+        let mut res = [Val::I32(0), Val::I32(0)];
+
+        let (offset, len)  = buf.write_to_memory(memory, store.borrow_mut().deref_mut()).expect("could not write buffer to memory");
+
+        fun.call(
+            store.borrow_mut().deref_mut(),
+            &[offset.into(), len.into(), result_offset.into()],
+            &mut res
+        ).unwrap_or_else(|_| panic!("call to {func_name} failed"));
+
+        assert_eq!(res[0].unwrap_i32(), result_offset);
+        assert_eq!(res[1].unwrap_i32(), result_length);
+
+        let wasm_result = PropBuffer::read_from_memory(memory, store.borrow_mut().deref_mut(), result_offset as usize, result_length as usize).expect("could not read result buffer from memory");
+
+        prop_assert_eq!(expected_result, wasm_result.as_ref());
+    });
+}
+
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated for each strategy passed to the function.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
+fn test_on_integer_hash(
+    strategies: &[PropIntStrategy],
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    debug_assert!(result_offset >= 0);
+    debug_assert!(stack_pointer >= END_OF_STANDARD_DATA as i32);
+
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let sp = instance
+        .get_global(store.borrow_mut().deref_mut(), "stack-pointer")
+        .expect("Standard does not contain a $stack-pointer global");
+    sp.set(store.borrow_mut().deref_mut(), stack_pointer.into())
+        .expect("could not set $stack-pointer");
+
+    let fun = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap_or_else(|| panic!("could not find function {func_name}"));
+
+    for st in strategies {
+        proptest!(|(n in st())| {
+            let expected_result = reference_function(n.into());
+
+            let mut res = [Val::I32(0), Val::I32(0)];
+
+            fun.call(
+                store.borrow_mut().deref_mut(),
+                &[n.low().into(), n.high().into(), result_offset.into()],
+                &mut res
+            ).unwrap_or_else(|_| panic!("call to {func_name} failed"));
+            assert_eq!(res[0].unwrap_i32(), result_offset);
+            assert_eq!(res[1].unwrap_i32(), result_length);
+
+            let wasm_result = PropBuffer::read_from_memory(memory, store.borrow_mut().deref_mut(), result_offset as usize, result_length as usize).expect("could not read result buffer from memory");
+
+            prop_assert_eq!(expected_result, wasm_result.as_ref());
+        })
+    }
+}
+
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated from all signed strategies.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
+pub(crate) fn test_on_int_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    test_on_integer_hash(
+        &SIGNED_STRATEGIES,
+        func_name,
+        stack_pointer,
+        result_offset,
+        result_length,
+        reference_function,
+    )
+}
+
+/// Tests a Wasm hashing function `func_name` and compares its output to the output of `reference_function`.
+/// The integer input will be generated from all unsigned strategies.
+/// The output of the Wasm function will be written in memory on `result_offset` with length `result_length`.
+/// The stack pointer offset should be set in `stack_pointer`.
+pub(crate) fn test_on_uint_hash(
+    func_name: &str,
+    stack_pointer: i32,
+    result_offset: i32,
+    result_length: i32,
+    reference_function: impl Fn(i128) -> Vec<u8>,
+) {
+    test_on_integer_hash(
+        &UNSIGNED_STRATEGIES,
+        func_name,
+        stack_pointer,
+        result_offset,
+        result_length,
+        reference_function,
+    )
 }
