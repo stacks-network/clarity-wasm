@@ -76,8 +76,7 @@ impl Word for MapGet {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;
@@ -94,7 +93,7 @@ impl Word for MapGet {
             .expect("map-get? expression must be typed")
             .clone();
         let (return_offset, return_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, true);
+            generator.create_call_stack_local(builder, &ty, true, true);
 
         // Push the return value offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
@@ -146,8 +145,7 @@ impl Word for MapSet {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;
@@ -163,8 +161,7 @@ impl Word for MapSet {
             .get_expr_type(value)
             .expect("map-set value expression must be typed")
             .clone();
-        let (val_offset, val_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
@@ -218,8 +215,7 @@ impl Word for MapInsert {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;
@@ -235,8 +231,7 @@ impl Word for MapInsert {
             .get_expr_type(value)
             .expect("map-set value expression must be typed")
             .clone();
-        let (val_offset, val_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
@@ -289,8 +284,7 @@ impl Word for MapDelete {
             .get_expr_type(key)
             .expect("map-set value expression must be typed")
             .clone();
-        let (key_offset, key_size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;

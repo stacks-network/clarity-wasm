@@ -287,13 +287,8 @@ impl Word for BurnNonFungibleToken {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let (id_offset, id_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &identifier_ty,
-            true,
-            false,
-        );
+        let (id_offset, id_size) =
+            generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -346,13 +341,8 @@ impl Word for TransferNonFungibleToken {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let (id_offset, id_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &identifier_ty,
-            true,
-            false,
-        );
+        let (id_offset, id_size) =
+            generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -407,13 +397,8 @@ impl Word for MintNonFungibleToken {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let (id_offset, id_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &identifier_ty,
-            true,
-            false,
-        );
+        let (id_offset, id_size) =
+            generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -464,13 +449,8 @@ impl Word for GetOwnerOfNonFungibleToken {
             .clone();
 
         // Allocate space on the stack for the identifier
-        let (id_offset, id_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &identifier_ty,
-            true,
-            false,
-        );
+        let (id_offset, id_size) =
+            generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
         generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
@@ -481,13 +461,8 @@ impl Word for GetOwnerOfNonFungibleToken {
         // Reserve stack space for the return value, a principal
         let return_offset;
         let return_size;
-        (return_offset, return_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &TypeSignature::PrincipalType,
-            false,
-            true,
-        );
+        (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &TypeSignature::PrincipalType, false, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);

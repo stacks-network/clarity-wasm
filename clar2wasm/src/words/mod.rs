@@ -17,7 +17,6 @@ pub mod data_vars;
 pub mod enums;
 pub mod functions;
 pub mod hashing;
-pub mod list_manipulation;
 pub mod maps;
 pub mod print;
 pub mod sequences;
@@ -40,9 +39,6 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &comparison::CmpGreater,
     &comparison::CmpLeq,
     &comparison::CmpGeq,
-    &list_manipulation::Concat,
-    &list_manipulation::ListCons,
-    &list_manipulation::Fold,
     &data_vars::DefineDataVar,
     &data_vars::SetDataVar,
     &data_vars::GetDataVar,
@@ -89,6 +85,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
     &print::Print,
+    &sequences::ListCons,
+    &sequences::Fold,
     &sequences::Append,
     &sequences::AsMaxLen,
     &sequences::Concat,
