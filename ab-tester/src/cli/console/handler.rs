@@ -36,7 +36,8 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> Result<()> {
 
         },
         KeyCode::Char('e') => {
-            app.current_screen_inst.handle_key_event(key_event)
+            let mut screen = app.current_screen_inst.borrow_mut();
+            screen.handle_key_event(key_event);
         }
         _ => {}
     }

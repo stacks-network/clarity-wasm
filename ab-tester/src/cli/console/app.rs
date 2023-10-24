@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, borrow::Cow, rc::Rc, cell::RefCell};
 
 use ratatui::{widgets::*, style::Style, text::Line};
 
@@ -15,7 +15,7 @@ pub struct App<'theme, 'a> {
     pub widgets: AppWidgets<'theme, 'a>,
     pub screens: AppScreens<'theme, 'a>,
     pub current_screen: AppScreen,
-    pub current_screen_inst: Box<dyn Screen>,
+    pub current_screen_inst: Rc<RefCell<dyn Screen>>,
     
     // Styling
     pub styles: AppStyles
@@ -40,7 +40,7 @@ impl<'theme, 'a> App<'theme, 'a> {
                 blocks: BlocksScreen::new(theme),
             },
             current_screen: AppScreen::Default,
-            current_screen_inst: Box::<StartScreen>::default(),
+            current_screen_inst: Rc::new(RefCell::new(StartScreen::new())),
 
             // Styling
             styles: AppStyles { 
