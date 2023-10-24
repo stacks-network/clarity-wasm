@@ -2655,3 +2655,65 @@ fn store_i64_be() {
         .expect("Could not read value from memory");
     assert_eq!(buffer, [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]);
 }
+
+#[test]
+fn buff_to_uint_be() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let buff_to_uint_be = instance.get_func(&mut store, "buff-to-uint-be").unwrap();
+    let mut result = [Val::I64(0), Val::I64(0)];
+
+    let mut test_buff = |buf: &[u8], expected_lo: u64, expected_hi: u64| {
+        memory
+            .write(&mut store, 1500, buf)
+            .expect("Could not write to memory");
+        buff_to_uint_be
+            .call(
+                &mut store,
+                &[Val::I32(1500), Val::I32(buf.len() as i32)],
+                &mut result,
+            )
+            .expect("call to buff-to-uint-be failed");
+        assert_eq!(result[0].unwrap_i64(), expected_lo as i64);
+        assert_eq!(result[1].unwrap_i64(), expected_hi as i64);
+    };
+
+    // Empty buffer == 0
+    test_buff(&[], 0, 0);
+
+    // 0x01
+    test_buff(&[1], 1, 0);
+
+    // 0x0102
+    test_buff(&[1, 2], 0x0102, 0);
+
+    // 0x0102030405060708
+    test_buff(&[1, 2, 3, 4, 5, 6, 7, 8], 0x0102030405060708, 0);
+
+    // 0x010203040506070809
+    test_buff(&[1, 2, 3, 4, 5, 6, 7, 8, 9], 0x0203040506070809, 0x01);
+
+    // 0x0102030405060708090a0b0c0d0e0f10
+    test_buff(
+        &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        0x090a0b0c0d0e0f10,
+        0x0102030405060708,
+    );
+
+    // Fail for buffer with length > 16
+    let buf = [0u8; 17];
+    memory
+        .write(&mut store, 1500, &buf)
+        .expect("Could not write to memory");
+    buff_to_uint_be
+        .call(
+            &mut store,
+            &[Val::I32(1500), Val::I32(buf.len() as i32)],
+            &mut result,
+        )
+        .expect_err("expected runtime error");
+}
