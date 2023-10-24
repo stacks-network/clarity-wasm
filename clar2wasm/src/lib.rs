@@ -10,13 +10,11 @@ use clarity::{
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
+pub mod datastore;
 pub mod wasm_generator;
 mod words;
 
-#[cfg(feature = "developer-mode")]
-pub mod datastore;
-
-#[cfg(feature = "developer-mode")]
+#[cfg(test)]
 pub mod tools;
 
 // FIXME: This is copied from stacks-blockchain
