@@ -106,3 +106,27 @@
 (define-public (element-at-upper-offset)
   (ok (element-at (list 1 2 3 4 5) u18446744073709551617))
 )
+
+(define-public (list-replace-at)
+  (ok (replace-at? (list 1 2 3) u1 4))
+)
+
+(define-public (string-replace-at)
+  (ok (replace-at? "hello" u0 "j"))
+)
+
+(define-public (buffer-replace-at)
+  (ok (replace-at? 0xfedcba9876543210 u4 0x67))
+)
+
+(define-public (list-replace-at-none)
+  (ok (replace-at? (list 1 2 3) u4 4))
+)
+
+(define-public (string-replace-at-none)
+  (ok (replace-at? "hello" u5 "X"))
+)
+
+(define-public (buffer-replace-at-none)
+  (ok (replace-at? 0xfedcba9876543210 u123 0x67))
+)

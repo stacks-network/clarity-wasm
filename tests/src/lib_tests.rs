@@ -3117,3 +3117,79 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::none());
     }
 );
+
+test_contract_call_response!(
+    test_list_replace_at,
+    "sequences",
+    "list-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::list_from(vec![Value::Int(1), Value::Int(4), Value::Int(3)]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_replace_at,
+    "sequences",
+    "string-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes("jello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_replace_at,
+    "sequences",
+    "buffer-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::buff_from(vec![0xfe, 0xdc, 0xba, 0x98, 0x67, 0x54, 0x32, 0x10]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_replace_at_none,
+    "sequences",
+    "list-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_replace_at_none,
+    "sequences",
+    "string-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_replace_at_none,
+    "sequences",
+    "buffer-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
