@@ -24,6 +24,8 @@ pub mod stx;
 pub mod tokens;
 pub mod traits;
 pub mod tuples;
+pub mod logical;
+pub mod equal;
 
 pub(crate) static WORDS: &[&'static dyn Word] = &[
     &arithmetic::Add,
@@ -88,6 +90,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
     &print::Print,
+    &logical::Not,
+    &equal::Equal,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

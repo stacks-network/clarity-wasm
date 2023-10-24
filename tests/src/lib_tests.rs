@@ -2793,3 +2793,58 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_not_false,
+    "not",
+    "assert-truthy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_not_true,
+    "not",
+    "assert-falsy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(test_xor_int, "xor", "xor-int", |response: ResponseData| {
+    assert!(response.committed);
+    assert_eq!(*response.data, Value::Int(9));
+});
+
+test_contract_call_response!(
+    test_xor_uint,
+    "xor",
+    "xor-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(14));
+    }
+);
+
+test_contract_call_response!(
+    test_xor_neg_int,
+    "xor",
+    "xor-neg-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(7));
+    }
+);
+
+test_contract_call_response!(
+    test_more_than_two_int_equal,
+    "equal",
+    "more-than-two-int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
