@@ -29,17 +29,17 @@ impl Word for Equal {
 
         builder.call(generator.func_by_name("is-eq-int"));
 
-        let result = generator.module.locals.add(ValType::I32);
+        let mut result = generator.module.locals.add(ValType::I32);
         builder.local_set(result);
         results.push(result);
 
-         // Push operands, starting from 3rd, onto the stack
+        // Push first and other operands, starting from 3rd, onto the stack
         for operand in args.iter().skip(2) {
             generator.traverse_expr(builder, first_op)?;
             generator.traverse_expr(builder, operand)?;
             builder.call(generator.func_by_name("is-eq-int"));
 
-            let result = generator.module.locals.add(ValType::I32);
+            result = generator.module.locals.add(ValType::I32);
             builder.local_set(result);
             results.push(result);
         }
