@@ -7,8 +7,8 @@ use wasmtime::Val;
 
 use crate::utils::{
     self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
-    test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128, tiny_uint128,
-    FromWasmResult, PropInt, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
+    test_buff_to_uint, test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128,
+    tiny_uint128, FromWasmResult, PropInt, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
 };
 
 #[test]
@@ -547,39 +547,24 @@ fn prop_hash160_int_on_unsigned() {
 
 #[test]
 fn prop_buff_to_uint_be() {
-    let (instance, store) = load_stdlib().unwrap();
-    let store = RefCell::new(store);
-
-    let memory = instance
-        .get_memory(store.borrow_mut().deref_mut(), "memory")
-        .expect("Could not find memory");
-
-    let buff_to_uint_be = instance
-        .get_func(store.borrow_mut().deref_mut(), "buff-to-uint-be")
-        .unwrap();
-
-    proptest!(|(buff in utils::buffer(1500, 16))| {
-        let expected_result = PropInt::new({ 
-            let mut b = buff.to_vec();
-            let offset = 16 - buff.len();
+    test_buff_to_uint("buff-to-uint-be", 1500, |b| {
+        PropInt::new({
+            let mut b = b.to_vec();
+            let offset = 16 - b.len();
             b.extend(std::iter::repeat(0).take(offset));
             b.rotate_right(offset);
             u128::from_be_bytes(b.try_into().unwrap())
-        });
+        })
+    })
+}
 
-        let mut result = [Val::I64(0), Val::I64(0)];
-        let (offset, length) = buff
-            .write_to_memory(memory, store.borrow_mut().deref_mut())
-            .expect("Could not write to memory");
-
-        buff_to_uint_be
-            .call(
-                store.borrow_mut().deref_mut(),
-                &[offset.into(), length.into()],
-                &mut result,
-            )
-            .expect("call to buff-to-uint-be failed");
-        prop_assert_eq!(result[0].unwrap_i64(), expected_result.low());
-        prop_assert_eq!(result[1].unwrap_i64(), expected_result.high());
-    });
+#[test]
+fn prop_buff_to_uint_le() {
+    test_buff_to_uint("buff-to-uint-le", 1500, |b| {
+        PropInt::new({
+            let mut b = b.to_vec();
+            b.extend(std::iter::repeat(0).take(16 - b.len()));
+            u128::from_le_bytes(b.try_into().unwrap())
+        })
+    })
 }
