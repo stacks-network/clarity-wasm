@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod bitwise;
 pub mod blockinfo;
+pub mod buff_to_integer;
 pub mod comparison;
 pub mod constants;
 pub mod contract;
