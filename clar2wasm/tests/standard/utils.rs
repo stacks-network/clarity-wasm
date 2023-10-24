@@ -873,7 +873,7 @@ impl AsRef<[u8]> for PropBuffer {
 
 prop_compose! {
     /// Generates random PropBuffer with given `offset`. The length will be between 1 and `max_length`.
-    fn buffer(offset: usize, max_length: usize)
+    pub(crate) fn buffer(offset: usize, max_length: usize)
         (buf in proptest::collection::vec(any::<u8>(), 1..max_length))
         -> PropBuffer {
             PropBuffer::new(buf, offset)
