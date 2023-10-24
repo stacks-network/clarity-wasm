@@ -89,6 +89,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
     &print::Print,
+    &buff_to_integer::BuffToIntBe,
+    &buff_to_integer::BuffToIntLe,
+    &buff_to_integer::BuffToUintBe,
+    &buff_to_integer::BuffToUintLe,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

@@ -61,7 +61,7 @@ pub struct BuffToUintLe;
 
 impl Word for BuffToUintLe {
     fn name(&self) -> clarity::vm::ClarityName {
-        "buff-to-uint-Le".into()
+        "buff-to-uint-le".into()
     }
 
     fn traverse(
