@@ -1,12 +1,11 @@
 use super::Word;
 
 fn traverse_buffer_to_integer(
-    word: &impl Word,
+    name: &str,
     generator: &mut crate::wasm_generator::WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     args: &[clarity::vm::SymbolicExpression],
 ) -> Result<(), crate::wasm_generator::GeneratorError> {
-    let name = &word.name();
     let func = generator
         .module
         .funcs
@@ -32,6 +31,27 @@ impl Word for BuffToUintBe {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer(self, generator, builder, args)
+        traverse_buffer_to_integer("buff-to-uint-be", generator, builder, args)
+    }
+}
+
+#[derive(Debug)]
+pub struct BuffTointBe;
+
+impl Word for BuffTointBe {
+    fn name(&self) -> clarity::vm::ClarityName {
+        "buff-to-int-be".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &clarity::vm::SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        // This is the same function as "buff-to-uint-be", with the result interpreted
+        // as i128 instead of u128.
+        traverse_buffer_to_integer("buff-to-uint-be", generator, builder, args)
     }
 }
