@@ -112,7 +112,9 @@ lazy_static! {
         let mut wbn = HashMap::new();
 
         for word in WORDS {
-            wbn.insert(word.name(), &**word);
+            if wbn.insert(word.name(), &**word).is_some() {
+                panic!("Re-declaration of word {:?}", word);
+            }
         }
 
         wbn

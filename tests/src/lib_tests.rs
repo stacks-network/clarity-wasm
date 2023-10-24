@@ -2796,7 +2796,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_buff_to_uint_be,
-    "buffer-to-integer",
+    "buff-to-uint-be",
     "buff_to_uint_be",
     |response: ResponseData| {
         assert!(response.committed);
@@ -2809,7 +2809,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_buff_to_int_be,
-    "buffer-to-integer",
+    "buff-to-int-be",
     "buff_to_int_be",
     |response: ResponseData| {
         assert!(response.committed);
@@ -2822,7 +2822,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_buff_to_uint_le,
-    "buffer-to-integer",
+    "buff-to-uint-le",
     "buff_to_uint_le",
     |response: ResponseData| {
         assert!(response.committed);
@@ -2835,7 +2835,7 @@ test_contract_call_response!(
 
 test_contract_call_response!(
     test_buff_to_int_le,
-    "buffer-to-integer",
+    "buff-to-int-le",
     "buff_to_int_le",
     |response: ResponseData| {
         assert!(response.committed);
