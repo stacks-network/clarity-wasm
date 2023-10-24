@@ -17,30 +17,27 @@ pub struct Cli {
     pub command: Commands,
     #[arg(
         long = "config",
+        short = 'c',
         default_value = "./config.toml",
         value_name = "CONFIG FILE",
-        help = "Use the specified configuration file."
+        help = "Use the specified configuration file.",
+        global = true
     )]
-    pub config: Option<PathBuf>,
+    pub config: PathBuf,
 }
 
 impl Cli {
-    /// Retrieves the configuration file path, using `config.toml` as default
-    /// if no path has been specified.
+    /// Asserts that the provided configuration file exists and if exists
+    /// returns the path as a String.
     pub fn config_file_path(&self) -> Result<String> {
-        let mut config_file_path = String::from("config.toml");
-
-        if let Some(config_file) = &self.config {
-            if !config_file.exists() {
-                bail!(
-                    "specified configuration file does not exist: '{}'",
-                    config_file.display()
-                );
-            }
-            config_file_path = config_file.display().to_string();
+        if !self.config.exists() {
+            bail!(
+                "specified configuration file does not exist: '{}'",
+                self.config.display()
+            );
         }
 
-        Ok(config_file_path)
+        Ok(self.config.display().to_string())
     }
 
     /// Performs validation of the parsed command line arguments.
@@ -64,7 +61,14 @@ pub enum Commands {
 /// Arguments for the `tui` subcommand, used together with the [commands::tui]
 /// command implementation.
 #[derive(Debug, Args)]
-pub struct TuiArgs {}
+pub struct TuiArgs {
+    #[arg(
+        long = "theme",
+        help = "Sets the color theme for the console.",
+        default_value = None
+    )]
+    pub theme: Option<String>
+}
 
 impl TuiArgs {
     pub fn validate(args: &Self) -> Result<()> {

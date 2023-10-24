@@ -1,12 +1,12 @@
 use super::app::App;
 use super::event::EventHandler;
-use super::ui;
 use anyhow::Result;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::prelude::*;
 use std::io;
 use std::panic;
+use crate::cli::console::ui;
 
 /// Representation of a terminal user interface.
 ///
@@ -51,6 +51,10 @@ impl<B: Backend> Tui<B> {
     /// [`Draw`]: tui::Terminal::draw
     /// [`rendering`]: crate::ui:render
     pub fn draw(&mut self, app: &mut App) -> Result<()> {
+        // Set the theme.
+        let area = self.terminal.get_frame().size();
+        self.terminal.current_buffer_mut().set_style(area, app.styles.background);
+
         self.terminal.draw(|frame| ui::render(app, frame))?;
         Ok(())
     }

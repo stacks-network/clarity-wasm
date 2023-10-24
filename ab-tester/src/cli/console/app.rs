@@ -1,103 +1,106 @@
-use ratatui::widgets::*;
+use std::marker::PhantomData;
 
-use crate::model::chainstate_db::BlockHeader;
+use ratatui::{widgets::*, style::Style, text::Line};
+
+use crate::context::BlockCursor;
+
+use super::{theme::Theme, widgets::*, MIN_WIDTH, MIN_HEIGHT, screens::{*, self}, Screen};
 
 /// Application.
-#[derive(Debug)]
-pub struct App {
-    /// Is the application running?
-    pub running: bool,
-    /// counter
-    pub counter: u8,
-    // list of blocks
-    pub blocks: StatefulList<BlockHeader>,
+pub struct App<'theme, 'a> {
+    // App state
+    pub state: AppState<'a>,
+
+    // Widgets & Screens
+    pub widgets: AppWidgets<'theme, 'a>,
+    pub screens: AppScreens<'theme, 'a>,
+    pub current_screen: AppScreen,
+    pub current_screen_inst: Box<dyn Screen>,
+    
+    // Styling
+    pub styles: AppStyles
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl<'theme, 'a> App<'theme, 'a> {
+    /// Constructs a new instance of [`App`].
+    pub fn new(title: &'a str, theme: &'theme Theme, state: AppState<'a>) -> Self {
         Self {
-            running: true,
-            counter: 0,
-            blocks: StatefulList::new(),
+            // State
+            state,
+
+            // Widgets
+            widgets: AppWidgets {
+                header: Header::new(theme, title),
+                menu: Menu::new(theme, vec!["Main", "Blocks", "Transactions", "Contracts", "Load Data"]),
+                area_warning: AreaWarning::new(theme, MIN_WIDTH, MIN_HEIGHT),
+                status_bar: StatusBar::new(theme),
+            },
+
+            screens: AppScreens { 
+                blocks: BlocksScreen::new(theme),
+            },
+            current_screen: AppScreen::Default,
+            current_screen_inst: Box::<StartScreen>::default(),
+
+            // Styling
+            styles: AppStyles { 
+                background: theme.main, 
+                popup_title: theme.popup_title, 
+                popup_content: theme.popup_fg_bg 
+            }
         }
     }
-}
 
-impl App {
-    /// Constructs a new instance of [`App`].
-    pub fn new() -> Self {
-        Self::default()
-    }
+    /*pub fn current_screen_as_widget(&'a self) -> Box<&dyn Widget> {
+        let widget: &dyn Widget = Box::new(&*self.current_screen);
+    }*/
 
     /// Handles the tick event of the terminal.
     pub fn tick(&self) {}
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
-        self.running = false;
-    }
-
-    pub fn increment_counter(&mut self) {
-        if let Some(res) = self.counter.checked_add(1) {
-            self.counter = res;
-        }
-    }
-
-    pub fn decrement_counter(&mut self) {
-        if let Some(res) = self.counter.checked_sub(1) {
-            self.counter = res;
-        }
+        self.state.running = false;
     }
 }
 
-#[derive(Debug)]
-pub struct StatefulList<T> {
-    state: ListState,
-    items: Vec<T>,
+pub struct AppStyles {
+    pub background: Style,
+    pub popup_title: Style,
+    pub popup_content: Style
 }
 
-#[allow(dead_code)]
-impl<T> StatefulList<T> {
+pub struct AppWidgets<'theme, 'a> {
+    pub header: Header<'theme, 'a>,
+    pub menu: Menu<'theme, 'a>,
+    pub area_warning: AreaWarning<'theme>,
+    pub status_bar: StatusBar<'theme>,
+}
+
+pub struct AppScreens<'theme, 'a> {
+    pub blocks: BlocksScreen<'theme, 'a>
+}
+
+pub enum AppScreen {
+    Default,
+    Blocks
+}
+
+#[derive(Default)]
+pub struct AppState<'data> {
+    _lifetime: PhantomData<&'data ()>,
+    pub running: bool,
+
+    baseline_block_cursor: Option<&'data BlockCursor>
+    
+}
+
+impl<'data> AppState<'data> {
     pub fn new() -> Self {
-        Self::with_items(vec![])
-    }
-
-    fn with_items(items: Vec<T>) -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items,
+        AppState {
+            _lifetime: Default::default(),
+            running: true,
+            baseline_block_cursor: None
         }
-    }
-
-    fn next(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i >= self.items.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn previous(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.items.len() - 1
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn unselect(&mut self) {
-        self.state.select(None);
     }
 }

@@ -31,6 +31,7 @@ pub struct Baseline {
 #[derive(Debug, Deserialize)]
 pub struct App {
     pub db_path: String,
+    pub console_theme: Option<String>
 }
 
 #[derive(Debug, Deserialize)]

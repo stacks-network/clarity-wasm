@@ -18,12 +18,26 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> Result<()> {
         }
         // Counter handlers
         KeyCode::Right => {
-            app.increment_counter();
+            //app.increment_counter();
         }
         KeyCode::Left => {
-            app.decrement_counter();
+            //app.decrement_counter();
         }
-        // Other handlers you could add here.
+        KeyCode::Char('1') => {
+
+        }
+        KeyCode::Char('2') => {
+
+        }
+        KeyCode::Char('3') => {
+
+        }
+        KeyCode::Char('4') => {
+
+        },
+        KeyCode::Char('e') => {
+            app.current_screen_inst.handle_key_event(key_event)
+        }
         _ => {}
     }
     Ok(())
