@@ -1766,6 +1766,31 @@
         (i64.and (i64x2.extract_lane 0 (local.get $double)) (local.get $mask_hi))
     )
 
+    (func $buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
+        (local $mask_lo i64) (local $mask_hi i64)
+        (if (i32.gt_u (local.get $length) (i32.const 16))
+            (then (call $runtime-error (i32.const 5)))
+        )
+
+        (if (i32.eqz (local.get $length))
+            (then (return (i64.const 0) (i64.const 0)))
+        )
+
+        (local.set $mask_lo
+            (select
+                (i64.const -1)
+                (local.tee $mask_hi
+                    (i64.shr_u (i64.const -1) (i64.extend_i32_u (i32.and (i32.mul (local.get $length) (i32.const 56)) (i32.const 56))))
+                )
+                (i32.ge_u (local.get $length) (i32.const 8))
+            )
+        )
+        (local.set $mask_hi (select (local.get $mask_hi) (i64.const 0) (i32.gt_u (local.get $length) (i32.const 8))))
+
+        (i64.and (i64.load (local.get $offset)) (local.get $mask_lo))
+        (i64.and (i64.load offset=8 (local.get $offset)) (local.get $mask_hi))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1810,4 +1835,5 @@
     (export "store-i32-be" (func $store-i32-be))
     (export "store-i64-be" (func $store-i64-be))
     (export "buff-to-uint-be" (func $buff-to-uint-be))
+    (export "buff-to-uint-le" (func $buff-to-uint-le))
 )
