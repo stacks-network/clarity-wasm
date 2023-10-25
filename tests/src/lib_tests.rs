@@ -3195,6 +3195,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_replace_at_check_original,
+    "sequences",
+    "replace-at-check-original",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![b'h']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_list_slice,
     "sequences",
     "list-slice",

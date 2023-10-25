@@ -131,6 +131,18 @@
   (ok (replace-at? 0xfedcba9876543210 u123 0x67))
 )
 
+;; Verify that `replace-at?` doesn't modify the original string
+(define-private (replace-at-check-original-inner (s (string-ascii 16)))
+  (begin
+    (replace-at? s u0 "X")
+    (ok (element-at? s u0))
+  )
+)
+
+(define-public (replace-at-check-original)
+  (replace-at-check-original-inner "hello")
+)
+
 (define-public (list-slice)
   (ok (slice? (list 1 2 3 4) u1 u4))
 )
