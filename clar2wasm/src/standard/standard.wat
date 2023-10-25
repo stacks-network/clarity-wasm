@@ -9,9 +9,7 @@
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
     (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
     (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
-    (type $not-func (func (param $bool_in i32) (result i32)))
-    (type $xor-func (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)))
-    (type $is-eq-func (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
+    (type (;8;) (func (param $bool_in i32) (result i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -1733,25 +1731,14 @@
     ;;
     ;; logical not implementation
     ;;
-    (func $not (type $not-func) (param $bool_in i32) (result i32)
+    (func $not (type 8) (param $bool_in i32) (result i32)
         (i32.eqz (local.get $bool_in))
-    )
-
-    ;;
-    ;; xor implementation
-    ;;
-    (func $xor (type $xor-func) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (local.get $a_lo)
-        (local.get $a_hi)
-        (local.get $b_lo)
-        (local.get $b_hi)
-        (call $bit-xor)
     )
 
     ;;
     ;; is-eq-int implementation
     ;;
-    (func $is-eq-int (type $is-eq-func) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (i32.and
             (i64.eq (local.get $a_lo) (local.get $b_lo))
             (i64.eq (local.get $a_hi) (local.get $b_hi))

@@ -55,6 +55,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &bitwise::BitwiseXor,
     &bitwise::BitwiseLShift,
     &bitwise::BitwiseRShift,
+    &bitwise::Xor,
     &maps::MapDefinition,
     &maps::MapGet,
     &maps::MapSet,
