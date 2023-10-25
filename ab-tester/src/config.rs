@@ -1,8 +1,8 @@
-use anyhow::{bail, Result};
+use color_eyre::eyre::{Result, bail};
 use serde_derive::Deserialize;
 use std::fs;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub baseline: Baseline,
     pub app: App,
@@ -23,25 +23,25 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Baseline {
     pub chainstate_path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct App {
     pub db_path: String,
     pub console_theme: Option<String>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Environment {
     pub name: String,
     pub runtime: ClarityRuntime,
     pub chainstate_path: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum ClarityRuntime {
     Interpreter,
     Wasm,

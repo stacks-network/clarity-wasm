@@ -1,10 +1,10 @@
 use crate::{cli::DataArgs, context::TestContext, ok};
-use anyhow::Result;
+use color_eyre::eyre::Result;
 use blockstack_lib::chainstate::stacks::TransactionContractCall;
 use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
 
-pub fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
+pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
     // Open a new context
     let mut test_context = TestContext::new(config)?;
 

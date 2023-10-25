@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, ensure, Ok, Result};
+use color_eyre::eyre::{bail, ensure, Result, anyhow};
 use clap::{Args, Parser, Subcommand};
 
 use crate::errors::AppError;
@@ -71,7 +71,7 @@ pub struct TuiArgs {
 }
 
 impl TuiArgs {
-    pub fn validate(args: &Self) -> Result<()> {
+    pub fn validate(_args: &Self) -> Result<()> {
         ok!()
     }
 }
@@ -139,7 +139,7 @@ impl DataArgs {
         ok!()
     }
 
-    pub fn validate(args: &Self) -> Result<()> {
+    pub fn validate(_args: &Self) -> Result<()> {
         ok!()
     }
 }

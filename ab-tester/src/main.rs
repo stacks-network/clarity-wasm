@@ -1,3 +1,6 @@
+// TODO: Remove this
+#![allow(dead_code)]
+
 mod cli;
 mod config;
 mod context;
@@ -7,7 +10,6 @@ mod schema;
 #[macro_use]
 mod macros;
 
-use anyhow::{bail, Result};
 use clap::Parser;
 use cli::*;
 use config::Config;
@@ -15,6 +17,7 @@ use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
 use std::process::exit;
+use color_eyre::eyre::{Result, bail};
 
 use crate::errors::AppError;
 
@@ -22,7 +25,10 @@ use crate::errors::AppError;
 // run at applicaton execution without needing external SQL files.
 pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize error reporting.
+    color_eyre::install()?;
     // Initialize logging.
     env_logger::init();
 
@@ -40,8 +46,8 @@ fn main() -> Result<()> {
 
     // Execute the given command with args.
     let _ = match cli.command {
-        Commands::Tui(args) => commands::console::exec(&config, args),
-        Commands::Data(args) => commands::data::exec(&config, args),
+        Commands::Tui(args) => commands::console::exec(&config, args).await,
+        Commands::Data(args) => commands::data::exec(&config, args).await,
     }
     .map_err(|err| match err.downcast_ref() {
         Some(AppError::Graceful(graceful)) => {

@@ -15,11 +15,18 @@ log = "0.4.20"
 toml = "0.8.2"
 serde = "1.0.188"
 serde_derive = "1.0.188"
-anyhow = "1.0.75"
 thiserror = "1.0.49"
 rand = "0.8.5"
 clap = { version = "4.4.6", features = ["default", "derive"] }
 hex = "0.4.3"
-crossterm = "0.27.0"
+crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
 ratatui = { version = "0.23.0", features = ["macros"] }
 diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
+color-eyre = "0.6.2"
+tokio = { version = "1.33.0", features = ["full"] }
+futures = "0.3.28"
+tokio-util = "0.7.9"
+signal-hook = "0.3.17"
+
+[profile.dev.package.backtrace]
+opt-level = 3

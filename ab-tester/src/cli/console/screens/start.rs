@@ -1,8 +1,9 @@
-use ratatui::widgets::{Widget, Paragraph};
+use crossterm::event::KeyEvent;
+use ratatui::{widgets::Paragraph, prelude::Rect};
+use color_eyre::eyre::Result;
 
-use crate::cli::console::Screen;
+use crate::cli::console::{theme::Theme, components::Component, tui::Frame, action::Action};
 
-#[derive(Default)]
 pub struct StartScreen {
 }
 
@@ -12,13 +13,15 @@ impl StartScreen {
     }
 }
 
-impl Screen for StartScreen {
-    fn handle_key_event(&mut self, event: crossterm::event::KeyEvent) {
+impl Component for StartScreen {
+    fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        eprintln!("key: {key:?}");
+        Ok(None)
     }
-}
 
-impl Widget for StartScreen {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        Paragraph::new("hello").render(area, buf)
+    fn draw(&mut self, f: &mut Frame<'_>, area: Rect, _theme: &Theme) -> Result<()> {
+        let tmp = Paragraph::new("hello");
+        f.render_widget(tmp, area);
+        Ok(())
     }
 }

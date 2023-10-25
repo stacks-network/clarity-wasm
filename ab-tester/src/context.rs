@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use anyhow::{bail, Context, Result};
+use color_eyre::eyre::{Result, Context, bail};
 use blockstack_lib::chainstate::stacks::{
     db::StacksChainState,
     index::{
@@ -16,8 +16,7 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     clarity::ClarityConnection,
     database::{NULL_BURN_STATE_DB, NULL_HEADER_DB},
-    types::{QualifiedContractIdentifier, TypeSignature},
-    ClarityName, Value,
+    types::QualifiedContractIdentifier, Value,
 };
 use diesel::{
     sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
@@ -93,7 +92,7 @@ impl TestContext {
         f: impl FnOnce(&TestContext, Option<&mut TestEnvContext>) -> Result<()>,
     ) -> Result<()> {
         if let Some(env) = self.test_envs.get(name) {
-            let env_ctx = TestEnvContext::new(self, Rc::clone(env));
+            let _env_ctx = TestEnvContext::new(self, Rc::clone(env));
             todo!()
         } else {
             f(self, None)?;
@@ -280,7 +279,7 @@ impl<'a> TestEnvContext<'a> {
 
             // Handle maps
             for map in &contract_analysis.map_types {
-                let meta = clarity_db.load_map(contract_id, map.0)?;
+                let _meta = clarity_db.load_map(contract_id, map.0)?;
                 //clarity_db.get_value("asdasdasdasdasdddsss", &TypeSignature::UIntType, &StacksEpochId::Epoch24)?;
             }
 

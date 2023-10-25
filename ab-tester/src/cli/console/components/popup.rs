@@ -1,11 +1,8 @@
 use ratatui::{widgets::{Widget, Block, Borders, BorderType, Clear}, prelude::Alignment, style::Style};
 
-use crate::cli::console::{
-    theme::Theme, app::App,
-    ui::centered_rect
-};
+use crate::cli::console::theme::Theme;
 
-use super::title_span;
+use super::{title_span, centered_rect};
 
 pub struct Popup<'theme, 'a>  {
     pub title: &'a str,
