@@ -1803,4 +1803,5 @@
     (export "store-i64-be" (func $store-i64-be))
     (export "not" (func $not))
     (export "is-eq-int" (func $is-eq-int))
+    (export "xor" (func $bit-xor))
 )

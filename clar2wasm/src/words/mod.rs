@@ -91,7 +91,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &blockinfo::GetBlockInfo,
     &print::Print,
     &logical::Not,
-    &equal::Equal,
+    &equal::IsEq,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

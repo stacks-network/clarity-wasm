@@ -5,9 +5,9 @@ use walrus::ir::BinaryOp;
 use super::Word;
 
 #[derive(Debug)]
-pub struct Equal;
+pub struct IsEq;
 
-impl Word for Equal {
+impl Word for IsEq {
     fn name(&self) -> ClarityName {
         "is-eq".into()
     }
