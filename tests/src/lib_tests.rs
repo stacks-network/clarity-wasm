@@ -2840,9 +2840,119 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
-    test_more_than_two_int_equal,
+    test_zero_int_equality,
     "equal",
-    "more-than-two-int-equal",
+    "two-zero-int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_zero_uint_equality,
+    "equal",
+    "two-zero-uint-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_two_int_equality,
+    "equal",
+    "two-int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_two_uint_equality,
+    "equal",
+    "two-uint-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_two_int_unequality,
+    "equal",
+    "two-int-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_two_uint_unequality,
+    "equal",
+    "two-uint-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_int_equality,
+    "equal",
+    "int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_uint_equality,
+    "equal",
+    "uint-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_int_unequality,
+    "equal",
+    "int-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_int_unequality_2,
+    "equal",
+    "int-unequal-2",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_uint_unequality,
+    "equal",
+    "uint-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_uint_unequality_2,
+    "equal",
+    "uint-unequal-2",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));

@@ -1758,18 +1758,6 @@
         )
     )
 
-    ;;
-    ;; is-eq-uint implementation.
-    ;; It's a proxy to is-eq-int.
-    ;;
-    (func $is-eq-uint (type $is-eq-func) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
-        (local.get $a_lo)
-        (local.get $a_hi)
-        (local.get $b_lo)
-        (local.get $b_hi)
-        (call $is-eq-int)
-    )
-
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1815,5 +1803,4 @@
     (export "store-i64-be" (func $store-i64-be))
     (export "not" (func $not))
     (export "is-eq-int" (func $is-eq-int))
-    (export "is-eq-uint" (func $is-eq-uint))
 )

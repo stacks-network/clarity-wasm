@@ -1,6 +1,6 @@
 use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{ClarityName, SymbolicExpression, types::TypeSignature, types::SequenceSubtype, types::StringSubtype};
-use walrus::ValType;
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use walrus::ir::BinaryOp;
 
 use super::Word;
 
@@ -19,36 +19,66 @@ impl Word for Equal {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let mut results = Vec::new();
-
-        // Traverse the first two values, leaving them on the stack
+        // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
+
+        // Save the first_op to a local to be further used.
+        // This allows to use the firt_op value without
+        // traversing again the expression.
+        let ty = generator
+            .get_expr_type(first_op)
+            .expect("is-eq value expression must be typed")
+            .clone();
+        let wasm_types = clar2wasm_ty(&ty);
+        let mut val_locals = Vec::with_capacity(wasm_types.len());
+        for local_ty in wasm_types.iter().rev() {
+            let local = generator.module.locals.add(*local_ty);
+            val_locals.push(local);
+            builder.local_set(local);
+        }
+        val_locals.reverse();
+
+        // Traverse the second operand pushing it onto the stack.
         let sec_op = args.get_expr(1)?;
         generator.traverse_expr(builder, sec_op)?;
 
-        builder.call(generator.func_by_name("is-eq-int"));
+        // Equals expression needs to handle different types.
+        // is-eq-int function can be reused to both int and uint types.
+        let type_suffix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "int",
+            _ => {
+                return Err(GeneratorError::NotImplemented);
+            }
+        };
+        let func = generator.func_by_name(&format!("is-eq-{}", type_suffix));
 
-        let mut result = generator.module.locals.add(ValType::I32);
-        builder.local_set(result);
-        results.push(result);
+        // Get first operand from the local and put it onto stack.
+        for val in &val_locals {
+            builder.local_get(*val);
+        }
 
-        // Push first and other operands, starting from 3rd, onto the stack
+        // Call the function with the operands on stack.
+        builder.call(func);
+
+        // Loop through remainder operands, if the case.
+        // First operand will be reused from a local var.
         for operand in args.iter().skip(2) {
-            generator.traverse_expr(builder, first_op)?;
+            // Get first operand from the local and put it onto stack.
+            for val in &val_locals {
+                builder.local_get(*val);
+            }
+
+            // Traverse the next operand and put in onto stack.
             generator.traverse_expr(builder, operand)?;
-            builder.call(generator.func_by_name("is-eq-int"));
 
-            result = generator.module.locals.add(ValType::I32);
-            builder.local_set(result);
-            results.push(result);
+            // Call the function with the operands on the stack.
+            builder.call(func);
+
+            // Do an "and" operation with the result from the previous function call.
+            builder.binop(BinaryOp::I32And);
         }
-
-        for result in &results {
-            println!("{:?}", generator.module.locals.get(*result));
-        }
-
-        builder.local_get(result);
 
         Ok(())
     }

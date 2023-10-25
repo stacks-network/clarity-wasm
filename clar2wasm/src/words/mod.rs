@@ -15,17 +15,17 @@ pub mod contract;
 pub mod control_flow;
 pub mod data_vars;
 pub mod enums;
+pub mod equal;
 pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
+pub mod logical;
 pub mod maps;
 pub mod print;
 pub mod stx;
 pub mod tokens;
 pub mod traits;
 pub mod tuples;
-pub mod logical;
-pub mod equal;
 
 pub(crate) static WORDS: &[&'static dyn Word] = &[
     &arithmetic::Add,
