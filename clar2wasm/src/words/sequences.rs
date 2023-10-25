@@ -714,7 +714,7 @@ impl Word for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let list_ty = generator
+        let seq_ty = generator
             .get_expr_type(args.get_expr(0)?)
             .ok_or(GeneratorError::InternalError(
                 "replace-at? result must be typed".to_string(),
@@ -723,13 +723,13 @@ impl Word for ReplaceAt {
 
         // Create a new stack local for a copy of the input list
         let (dest_offset, length) =
-            generator.create_call_stack_local(builder, &list_ty, false, true);
+            generator.create_call_stack_local(builder, &seq_ty, false, true);
 
         // Put the destination offset on the stack
         builder.local_get(dest_offset);
 
         // Traverse the list, leaving the offset and length on top of the stack.
-        generator.traverse_expr(builder, &args[0])?;
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
 
         // Copy the input list to the new stack local
         let memory = generator.get_memory();
@@ -742,7 +742,7 @@ impl Word for ReplaceAt {
         builder.i32_const(length).unop(UnaryOp::I64ExtendUI32);
 
         // Traverse the index, leaving the value on top of the stack.
-        generator.traverse_expr(builder, &args[1])?;
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
 
         // Check if the upper 64-bits are greater than 0.
         builder.i64_const(0).binop(BinaryOp::I64GtU);
@@ -774,7 +774,7 @@ impl Word for ReplaceAt {
         let mut element_ty = None;
 
         // Get the offset of the specified index.
-        match &list_ty {
+        match &seq_ty {
             TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
                 // The length of the list in bytes is on the top of the stack. If we
                 // divide that by the length of each element, then we'll have the
@@ -886,6 +886,247 @@ impl Word for ReplaceAt {
                 else_.i32_const(1).local_get(dest_offset).i32_const(length);
             },
         );
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Slice;
+
+impl Word for Slice {
+    fn name(&self) -> ClarityName {
+        "slice?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let seq = args.get_expr(0)?;
+
+        // Traverse the sequence, leaving the offset and length on the stack.
+        generator.traverse_expr(builder, seq)?;
+
+        // Extend the sequence length to 64-bits.
+        builder.unop(UnaryOp::I64ExtendUI32);
+
+        // Save the length to a local.
+        let length_local = generator.module.locals.add(ValType::I64);
+        builder.local_tee(length_local);
+
+        // Traverse the left position, leaving it on the stack.
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
+
+        // Check if the upper 64-bits are greater than 0.
+        builder.i64_const(0).binop(BinaryOp::I64GtU);
+
+        // Save the overflow indicator to a local.
+        let overflow_local = generator.module.locals.add(ValType::I32);
+        builder.local_set(overflow_local);
+
+        // Save the lower part of the index, which will ultimately be
+        // multiplied by the element size and added to the source offset to be
+        // the offset of the result, to a local.
+        let left_local = generator.module.locals.add(ValType::I64);
+        builder.local_tee(left_local);
+
+        // Check if the lower 64-bits are greater than 1024x1024 (max value
+        // size). We do this check before comparing with the length of the list
+        // because it ensures that the multiplication will not overflow.
+        builder.i64_const(1024 * 1024).binop(BinaryOp::I64GtU);
+
+        // Or with the overflow indicator.
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
+
+        // Push the lower bound index onto the stack again.
+        builder.local_get(left_local);
+
+        let seq_ty = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::InternalError(
+                "slice? sequence must be typed".to_string(),
+            ))?
+            .clone();
+
+        // Get the offset of the specified index.
+        match &seq_ty {
+            TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+                // The length of the list in bytes is on the top of the stack. If we
+                // divide that by the length of each element, then we'll have the
+                // length of the list in elements.
+                let elem_ty = list.get_list_item_type().clone();
+                let element_length = get_type_size(&elem_ty);
+                builder.i64_const(element_length as i64);
+
+                // Multiply the index by the length of each element to get
+                // byte-offset into the list.
+                builder.binop(BinaryOp::I64Mul);
+
+                Ok(())
+            }
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                // The index is the same as the byte-offset, so just leave
+                // it as-is.
+                Ok(())
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                Err(GeneratorError::NotImplemented)
+            }
+            _ => Err(GeneratorError::InternalError(
+                "expected sequence type".to_string(),
+            )),
+        }?;
+
+        // Save the element offset to the local.
+        builder.local_tee(left_local);
+
+        // Check if the element offset is out of range by comparing it to the
+        // length of the list.
+        builder.binop(BinaryOp::I64LeU);
+
+        // Or with the overflow indicator.
+        builder.local_get(overflow_local).binop(BinaryOp::I32Or);
+
+        // Save the overflow indicator to a local.
+        builder.local_set(overflow_local);
+
+        // Extend the base offset to 64-bits and save it to a local.
+        let base_offset_local = generator.module.locals.add(ValType::I64);
+        builder
+            .unop(UnaryOp::I64ExtendUI32)
+            .local_tee(base_offset_local);
+
+        // Add this left offset to the offset of the list, which is on the top
+        // of the stack now, to use as the offset of the slice, if it is in
+        // bounds.
+        // If it is in bounds, then this truncation to 32-bits will be safe.
+        builder
+            .local_get(left_local)
+            .binop(BinaryOp::I64Add)
+            .local_set(left_local);
+
+        // Now check the right bound.
+
+        // First, reload the source length.
+        builder.local_get(length_local);
+
+        // Traverse the right position, leaving it on the stack.
+        generator.traverse_expr(builder, args.get_expr(2)?)?;
+
+        // Check if the upper 64-bits are greater than 0.
+        builder.i64_const(0).binop(BinaryOp::I64GtU);
+
+        // Save the overflow indicator to a local.
+        let overflow_local = generator.module.locals.add(ValType::I32);
+        builder.local_set(overflow_local);
+
+        // Save the lower part of the index, which will ultimately be
+        // multiplied by the element size and added to the source offset to be
+        // the offset of the result, to a local.
+        let right_local = generator.module.locals.add(ValType::I64);
+        builder.local_tee(right_local);
+
+        // Check if the lower 64-bits are greater than 1024x1024 (max value
+        // size). We do this check before comparing with the length of the list
+        // because it ensures that the multiplication will not overflow.
+        builder.i64_const(1024 * 1024).binop(BinaryOp::I64GtU);
+
+        // Or with the overflow indicator.
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
+
+        // Push the lower bound index onto the stack again.
+        builder.local_get(right_local);
+
+        let seq_ty = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::InternalError(
+                "slice? sequence must be typed".to_string(),
+            ))?
+            .clone();
+
+        // Get the offset of the specified index.
+        match &seq_ty {
+            TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+                // The length of the list in bytes is on the top of the stack. If we
+                // divide that by the length of each element, then we'll have the
+                // length of the list in elements.
+                let elem_ty = list.get_list_item_type().clone();
+                let element_length = get_type_size(&elem_ty);
+                builder.i64_const(element_length as i64);
+
+                // Multiply the index by the length of each element to get
+                // byte-offset into the list.
+                builder.binop(BinaryOp::I64Mul);
+
+                Ok(())
+            }
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                // The index is the same as the byte-offset, so just leave
+                // it as-is.
+                Ok(())
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                Err(GeneratorError::NotImplemented)
+            }
+            _ => Err(GeneratorError::InternalError(
+                "expected sequence type".to_string(),
+            )),
+        }?;
+
+        // Save the element offset to the local.
+        builder.local_tee(right_local);
+
+        // Check if the element offset is out of range by comparing it to the
+        // length of the list.
+        builder.binop(BinaryOp::I64LtU);
+
+        // Or with the overflow indicator.
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
+
+        // Add the right offset to the offset of the list, which is on the top
+        // of the stack now, to get the end of the slice, if it is in bounds.
+        // If it is in bounds, then this truncation to 32-bits will be safe.
+        builder
+            .local_get(base_offset_local)
+            .local_get(right_local)
+            .binop(BinaryOp::I64Add)
+            .local_set(right_local);
+
+        // Push a `0` and a `1` to the stack, for none or some, to be selected
+        // by the `select` instruction, using the overflow indicator.
+        builder.i32_const(0).i32_const(1).local_get(overflow_local);
+
+        // If either bound is out of range, then return `none`, else return
+        // `(some sequence)`, where `sequence` is the slice of the input
+        // sequence with offset left and length right - left.
+        builder.select(Some(ValType::I32));
+
+        // Now push the offset (`local_left`) and length
+        // (`local_right - local_left`). If the result is `none`, then these
+        // will just be ignored. If the offsets are in range, then the
+        // truncation to 32-bits is safe.
+        builder
+            .local_get(left_local)
+            .unop(UnaryOp::I32WrapI64)
+            .local_get(right_local)
+            .local_get(left_local)
+            .binop(BinaryOp::I64Sub)
+            .unop(UnaryOp::I32WrapI64);
 
         Ok(())
     }

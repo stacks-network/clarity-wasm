@@ -3193,3 +3193,114 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::none());
     }
 );
+
+test_contract_call_response!(
+    test_list_slice,
+    "sequences",
+    "list-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::list_from(vec![Value::Int(2), Value::Int(3), Value::Int(4)]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice,
+    "sequences",
+    "string-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(b"l".to_vec()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice,
+    "sequences",
+    "buffer-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![0x76, 0x54, 0x32]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_slice_none,
+    "sequences",
+    "list-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice_none,
+    "sequences",
+    "string-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice_none,
+    "sequences",
+    "buffer-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_list_slice_empty,
+    "sequences",
+    "list-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice_empty,
+    "sequences",
+    "string-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice_empty,
+    "sequences",
+    "buffer-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);

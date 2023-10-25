@@ -94,6 +94,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &sequences::ElementAt::Original,
     &sequences::ElementAt::Alias,
     &sequences::ReplaceAt,
+    &sequences::Slice,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

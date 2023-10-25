@@ -130,3 +130,39 @@
 (define-public (buffer-replace-at-none)
   (ok (replace-at? 0xfedcba9876543210 u123 0x67))
 )
+
+(define-public (list-slice)
+  (ok (slice? (list 1 2 3 4) u1 u4))
+)
+
+(define-public (string-slice)
+  (ok (slice? "hello" u2 u3))
+)
+
+(define-public (buffer-slice)
+  (ok (slice? 0xfedcba9876543210 u4 u7))
+)
+
+(define-public (list-slice-none)
+  (ok (slice? (list 1 2 3) u3 u6))
+)
+
+(define-public (string-slice-none)
+  (ok (slice? "hello" u2 u6))
+)
+
+(define-public (buffer-slice-none)
+  (ok (slice? 0xfedcba9876543210 u0 u10))
+)
+
+(define-public (list-slice-empty)
+  (ok (slice? (list 1 2 3) u2 u2))
+)
+
+(define-public (string-slice-empty)
+  (ok (slice? "hello" u1 u1))
+)
+
+(define-public (buffer-slice-empty)
+  (ok (slice? 0xfedcba9876543210 u0 u0))
+)
