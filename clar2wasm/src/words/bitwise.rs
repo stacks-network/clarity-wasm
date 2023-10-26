@@ -174,3 +174,23 @@ impl Word for BitwiseRShift {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct Xor;
+
+impl Word for Xor {
+    fn name(&self) -> ClarityName {
+        "xor".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // xor is a proxy call to bit-xor since they share the same implementation.
+        traverse_bitwise("bit-xor", generator, builder, args)
+    }
+}

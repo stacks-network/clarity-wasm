@@ -9,6 +9,7 @@
     (type (;5;) (func (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)))
     (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
     (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
+    (type (;8;) (func (param $bool_in i32) (result i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -1756,6 +1757,23 @@
         (i64.and (i64.load offset=8 (local.get $offset)) (local.get $mask_hi))
     )
 
+    ;;
+    ;; logical not implementation
+    ;;
+    (func $not (type 8) (param $bool_in i32) (result i32)
+        (i32.eqz (local.get $bool_in))
+    )
+
+    ;;
+    ;; is-eq-int implementation
+    ;;
+    (func $is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+        (i32.and
+            (i64.eq (local.get $a_lo) (local.get $b_lo))
+            (i64.eq (local.get $a_hi) (local.get $b_hi))
+        )
+    )
+
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
     (export "sub-uint" (func $sub-uint))
@@ -1800,4 +1818,6 @@
     (export "store-i64-be" (func $store-i64-be))
     (export "buff-to-uint-be" (func $buff-to-uint-be))
     (export "buff-to-uint-le" (func $buff-to-uint-le))
+    (export "not" (func $not))
+    (export "is-eq-int" (func $is-eq-int))
 )
