@@ -16,9 +16,11 @@ pub mod contract;
 pub mod control_flow;
 pub mod data_vars;
 pub mod enums;
+pub mod equal;
 pub mod functions;
 pub mod hashing;
 pub mod list_manipulation;
+pub mod logical;
 pub mod maps;
 pub mod print;
 pub mod stx;
@@ -54,6 +56,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &bitwise::BitwiseXor,
     &bitwise::BitwiseLShift,
     &bitwise::BitwiseRShift,
+    &bitwise::Xor,
     &maps::MapDefinition,
     &maps::MapGet,
     &maps::MapSet,
@@ -93,6 +96,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &buff_to_integer::BuffToIntLe,
     &buff_to_integer::BuffToUintBe,
     &buff_to_integer::BuffToUintLe,
+    &logical::Not,
+    &equal::IsEq,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
