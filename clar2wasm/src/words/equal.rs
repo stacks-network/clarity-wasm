@@ -39,24 +39,23 @@ impl Word for IsEq {
         }
         val_locals.reverse();
 
-        for val in &val_locals {
-            builder.local_get(*val);
-        }
-
         if args.len() == 1 {
-            // push same first operand to stack
+            builder.i32_const(1);
+            return Ok(());
+        } else if args.len() >= 2 {
+            // Get first operand from the local and put it onto stack.
             for val in &val_locals {
                 builder.local_get(*val);
             }
-        } else if args.len() >= 2 {
+
             // Traverse the second operand pushing it onto the stack.
             let sec_op = args.get_expr(1)?;
             generator.traverse_expr(builder, sec_op)?;
         }
 
         // Equals expression needs to handle different types.
-        // is-eq-int function can be reused to both int and uint types.
         let type_suffix = match ty {
+            // is-eq-int function can be reused to both int and uint types.
             TypeSignature::IntType | TypeSignature::UIntType => "int",
             _ => {
                 return Err(GeneratorError::NotImplemented);
