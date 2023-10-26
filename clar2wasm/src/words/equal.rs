@@ -42,16 +42,16 @@ impl Word for IsEq {
         if args.len() == 1 {
             builder.i32_const(1);
             return Ok(());
-        } else if args.len() >= 2 {
-            // Get first operand from the local and put it onto stack.
-            for val in &val_locals {
-                builder.local_get(*val);
-            }
-
-            // Traverse the second operand pushing it onto the stack.
-            let sec_op = args.get_expr(1)?;
-            generator.traverse_expr(builder, sec_op)?;
         }
+
+        // Get first operand from the local and put it onto stack.
+        for val in &val_locals {
+            builder.local_get(*val);
+        }
+
+        // Traverse the second operand pushing it onto the stack.
+        let sec_op = args.get_expr(1)?;
+        generator.traverse_expr(builder, sec_op)?;
 
         // Equals expression needs to handle different types.
         let type_suffix = match ty {
