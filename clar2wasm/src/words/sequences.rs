@@ -224,12 +224,6 @@ impl Word for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to 'append'".to_string(),
-            ));
-        }
-
         let ty = generator
             .get_expr_type(expr)
             .ok_or(GeneratorError::InternalError(
@@ -250,7 +244,7 @@ impl Word for Append {
 
         // Traverse the list to append to, leaving the offset and length on
         // top of the stack.
-        generator.traverse_expr(builder, &args[0])?;
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
 
         // The stack now has the destination, source and length arguments in
         // right order for `memory.copy` to copy the source list into the new
@@ -267,11 +261,12 @@ impl Word for Append {
             .local_set(write_ptr);
 
         // Traverse the element that we're appending to the list.
-        generator.traverse_expr(builder, &args[1])?;
+        let elem = args.get_expr(1)?;
+        generator.traverse_expr(builder, elem)?;
 
         // Get the type of the element that we're appending.
         let elem_ty = generator
-            .get_expr_type(&args[1])
+            .get_expr_type(elem)
             .ok_or(GeneratorError::InternalError(
                 "append element must be typed".to_string(),
             ))?
@@ -299,19 +294,14 @@ impl Word for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to 'as-max-len?'".to_string(),
-            ));
-        }
-
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
         builder.i32_const(0).i32_const(1);
 
         // Traverse the input list, leaving the offset and length on top of
         // the stack.
-        generator.traverse_expr(builder, &args[0])?;
+        let seq = args.get_expr(0)?;
+        generator.traverse_expr(builder, seq)?;
 
         // Save the offset and length to locals for later. Leave the length on
         // top of the stack.
@@ -327,7 +317,7 @@ impl Word for AsMaxLen {
 
         // Get the length.
         generator
-            .get_expr_type(&args[0])
+            .get_expr_type(seq)
             .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
@@ -362,7 +352,7 @@ impl Word for AsMaxLen {
 
         // Traverse the second argument, the desired length, leaving the low
         // and high parts on the stack, then drop the high part.
-        generator.traverse_expr(builder, &args[1])?;
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
         builder.drop();
 
         // Compare the length of the list to the desired length.
@@ -396,12 +386,6 @@ impl Word for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to 'as-max-len?'".to_string(),
-            ));
-        }
-
         let memory = generator.get_memory();
 
         // Create a new sequence to hold the result in the stack frame
@@ -413,7 +397,7 @@ impl Word for Concat {
         builder.local_get(offset);
 
         // Traverse the lhs, leaving it on the data stack (offset, size)
-        generator.traverse_expr(builder, &args[0])?;
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
 
         // Save the length of the lhs
         let lhs_length = generator.module.locals.add(ValType::I32);
@@ -429,7 +413,7 @@ impl Word for Concat {
             .binop(BinaryOp::I32Add);
 
         // Traverse the rhs, leaving it on the data stack (offset, size)
-        generator.traverse_expr(builder, &args[1])?;
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
 
         // Save the length of the rhs
         let rhs_length = generator.module.locals.add(ValType::I32);
@@ -466,14 +450,9 @@ impl Word for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 1 {
-            return Err(GeneratorError::InternalError(
-                "expected one argument to 'len'".to_string(),
-            ));
-        }
-
-        // Traverse the list, leaving the offset and length on top of the stack.
-        generator.traverse_expr(builder, &args[0])?;
+        // Traverse the sequence, leaving the offset and length on the stack.
+        let seq = args.get_expr(0)?;
+        generator.traverse_expr(builder, seq)?;
 
         // Save the length, then drop the offset and push the length back.
         let length_local = generator.module.locals.add(ValType::I32);
@@ -484,7 +463,7 @@ impl Word for Len {
 
         // Get the length
         generator
-            .get_expr_type(&args[0])
+            .get_expr_type(seq)
             .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
@@ -545,20 +524,15 @@ impl Word for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to 'element-at?'".to_string(),
-            ));
-        }
-
-        // Traverse the list, leaving the offset and length on top of the stack.
-        generator.traverse_expr(builder, &args[0])?;
+        // Traverse the sequence, leaving the offset and length on the stack.
+        let seq = args.get_expr(0)?;
+        generator.traverse_expr(builder, seq)?;
 
         // Extend the length to 64-bits.
         builder.unop(UnaryOp::I64ExtendUI32);
 
         // Traverse the index, leaving the value on top of the stack.
-        generator.traverse_expr(builder, &args[1])?;
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
 
         // Check if the upper 64-bits are greater than 0.
         builder.i64_const(0).binop(BinaryOp::I64GtU);
@@ -591,7 +565,7 @@ impl Word for ElementAt {
 
         // Get the offset of the specified index.
         generator
-            .get_expr_type(&args[0])
+            .get_expr_type(seq)
             .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
@@ -714,8 +688,9 @@ impl Word for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        let seq = args.get_expr(0)?;
         let seq_ty = generator
-            .get_expr_type(args.get_expr(0)?)
+            .get_expr_type(seq)
             .ok_or(GeneratorError::InternalError(
                 "replace-at? result must be typed".to_string(),
             ))?
@@ -729,14 +704,11 @@ impl Word for ReplaceAt {
         builder.local_get(dest_offset);
 
         // Traverse the list, leaving the offset and length on top of the stack.
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
+        generator.traverse_expr(builder, seq)?;
 
         // Copy the input list to the new stack local
         let memory = generator.get_memory();
         builder.memory_copy(memory, memory);
-
-        // Traverse the replacement value, leaving it on the stack.
-        generator.traverse_expr(builder, args.get_expr(2)?)?;
 
         // Extend the sequence length to 64-bits.
         builder.i32_const(length).unop(UnaryOp::I64ExtendUI32);
@@ -814,16 +786,26 @@ impl Word for ReplaceAt {
         builder.binop(BinaryOp::I64LeU);
 
         // Or with the overflow indicator.
-        builder.local_get(overflow_local).binop(BinaryOp::I32Or);
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
 
-        let input_ty = generator.get_expr_type(args.get_expr(2)?).ok_or_else(|| {
+        // Traverse the replacement value, leaving it on the stack.
+        let replacement = args.get_expr(2)?;
+        generator.traverse_expr(builder, replacement)?;
+
+        let input_ty = generator.get_expr_type(replacement).ok_or_else(|| {
             GeneratorError::InternalError("replace-at? value must be typed".to_string())
         })?;
         let input_wasm_types = clar2wasm_ty(input_ty);
 
         let drop_ty = element_ty.clone();
 
-        // If the index is out of range, then return `none`, else load the
+        // Push the overflow result to the stack for `if_else`.
+        builder.local_get(overflow_local);
+
+        // If the index is out of range, then return `none`, else write the
         // value at the specified index and return `(some value)`.
         let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
             GeneratorError::InternalError("append result must be typed".to_string())
