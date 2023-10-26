@@ -24,7 +24,7 @@ impl Word for IsEq {
         generator.traverse_expr(builder, first_op)?;
 
         // Save the first_op to a local to be further used.
-        // This allows to use the firt_op value without
+        // This allows to use the first_op value without
         // traversing again the expression.
         let ty = generator
             .get_expr_type(first_op)
@@ -39,25 +39,30 @@ impl Word for IsEq {
         }
         val_locals.reverse();
 
-        // Traverse the second operand pushing it onto the stack.
-        let sec_op = args.get_expr(1)?;
-        generator.traverse_expr(builder, sec_op)?;
+        for val in &val_locals {
+            builder.local_get(*val);
+        }
+
+        if args.len() == 1 {
+            // push same first operand to stack
+            for val in &val_locals {
+                builder.local_get(*val);
+            }
+        } else if args.len() >= 2 {
+            // Traverse the second operand pushing it onto the stack.
+            let sec_op = args.get_expr(1)?;
+            generator.traverse_expr(builder, sec_op)?;
+        }
 
         // Equals expression needs to handle different types.
         // is-eq-int function can be reused to both int and uint types.
         let type_suffix = match ty {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "int",
+            TypeSignature::IntType | TypeSignature::UIntType => "int",
             _ => {
                 return Err(GeneratorError::NotImplemented);
             }
         };
         let func = generator.func_by_name(&format!("is-eq-{}", type_suffix));
-
-        // Get first operand from the local and put it onto stack.
-        for val in &val_locals {
-            builder.local_get(*val);
-        }
 
         // Call the function with the operands on stack.
         builder.call(func);

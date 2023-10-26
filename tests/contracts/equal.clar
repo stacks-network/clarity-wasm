@@ -1,3 +1,11 @@
+(define-public (one-int-equal)
+    (ok (is-eq 42))
+)
+
+(define-public (one-uint-equal)
+    (ok (is-eq u99))
+)
+
 (define-public (two-zero-int-equal)
     (ok (is-eq 0 0))
 )
