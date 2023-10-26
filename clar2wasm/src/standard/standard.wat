@@ -218,7 +218,8 @@
         ;; 2: divide by zero
         ;; 3: log of a number <= 0
         ;; 4: expected a non-negative number
-        ;; 5: panic
+        ;; 5: buffer to integer expects a buffer length <= 16
+        ;; 6: panic
     (func $runtime-error (type 0) (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
@@ -1727,6 +1728,69 @@
         )
     )
 
+    (func $buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
+        (local $mask_lo i64) (local $mask_hi i64) (local $double v128)
+        (if (i32.gt_u (local.get $length) (i32.const 16))
+            (then (call $runtime-error (i32.const 5)))
+        )
+
+        (if (i32.eqz (local.get $length))
+            (then (return (i64.const 0) (i64.const 0)))
+        )
+
+        ;; SAFETY: this function works because we already have data in the memory,
+        ;;         otherwise we could have a negative offset.
+        (local.set $offset (i32.sub (i32.add (local.get $offset) (local.get $length)) (i32.const 16)))
+
+        ;; we compute masks for the low and high part of the resulting integer
+        (local.set $mask_lo
+            (select
+                (i64.const -1)
+                (local.tee $mask_hi
+                    (i64.shr_u (i64.const -1) (i64.extend_i32_u (i32.and (i32.mul (local.get $length) (i32.const 56)) (i32.const 56))))
+                )
+                (i32.ge_u (local.get $length) (i32.const 8))
+            )
+        )
+        (local.set $mask_hi (select (local.get $mask_hi) (i64.const 0) (i32.gt_u (local.get $length) (i32.const 8))))
+
+        ;; we load both low and high part at once, and rearrange the bytes for endianness
+        (local.set $double
+            (i8x16.swizzle
+                (v128.load (local.get $offset))
+                (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+            )
+        )
+
+        (i64.and (i64x2.extract_lane 1 (local.get $double)) (local.get $mask_lo))
+        (i64.and (i64x2.extract_lane 0 (local.get $double)) (local.get $mask_hi))
+    )
+
+    (func $buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
+        (local $mask_lo i64) (local $mask_hi i64)
+        (if (i32.gt_u (local.get $length) (i32.const 16))
+            (then (call $runtime-error (i32.const 5)))
+        )
+
+        (if (i32.eqz (local.get $length))
+            (then (return (i64.const 0) (i64.const 0)))
+        )
+
+        (local.set $mask_lo
+            (select
+                (i64.const -1)
+                (local.tee $mask_hi
+                    (i64.shr_u (i64.const -1) (i64.extend_i32_u (i32.and (i32.mul (local.get $length) (i32.const 56)) (i32.const 56))))
+                )
+                (i32.ge_u (local.get $length) (i32.const 8))
+            )
+        )
+        (local.set $mask_hi (select (local.get $mask_hi) (i64.const 0) (i32.gt_u (local.get $length) (i32.const 8))))
+
+        (i64.and (i64.load (local.get $offset)) (local.get $mask_lo))
+        (i64.and (i64.load offset=8 (local.get $offset)) (local.get $mask_hi))
+    )
+
     (export "memcpy" (func $memcpy))
     (export "add-uint" (func $add-uint))
     (export "add-int" (func $add-int))
@@ -1770,4 +1834,6 @@
     (export "hash160-int" (func $hash160-int))
     (export "store-i32-be" (func $store-i32-be))
     (export "store-i64-be" (func $store-i64-be))
+    (export "buff-to-uint-be" (func $buff-to-uint-be))
+    (export "buff-to-uint-le" (func $buff-to-uint-le))
 )
