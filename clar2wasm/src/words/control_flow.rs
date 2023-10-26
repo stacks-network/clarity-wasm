@@ -39,9 +39,9 @@ impl Word for Begin {
 }
 
 #[derive(Debug)]
-pub struct Unwrap;
+pub struct UnwrapPanic;
 
-impl Word for Unwrap {
+impl Word for UnwrapPanic {
     fn name(&self) -> ClarityName {
         "unwrap-panic".into()
     }
@@ -161,9 +161,9 @@ impl Word for Unwrap {
 }
 
 #[derive(Debug)]
-pub struct UnwrapErr;
+pub struct UnwrapErrPanic;
 
-impl Word for UnwrapErr {
+impl Word for UnwrapErrPanic {
     fn name(&self) -> ClarityName {
         "unwrap-err-panic".into()
     }

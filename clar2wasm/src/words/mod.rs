@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod bitwise;
 pub mod blockinfo;
+pub mod buff_to_integer;
 pub mod comparison;
 pub mod constants;
 pub mod contract;
@@ -56,8 +57,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &maps::MapInsert,
     &maps::MapDelete,
     &control_flow::Begin,
-    &control_flow::Unwrap,
-    &control_flow::UnwrapErr,
+    &control_flow::UnwrapPanic,
+    &control_flow::UnwrapErrPanic,
     &tokens::DefineFungibleToken,
     &tokens::BurnFungibleToken,
     &tokens::MintFungibleToken,
@@ -95,6 +96,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &sequences::ElementAt::Alias,
     &sequences::ReplaceAt,
     &sequences::Slice,
+    &buff_to_integer::BuffToIntBe,
+    &buff_to_integer::BuffToIntLe,
+    &buff_to_integer::BuffToUintBe,
+    &buff_to_integer::BuffToUintLe,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
