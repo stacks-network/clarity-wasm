@@ -39,20 +39,6 @@ impl Word for IsEq {
         }
         val_locals.reverse();
 
-        if args.len() == 1 {
-            builder.i32_const(1);
-            return Ok(());
-        }
-
-        // Get first operand from the local and put it onto stack.
-        for val in &val_locals {
-            builder.local_get(*val);
-        }
-
-        // Traverse the second operand pushing it onto the stack.
-        let sec_op = args.get_expr(1)?;
-        generator.traverse_expr(builder, sec_op)?;
-
         // Equals expression needs to handle different types.
         let type_suffix = match ty {
             // is-eq-int function can be reused to both int and uint types.
@@ -63,12 +49,13 @@ impl Word for IsEq {
         };
         let func = generator.func_by_name(&format!("is-eq-{}", type_suffix));
 
-        // Call the function with the operands on stack.
-        builder.call(func);
+        // Explicitly set to true.
+        // Shortcut for a case with only one operand.
+        builder.i32_const(1);
 
         // Loop through remainder operands, if the case.
         // First operand will be reused from a local var.
-        for operand in args.iter().skip(2) {
+        for operand in args.iter().skip(1) {
             // Get first operand from the local and put it onto stack.
             for val in &val_locals {
                 builder.local_get(*val);
