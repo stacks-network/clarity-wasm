@@ -873,7 +873,7 @@ impl AsRef<[u8]> for PropBuffer {
 
 prop_compose! {
     /// Generates random PropBuffer with given `offset`. The length will be between 1 and `max_length`.
-    fn buffer(offset: usize, max_length: usize)
+    pub(crate) fn buffer(offset: usize, max_length: usize)
         (buf in proptest::collection::vec(any::<u8>(), 1..max_length))
         -> PropBuffer {
             PropBuffer::new(buf, offset)
@@ -1029,4 +1029,40 @@ pub(crate) fn test_on_uint_hash(
         result_length,
         reference_function,
     )
+}
+
+pub(crate) fn test_buff_to_uint(
+    func_name: &str,
+    stack_pointer: i32,
+    reference_function: impl Fn(&[u8]) -> PropInt,
+) {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let buff_to_uint = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap();
+
+    proptest!(|(buff in buffer(stack_pointer as usize, 16))| {
+        let expected_result = reference_function(&buff);
+
+        let mut result = [Val::I64(0), Val::I64(0)];
+        let (offset, length) = buff
+            .write_to_memory(memory, store.borrow_mut().deref_mut())
+            .expect("Could not write to memory");
+
+        buff_to_uint
+            .call(
+                store.borrow_mut().deref_mut(),
+                &[offset.into(), length.into()],
+                &mut result,
+            )
+            .unwrap_or_else(|_| panic!("call to {func_name} failed"));
+        prop_assert_eq!(result[0].unwrap_i64(), expected_result.low());
+        prop_assert_eq!(result[1].unwrap_i64(), expected_result.high());
+    });
 }

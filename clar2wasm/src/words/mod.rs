@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod arithmetic;
 pub mod bitwise;
 pub mod blockinfo;
+pub mod buff_to_integer;
 pub mod comparison;
 pub mod constants;
 pub mod contract;
@@ -91,6 +92,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
     &print::Print,
+    &buff_to_integer::BuffToIntBe,
+    &buff_to_integer::BuffToIntLe,
+    &buff_to_integer::BuffToUintBe,
+    &buff_to_integer::BuffToUintLe,
     &logical::Not,
     &equal::IsEq,
 ];

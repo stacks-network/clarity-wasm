@@ -2795,6 +2795,58 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_buff_to_uint_be,
+    "buffer-to-integer",
+    "buff_to_uint_be",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(171643470492608469511538647592439832082)
+        )
+    }
+);
+
+test_contract_call_response!(
+    test_buff_to_int_be,
+    "buffer-to-integer",
+    "buff_to_int_be",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Int(-168638896428329993951835959839328379374),
+        )
+    }
+);
+
+test_contract_call_response!(
+    test_buff_to_uint_le,
+    "buffer-to-integer",
+    "buff_to_uint_le",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::UInt(25079978013418778635005664149300846977)
+        )
+    }
+);
+
+test_contract_call_response!(
+    test_buff_to_int_le,
+    "buffer-to-integer",
+    "buff_to_int_le",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Int(25079978013418778635005664149300846977),
+        )
+    }
+);
+
+test_contract_call_response!(
     test_not_false,
     "not",
     "assert-truthy",
@@ -2836,6 +2888,26 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(7));
+    }
+);
+
+test_contract_call_response!(
+    test_one_int_equality,
+    "equal",
+    "one-int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_one_uint_equality,
+    "equal",
+    "one-uint-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
     }
 );
 
