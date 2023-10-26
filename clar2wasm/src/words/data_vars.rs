@@ -105,8 +105,7 @@ impl Word for SetDataVar {
             .get_expr_type(value)
             .expect("var-set value expression must be typed")
             .clone();
-        let (offset, size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, false);
+        let (offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Write the value to the memory, to be read by the host
         generator.write_to_memory(builder, offset, 0, &ty);
@@ -164,8 +163,7 @@ impl Word for GetDataVar {
             .get_expr_type(expr)
             .expect("var-get expression must be typed")
             .clone();
-        let (offset, size) =
-            generator.create_call_stack_local(builder, generator.stack_pointer, &ty, true, true);
+        let (offset, size) = generator.create_call_stack_local(builder, &ty, true, true);
 
         // Push the identifier offset and length onto the data stack
         builder

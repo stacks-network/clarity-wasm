@@ -99,7 +99,7 @@ pub(crate) fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValTyp
 }
 
 /// Push a placeholder value for Clarity type `ty` onto the data stack.
-fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+pub(crate) fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     let wasm_types = clar2wasm_ty(ty);
     for wasm_type in wasm_types.iter() {
         add_placeholder_for_type(builder, *wasm_type);
@@ -166,6 +166,15 @@ impl WasmGenerator {
         );
 
         Ok(self.module)
+    }
+
+    pub fn get_memory(&self) -> MemoryId {
+        self.module
+            .memories
+            .iter()
+            .next()
+            .expect("no memory found")
+            .id()
     }
 
     pub fn traverse_expr(
@@ -242,7 +251,11 @@ impl WasmGenerator {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
         if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            return (*offset, s.to_string().len() as u32);
+            let length = match s {
+                CharType::ASCII(s) => s.data.len() as u32,
+                CharType::UTF8(_u) => todo!("UTF8"),
+            };
+            return (*offset, length);
         }
 
         let data = match s {
@@ -358,7 +371,6 @@ impl WasmGenerator {
     pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        stack_pointer: GlobalId,
         ty: &TypeSignature,
         include_repr: bool,
         include_value: bool,
@@ -373,7 +385,7 @@ impl WasmGenerator {
 
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
-        builder.global_get(stack_pointer).local_tee(offset);
+        builder.global_get(self.stack_pointer).local_tee(offset);
 
         // TODO: The frame stack size can be computed at compile time, so we
         //       should be able to increment the stack pointer once in the function
@@ -382,7 +394,7 @@ impl WasmGenerator {
         builder
             .i32_const(size)
             .binop(BinaryOp::I32Add)
-            .global_set(stack_pointer);
+            .global_set(self.stack_pointer);
         self.frame_size += size;
 
         (offset, size)
@@ -445,6 +457,20 @@ impl WasmGenerator {
                     },
                 );
                 8
+            }
+            TypeSignature::BoolType => {
+                // Data stack: TOP | Value | ...
+                // Save the value to a local.
+                let bool_val = self.module.locals.add(ValType::I32);
+                builder.local_set(bool_val);
+
+                // Store the value to memory.
+                builder.local_get(offset_local).local_get(bool_val).store(
+                    memory.id(),
+                    StoreKind::I32 { atomic: false },
+                    MemArg { align: 4, offset },
+                );
+                4
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         }
@@ -1529,7 +1555,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,
@@ -1552,7 +1577,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,
@@ -1575,7 +1599,6 @@ impl WasmGenerator {
                     let (offset, size);
                     (offset, size) = self.create_call_stack_local(
                         builder,
-                        self.stack_pointer,
                         &TypeSignature::PrincipalType,
                         false,
                         true,

@@ -3030,3 +3030,527 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Bool(false));
     }
 );
+
+test_contract_call_response!(
+    test_append,
+    "sequences",
+    "list-append",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_append_strings,
+    "sequences",
+    "list-append-strings",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap(),
+                Value::string_ascii_from_bytes("world".to_string().into_bytes()).unwrap(),
+                Value::string_ascii_from_bytes("!".to_string().into_bytes()).unwrap(),
+            ])
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_append_empty,
+    "sequences",
+    "list-append-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Bool(true)]).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_as_max_len_some,
+    "sequences",
+    "list-as-max-len-some",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![Value::Int(1), Value::Int(2)]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_as_max_len_none,
+    "sequences",
+    "list-as-max-len-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_list_as_max_len_empty,
+    "sequences",
+    "list-as-max-len-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_as_max_len,
+    "sequences",
+    "buffer-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![0x12, 0x34, 0x56]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_as_max_len,
+    "sequences",
+    "string-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_concat,
+    "sequences",
+    "list-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4)
+            ])
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_concat,
+    "sequences",
+    "string-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_concat,
+    "sequences",
+    "buffer-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::buff_from(vec![0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc]).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_len,
+    "sequences",
+    "list-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_string_len,
+    "sequences",
+    "string-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_len,
+    "sequences",
+    "buffer-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_list_len_0,
+    "sequences",
+    "list-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_string_len_0,
+    "sequences",
+    "string-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_len_0,
+    "sequences",
+    "buffer-len-0",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(0));
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at,
+    "sequences",
+    "list-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::Int(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at,
+    "sequences",
+    "string-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at,
+    "sequences",
+    "buffer-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from_byte(0x56)).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at_alias,
+    "sequences",
+    "list-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::Int(2)).unwrap());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at_alias,
+    "sequences",
+    "string-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at_alias,
+    "sequences",
+    "buffer-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from_byte(0x56)).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_element_at_none,
+    "sequences",
+    "list-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_element_at_none,
+    "sequences",
+    "string-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_element_at_none,
+    "sequences",
+    "buffer-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_element_at_upper_offset,
+    "sequences",
+    "element-at-upper-offset",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_list_replace_at,
+    "sequences",
+    "list-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::list_from(vec![Value::Int(1), Value::Int(4), Value::Int(3)]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_replace_at,
+    "sequences",
+    "string-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes("jello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_replace_at,
+    "sequences",
+    "buffer-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::buff_from(vec![0xfe, 0xdc, 0xba, 0x98, 0x67, 0x54, 0x32, 0x10]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_replace_at_none,
+    "sequences",
+    "list-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_replace_at_none,
+    "sequences",
+    "string-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_replace_at_none,
+    "sequences",
+    "buffer-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_replace_at_check_original,
+    "sequences",
+    "replace-at-check-original",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![b'h']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_slice,
+    "sequences",
+    "list-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(
+                Value::list_from(vec![Value::Int(2), Value::Int(3), Value::Int(4)]).unwrap()
+            )
+            .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice,
+    "sequences",
+    "string-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(b"l".to_vec()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice,
+    "sequences",
+    "buffer-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![0x76, 0x54, 0x32]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_list_slice_none,
+    "sequences",
+    "list-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice_none,
+    "sequences",
+    "string-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice_none,
+    "sequences",
+    "buffer-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_list_slice_empty,
+    "sequences",
+    "list-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_slice_empty,
+    "sequences",
+    "string-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_buffer_slice_empty,
+    "sequences",
+    "buffer-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::buff_from(vec![]).unwrap()).unwrap()
+        );
+    }
+);

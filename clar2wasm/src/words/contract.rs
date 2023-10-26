@@ -101,13 +101,8 @@ impl Word for ContractCall {
             .get_expr_type(expr)
             .expect("contract-call? expression must be typed")
             .clone();
-        let (return_offset, return_size) = generator.create_call_stack_local(
-            builder,
-            generator.stack_pointer,
-            &return_ty,
-            true,
-            true,
-        );
+        let (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the return offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
