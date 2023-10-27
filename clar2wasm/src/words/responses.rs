@@ -1,6 +1,4 @@
-use crate::wasm_generator::{
-    drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
-};
+use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
 use super::Word;
