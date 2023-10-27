@@ -1,5 +1,5 @@
 use crate::wasm_generator::{
-    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+    drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
