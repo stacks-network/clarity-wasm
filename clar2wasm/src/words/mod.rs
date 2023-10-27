@@ -120,6 +120,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &traits::UseTrait,
     &traits::ImplTrait,
     &conditionals::If,
+    &conditionals::If,
+    &conditionals::Filter,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
