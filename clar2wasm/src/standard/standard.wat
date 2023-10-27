@@ -822,9 +822,9 @@
         )
         ;; if sub is 0, it means that for the min length of both buffers, both are equals
         ;;   - in this case, the result is the comparison of the lengths
-        ;;   - otherwise it's the sign bit of $sub
+        ;;   - otherwise $sub < 0
         (select
-            (i32.shr_u (local.get $sub) (i32.const 31))
+            (i32.lt_s (local.get $sub) (i32.const 0))
             (i32.lt_u (local.get $length_a) (local.get $length_b))
             (local.get $sub)
         )
@@ -832,44 +832,7 @@
 
     (func $gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff, with the arguments flipped (a > b == b < a)
-        (block $done
-            (br_if $done
-                (i32.eqz
-                    (local.tee $i
-                        (select
-                            (local.get $length_a)
-                            (local.get $length_b)
-                            (i32.lt_u (local.get $length_a) (local.get $length_b))
-                        )
-                    )
-                )
-            )
-            (loop $loop
-                (if
-                    (i32.eqz
-                        (local.tee $sub
-                            (i32.sub (i32.load8_u (local.get $offset_b)) (i32.load8_u (local.get $offset_a)))
-                        )
-                    )
-                    (then
-                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
-                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
-                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
-                    )
-                )
-            )
-        )
-        (select
-            (i32.shr_u (local.get $sub) (i32.const 31))
-            (i32.lt_u (local.get $length_b) (local.get $length_a))
-            (local.get $sub)
-        )
-    )
-
-    (func $le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
-        (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff, with the slight adaptation at the end
+        ;; same algorithm as $lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -897,9 +860,43 @@
                 )
             )
         )
-        ;; if sub is 0, it means that for the min length of both buffers, both are equals
-        ;;   - in this case, the result is the comparison of the lengths
-        ;;   - otherwise $sub <= 0
+        (select
+            (i32.gt_s (local.get $sub) (i32.const 0))
+            (i32.gt_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
+        )
+    )
+
+    (func $le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; same algorithm as $lt-buff
+        (block $done
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
         (select
             (i32.le_s (local.get $sub) (i32.const 0))
             (i32.le_u (local.get $length_a) (local.get $length_b))
