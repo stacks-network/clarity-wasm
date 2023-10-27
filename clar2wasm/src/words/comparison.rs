@@ -21,13 +21,12 @@ fn traverse_comparison(
     let type_suffix = match ty {
         TypeSignature::IntType => "int",
         TypeSignature::UIntType => "uint",
-        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
-            "string-ascii"
-        }
+        // same function for buffer and string-ascii
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_)))
+        | TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buff",
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-            "string-utf8"
+            todo!()
         }
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buffer",
         _ => {
             return Err(GeneratorError::InternalError(
                 "invalid type for comparison".to_string(),
