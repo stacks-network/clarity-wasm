@@ -830,6 +830,43 @@
         )
     )
 
+    (func $gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; same algorithm as $lt-buff, with the arguments flipped (a > b == b < a)
+        (block $done
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_b)) (i32.load8_u (local.get $offset_a)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        (select
+            (i32.shr_u (local.get $sub) (i32.const 31))
+            (i32.lt_u (local.get $length_b) (local.get $length_a))
+            (local.get $sub)
+        )
+    )
+
     (func $log2 (param $lo i64) (param $hi i64) (result i64)
         (select
             (i64.xor (i64.clz (local.get $lo)) (i64.const 63))
@@ -1835,6 +1872,7 @@
     (export "le-int" (func $le-int))
     (export "ge-int" (func $ge-int))
     (export "lt-buff" (func $lt-buff))
+    (export "gt-buff" (func $gt-buff))
     (export "log2-uint" (func $log2-uint))
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
