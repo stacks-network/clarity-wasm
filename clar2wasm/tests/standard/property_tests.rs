@@ -579,3 +579,8 @@ fn prop_lt_buff() {
 fn prop_gt_buff() {
     test_buff_comparison("gt-buff", |a, b| a > b)
 }
+
+#[test]
+fn prop_le_buff() {
+    test_buff_comparison("le-buff", |a, b| a <= b)
+}
