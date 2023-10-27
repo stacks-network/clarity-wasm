@@ -10,6 +10,7 @@
     (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
     (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
     (type (;8;) (func (param $bool_in i32) (result i32)))
+    (type (;9;) (func (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -785,6 +786,47 @@
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_s (local.get $a_hi) (local.get $b_hi))
             (i64.eq (local.get $a_hi) (local.get $b_hi))
+        )
+    )
+
+    (func $lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        (block $done
+            ;; we can skip the comparison loop if $i (min length) is 0
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        ;; no i32.min is Wasm...
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        ;; if sub is 0, it means that for the min length of both buffers, both are equals
+        ;;   - in this case, the result is the comparison of the lengths
+        ;;   - otherwise it's the sign bit of $sub
+        (select
+            (i32.shr_u (local.get $sub) (i32.const 31))
+            (i32.lt_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
         )
     )
 
@@ -1792,6 +1834,7 @@
     (export "gt-int" (func $gt-int))
     (export "le-int" (func $le-int))
     (export "ge-int" (func $ge-int))
+    (export "lt-buff" (func $lt-buff))
     (export "log2-uint" (func $log2-uint))
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
