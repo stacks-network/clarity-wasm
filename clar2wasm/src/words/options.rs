@@ -30,7 +30,7 @@ impl Word for IsSome {
             .clone();
 
         let some_ty = if let TypeSignature::OptionalType(some_type) = &ty {
-            &*some_type
+            &**some_type
         } else {
             panic!("Expected an Optional type. Found: {:?}", ty);
         };
@@ -69,7 +69,7 @@ impl Word for IsNone {
             .clone();
 
         let some_ty = if let TypeSignature::OptionalType(some_type) = &ty {
-            &*some_type
+            &**some_type
         } else {
             panic!("Expected an Optional type. Found: {:?}", ty);
         };
