@@ -3574,3 +3574,23 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Bool(false));
     }
 );
+
+test_contract_call_response!(
+    test_is_none_truthy,
+    "options",
+    "none-truthy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_is_none_falsy,
+    "options",
+    "none-falsy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
