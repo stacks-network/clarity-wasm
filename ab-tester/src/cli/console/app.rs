@@ -78,10 +78,6 @@ impl<'a> App<'a> {
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
 
-        // Set the theme.
-        let frame = tui.get_frame().size();
-        tui.current_buffer_mut().set_style(frame, self.theme.main);
-
         // tui.mouse(true);
         tui.enter()?;
     
@@ -98,101 +94,113 @@ impl<'a> App<'a> {
         }
     
         loop {
-          if let Some(e) = tui.next().await {
-            match e {
-              Event::Quit => action_tx.send(Action::Quit)?,
-              Event::Tick => action_tx.send(Action::Tick)?,
-              Event::Render => action_tx.send(Action::Render)?,
-              Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-              Event::Key(key) => {
-                //log::info!("key: {key:?}");
-                #[allow(clippy::single_match)]
-                match key.code {
-                    KeyCode::Char('q') => action_tx.send(Action::Quit)?,
-                    _ => ()
+            if let Some(e) = tui.next().await {
+                match e {
+                    Event::Quit => action_tx.send(Action::Quit)?,
+                    Event::Tick => action_tx.send(Action::Tick)?,
+                    Event::Render => action_tx.send(Action::Render)?,
+                    Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
+                    Event::Key(key) => {
+                        //log::info!("key: {key:?}");
+                        #[allow(clippy::single_match)]
+                        match key.code {
+                            KeyCode::Char('q') => action_tx.send(Action::Quit)?,
+                            _ => ()
+                        }
+                        /*if let Some(keymap) = self.config.keybindings.get(&self.mode) {
+                        if let Some(action) = keymap.get(&vec![key]) {
+                            log::info!("Got action: {action:?}");
+                            action_tx.send(action.clone())?;
+                        } else {
+                            // If the key was not handled as a single key action,
+                            // then consider it for multi-key combinations.
+                            self.last_tick_key_events.push(key);
+            
+                            // Check for multi-key combinations
+                            if let Some(action) = keymap.get(&self.last_tick_key_events) {
+                            log::info!("Got action: {action:?}");
+                            action_tx.send(action.clone())?;
+                            }
+                        }
+                        };*/
+                    },
+                    _ => {},
                 }
-                /*if let Some(keymap) = self.config.keybindings.get(&self.mode) {
-                  if let Some(action) = keymap.get(&vec![key]) {
-                    log::info!("Got action: {action:?}");
-                    action_tx.send(action.clone())?;
-                  } else {
-                    // If the key was not handled as a single key action,
-                    // then consider it for multi-key combinations.
-                    self.last_tick_key_events.push(key);
-    
-                    // Check for multi-key combinations
-                    if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                      log::info!("Got action: {action:?}");
-                      action_tx.send(action.clone())?;
+
+                for component in self.components.iter_mut() {
+                    if let Some(action) = component.borrow_mut().handle_events(Some(e.clone()))? {
+                        action_tx.send(action)?;
                     }
-                  }
-                };*/
-              },
-              _ => {},
+                }
+            }
+        
+            while let Ok(action) = action_rx.try_recv() {
+                if action != Action::Tick && action != Action::Render {
+                    log::debug!("{action:?}");
+                }
+
+                match action {
+                    Action::Tick => {
+                        self.last_tick_key_events.drain(..);
+                    },
+                    Action::Quit => self.should_quit = true,
+                    Action::Suspend => self.should_suspend = true,
+                    Action::Resume => self.should_suspend = false,
+                    Action::Resize(w, h) => {
+                        tui.resize(Rect::new(0, 0, w, h))?;
+
+                        tui.draw(|f| {
+                            // Set default theme for the frame.
+                            let frame_size = f.size();
+                            f.buffer_mut().set_style(frame_size, self.theme.main);
+
+                            for component in self.components.iter_mut() {
+                                let r = component.borrow_mut().draw(f, f.size(), self.theme);
+                                if let Err(e) = r {
+                                    action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
+                                }
+                            }
+                        })?;
+                    },
+                    Action::Render => {
+                        tui.draw(|f| {
+                            // Set default theme for the frame.
+                            let frame_size = f.size();
+                            f.buffer_mut().set_style(frame_size, self.theme.main);
+
+                            for component in self.components.iter_mut() {
+                                let r = component.borrow_mut().draw(f, f.size(), self.theme);
+                                if let Err(e) = r {
+                                    action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
+                                }
+                            }
+                        })?;
+                    },
+                    _ => {},
+                }
+
+                for component in self.components.iter_mut() {
+                    if let Some(action) = component.borrow_mut().update(action.clone())? {
+                        action_tx.send(action)?
+                    };
+                }
             }
 
-            for component in self.components.iter_mut() {
-              if let Some(action) = component.borrow_mut().handle_events(Some(e.clone()))? {
-                action_tx.send(action)?;
-              }
-            }
-          }
-    
-          while let Ok(action) = action_rx.try_recv() {
-            if action != Action::Tick && action != Action::Render {
-              log::debug!("{action:?}");
-            }
+            if self.should_suspend {
+                tui.suspend()?;
 
-            match action {
-              Action::Tick => {
-                self.last_tick_key_events.drain(..);
-              },
-              Action::Quit => self.should_quit = true,
-              Action::Suspend => self.should_suspend = true,
-              Action::Resume => self.should_suspend = false,
-              Action::Resize(w, h) => {
-                tui.resize(Rect::new(0, 0, w, h))?;
-                tui.draw(|f| {
-                  for component in self.components.iter_mut() {
-                    let r = component.borrow_mut().draw(f, f.size(), self.theme);
-                    if let Err(e) = r {
-                      action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
-                    }
-                  }
-                })?;
-              },
-              Action::Render => {
-                tui.draw(|f| {
-                  for component in self.components.iter_mut() {
-                    let r = component.borrow_mut().draw(f, f.size(), self.theme);
-                    if let Err(e) = r {
-                      action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
-                    }
-                  }
-                })?;
-              },
-              _ => {},
-            }
+                action_tx.send(Action::Resume)?;
 
-            for component in self.components.iter_mut() {
-              if let Some(action) = component.borrow_mut().update(action.clone())? {
-                action_tx.send(action)?
-              };
+                tui = Tui::new(self.theme.main)?
+                    .tick_rate(self.tick_rate)
+                    .frame_rate(self.frame_rate);
+                // tui.mouse(true);
+                
+                tui.enter()?;
+            } else if self.should_quit {
+                tui.stop()?;
+                break;
             }
-          }
-
-          if self.should_suspend {
-            tui.suspend()?;
-            action_tx.send(Action::Resume)?;
-            tui = Tui::new(self.theme.main)?
-                .tick_rate(self.tick_rate)
-                .frame_rate(self.frame_rate);
-            // tui.mouse(true);
-            tui.enter()?;
-          } else if self.should_quit {
-            tui.stop()?;
-            break;
-          }
         }
 
         tui.exit()?;

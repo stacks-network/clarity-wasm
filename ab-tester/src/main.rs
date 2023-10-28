@@ -9,6 +9,9 @@ mod model;
 mod schema;
 #[macro_use]
 mod macros;
+mod datastore;
+mod runtime;
+mod appdb;
 
 use clap::Parser;
 use cli::*;
@@ -51,8 +54,7 @@ async fn main() -> Result<()> {
     }
     .map_err(|err| match err.downcast_ref() {
         Some(AppError::Graceful(graceful)) => {
-            info!("terminating gracefully: {graceful:?}");
-            exit(0)
+            info!("terminating gracefully: {:?}", graceful);
         }
         _ => {
             error!("the application encountered a fatal error: {err:?}");

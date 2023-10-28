@@ -26,6 +26,7 @@ impl Config {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Baseline {
     pub chainstate_path: String,
+    pub chain_id: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

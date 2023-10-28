@@ -122,7 +122,6 @@ pub mod appdb {
         contract_var_instance (id) {
             id -> Integer,
             contract_var_id -> Integer,
-            block_id -> Integer,
             contract_execution_id -> Integer,
             value -> Binary
         }

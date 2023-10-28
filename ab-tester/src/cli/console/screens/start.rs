@@ -1,5 +1,5 @@
 use crossterm::event::KeyEvent;
-use ratatui::{widgets::Paragraph, prelude::Rect};
+use ratatui::{widgets::{Paragraph, Block, Borders, BorderType}, prelude::{Rect, Layout, Direction, Constraint}};
 use color_eyre::eyre::Result;
 
 use crate::cli::console::{theme::Theme, components::Component, tui::Frame, action::Action};
@@ -19,9 +19,41 @@ impl Component for StartScreen {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect, _theme: &Theme) -> Result<()> {
-        let tmp = Paragraph::new("hello");
-        f.render_widget(tmp, area);
+    fn draw(&mut self, f: &mut Frame<'_>, area: Rect, theme: &Theme) -> Result<()> {
+        let rects = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(20),
+                Constraint::Min(10)
+            ].as_ref())
+            .split(area);
+
+        let left_pane = rects[0];
+        let right_pane = rects[1];
+
+        self.draw_environments_pane(f, rects[0], theme)?;
+
+
+        Ok(())
+    }
+}
+
+impl StartScreen {
+    fn draw_environments_pane(&mut self, f: &mut Frame<'_>, area: Rect, _theme: &Theme) -> Result<()> {
+        let widget = Block::new()
+            .title("Environments")
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+        ;
+
+        f.render_widget(widget, area);
+
+        Ok(())
+    }
+
+    fn draw_config_pane(&mut self, f: &mut Frame<'_>, area: Rect, theme: &Theme) -> Result<()> {
+        let widget = Block::new()
+        ;
         Ok(())
     }
 }

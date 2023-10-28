@@ -7,7 +7,7 @@ use crate::cli::{
     console::{
         app::{App, AppState},
         theme::{Theme, ColorScheme}, 
-        screens::{BlocksScreen, main::MainLayout},
+        screens::{BlocksScreen, main::MainLayout, StartScreen},
     },
     TuiArgs,
 };
@@ -22,6 +22,7 @@ pub async fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
     }
 
     let blocks = Rc::new(RefCell::new(BlocksScreen::new()));
+    let start = Rc::new(RefCell::new(StartScreen::new()));
     let main_layout = Rc::new(RefCell::new(MainLayout::new()));
 
     let mut app_state = AppState::new();
@@ -31,10 +32,8 @@ pub async fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
         &mut app_state
     )?;
 
-    eprintln!("theme: {theme:?}");
-
     app.register_component(Rc::clone(&main_layout));
-    main_layout.borrow_mut().set_body(blocks);
+    main_layout.borrow_mut().set_body(start);
 
     app.run().await?;
 

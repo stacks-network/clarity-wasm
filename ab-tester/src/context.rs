@@ -15,12 +15,12 @@ use blockstack_lib::chainstate::stacks::{
 use clarity::vm::{
     analysis::ContractAnalysis,
     clarity::ClarityConnection,
-    database::{NULL_BURN_STATE_DB, NULL_HEADER_DB},
+    database::{NULL_BURN_STATE_DB, NULL_HEADER_DB, ClarityDatabase, RollbackWrapper},
     types::QualifiedContractIdentifier, Value,
 };
 use diesel::{
     sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
-    SqliteConnection,
+    SqliteConnection, sqlite::Sqlite,
 };
 use log::*;
 use rand::Rng;
@@ -30,17 +30,22 @@ use crate::{
     config::Config,
     model::{chainstate_db::BlockHeader, clarity_db::DataEntry},
     ok,
-    schema::clarity_marf::data_table,
+    schema::{clarity_marf::data_table, self}, appdb::AppDb, datastore::DataStore,
 };
 
-pub struct TestContext {
-    id: u64,
-    baseline_env: Rc<RefCell<TestEnv>>,
-    test_envs: HashMap<String, Rc<RefCell<TestEnv>>>,
-    appdb: SqliteConnection,
+pub enum Runtime {
+    Interpreter = 1,
+    Wasm = 2
 }
 
-impl std::fmt::Debug for TestContext {
+pub struct TestContext<'a> {
+    id: u64,
+    baseline_env: Rc<RefCell<TestEnv<'a>>>,
+    test_envs: HashMap<String, Rc<RefCell<TestEnv<'a>>>>,
+    app_db: AppDb,
+}
+
+impl std::fmt::Debug for TestContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TestContext")
             .field("id", &self.id)
@@ -51,22 +56,21 @@ impl std::fmt::Debug for TestContext {
     }
 }
 
-impl TestContext {
+impl<'a> TestContext<'a> {
     pub fn new(config: &Config) -> Result<Self> {
-        let baseline_env = TestEnv::new("baseline", &config.baseline.chainstate_path)?;
-
-        let appdb = SqliteConnection::establish(&config.app.db_path)?;
+        let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
+        let mut app_db = AppDb::new(app_db_conn);
 
         Ok(Self {
             id: rand::thread_rng().gen_range(1000000000..9999999999),
             baseline_env: Rc::new(RefCell::new(baseline_env)),
             test_envs: Default::default(),
-            appdb,
+            app_db,
         })
     }
 
     pub fn with_baseline_env(
-        &mut self,
+        &'a mut self,
         f: impl FnOnce(&TestContext, &TestEnvContext) -> Result<()>,
     ) -> Result<()> {
         let env_ctx = TestEnvContext::new(self, Rc::clone(&self.baseline_env));
@@ -76,10 +80,13 @@ impl TestContext {
         ok!()
     }
 
-    pub fn new_env(&mut self, name: &str) -> Result<()> {
+    pub fn new_env(&'a mut self, runtime: Runtime, name: &str) -> Result<()> {
         let dir = format!("{}/{}/chainstate", std::env::temp_dir().display(), self.id);
 
-        let env = Rc::new(RefCell::new(TestEnv::new(name, &dir)?));
+        let db_env = self.app_db.insert_environment(runtime as i32, name)?;
+
+        let env = Rc::new(RefCell::new(
+            TestEnv::new(db_env.id, name, &dir, &mut self.app_db)?));
 
         self.test_envs.insert(name.to_string(), env);
 
@@ -87,7 +94,7 @@ impl TestContext {
     }
 
     pub fn with_env(
-        &mut self,
+        &'a mut self,
         name: &str,
         f: impl FnOnce(&TestContext, Option<&mut TestEnvContext>) -> Result<()>,
     ) -> Result<()> {
@@ -101,17 +108,20 @@ impl TestContext {
     }
 }
 
-pub struct TestEnv {
+pub struct TestEnv<'a> {
+    id: i32,
     name: String,
+    app_db: &'a AppDb,
     //chainstate_path: String,
     blocks_dir: String,
     chainstate: StacksChainState,
-    index_db: SqliteConnection,
+    index_db_conn: SqliteConnection,
     //sortition_db: SortitionDB,
-    clarity_db: SqliteConnection,
+    clarity_db_conn: SqliteConnection,
+    clarity_db: ClarityDatabase<'a>
 }
 
-impl std::fmt::Debug for TestEnv {
+impl std::fmt::Debug for TestEnv<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TestEnv")
             //.field("chainstate_path", &self.chainstate_path)
@@ -124,8 +134,8 @@ impl std::fmt::Debug for TestEnv {
     }
 }
 
-impl TestEnv {
-    pub fn new(name: &str, stacks_dir: &str) -> Result<Self> {
+impl<'a> TestEnv<'a> {
+    pub fn new(id: i32, name: &str, stacks_dir: &str, app_db: &'a mut AppDb) -> Result<Self> {
         let index_db_path = format!("{}/chainstate/vm/index.sqlite", stacks_dir);
         //let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
         let blocks_dir = format!("{}/chainstate/blocks", stacks_dir);
@@ -137,11 +147,11 @@ impl TestEnv {
         debug!("[{name}] blocks_dir: '{}'", blocks_dir);
 
         debug!("[{name}] loading index db...");
-        let index_db = SqliteConnection::establish(&index_db_path)?;
+        let index_db_conn = SqliteConnection::establish(&index_db_path)?;
         info!("[{name}] successfully connected to index db");
 
         debug!("[{name}] loading clarity db...");
-        let clarity_db = SqliteConnection::establish(&clarity_db_path)?;
+        let clarity_db_conn = SqliteConnection::establish(&clarity_db_path)?;
         info!("[{name}] successfully connected to clarity db");
 
         let mut marf_opts = MARFOpenOpts::default();
@@ -150,6 +160,15 @@ impl TestEnv {
         debug!("[{name}] opening chainstate...");
         let chainstate = StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts))?;
         info!("[{name}] successfully opened chainstate");
+
+        let mut data_store = DataStore::new(app_db);
+        let rollback_wrapper = RollbackWrapper::new(&mut data_store);
+        let mut clarity_db = ClarityDatabase::new_with_rollback_wrapper(
+            rollback_wrapper, &NULL_HEADER_DB, &NULL_BURN_STATE_DB);
+
+        clarity_db.begin();
+        clarity_db.set_clarity_epoch_version(StacksEpochId::latest());
+        clarity_db.commit();
 
         /*debug!("opening sortition db...");
         let sortition_db = SortitionDB::connect(
@@ -164,12 +183,15 @@ impl TestEnv {
         info!("successfully opened sortition db");*/
 
         Ok(Self {
+            id,
             name: name.to_string(),
+            app_db,
             //chainstate_path: chainstate_path.to_string(),
             blocks_dir,
             chainstate: chainstate.0,
-            index_db,
+            index_db_conn,
             //sortition_db,
+            clarity_db_conn,
             clarity_db,
         })
     }
@@ -193,19 +215,50 @@ impl Contract {
 
 #[derive(Debug)]
 pub struct TestEnvContext<'a> {
-    test_context: &'a TestContext,
-    env: Rc<RefCell<TestEnv>>,
+    test_context: &'a TestContext<'a>,
+    env: Rc<RefCell<TestEnv<'a>>>,
 }
 
 impl<'a> TestEnvContext<'a> {
-    pub fn new(test_context: &'a TestContext, env: Rc<RefCell<TestEnv>>) -> Self {
+    pub fn new(test_context: &'a TestContext<'a>, env: Rc<RefCell<TestEnv<'a>>>) -> Self {
         Self { test_context, env }
+    }
+
+    pub fn id(&self) -> i32 {
+        self.env.borrow().id
     }
 
     pub fn blocks(&self, start_at: u32) -> Result<BlockCursor> {
         let mut env = self.env.borrow_mut();
 
-        let blocks_query = format!(
+        // Retrieve the tip.
+        let tip = schema::chainstate_marf::block_headers::table
+            .order_by(schema::chainstate_marf::block_headers::block_height.desc())
+            .limit(1)
+            .get_result::<BlockHeader>(&mut env.index_db_conn)?;
+
+        let mut current_block = Some(tip.clone());
+        let mut headers = vec![tip];
+        
+        // Walk backwards
+        while let Some(block) = current_block {
+            let ancestor = schema::chainstate_marf::block_headers::table
+                .filter(schema::chainstate_marf::block_headers::index_block_hash.eq(block.parent_block_id))
+                .get_result::<BlockHeader>(&mut env.index_db_conn)
+                .optional()?;
+            
+            if let Some(b) = ancestor.clone() {
+                headers.push(b);
+            }
+
+            current_block = ancestor;
+        }
+
+        headers.reverse();
+        debug!("first block: {:?}", headers[0]);
+        debug!("tip: {:?}", headers[headers.len() - 1]);
+
+        /*let blocks_query = format!(
             "
             SELECT DISTINCT
                 parent.block_height, 
@@ -219,7 +272,7 @@ impl<'a> TestEnvContext<'a> {
 
         let headers = sql_query(blocks_query)
             .get_results::<BlockHeader>(&mut env.index_db)
-            .context("Failed to retrieve block inventory.")?;
+            .context("Failed to retrieve block inventory.")?;*/
 
         debug!("retrieved {} block headers", headers.len());
 
@@ -293,11 +346,11 @@ impl<'a> TestEnvContext<'a> {
     pub fn load_block(&self, block_id: &StacksBlockId) -> Result<()> {
         let mut env = self.env.borrow_mut();
 
-        info!("beginning to walk the block: {}", block_id);
+        debug!("beginning to walk the block: {}", block_id);
         let leaves = Self::walk_block(&mut env, block_id, false)?;
 
         if !leaves.is_empty() {
-            info!("finished walking, leaf count: {}", leaves.len());
+            debug!("finished walking, leaf count: {}", leaves.len());
         } else {
             warn!("no leaves found");
         }
@@ -305,7 +358,7 @@ impl<'a> TestEnvContext<'a> {
         for leaf in leaves {
             let value = data_table::table
                 .filter(data_table::key.eq(leaf.data.to_string()))
-                .first::<DataEntry>(&mut env.clarity_db)
+                .first::<DataEntry>(&mut env.clarity_db_conn)
                 .optional()?;
 
             if let Some(value_unwrapped) = value {
@@ -313,7 +366,7 @@ impl<'a> TestEnvContext<'a> {
                 if let Ok(clarity_value) = clarity_value {
                     trace!("deserialized value: {:?}", &clarity_value);
                 } else {
-                    warn!("failed to deserialize value: {:?}", &value_unwrapped.value);
+                    debug!("failed to deserialize value: {:?}", &value_unwrapped.value);
                 }
             }
         }

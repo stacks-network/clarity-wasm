@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS environment (
     REFERENCES runtime (id)
 );
 
+INSERT INTO environment VALUES (1, 'baseline', 1);
+
 CREATE TABLE IF NOT EXISTS block (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     environment_id INTEGER NOT NULL,
@@ -45,8 +47,10 @@ CREATE TABLE IF NOT EXISTS marf_entry (
 CREATE TABLE IF NOT EXISTS contract (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     block_id INTEGER NOT NULL,
-    qualified_contract_id TEXT NOT NULL UNIQUE,
+    qualified_contract_id TEXT NOT NULL,
     source BLOB NOT NULL,
+
+    UNIQUE (qualified_contract_id),
 
     CONSTRAINT fk_block
     FOREIGN KEY (block_id)

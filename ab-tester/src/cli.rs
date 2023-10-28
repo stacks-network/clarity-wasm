@@ -117,9 +117,7 @@ impl DataArgs {
         if let Some(max_blocks) = self.max_block_count {
             ensure!(
                 processed_block_count < max_blocks,
-                AppError::Graceful(anyhow!(
-                    "number of blocks processed has reached the specified maximum"
-                ))
+                AppError::Graceful("number of blocks processed has reached the specified maximum")
             );
         }
 
@@ -130,9 +128,7 @@ impl DataArgs {
         if let Some(to_height) = self.to_height {
             ensure!(
                 block_height < to_height,
-                AppError::Graceful(anyhow!(
-                    "block height has reached the specified maximum block height (to-height)"
-                ))
+                AppError::Graceful("block height has reached the specified maximum block height (to-height)")
             )
         }
 

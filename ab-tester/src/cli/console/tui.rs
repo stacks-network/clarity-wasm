@@ -21,7 +21,7 @@ use futures::{FutureExt, StreamExt};
 use ratatui::{backend::CrosstermBackend as Backend, style::Style};
 use tokio_util::sync::CancellationToken;
 
-pub type Frame<'a> = ratatui::Frame<'a, Backend<IO>>;
+pub type Frame<'a> = ratatui::Frame<'a>;
 pub type IO = std::io::Stderr;
 pub fn io() -> IO {
   std::io::stderr()

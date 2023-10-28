@@ -2,7 +2,7 @@ use color_eyre::eyre::Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum AppError {
+pub enum AppError<'a> {
     #[error("terminating gracefully")]
-    Graceful(Error),
+    Graceful(&'a str),
 }
