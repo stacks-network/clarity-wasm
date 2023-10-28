@@ -3554,3 +3554,23 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_is_some_truthy,
+    "options",
+    "some-truthy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_is_some_falsy,
+    "options",
+    "some-falsy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
