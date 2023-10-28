@@ -1,5 +1,6 @@
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use walrus::ir::BinaryOp;
 
 use super::Word;
 
@@ -41,6 +42,54 @@ impl Word for IsOk {
         drop_value(builder, ok_ty);
 
         // Indicator is on stack.
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct IsErr;
+
+impl Word for IsErr {
+    fn name(&self) -> ClarityName {
+        "is-err".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let res = args.get_expr(0)?;
+        generator.traverse_expr(builder, res)?;
+        // there is a response type on top of the stack.
+
+        // Get the type of the response expression
+        let ty = generator
+            .get_expr_type(res)
+            .expect("input expression must be typed")
+            .clone();
+
+        let (ok_ty, err_ty) = if let TypeSignature::ResponseType(types) = &ty {
+            &**types
+        } else {
+            panic!("Expected a Response type. Found: {:?}", ty);
+        };
+
+        // Drop the err type.
+        drop_value(builder, err_ty);
+
+        // Drop the ok type.
+        drop_value(builder, ok_ty);
+
+        // Add one to stack
+        // and proceed with a XOR operation
+        // to invert the indicator value
+        builder.i32_const(1);
+        builder.binop(BinaryOp::I32Xor);
+
+        // Xor'ed indicator is on stack.
         Ok(())
     }
 }
