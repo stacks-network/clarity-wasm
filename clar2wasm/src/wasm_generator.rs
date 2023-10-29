@@ -40,7 +40,7 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
 
     /// The locals for the current function.
-    pub(crate) locals: HashMap<String, LocalId>,
+    pub(crate) locals: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
 }
@@ -67,6 +67,7 @@ impl DiagnosableError for GeneratorError {
 pub trait ArgumentsExt {
     fn get_expr(&self, n: usize) -> Result<&SymbolicExpression, GeneratorError>;
     fn get_name(&self, n: usize) -> Result<&ClarityName, GeneratorError>;
+    fn get_list(&self, n: usize) -> Result<&[SymbolicExpression], GeneratorError>;
 }
 
 impl ArgumentsExt for &[SymbolicExpression] {
@@ -81,6 +82,14 @@ impl ArgumentsExt for &[SymbolicExpression] {
             .match_atom()
             .ok_or(GeneratorError::InternalError(format!(
                 "{self:?} does not have a name at argument index {n}"
+            )))
+    }
+
+    fn get_list(&self, n: usize) -> Result<&[SymbolicExpression], GeneratorError> {
+        self.get_expr(n)?
+            .match_list()
+            .ok_or(GeneratorError::InternalError(format!(
+                "{self:?} does not have a list at argument index {n}"
             )))
     }
 }
@@ -1722,6 +1731,27 @@ impl WasmGenerator {
             false
         }
     }
+
+    /// Save the expression on the top of the stack, with Clarity type `ty`, to
+    ///  local variables. Return the list of local variables.
+    pub fn save_to_locals(
+        &mut self,
+        builder: &mut walrus::InstrSeqBuilder,
+        ty: &TypeSignature,
+    ) -> Vec<LocalId> {
+        let wasm_types = clar2wasm_ty(ty);
+        let mut locals = Vec::with_capacity(wasm_types.len());
+        // Iterate in reverse order, since we are popping items off of the top
+        // in reverse order.
+        for wasm_ty in wasm_types.iter().rev() {
+            let local = self.module.locals.add(*wasm_ty);
+            locals.push(local);
+            builder.local_set(local);
+        }
+        // Reverse the locals to put them back in the correct order.
+        locals.reverse();
+        locals
+    }
 }
 
 /// Convert a Clarity type signature to a wasm type signature.
@@ -1835,18 +1865,17 @@ impl WasmGenerator {
             return Ok(());
         }
 
-        let types = clar2wasm_ty(&ty);
-        for n in 0..types.len() {
-            let local = match self.locals.get(format!("{}.{}", atom.as_str(), n).as_str()) {
-                Some(local) => *local,
-                None => {
-                    return Err(GeneratorError::InternalError(format!(
-                        "unable to find local for {}",
-                        atom.as_str()
-                    )));
-                }
-            };
-            builder.local_get(local);
+        // Handle parameters and local bindings
+        let values = self
+            .locals
+            .get(atom.as_str())
+            .ok_or(GeneratorError::InternalError(format!(
+                "unable to find local for {}",
+                atom.as_str()
+            )))?;
+
+        for value in values {
+            builder.local_get(*value);
         }
 
         Ok(())

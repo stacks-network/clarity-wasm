@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub mod arithmetic;
+pub mod bindings;
 pub mod bitwise;
 pub mod blockinfo;
 pub mod buff_to_integer;
@@ -105,6 +106,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &buff_to_integer::BuffToUintLe,
     &logical::Not,
     &equal::IsEq,
+    &bindings::Let,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

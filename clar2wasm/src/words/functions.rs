@@ -81,12 +81,14 @@ fn traverse_define_function(
     let mut params_types = Vec::new();
     for param in function_type.args.iter() {
         let param_types = clar2wasm_ty(&param.signature);
-        for (n, ty) in param_types.iter().enumerate() {
-            let local = generator.module.locals.add(*ty);
-            locals.insert(format!("{}.{}", param.name, n), local);
+        let mut plocals = Vec::with_capacity(param_types.len());
+        for ty in param_types {
+            let local = generator.module.locals.add(ty);
             param_locals.push(local);
-            params_types.push(*ty);
+            plocals.push(local);
+            params_types.push(ty);
         }
+        locals.insert(param.name.to_string(), plocals.clone());
     }
 
     let results_types = clar2wasm_ty(&function_type.returns);
