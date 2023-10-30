@@ -71,7 +71,7 @@ impl Word for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let _ = traverse_response(generator, builder, args);
+        traverse_response(generator, builder, args)?;
 
         // Add one to stack
         // and proceed with a XOR operation
