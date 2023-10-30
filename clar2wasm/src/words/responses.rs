@@ -71,16 +71,12 @@ impl Word for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        match traverse_response(generator, builder, args) {
-            Ok(_) => {
-                // Add one to stack
-                // and proceed with a XOR operation
-                // to invert the indicator value
-                builder.i32_const(1);
-                builder.binop(BinaryOp::I32Xor);
-            }
-            Err(e) => return Err(e),
-        };
+        let _ = traverse_response(generator, builder, args);
+
+        // Add one to stack
+        // and proceed with a XOR operation
+        // to invert the indicator value
+        builder.i32_const(1).binop(BinaryOp::I32Xor);
 
         // Xor'ed indicator is on stack.
         Ok(())
