@@ -825,26 +825,11 @@ impl WasmGenerator {
         types: &(TypeSignature, TypeSignature),
     ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Err Value | Ok Value | Indicator |
-        let err_types = clar2wasm_ty(&types.1);
-        let ok_types = clar2wasm_ty(&types.0);
-
         // Save the error values to locals
-        let mut err_locals = Vec::with_capacity(err_types.len());
-        for err_ty in err_types.iter().rev() {
-            let local = self.module.locals.add(*err_ty);
-            err_locals.push(local);
-            builder.local_set(local);
-        }
-        err_locals.reverse();
+        let err_locals = self.save_to_locals(builder, &types.1, true);
 
         // Save the ok values to locals
-        let mut ok_locals = Vec::with_capacity(ok_types.len());
-        for ok_ty in ok_types.iter().rev() {
-            let local = self.module.locals.add(*ok_ty);
-            ok_locals.push(local);
-            builder.local_set(local);
-        }
-        ok_locals.reverse();
+        let ok_locals = self.save_to_locals(builder, &types.0, true);
 
         // Create a block for the ok case
         let mut ok_block = builder.dangling_instr_seq(InstrSeqType::new(
@@ -970,16 +955,8 @@ impl WasmGenerator {
         value_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Value | Indicator |
-        let val_types = clar2wasm_ty(value_ty);
-
         // Save the values to locals
-        let mut locals = Vec::with_capacity(val_types.len());
-        for val_ty in val_types.iter().rev() {
-            let local = self.module.locals.add(*val_ty);
-            locals.push(local);
-            builder.local_set(local);
-        }
-        locals.reverse();
+        let locals = self.save_to_locals(builder, value_ty, true);
 
         // Create a block for the some case
         let mut some_block = builder.dangling_instr_seq(InstrSeqType::new(
@@ -1366,13 +1343,7 @@ impl WasmGenerator {
 
         // First, save the values to locals, so that we can get them in
         // the correct order.
-        let val_types = clar2wasm_ty(ty);
-        let mut locals = Vec::with_capacity(val_types.len());
-        for val_ty in val_types.iter().rev() {
-            let local = self.module.locals.add(*val_ty);
-            locals.push(local);
-            builder.local_set(local);
-        }
+        let mut locals = self.save_to_locals(builder, ty, false);
 
         // Now write the type prefix to memory
         builder
@@ -1735,11 +1706,15 @@ impl WasmGenerator {
     }
 
     /// Save the expression on the top of the stack, with Clarity type `ty`, to
-    ///  local variables. Return the list of local variables.
+    /// local variables. If `fix_ordering` is true, then the vector is reversed
+    /// so that the types are in logical order. Without this, they will be in
+    /// reverse order, due to the order we pop values from the stack. Return
+    /// the list of local variables.
     pub fn save_to_locals(
         &mut self,
         builder: &mut walrus::InstrSeqBuilder,
         ty: &TypeSignature,
+        fix_ordering: bool,
     ) -> Vec<LocalId> {
         let wasm_types = clar2wasm_ty(ty);
         let mut locals = Vec::with_capacity(wasm_types.len());
@@ -1750,8 +1725,11 @@ impl WasmGenerator {
             locals.push(local);
             builder.local_set(local);
         }
-        // Reverse the locals to put them back in the correct order.
-        locals.reverse();
+
+        if fix_ordering {
+            // Reverse the locals to put them back in the correct order.
+            locals.reverse();
+        }
         locals
     }
 }

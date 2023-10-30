@@ -37,7 +37,7 @@ impl Word for Let {
                 .get_expr_type(value)
                 .expect("let value expression must be typed")
                 .clone();
-            let locals = generator.save_to_locals(builder, &ty);
+            let locals = generator.save_to_locals(builder, &ty, true);
 
             // Add these locals to the map
             generator.locals.insert(name.to_string(), locals);

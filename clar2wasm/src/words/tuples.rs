@@ -124,7 +124,7 @@ impl Word for TupleGet {
             val_locals.push(local);
         }
 
-        // Loop through the fields of the tuple, in reverse order. Whwn we find
+        // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
         for (field_name, field_ty) in field_types.iter().rev() {
@@ -207,13 +207,7 @@ impl Word for TupleMerge {
         let mut locals = BTreeMap::new();
         // LHS
         for (field_name, field_ty) in lhs_tuple_ty.get_type_map().iter().rev() {
-            let wasm_types = clar2wasm_ty(field_ty);
-            let mut field_locals = Vec::with_capacity(wasm_types.len());
-            for local_ty in wasm_types.iter().rev() {
-                let local = generator.module.locals.add(*local_ty);
-                builder.local_set(local);
-                field_locals.push(local);
-            }
+            let field_locals = generator.save_to_locals(builder, field_ty, false);
             locals.insert(field_name, field_locals);
         }
 
