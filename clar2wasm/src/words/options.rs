@@ -65,7 +65,7 @@ impl Word for IsNone {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let _ = traverse_optional(generator, builder, args);
+        traverse_optional(generator, builder, args)?;
 
         // Add one to stack
         // and proceed with a XOR operation
