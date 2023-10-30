@@ -1,7 +1,7 @@
-use crate::{cli::DataArgs, context::TestContext, ok, appdb::AppDb, runtime};
-use clarity::vm::{types::{QualifiedContractIdentifier, StandardPrincipalData}, ClarityVersion};
+use crate::{cli::DataArgs, ok, appdb::AppDb, context::{TestEnv, GlobalEnvContext, Runtime}};
+use clarity::vm::{types::{QualifiedContractIdentifier, StandardPrincipalData}, ast::ASTRules};
 use color_eyre::eyre::Result;
-use blockstack_lib::chainstate::stacks::TransactionContractCall;
+use blockstack_lib::chainstate::stacks::{TransactionContractCall, db::StacksChainState};
 use diesel::{SqliteConnection, Connection};
 use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
@@ -11,13 +11,30 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let mut app_db = AppDb::new(app_db_conn);
 
+    let context = GlobalEnvContext::new(app_db);
+
+    let baseline_env = context.env(
+        "baseline", 
+        Runtime::Interpreter, 
+        &config.baseline.chainstate_path)?;
+
+    std::process::exit(1);
+
+
     //crate::runtime::analyze_contract(contract_identifier, expressions, data_store, cost_tracker);
     //crate::runtime::install_contract(contract_identifier, expressions, clarity_db, cost_tracker);
+/*
+    let mut baseline_env = TestEnv::new(
+        "baseline", 
+        &config.baseline.chainstate_path, 
+        &mut app_db)?;
+        
+    let wasm_env = TestEnv::new(
+        "wasm", 
+        &config.envs("wasm").chainstate_path, 
+        &mut app_db)?;
 
-    // Open a new context
-    let mut test_context = TestContext::new(config)?;
-
-    test_context.with_baseline_env(|_ctx, env| {
+    baseline_env.with_env(|ctx| {
         let mut contract_calls: Vec<TransactionContractCall> = Default::default();
 
         info!(
@@ -25,7 +42,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             data_args.from_height
         );
         let mut processed_block_count = 0;
-        for block_header in env.blocks(data_args.from_height)? {
+        for block_header in ctx.blocks(data_args.from_height)? {
             // Ensure that we've reached the specified block-height before beginning
             // processing.
             if block_header.block_height() < data_args.from_height {
@@ -50,17 +67,15 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             }
 
             let block_id = StacksBlockId::from_hex(block_header.index_block_hash())?;
-            let block = env.get_stacks_block(block_header.index_block_hash())?;
-
-            block.validate_transactions_static(mainnet, chain_id, epoch_id)
+            let block = ctx.get_stacks_block(block_header.index_block_hash())?;
 
             // Load the block
             debug!("loading block '{block_id}'");
-            env.load_block(&block_id)?;
+            ctx.load_block(&block_id)?;
 
             debug!("inserting block into app db");
-            let db_block = app_db.insert_block(
-                env.id(),
+            let db_block = ctx.app_db().insert_block(
+                ctx.env_id(),
                 block_header.header.block_height() as i32,
                 block_header.header.block_height() as i32,
                 block.block_hash().as_bytes(),
@@ -87,10 +102,18 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
                         info!("tx_id: {:?}; contract: {:?}; clarity_version: {:?}", tx.txid(), contract_id, clarity_version);
 
-                        let db_contract = app_db
+                        /*let db_contract = ctx.db()
                             .insert_contract(db_block.id, &contract_id.to_string(), &contract.code_body.to_string())?;
 
-                        app_db.insert_execution(db_block.id, &tx.txid().0, db_contract.id)?;
+                        app_db.insert_execution(db_block.id, &tx.txid().0, db_contract.id)?;*/
+
+                        /*ctx.with_app_db(|db| {
+                            let db_contract = db.insert_contract(db_block.id, &contract_id.to_string(), &contract.code_body.to_string())?;
+                            db.insert_execution(db_block.id, &tx.txid().0, db_contract.id)?;
+                            ok!()
+                        })?;*/
+
+                        //StacksChainState::process_transaction_payload(clarity_tx, tx, &tx., ASTRules::Typical);
                     },
                     _ => {}
                 }
@@ -105,5 +128,8 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
         ok!()
     })?;
+
+    &baseline_env.db();*/
+
     ok!()
 }

@@ -1,26 +1,23 @@
 use clarity::vm::database::ClarityBackingStore;
-use clarity::vm::types::QualifiedContractIdentifier;
-use color_eyre::eyre::bail;
-use diesel::BoolExpressionMethods;
-use diesel::{SqliteConnection, insert_into, RunQueryDsl, ExpressionMethods, QueryDsl, OptionalExtension};
+
 use sha2::{Sha512_256, Digest};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
 use crate::appdb::AppDb;
 use crate::model::app_db::ContractExecution;
-use crate::schema::appdb::*;
+
 
 
 pub struct DataStore<'a> {
     exec: Option<ContractExecution>,
-    db: &'a mut AppDb,
+    db: &'a AppDb,
     open_chain_tip: StacksBlockId,
     current_chain_tip: StacksBlockId,
     chain_height: u32
 }
 
 impl<'a> DataStore<'a> {
-    pub fn new(db: &'a mut AppDb) -> Self {
+    pub fn new(db: &'a AppDb) -> Self {
         let id = Self::height_to_id(0);
 
         Self {
@@ -32,7 +29,7 @@ impl<'a> DataStore<'a> {
         }
     }
 
-    pub fn as_clarity_store(&'a mut self) -> &'a mut dyn ClarityBackingStore {
+    pub fn as_clarity_store(&mut self) -> &mut dyn ClarityBackingStore {
         self
     }
 
