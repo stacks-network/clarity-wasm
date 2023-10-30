@@ -796,7 +796,7 @@
             (br_if $done
                 (i32.eqz
                     (local.tee $i
-                        ;; no i32.min is Wasm...
+                        ;; no i32.min in Wasm...
                         (select
                             (local.get $length_a)
                             (local.get $length_b)
