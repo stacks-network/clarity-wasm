@@ -22,7 +22,9 @@ pub mod functions;
 pub mod hashing;
 pub mod logical;
 pub mod maps;
+pub mod options;
 pub mod print;
+pub mod responses;
 pub mod sequences;
 pub mod stx;
 pub mod tokens;
@@ -106,6 +108,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &buff_to_integer::BuffToUintLe,
     &logical::Not,
     &equal::IsEq,
+    &options::IsSome,
+    &options::IsNone,
+    &responses::IsOk,
+    &responses::IsErr,
     &bindings::Let,
 ];
 
