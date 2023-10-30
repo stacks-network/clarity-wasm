@@ -3,11 +3,11 @@
 )
 
 (define-public (some-falsy)
-    (ok (is-some (element-at? (list 1 2 3 4 5) u99)))
+    (ok (is-some none))
 )
 
 (define-public (none-truthy)
-    (ok (is-none (element-at? (list 1 2 5) u5)))
+    (ok (is-none none))
 )
 
 (define-public (none-falsy)
