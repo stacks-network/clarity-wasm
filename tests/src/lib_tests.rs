@@ -3796,6 +3796,46 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_ok_truthy,
+    "responses",
+    "ok-truthy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_ok_falsy,
+    "responses",
+    "ok-falsy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_err_truthy,
+    "responses",
+    "err-truthy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_err_falsy,
+    "responses",
+    "err-falsy",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_is_some_truthy,
     "options",
     "some-truthy",
