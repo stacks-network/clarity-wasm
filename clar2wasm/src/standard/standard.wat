@@ -791,6 +791,14 @@
 
     (func $lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
+        ;; pseudo-code:
+        ;; let i = min(length_a, length_b)
+        ;; while i != 0 {
+        ;;   if ((sub = a[offset_a] - b[offset_b]) == 0) {
+        ;;     offset_a += 1; offset_b += 1; i -= 1;
+        ;;   } else { break }
+        ;; }
+        ;; return (sub != 0) ? (sub < 0) : (length_a < length_b)
         (block $done
             ;; we can skip the comparison loop if $i (min length) is 0
             (br_if $done
@@ -808,6 +816,7 @@
             (loop $loop
                 (if
                     (i32.eqz
+                        ;; $sub will be 0 if both are equal, otherwise its sign indicates which is smaller
                         (local.tee $sub
                             (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
                         )
