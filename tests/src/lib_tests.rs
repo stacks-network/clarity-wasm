@@ -3556,6 +3556,246 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_less_than_buffer,
+    "cmp-buffer",
+    "less-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_buffer,
+    "cmp-buffer",
+    "greater-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_buffer,
+    "cmp-buffer",
+    "less-or-equal-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_buffer,
+    "cmp-buffer",
+    "greater-or-equal-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_ascii,
+    "cmp-buffer",
+    "less-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_string_ascii,
+    "cmp-buffer",
+    "greater-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_string_ascii,
+    "cmp-buffer",
+    "less-or-equal-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_string_ascii,
+    "cmp-buffer",
+    "greater-or-equal-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_buffer_diff_len,
+    "cmp-buffer",
+    "less-buffer-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_buffer_diff_len,
+    "cmp-buffer",
+    "greater-buffer-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_buffer_diff_len,
+    "cmp-buffer",
+    "less-or-equal-buffer-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_buffer_diff_len,
+    "cmp-buffer",
+    "greater-or-equal-buffer-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_ascii_diff_len,
+    "cmp-buffer",
+    "less-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_string_ascii_diff_len,
+    "cmp-buffer",
+    "greater-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_string_ascii_diff_len,
+    "cmp-buffer",
+    "less-or-equal-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_string_ascii_diff_len,
+    "cmp-buffer",
+    "greater-or-equal-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_same_buffer,
+    "cmp-buffer",
+    "less-same-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_same_buffer,
+    "cmp-buffer",
+    "greater-same-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_same_buffer,
+    "cmp-buffer",
+    "less-or-equal-same-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_same_buffer,
+    "cmp-buffer",
+    "greater-or-equal-same-buffer",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_same_string_ascii,
+    "cmp-buffer",
+    "less-same-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_than_same_string_ascii,
+    "cmp-buffer",
+    "greater-same-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_or_equal_same_string_ascii,
+    "cmp-buffer",
+    "less-or-equal-same-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_same_string_ascii,
+    "cmp-buffer",
+    "greater-or-equal-same-string-ascii",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_is_some_truthy,
     "options",
     "some-truthy",

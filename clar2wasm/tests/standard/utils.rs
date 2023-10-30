@@ -1066,3 +1066,39 @@ pub(crate) fn test_buff_to_uint(
         prop_assert_eq!(result[1].unwrap_i64(), expected_result.high());
     });
 }
+
+pub(crate) fn test_buff_comparison(
+    func_name: &str,
+    reference_function: impl Fn(&[u8], &[u8]) -> bool,
+) {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let cmp = instance
+        .get_func(store.borrow_mut().deref_mut(), func_name)
+        .unwrap();
+
+    proptest!(ProptestConfig::with_cases(1000), |(buff_a in buffer(1500, 100), buff_b in buffer(2000, 100))| {
+        let expected_result = reference_function(&buff_a, &buff_b) as i32;
+
+        let mut result = [Val::I32(0)];
+        let (offset_a, length_a) = buff_a
+            .write_to_memory(memory, store.borrow_mut().deref_mut())
+            .expect("Could not write to memory");
+        let (offset_b, length_b) = buff_b
+            .write_to_memory(memory, store.borrow_mut().deref_mut())
+            .expect("Could not write to memory");
+        cmp
+            .call(
+                store.borrow_mut().deref_mut(),
+                &[offset_a.into(), length_a.into(), offset_b.into(), length_b.into()],
+                &mut result,
+            )
+            .unwrap_or_else(|_| panic!("call to {func_name} failed"));
+        prop_assert_eq!(result[0].unwrap_i32(), expected_result);
+    });
+}
