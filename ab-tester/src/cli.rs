@@ -127,7 +127,7 @@ impl DataArgs {
     pub fn assert_block_height_under_max_height(&self, block_height: u32) -> Result<()> {
         if let Some(to_height) = self.to_height {
             ensure!(
-                block_height < to_height,
+                block_height <= to_height,
                 AppError::Graceful("block height has reached the specified maximum block height (to-height)")
             )
         }

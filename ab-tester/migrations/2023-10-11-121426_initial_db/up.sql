@@ -1,5 +1,3 @@
-PRAGMA journal_mode=WAL;
-
 CREATE TABLE IF NOT EXISTS runtime (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL

@@ -16,7 +16,7 @@ mod appdb;
 use clap::Parser;
 use cli::*;
 use config::Config;
-use diesel::{Connection, SqliteConnection};
+use diesel::{Connection, SqliteConnection, connection::SimpleConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
 use std::process::exit;
@@ -69,6 +69,16 @@ async fn main() -> Result<()> {
 /// database if it does not already exist.
 fn apply_db_migrations(config: &Config) -> Result<()> {
     let mut app_db = SqliteConnection::establish(&config.app.db_path)?;
+
+    app_db.batch_execute("
+        PRAGMA journal_mode = WAL;          -- better write-concurrency
+        PRAGMA synchronous = NORMAL;        -- fsync only in critical moments
+        PRAGMA wal_autocheckpoint = 1000;   -- write WAL changes back every 1000 pages, for an in average 1MB WAL file. May affect readers if number is increased
+        PRAGMA wal_checkpoint(TRUNCATE);    -- free some space by truncating possibly massive WAL files from the last run.
+        PRAGMA busy_timeout = 250;          -- sleep if the database is busy
+        PRAGMA foreign_keys = ON;           -- enforce foreign keys
+    ")?;
+
     let has_pending_migrations =
         MigrationHarness::has_pending_migration(&mut app_db, DB_MIGRATIONS)
             .or_else(|e| bail!("failed to determine database migration state: {:?}", e))?;

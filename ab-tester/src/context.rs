@@ -1,4 +1,4 @@
-use std::{cell::{RefCell, RefMut}, collections::HashMap, rc::Rc, time::{Instant, Duration}};
+use std::{cell::{RefCell, RefMut}, collections::HashMap, rc::Rc, time::{Instant, Duration}, marker::PhantomData};
 
 use color_eyre::eyre::{Result, Context, bail, anyhow};
 use blockstack_lib::chainstate::stacks::{
@@ -72,7 +72,7 @@ pub struct TestEnv<'a> {
     //chainstate_path: String,
     blocks_dir: String,
     chainstate: StacksChainState,
-    index_db_conn: SqliteConnection,
+    index_db_conn: RefCell<SqliteConnection>,
     //sortition_db: SortitionDB,
     clarity_db_conn: SqliteConnection
 }
@@ -137,7 +137,7 @@ impl<'a> TestEnv<'a> {
             //chainstate_path: chainstate_path.to_string(),
             blocks_dir,
             chainstate: chainstate.0,
-            index_db_conn,
+            index_db_conn: RefCell::new(index_db_conn),
             //sortition_db,
             clarity_db_conn
         })
@@ -158,12 +158,12 @@ impl<'a> TestEnv<'a> {
     }
 
     /// Retrieve all block headers from the underlying storage.
-    pub fn block_headers(&mut self) -> Result<Vec<BlockHeader>> {
+    pub fn block_headers(&self) -> Result<Vec<BlockHeader>> {
         // Retrieve the tip.
         let tip = schema::chainstate_marf::block_headers::table
             .order_by(schema::chainstate_marf::block_headers::block_height.desc())
             .limit(1)
-            .get_result::<BlockHeader>(&mut self.index_db_conn)?;
+            .get_result::<BlockHeader>(&mut *self.index_db_conn.borrow_mut())?;
 
         let mut current_block = Some(tip.clone());
         let mut headers = vec![tip];
@@ -172,7 +172,7 @@ impl<'a> TestEnv<'a> {
         while let Some(block) = current_block {
             let ancestor = schema::chainstate_marf::block_headers::table
                 .filter(schema::chainstate_marf::block_headers::index_block_hash.eq(block.parent_block_id))
-                .get_result::<BlockHeader>(&mut self.index_db_conn)
+                .get_result::<BlockHeader>(&mut *self.index_db_conn.borrow_mut())
                 .optional()?;
             
             if let Some(b) = ancestor.clone() {
@@ -191,7 +191,7 @@ impl<'a> TestEnv<'a> {
     }
 
     /// Retrieve a cursor over all blocks.
-    pub fn blocks(&mut self) -> Result<BlockCursor> {
+    pub fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
         let cursor = BlockCursor::new(&self.blocks_dir, headers);
         Ok(cursor)
@@ -509,16 +509,6 @@ impl std::fmt::Debug for BlockCursor {
     }
 }
 
-/// Provides an implementation of [Iterator] for [BlockCursor] to allow for
-/// simple iteration through blocks.
-impl Iterator for BlockCursor {
-    type Item = Block;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next().unwrap_or(None)
-    }
-}
-
 /// Implementation of [BlockCursor].
 #[allow(dead_code)]
 impl BlockCursor {
@@ -554,8 +544,7 @@ impl BlockCursor {
         }
 
         self.height += 1;
-        let block = self.get_block(height)?;
-        Ok(block)
+        Ok(self.get_block(height)?)
     }
 
     /// Decrements the cursor position and retrieves the [Block] at the
@@ -616,6 +605,29 @@ impl BlockCursor {
         };
 
         Ok(Some(block))
+    }
+}
+
+/// Provides an [Iterator] over blocks.
+pub struct BlockIntoIter(BlockCursor);
+
+impl Iterator for BlockIntoIter {
+    type Item = Block;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.0.next()
+            .expect("failed to retrieve next value");
+        next
+    }
+}
+
+impl IntoIterator for BlockCursor {
+    type Item = Block;
+
+    type IntoIter = BlockIntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BlockIntoIter(self)
     }
 }
 
