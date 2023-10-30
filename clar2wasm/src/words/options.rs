@@ -22,7 +22,10 @@ pub fn traverse_optional(
     let some_ty = if let TypeSignature::OptionalType(some_type) = &ty {
         &**some_type
     } else {
-        panic!("Expected an Optional type. Found: {:?}", ty);
+        return Err(GeneratorError::TypeError(format!(
+            "Expected an Optional type. Found {:?}",
+            ty
+        )));
     };
 
     // Drop the some type.
