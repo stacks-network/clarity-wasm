@@ -1679,6 +1679,74 @@ fn test_ge_int() {
     assert_eq!(result[0].i32(), Some(1));
 }
 
+fn test_cmp_buff(func_name: &str, reference_func: impl Fn(&[u8], &[u8]) -> bool) {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let cmp = instance.get_func(&mut store, func_name).unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_cmp = |buff_a: &[u8], buff_b: &[u8]| {
+        let offset_a = 1000;
+        let offset_b = offset_a + buff_a.len();
+        memory
+            .write(&mut store, offset_a, buff_a)
+            .expect("could not write to memory");
+        memory
+            .write(&mut store, offset_b, buff_b)
+            .expect("could not write to memory");
+
+        cmp.call(
+            &mut store,
+            &[
+                Val::I32(offset_a as i32),
+                Val::I32(buff_a.len() as i32),
+                Val::I32(offset_b as i32),
+                Val::I32(buff_b.len() as i32),
+            ],
+            &mut result,
+        )
+        .expect("call to lt-buff failed");
+
+        assert_eq!(
+            result[0].unwrap_i32(),
+            reference_func(buff_a, buff_b) as i32
+        )
+    };
+
+    // tests with empty buffers
+    test_cmp(&[], &[]);
+    test_cmp(&[], &[0]);
+    test_cmp(&[0], &[]);
+
+    // test with longer equal buffers up to...
+    test_cmp(&[1, 2, 3], &[1, 2, 3]);
+    test_cmp(&[1, 2, 3, 4], &[1, 2, 3]);
+    test_cmp(&[1, 2, 3], &[1, 2, 3, 4]);
+}
+
+#[test]
+fn test_lt_buff() {
+    test_cmp_buff("lt-buff", |a, b| a < b)
+}
+
+#[test]
+fn test_gt_buff() {
+    test_cmp_buff("gt-buff", |a, b| a > b)
+}
+
+#[test]
+fn test_le_buff() {
+    test_cmp_buff("le-buff", |a, b| a <= b)
+}
+
+#[test]
+fn test_ge_buff() {
+    test_cmp_buff("ge-buff", |a, b| a >= b)
+}
+
 #[test]
 fn test_log2_uint() {
     let (instance, mut store) = load_stdlib().unwrap();

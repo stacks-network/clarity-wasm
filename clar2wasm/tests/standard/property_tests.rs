@@ -7,8 +7,9 @@ use wasmtime::Val;
 
 use crate::utils::{
     self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
-    test_buff_to_uint, test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128,
-    tiny_uint128, FromWasmResult, PropInt, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
+    test_buff_comparison, test_buff_to_uint, test_on_buffer_hash, test_on_int_hash,
+    test_on_uint_hash, tiny_int128, tiny_uint128, FromWasmResult, PropInt, SIGNED_STRATEGIES,
+    UNSIGNED_STRATEGIES,
 };
 
 #[test]
@@ -567,4 +568,24 @@ fn prop_buff_to_uint_le() {
             u128::from_le_bytes(b.try_into().unwrap())
         })
     })
+}
+
+#[test]
+fn prop_lt_buff() {
+    test_buff_comparison("lt-buff", |a, b| a < b)
+}
+
+#[test]
+fn prop_gt_buff() {
+    test_buff_comparison("gt-buff", |a, b| a > b)
+}
+
+#[test]
+fn prop_le_buff() {
+    test_buff_comparison("le-buff", |a, b| a <= b)
+}
+
+#[test]
+fn prop_ge_buff() {
+    test_buff_comparison("ge-buff", |a, b| a >= b)
 }
