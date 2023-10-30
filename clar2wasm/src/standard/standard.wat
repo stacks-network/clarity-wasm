@@ -10,6 +10,7 @@
     (type (;6;) (func (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)))
     (type (;7;) (func (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)))
     (type (;8;) (func (param $bool_in i32) (result i32)))
+    (type (;9;) (func (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)))
 
     ;; Functions imported for host interface
     (import "clarity" "define_function" (func $define_function (param $kind i32)
@@ -785,6 +786,167 @@
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_s (local.get $a_hi) (local.get $b_hi))
             (i64.eq (local.get $a_hi) (local.get $b_hi))
+        )
+    )
+
+    (func $lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; pseudo-code:
+        ;; let i = min(length_a, length_b)
+        ;; while i != 0 {
+        ;;   if ((sub = a[offset_a] - b[offset_b]) == 0) {
+        ;;     offset_a += 1; offset_b += 1; i -= 1;
+        ;;   } else { break }
+        ;; }
+        ;; return (sub != 0) ? (sub < 0) : (length_a < length_b)
+        (block $done
+            ;; we can skip the comparison loop if $i (min length) is 0
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        ;; no i32.min in Wasm...
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        ;; $sub will be 0 if both are equal, otherwise its sign indicates which is smaller
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        ;; if sub is 0, it means that for the min length of both buffers, both are equals
+        ;;   - in this case, the result is the comparison of the lengths
+        ;;   - otherwise $sub < 0
+        (select
+            (i32.lt_s (local.get $sub) (i32.const 0))
+            (i32.lt_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
+        )
+    )
+
+    (func $gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; same algorithm as $lt-buff
+        (block $done
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        (select
+            (i32.gt_s (local.get $sub) (i32.const 0))
+            (i32.gt_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
+        )
+    )
+
+    (func $le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; same algorithm as $lt-buff
+        (block $done
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        (select
+            (i32.le_s (local.get $sub) (i32.const 0))
+            (i32.le_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
+        )
+    )
+
+    (func $ge-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (local $i i32) (local $sub i32)
+        ;; same algorithm as $lt-buff
+        (block $done
+            (br_if $done
+                (i32.eqz
+                    (local.tee $i
+                        (select
+                            (local.get $length_a)
+                            (local.get $length_b)
+                            (i32.lt_u (local.get $length_a) (local.get $length_b))
+                        )
+                    )
+                )
+            )
+            (loop $loop
+                (if
+                    (i32.eqz
+                        (local.tee $sub
+                            (i32.sub (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                        )
+                    )
+                    (then
+                        (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                        (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                        (br_if $loop (local.tee $i (i32.sub (local.get $i) (i32.const 1))))
+                    )
+                )
+            )
+        )
+        (select
+            (i32.ge_s (local.get $sub) (i32.const 0))
+            (i32.ge_u (local.get $length_a) (local.get $length_b))
+            (local.get $sub)
         )
     )
 
@@ -1792,6 +1954,10 @@
     (export "gt-int" (func $gt-int))
     (export "le-int" (func $le-int))
     (export "ge-int" (func $ge-int))
+    (export "lt-buff" (func $lt-buff))
+    (export "gt-buff" (func $gt-buff))
+    (export "le-buff" (func $le-buff))
+    (export "ge-buff" (func $ge-buff))
     (export "log2-uint" (func $log2-uint))
     (export "log2-int" (func $log2-int))
     (export "sqrti-uint" (func $sqrti-uint))
