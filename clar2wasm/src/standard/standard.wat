@@ -1980,6 +1980,22 @@
         )
     )
 
+    (func $stdlib.is-eq-bytes (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+        (if (i32.ne (local.get $length_a) (local.get $length_b)) (then (return (i32.const 0))))
+        (if (i32.eqz (local.get $length_a)) (then (return (i32.const 1))))
+
+        (loop $loop
+            (if (i32.eq (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
+                (then 
+                    (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                    (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                    (br_if $loop (local.tee $length_a (i32.sub (local.get $length_a) (i32.const 1))))
+                )
+            )
+        )
+        (i32.eqz (local.get $length_a))
+    )
+
     ;;
     ;; `(principal-construct? version pkhash)` implementation
     ;; `version` is a `(buff 1)` and `pkhash` is a `(buff 20)`.
@@ -2405,6 +2421,7 @@
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
+    (export "stdlib.is-eq-bytes" (func $stdlib.is-eq-bytes))
     (export "stdlib.principal-construct" (func $stdlib.principal-construct))
     (export "stdlib.is-valid-contract-name" (func $stdlib.is-valid-contract-name))
     (export "stdlib.is-alpha" (func $stdlib.is-alpha))
