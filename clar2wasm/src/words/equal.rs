@@ -1,6 +1,6 @@
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{
-    types::{SequenceSubtype, StringSubtype, TypeSignature},
+    types::{signatures::CallableSubtype, SequenceSubtype, StringSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
 };
 use walrus::ir::BinaryOp;
@@ -41,10 +41,11 @@ impl Word for IsEq {
             TypeSignature::IntType | TypeSignature::UIntType => "int",
             // is-eq-bytes function can be used for types with (offset, length)
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
-                "bytes"
-            }
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_)))
+            | TypeSignature::PrincipalType
+            | TypeSignature::CallableType(CallableSubtype::Principal(_)) => "bytes",
             _ => {
+                dbg!(ty);
                 return Err(GeneratorError::NotImplemented);
             }
         };
