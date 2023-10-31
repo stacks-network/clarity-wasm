@@ -1725,6 +1725,10 @@ fn test_cmp_buff(func_name: &str, reference_func: impl Fn(&[u8], &[u8]) -> bool)
     test_cmp(&[1, 2, 3], &[1, 2, 3]);
     test_cmp(&[1, 2, 3, 4], &[1, 2, 3]);
     test_cmp(&[1, 2, 3], &[1, 2, 3, 4]);
+
+    // test different end
+    test_cmp(&[1, 2, 3], &[1, 2, 4]);
+    test_cmp(&[1, 2, 3], &[1, 2, 2]);
 }
 
 #[test]
@@ -1745,6 +1749,11 @@ fn test_le_buff() {
 #[test]
 fn test_ge_buff() {
     test_cmp_buff("stdlib.ge-buff", |a, b| a >= b)
+}
+
+#[test]
+fn test_is_eq_bytes() {
+    test_cmp_buff("is-eq-bytes", |a, b| a == b)
 }
 
 #[test]
