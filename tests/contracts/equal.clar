@@ -53,3 +53,31 @@
 (define-public (uint-unequal-2)
     (ok (is-eq u43 u43 u54 u56 u43 u43))
 )
+
+(define-public (buf-equal)
+    (ok (is-eq 0x0102 0x0102))
+)
+
+(define-public (buf-equal-2)
+    (ok (is-eq 0x0102 0x0102 0x0102))
+)
+
+(define-public (buf-unequal)
+    (ok (is-eq 0x0102 0x0103))
+)
+
+(define-public (buf-unequal-2)
+    (ok (is-eq 0x0102 0x010203))
+)
+
+(define-public (buf-unequal-3)
+    (ok (is-eq 0x01 0x01 0x02))
+)
+
+(define-public (str-ascii-equal)
+    (ok (is-eq "hello" "hello"))
+)
+
+(define-public (str-ascii-unequal)
+    (ok (is-eq "hello" "world"))
+)
