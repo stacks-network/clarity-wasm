@@ -3102,6 +3102,56 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_principal_equal,
+    "equal",
+    "principal-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_principal_unequal,
+    "equal",
+    "principal-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_principal_equal,
+    "equal",
+    "call-principal-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_principal_unequal,
+    "equal",
+    "call-principal-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_principal_unequal_2,
+    "equal",
+    "call-principal-unequal-2",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_append,
     "sequences",
     "list-append",

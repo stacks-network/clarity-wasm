@@ -81,3 +81,23 @@
 (define-public (str-ascii-unequal)
     (ok (is-eq "hello" "world"))
 )
+
+(define-public (principal-equal)
+    (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))
+)
+
+(define-public (principal-unequal)
+    (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR))
+)
+
+(define-public (call-principal-equal)
+    (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo))
+)
+
+(define-public (call-principal-unequal)
+    (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bar))
+)
+
+(define-public (call-principal-unequal-2)
+    (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR.foo))
+)
