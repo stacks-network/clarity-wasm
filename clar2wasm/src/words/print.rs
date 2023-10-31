@@ -1,4 +1,4 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
@@ -25,18 +25,11 @@ impl Word for Print {
         generator.traverse_expr(builder, value)?;
 
         // Save the value to locals
-        let wasm_types = clar2wasm_ty(
-            generator
-                .get_expr_type(value)
-                .expect("print value expression must be typed"),
-        );
-        let mut val_locals = Vec::with_capacity(wasm_types.len());
-        for local_ty in wasm_types.iter().rev() {
-            let local = generator.module.locals.add(*local_ty);
-            val_locals.push(local);
-            builder.local_set(local);
-        }
-        val_locals.reverse();
+        let ty = generator
+            .get_expr_type(value)
+            .expect("print value expression must be typed")
+            .clone();
+        let val_locals = generator.save_to_locals(builder, &ty, true);
 
         // Save the offset (current stack pointer) into a local.
         // This is where we will serialize the value to.

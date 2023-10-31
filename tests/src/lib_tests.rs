@@ -3874,3 +3874,33 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Bool(false));
     }
 );
+
+test_contract_call_response!(
+    test_let_ints,
+    "let",
+    "let-ints",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(3));
+    }
+);
+
+test_contract_call_response!(
+    test_nested_lets,
+    "let",
+    "nested-lets",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(43));
+    }
+);
+
+test_contract_call_response!(
+    test_let_use_binding,
+    "let",
+    "let-use-binding",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(23));
+    }
+);

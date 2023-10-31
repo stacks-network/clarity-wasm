@@ -100,8 +100,8 @@ impl Word for Fold {
         // The result type must match the type of the initial value
         let result_clar_ty = generator
             .get_expr_type(initial)
-            .expect("fold's initial value expression must be typed");
-        let result_ty = crate::wasm_generator::clar2wasm_ty(result_clar_ty);
+            .expect("fold's initial value expression must be typed")
+            .clone();
         let loop_body_ty = InstrSeqType::new(&mut generator.module.types, &[], &[]);
 
         // Get the type of the sequence
@@ -156,13 +156,7 @@ impl Word for Fold {
         // Define local(s) to hold the intermediate result, and initialize them
         // with the initial value. Not that we are looping in reverse order, to
         // pop values from the top of the stack.
-        let mut result_locals = Vec::with_capacity(result_ty.len());
-        for local_ty in result_ty.iter().rev() {
-            let local = generator.module.locals.add(*local_ty);
-            result_locals.push(local);
-            builder.local_set(local);
-        }
-        result_locals.reverse();
+        let result_locals = generator.save_to_locals(builder, &result_clar_ty, true);
 
         // Define the body of a loop, to loop over the sequence and make the
         // function call.
@@ -173,7 +167,7 @@ impl Word for Fold {
             let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
 
             // Push the locals to the stack
-            for result_local in result_locals.iter() {
+            for result_local in &result_locals {
                 loop_.local_get(*result_local);
             }
 
@@ -201,8 +195,8 @@ impl Word for Fold {
         });
 
         // Push the locals to the stack
-        for result_local in result_locals.iter() {
-            builder.local_get(*result_local);
+        for result_local in result_locals {
+            builder.local_get(result_local);
         }
 
         Ok(())

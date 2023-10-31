@@ -1,4 +1,4 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
@@ -30,14 +30,7 @@ impl Word for IsEq {
             .get_expr_type(first_op)
             .expect("is-eq value expression must be typed")
             .clone();
-        let wasm_types = clar2wasm_ty(&ty);
-        let mut val_locals = Vec::with_capacity(wasm_types.len());
-        for local_ty in wasm_types.iter().rev() {
-            let local = generator.module.locals.add(*local_ty);
-            val_locals.push(local);
-            builder.local_set(local);
-        }
-        val_locals.reverse();
+        let val_locals = generator.save_to_locals(builder, &ty, true);
 
         // Equals expression needs to handle different types.
         let type_suffix = match ty {

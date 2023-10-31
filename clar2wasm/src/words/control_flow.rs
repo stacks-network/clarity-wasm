@@ -1,6 +1,4 @@
-use crate::wasm_generator::{
-    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
-};
+use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::ir::{InstrSeqType, UnaryOp};
 
@@ -77,13 +75,7 @@ impl Word for UnwrapPanic {
                 // back onto the stack and continue execution.
 
                 // Save the value in locals
-                let wasm_types = clar2wasm_ty(val_ty);
-                let mut val_locals = Vec::with_capacity(wasm_types.len());
-                for local_ty in wasm_types.iter().rev() {
-                    let local = generator.module.locals.add(*local_ty);
-                    val_locals.push(local);
-                    builder.local_set(local);
-                }
+                let val_locals = generator.save_to_locals(builder, val_ty, true);
 
                 // If the indicator is 0, throw a runtime error
                 builder.unop(UnaryOp::I32Eqz).if_else(
@@ -101,7 +93,7 @@ impl Word for UnwrapPanic {
                 );
 
                 // Otherwise, push the value back onto the stack
-                for &val_local in val_locals.iter().rev() {
+                for val_local in val_locals {
                     builder.local_get(val_local);
                 }
 
@@ -125,13 +117,7 @@ impl Word for UnwrapPanic {
                 drop_value(builder, err_ty);
 
                 // Save the ok value in locals
-                let ok_wasm_types = clar2wasm_ty(ok_ty);
-                let mut ok_val_locals = Vec::with_capacity(ok_wasm_types.len());
-                for local_ty in ok_wasm_types.iter().rev() {
-                    let local = generator.module.locals.add(*local_ty);
-                    ok_val_locals.push(local);
-                    builder.local_set(local);
-                }
+                let ok_val_locals = generator.save_to_locals(builder, ok_ty, true);
 
                 // If the indicator is 0, throw a runtime error
                 builder.unop(UnaryOp::I32Eqz).if_else(
@@ -149,7 +135,7 @@ impl Word for UnwrapPanic {
                 );
 
                 // Otherwise, push the value back onto the stack
-                for &val_local in ok_val_locals.iter().rev() {
+                for val_local in ok_val_locals {
                     builder.local_get(val_local);
                 }
 
