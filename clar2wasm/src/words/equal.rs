@@ -1,5 +1,8 @@
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::{
+    types::{SequenceSubtype, StringSubtype, TypeSignature},
+    ClarityName, SymbolicExpression,
+};
 use walrus::ir::BinaryOp;
 
 use super::Word;
@@ -36,6 +39,11 @@ impl Word for IsEq {
         let type_suffix = match ty {
             // is-eq-int function can be reused to both int and uint types.
             TypeSignature::IntType | TypeSignature::UIntType => "int",
+            // is-eq-bytes function can be used for types with (offset, length)
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "bytes"
+            }
             _ => {
                 return Err(GeneratorError::NotImplemented);
             }
