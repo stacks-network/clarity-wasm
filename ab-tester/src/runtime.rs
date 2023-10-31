@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use blockstack_lib::{chainstate::stacks::db::StacksChainState, core::BLOCK_LIMIT_MAINNET_205};
+use blockstack_lib::{chainstate::stacks::db::{StacksChainState, ClarityTx}, core::BLOCK_LIMIT_MAINNET_205};
 use clarity::vm::{
     ClarityVersion, ContractContext, 
     types::QualifiedContractIdentifier, 
@@ -7,7 +7,7 @@ use clarity::vm::{
     contexts::GlobalContext, 
     costs::LimitedCostTracker, 
     ast::{self, ASTRules}, eval_all, analysis::{AnalysisDatabase, run_analysis, ContractAnalysis}, SymbolicExpression};
-use stacks_common::types::StacksEpochId;
+use stacks_common::types::{StacksEpochId, chainstate::{ConsensusHash, BlockHeaderHash}};
 
 use crate::{config::Config, datastore::DataStore, appdb::AppDb, model::app_db::ContractExecution};
 
@@ -31,6 +31,32 @@ pub fn analyze_contract(
     ).expect("contract analysis failed");
 
     Ok(contract_analysis)
+}
+
+pub fn clarity_tx() {
+
+    let (mut chainstate, _) = 
+        StacksChainState::open_and_exec(
+            true,
+            1, 
+            "path", 
+            None, 
+            None)
+        .expect("failed to open chainstate");
+
+    let parent_consensus_hash = ConsensusHash::from_bytes(&[1, 2, 3, 4]).unwrap();
+    let new_consensus_hash = ConsensusHash::from_bytes(&[5, 6, 7, 8]).unwrap();
+    let parent_block = BlockHeaderHash::from_bytes(&[1, 2, 3, 4]).unwrap();
+    let new_block = BlockHeaderHash::from_bytes(&[5, 6, 7, 8]).unwrap();
+    
+    let mut clarity_tx = chainstate.block_begin(
+        &NULL_BURN_STATE_DB, 
+        &parent_consensus_hash, 
+        &parent_block, 
+        &new_consensus_hash, 
+        &new_block);
+
+    //StacksChainState::process_transaction(&mut clarity_tx, tx, quiet, ast_rules);
 }
 
 pub fn install_contract(

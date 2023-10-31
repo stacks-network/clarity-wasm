@@ -12,6 +12,8 @@ mod macros;
 mod datastore;
 mod runtime;
 mod appdb;
+mod stacks;
+mod clarity;
 
 use clap::Parser;
 use cli::*;

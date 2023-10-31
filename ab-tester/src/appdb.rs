@@ -101,14 +101,13 @@ impl AppDb {
         Ok(result)
     }
 
-    pub fn insert_block(&self, environment_id: i32, id: i32, height: i32, hash: &[u8], marf_trie_root_hash: &[u8]) -> Result<Block> {
+    pub fn insert_block(&self, environment_id: i32, height: i32, hash: &[u8], marf_trie_root_hash: &[u8]) -> Result<Block> {
         let result = insert_into(block::table)
             .values((
                 block::height.eq(height),
                 block::index_hash.eq(hash),
                 block::environment_id.eq(environment_id),
-                block::marf_trie_root_hash.eq(marf_trie_root_hash),
-                block::columns::stacks_block_id.eq(id)
+                block::marf_trie_root_hash.eq(marf_trie_root_hash)
             ))
             .get_result::<Block>(&mut *self.conn.borrow_mut())
             .unwrap();
