@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{cli::DataArgs, ok, appdb::AppDb, context::environments::{GlobalEnvContext, Runtime}};
+use crate::{cli::DataArgs, ok, appdb::AppDb, context::{environments::{GlobalEnvContext, Runtime}, Block}};
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use color_eyre::eyre::Result;
-use blockstack_lib::chainstate::stacks::TransactionPayload;
+use blockstack_lib::chainstate::stacks::{TransactionPayload, self};
 use diesel::{SqliteConnection, Connection};
 use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
@@ -29,11 +29,21 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let mut contracts: HashMap<QualifiedContractIdentifier, StacksBlockId> = HashMap::new();
     
     for block in baseline_env.blocks()?.into_iter() {
-        let block = &block;
+        let (header, stacks_block) = match block {
+            Block::Genesis(gen) => {
+                // We can't process genesis (doesn't exist in chainstate), so skip it.
+                info!(
+                    "genesis block - skipping '{}'",
+                    gen.index_block_hash
+                );
+                continue;
+            },
+            Block::Regular(header, block) => (header, block)
+        };
 
         // Ensure that we've reached the specified block-height before beginning
         // processing.
-        if block.header.block_height() < data_args.from_height {
+        if header.block_height() < data_args.from_height {
             continue;
         }
 
@@ -41,29 +51,20 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         data_args.assert_max_processed_block_count(processed_block_count)?;
 
         // Ensure that we haven't reached the specified max block-height for processing.
-        data_args.assert_block_height_under_max_height(block.header.block_height())?;
+        data_args.assert_block_height_under_max_height(header.block_height())?;
 
-        debug!("processing block #{}", block.header.block_height());
+        debug!("processing block #{}", header.block_height());
 
-        // We can't process the genesis block so skip it.
-        if block.header.is_genesis() {
-            info!(
-                "genesis block - skipping '{}'",
-                block.header.index_block_hash
-            );
-            continue;
-        }
-
-        let block_id = StacksBlockId::from_hex(&block.header.index_block_hash)?;
+        let block_id = StacksBlockId::from_hex(&header.index_block_hash)?;
 
         debug!("inserting block into app db");
         baseline_env.insert_block(
-            block.header.block_height() as i32, 
-            block.block.block_hash().as_bytes(), 
-            &hex::decode(&block.header.index_block_hash)?
+            header.block_height() as i32, 
+            stacks_block.block_hash().as_bytes(), 
+            &hex::decode(&header.index_block_hash)?
         )?;
 
-        for tx in block.block.txs.clone().into_iter() {
+        for tx in stacks_block.clone().txs.iter() {
 
             info!("processing tx: {}", tx.txid());
             baseline_env.test(&tx)?;

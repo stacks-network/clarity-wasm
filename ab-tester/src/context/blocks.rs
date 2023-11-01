@@ -3,7 +3,7 @@ use color_eyre::{Result, eyre::bail};
 use stacks_common::types::chainstate::StacksBlockId;
 use log::*;
 
-use crate::model::chainstate_db;
+use crate::{model::chainstate_db, stacks};
 
 /// Provides a cursor for navigating and iterating through [Block]s.
 pub struct BlockCursor {
@@ -59,6 +59,7 @@ impl BlockCursor {
         }
 
         self.height += 1;
+        info!("retrieving block with height {}", self.height);
         self.get_block(height)
     }
 
@@ -78,8 +79,7 @@ impl BlockCursor {
     /// Retrieves the [Block] at the specified height without moving the cursor.
     /// Returns [None] if there is no [Block] at the specified height.
     pub fn peek(&mut self, height: usize) -> Result<Option<Block>> {
-        let block = self.get_block(height)?;
-        Ok(block)
+        self.get_block(height)
     }
 
     /// Retrieves the next [Block] without moving the cursor position. If the
@@ -100,24 +100,31 @@ impl BlockCursor {
     /// Loads the block with the specified block hash from chainstate (the `blocks`
     /// directory for the node).
     fn get_block(&self, height: usize) -> Result<Option<Block>> {
+        info!("loading block at height: {height}");
         if height >= self.headers.len() {
+            info!("> headers.len, returning None");
             return Ok(None);
         }
 
         let header = self.headers[height].clone();
+        info!("header: {header:?}");
+
+        if height == 0 {
+            info!("returning genesis");
+            Block::new_genesis(header.clone());
+        }
 
         // Get the block's path in chainstate.
         let block_id = StacksBlockId::from_hex(&header.index_block_hash)?;
+        info!("block_id: {block_id:?}");
         let block_path = StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
+        info!("block_path: {block_path:?}");
         // Load the block from chainstate.
-        debug!("loading block with id {block_id} and path '{block_path}'");
+        info!("loading block with id {block_id} and path '{block_path}'");
         let stacks_block = StacksChainState::consensus_load(&block_path)?;
-        debug!("block loaded: {stacks_block:?}");
+        info!("block loaded: {stacks_block:?}");
 
-        let block = Block {
-            header,
-            block: stacks_block,
-        };
+        let block = Block::new(header, stacks_block);
 
         Ok(Some(block))
     }
@@ -146,12 +153,9 @@ impl IntoIterator for BlockCursor {
     }
 }
 
-/// Provides an abstracted view of a Stacks block as well as functions for
-/// reading various information about blocks.
-#[derive(Debug)]
-pub struct Block {
-    pub header: chainstate_db::BlockHeader,
-    pub block: StacksBlock,
+pub enum Block {
+    Genesis(chainstate_db::BlockHeader),
+    Regular(chainstate_db::BlockHeader, stacks::StacksBlock)
 }
 
 /// Implementation of [Block] which provides various functions to consumers for
@@ -159,21 +163,31 @@ pub struct Block {
 #[allow(dead_code)]
 impl Block {
     pub fn new(header: chainstate_db::BlockHeader, block: StacksBlock) -> Self {
-        Self {
-            header,
-            block,
-        }
+        Block::Regular(header, block)
+    }
+
+    pub fn new_genesis(header: chainstate_db::BlockHeader) -> Self {
+        Block::Genesis(header)
     }
 
     pub fn block_height(&self) -> u32 {
-        self.header.block_height()
+        match self {
+            Block::Genesis(_) => 0,
+            Block::Regular(header, _) => header.block_height()
+        }
     }
 
     pub fn is_genesis(&self) -> bool {
-        self.header.is_genesis()
+        if let Block::Genesis(_) = self {
+            return true;
+        }
+        return false;
     }
 
-    pub fn index_block_hash(&self) -> &str {
-        &self.header.index_block_hash
+    pub fn index_block_hash(&self) -> Result<&str> {
+        match self {
+            Block::Genesis(_) => bail!("genesis block does not have an index block hash"),
+            Block::Regular(header, _) => Ok(&header.index_block_hash)
+        }
     }
 }

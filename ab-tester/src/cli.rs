@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use color_eyre::eyre::{bail, ensure, Result, anyhow};
+use color_eyre::eyre::{bail, ensure, Result};
 use clap::{Args, Parser, Subcommand};
 
 use crate::errors::AppError;
