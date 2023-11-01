@@ -16,6 +16,7 @@ pub mod constants;
 pub mod contract;
 pub mod control_flow;
 pub mod data_vars;
+pub mod default_to;
 pub mod enums;
 pub mod equal;
 pub mod functions;
@@ -113,6 +114,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &responses::IsOk,
     &responses::IsErr,
     &bindings::Let,
+    &default_to::DefaultTo,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
