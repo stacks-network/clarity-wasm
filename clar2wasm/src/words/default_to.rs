@@ -62,6 +62,9 @@ impl Word for DefaultTo {
             |then| {
                 drop_value(then, &default_ty);
                 if &default_ty != opt_val_ty {
+                    // A none value may have an incomplete type (optional NoType),
+                    // leaving a NoType placeholder for the value instead of the expected value type.
+                    // Thus, to complete the stack, we need to push a placeholder value for Clarity type.
                     add_placeholder_for_clarity_type(then, &default_ty);
                 } else {
                     for opt_val_local in opt_val_locals {
