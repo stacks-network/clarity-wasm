@@ -497,8 +497,6 @@ impl WasmGenerator {
 
     /// Read a value from memory at offset stored in local variable `offset`,
     /// with type `ty`, and push it onto the top of the data stack.
-    ///
-    ///
     pub(crate) fn read_from_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
