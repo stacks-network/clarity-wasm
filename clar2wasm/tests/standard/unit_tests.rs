@@ -1,4 +1,5 @@
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use clar2wasm::STDLIB_PREFIX;
 use hex::FromHex;
 use wasmtime::Val;
 
@@ -2732,7 +2733,9 @@ fn buff_to_uint_be() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let buff_to_uint_be = instance.get_func(&mut store, "buff-to-uint-be").unwrap();
+    let buff_to_uint_be = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.buff-to-uint-be"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     let mut test_buff = |buf: &[u8], expected_lo: u64, expected_hi: u64| {
@@ -2794,7 +2797,9 @@ fn buff_to_uint_le() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let buff_to_uint_le = instance.get_func(&mut store, "buff-to-uint-le").unwrap();
+    let buff_to_uint_le = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.buff-to-uint-le"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     let mut test_buff = |buf: &[u8], expected_lo: u64, expected_hi: u64| {

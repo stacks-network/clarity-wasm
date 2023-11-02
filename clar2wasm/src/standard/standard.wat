@@ -1869,7 +1869,7 @@
         )
     )
 
-    (func $buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
+    (func $stdlib.buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64) (local $double v128)
         (if (i32.gt_u (local.get $length) (i32.const 16))
             (then (call $runtime-error (i32.const 5)))
@@ -1907,7 +1907,7 @@
         (i64.and (i64x2.extract_lane 0 (local.get $double)) (local.get $mask_hi))
     )
 
-    (func $buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
+    (func $stdlib.buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64)
         (if (i32.gt_u (local.get $length) (i32.const 16))
             (then (call $runtime-error (i32.const 5)))
@@ -1995,8 +1995,8 @@
     (export "hash160-int" (func $hash160-int))
     (export "store-i32-be" (func $store-i32-be))
     (export "store-i64-be" (func $store-i64-be))
-    (export "buff-to-uint-be" (func $buff-to-uint-be))
-    (export "buff-to-uint-le" (func $buff-to-uint-le))
+    (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
+    (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
 )

@@ -1,6 +1,7 @@
 use std::{cell::RefCell, ops::DerefMut};
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use clar2wasm::STDLIB_PREFIX;
 use clarity::util::hash::{Hash160, Sha256Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
@@ -548,7 +549,7 @@ fn prop_hash160_int_on_unsigned() {
 
 #[test]
 fn prop_buff_to_uint_be() {
-    test_buff_to_uint("buff-to-uint-be", 1500, |b| {
+    test_buff_to_uint(&format!("{STDLIB_PREFIX}.buff-to-uint-be"), 1500, |b| {
         PropInt::new({
             let mut b = b.to_vec();
             let offset = 16 - b.len();
@@ -561,7 +562,7 @@ fn prop_buff_to_uint_be() {
 
 #[test]
 fn prop_buff_to_uint_le() {
-    test_buff_to_uint("buff-to-uint-le", 1500, |b| {
+    test_buff_to_uint(&format!("{STDLIB_PREFIX}.buff-to-uint-le"), 1500, |b| {
         PropInt::new({
             let mut b = b.to_vec();
             b.extend(std::iter::repeat(0).take(16 - b.len()));
