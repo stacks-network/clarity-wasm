@@ -77,13 +77,13 @@ impl Word for Filter {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
-        generator.traverse_expr(builder, sequence);
+        generator.traverse_expr(builder, sequence)?;
 
         // Get the type of the sequence
         let ty = generator
@@ -132,7 +132,7 @@ impl Word for Filter {
 
         // reserve space for the length of the output list
 
-        let (output_offset, length) = generator.create_call_stack_local(builder, &ty, false, true);
+        let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
         // the loop returns nothing itself, but builds the result in the data stack
         let loop_body_ty = InstrSeqType::new(&mut generator.module.types, &[], &[]);
