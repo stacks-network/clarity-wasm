@@ -3904,3 +3904,49 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Int(23));
     }
 );
+
+test_contract_call_response!(
+    test_default_to_value,
+    "default-to",
+    "default-to-value",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(767));
+    }
+);
+
+test_contract_call_response!(
+    test_default_to_some,
+    "default-to",
+    "default-to-some",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_call_response!(
+    test_default_to_some_string,
+    "default-to",
+    "default-to-some-string",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_ascii_from_bytes(b"C".to_vec()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_default_to_list,
+    "default-to",
+    "default-to-list",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+        );
+    }
+);
