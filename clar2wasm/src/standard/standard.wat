@@ -1940,9 +1940,9 @@
     )
 
     ;;
-    ;; is-eq-int implementation
+    ;; 'is-eq-int' implementation
     ;;
-    (func $is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (i32.and
             (i64.eq (local.get $a_lo) (local.get $b_lo))
             (i64.eq (local.get $a_hi) (local.get $b_hi))
@@ -1998,5 +1998,5 @@
     (export "buff-to-uint-be" (func $buff-to-uint-be))
     (export "buff-to-uint-le" (func $buff-to-uint-le))
     (export "not" (func $not))
-    (export "is-eq-int" (func $is-eq-int))
+    (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
 )

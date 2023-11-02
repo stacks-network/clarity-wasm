@@ -1,6 +1,7 @@
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
+use super::super::STDLIB_PREFIX;
 use super::Word;
 
 #[derive(Debug)]
