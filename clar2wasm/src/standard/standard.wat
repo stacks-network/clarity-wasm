@@ -1933,9 +1933,9 @@
     )
 
     ;;
-    ;; logical not implementation
+    ;; logical 'not' implementation
     ;;
-    (func $not (type 8) (param $bool_in i32) (result i32)
+    (func $stdlib.not (type 8) (param $bool_in i32) (result i32)
         (i32.eqz (local.get $bool_in))
     )
 
@@ -1997,6 +1997,6 @@
     (export "store-i64-be" (func $store-i64-be))
     (export "buff-to-uint-be" (func $buff-to-uint-be))
     (export "buff-to-uint-le" (func $buff-to-uint-le))
-    (export "not" (func $not))
+    (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
 )

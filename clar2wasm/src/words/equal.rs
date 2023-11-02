@@ -2,7 +2,8 @@ use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
-use super::{Word, STDLIB_PREFIX};
+use super::super::STDLIB_PREFIX;
+use super::Word;
 
 #[derive(Debug)]
 pub struct IsEq;

@@ -21,7 +21,7 @@ impl Word for Not {
     ) -> Result<(), GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        builder.call(generator.func_by_name("not"));
+        builder.call(generator.func_by_name(&format!("{STDLIB_PREFIX}.not")));
 
         Ok(())
     }
