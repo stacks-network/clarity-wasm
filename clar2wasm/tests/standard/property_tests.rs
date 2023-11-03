@@ -434,7 +434,10 @@ fn prop_store_i32_be() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let store_i32_be = instance
-        .get_func(store.borrow_mut().deref_mut(), "store-i32-be")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.store-i32-be"),
+        )
         .unwrap();
 
     proptest!(|(val in proptest::num::i32::ANY)| {

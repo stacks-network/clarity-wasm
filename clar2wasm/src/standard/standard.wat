@@ -1825,7 +1825,7 @@
         (i32.add (local.get $k))
     )
 
-    (func $store-i32-be (param $address i32) (param $value i32)
+    (func $stdlib.store-i32-be (param $address i32) (param $value i32)
         (i32.store 
             (local.get $address)
             (i32.or
@@ -1993,7 +1993,7 @@
     (export "sha256-int" (func $sha256-int))
     (export "hash160-buf" (func $hash160-buf))
     (export "hash160-int" (func $hash160-int))
-    (export "store-i32-be" (func $store-i32-be))
+    (export "stdlib.store-i32-be" (func $stdlib.store-i32-be))
     (export "stdlib.store-i64-be" (func $stdlib.store-i64-be))
     (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))

@@ -1104,7 +1104,7 @@ impl WasmGenerator {
         builder.call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name(&format!("{STDLIB_PREFIX}.store-i32-be"))
                 .expect("store-i32-be not found"),
         );
 
@@ -1226,7 +1226,7 @@ impl WasmGenerator {
         builder.local_get(length).call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name(&format!("{STDLIB_PREFIX}.store-i32-be"))
                 .expect("store-i32-be not found"),
         );
 
@@ -1296,7 +1296,7 @@ impl WasmGenerator {
         builder.local_get(length).call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name(&format!("{STDLIB_PREFIX}.store-i32-be"))
                 .expect("store-i32-be not found"),
         );
 
@@ -1397,7 +1397,7 @@ impl WasmGenerator {
             .call(
                 self.module
                     .funcs
-                    .by_name("store-i32-be")
+                    .by_name(&format!("{STDLIB_PREFIX}.store-i32-be"))
                     .expect("store-i32-be not found"),
             );
 
