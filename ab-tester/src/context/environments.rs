@@ -58,7 +58,7 @@ pub struct TestEnv<'a> {
     blocks_dir: String,
     chainstate: stacks::StacksChainState,
     index_db_conn: RefCell<SqliteConnection>,
-    //sortition_db: SortitionDB,
+    sortition_db: stacks::SortitionDB,
     clarity_db_conn: SqliteConnection,
     burnchain: stacks::Burnchain,
 }
@@ -79,36 +79,79 @@ impl std::fmt::Debug for TestEnv<'_> {
 impl<'a> TestEnv<'a> {
     /// Creates a new instance of a [TestEnv] and attempts to open its database files.
     pub fn new(id: i32, name: &str, stacks_dir: &str, ctx: &'a GlobalEnvContext) -> Result<Self> {
-        let mut boot_data = stacks::ChainStateBootData {
-            initial_balances: vec![],
-            post_flight_callback: None,
-            first_burnchain_block_hash: stacks::BurnchainHeaderHash::zero(),
-            first_burnchain_block_height: 0,
-            first_burnchain_block_timestamp: 0,
-            pox_constants: stacks::PoxConstants::mainnet_default(),
-            get_bulk_initial_lockups: None,
-            get_bulk_initial_balances: None,
-            get_bulk_initial_names: None,
-            get_bulk_initial_namespaces: None,
-        };
-
-        stacks::StacksChainState::open_and_exec(
-            true,
-            1,
-            &format!("{}/chainstate", stacks_dir),
-            Some(&mut boot_data),
-            None,
-        )?;
-
         let index_db_path = format!("{}/chainstate/vm/index.sqlite", stacks_dir);
-        //let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
+        let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
         let blocks_dir = format!("{}/chainstate/blocks", stacks_dir);
         let chainstate_path = format!("{}/chainstate", stacks_dir);
         let clarity_db_path = format!("{}/chainstate/vm/clarity/marf.sqlite", stacks_dir);
 
         debug!("[{name}] index_db_path: '{}'", index_db_path);
-        //debug!("sortition_db_path: '{}'", sortition_db_path);
+        debug!("sortition_db_path: '{}'", sortition_db_path);
         debug!("[{name}] blocks_dir: '{}'", blocks_dir);
+
+        let mut boot_data = stacks::ChainStateBootData {
+            initial_balances: vec![],
+            post_flight_callback: None,
+            first_burnchain_block_hash: stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH).unwrap(),
+            first_burnchain_block_height: stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT as u32,
+            first_burnchain_block_timestamp: stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP,
+            pox_constants: stacks::PoxConstants::mainnet_default(),
+            get_bulk_initial_lockups: Some(Box::new(|| {
+                Box::new(stacks::GenesisData::new(false).read_lockups().map(|item| {
+                    stacks::ChainstateAccountLockup {
+                        address: item.address,
+                        amount: item.amount,
+                        block_height: item.block_height,
+                    }
+                }))
+            })),
+            get_bulk_initial_balances: Some(Box::new(|| {
+                Box::new(stacks::GenesisData::new(false).read_balances().map(|item| {
+                    stacks::ChainstateAccountBalance {
+                        address: item.address,
+                        amount: item.amount,
+                    }
+                }))
+            })),
+            get_bulk_initial_namespaces: Some(Box::new(|| {
+                Box::new(stacks::GenesisData::new(false).read_namespaces().map(|item| {
+                    stacks::ChainstateBNSNamespace {
+                        namespace_id: item.namespace_id,
+                        importer: item.importer,
+                        buckets: item.buckets,
+                        base: item.base as u64,
+                        coeff: item.coeff as u64,
+                        nonalpha_discount: item.nonalpha_discount as u64,
+                        no_vowel_discount: item.no_vowel_discount as u64,
+                        lifetime: item.lifetime as u64,
+                    }
+                }))
+            })),
+            get_bulk_initial_names: Some(Box::new(|| {
+                Box::new(
+                    stacks::GenesisData::new(false)
+                        .read_names()
+                        .map(|item| stacks::ChainstateBNSName {
+                            fully_qualified_name: item.fully_qualified_name,
+                            owner: item.owner,
+                            zonefile_hash: item.zonefile_hash,
+                        }),
+                )
+            })),
+        };
+
+        let mut marf_opts = stacks::MARFOpenOpts::default();
+        marf_opts.external_blobs = true;
+
+        debug!("initializing chainstate");
+        stacks::StacksChainState::open_and_exec(
+            true,
+            1,
+            &format!("{}/chainstate", stacks_dir),
+            Some(&mut boot_data),
+            Some(marf_opts.clone()),
+        )?;
+        info!("[{name}] chainstate initialized.");
 
         debug!("[{name}] loading index db...");
         let index_db_conn = SqliteConnection::establish(&index_db_path)?;
@@ -118,28 +161,27 @@ impl<'a> TestEnv<'a> {
         let clarity_db_conn = SqliteConnection::establish(&clarity_db_path)?;
         info!("[{name}] successfully connected to clarity db");
 
-        let mut marf_opts = stacks::MARFOpenOpts::default();
-        marf_opts.external_blobs = true;
-
         debug!("[{name}] opening chainstate...");
         let chainstate =
-            stacks::StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts))?;
+            stacks::StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts.clone()))?;
         info!("[{name}] successfully opened chainstate");
 
         debug!("[{name}] creating burnchain");
         let burnchain = stacks::Burnchain::new(stacks_dir, "bitcoin", "mainnet")?;
 
-        /*debug!("opening sortition db...");
-        let sortition_db = SortitionDB::connect(
+        //debug!("attempting to migrate sortition db");
+        //stacks::SortitionDB::migrate_if_exists(&sortition_db_path, stacks::STACKS_EPOCHS_MAINNET.as_ref())?;
+        debug!("migration successful; opening sortition db");
+        let sortition_db = stacks::SortitionDB::connect(
             &sortition_db_path,
-            BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-            &BurnchainHeaderHash::from_hex(BITCOIN_MAINNET_FIRST_BLOCK_HASH).unwrap(),
-            BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
-            STACKS_EPOCHS_MAINNET.as_ref(),
-            PoxConstants::mainnet_default(),
-            false,
+            stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
+            &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH).unwrap(),
+            stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
+            stacks::STACKS_EPOCHS_MAINNET.as_ref(),
+            stacks::PoxConstants::mainnet_default(),
+            true,
         )?;
-        info!("successfully opened sortition db");*/
+        info!("successfully opened sortition db");
 
         Ok(Self {
             id,
@@ -149,7 +191,7 @@ impl<'a> TestEnv<'a> {
             blocks_dir,
             chainstate: chainstate.0,
             index_db_conn: RefCell::new(index_db_conn),
-            //sortition_db,
+            sortition_db,
             clarity_db_conn,
             burnchain,
         })
@@ -266,9 +308,11 @@ impl<'a> TestEnv<'a> {
             }
         }
 
+        let sortdb_conn = self.sortition_db.index_conn();
+
         info!("beginning block");
         let mut clarity_tx = self.chainstate.block_begin(
-            &clarity::NULL_BURN_STATE_DB,
+            &sortdb_conn,
             &parent_consensus_hash,
             &parent_block,
             &new_consensus_hash,
