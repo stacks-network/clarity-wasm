@@ -891,7 +891,9 @@ fn test_mod_int() {
 #[test]
 fn test_lt_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let lt = instance.get_func(&mut store, "lt-uint").unwrap();
+    let lt = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.lt-uint"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 < 1 is true
@@ -1006,7 +1008,9 @@ fn test_lt_uint() {
 #[test]
 fn test_gt_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let gt = instance.get_func(&mut store, "gt-uint").unwrap();
+    let gt = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.gt-uint"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 > 1 is false
@@ -1121,7 +1125,9 @@ fn test_gt_uint() {
 #[test]
 fn test_le_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let le = instance.get_func(&mut store, "le-uint").unwrap();
+    let le = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.le-uint"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 <= 1 is true
@@ -1236,7 +1242,9 @@ fn test_le_uint() {
 #[test]
 fn test_ge_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let ge = instance.get_func(&mut store, "ge-uint").unwrap();
+    let ge = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.ge-uint"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 >= 1 is false
@@ -1351,7 +1359,9 @@ fn test_ge_uint() {
 #[test]
 fn test_lt_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let lt = instance.get_func(&mut store, "lt-int").unwrap();
+    let lt = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.lt-int"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 < 1 is false
@@ -1439,7 +1449,9 @@ fn test_lt_int() {
 #[test]
 fn test_gt_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let gt = instance.get_func(&mut store, "gt-int").unwrap();
+    let gt = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.gt-int"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 > 1 is false
@@ -1527,7 +1539,9 @@ fn test_gt_int() {
 #[test]
 fn test_le_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let le = instance.get_func(&mut store, "le-int").unwrap();
+    let le = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.le-int"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 <= 1 is true
@@ -1615,7 +1629,9 @@ fn test_le_int() {
 #[test]
 fn test_ge_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let ge = instance.get_func(&mut store, "ge-int").unwrap();
+    let ge = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.ge-int"))
+        .unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 >= 1 is true
@@ -1750,22 +1766,22 @@ fn test_cmp_buff(func_name: &str, reference_func: impl Fn(&[u8], &[u8]) -> bool)
 
 #[test]
 fn test_lt_buff() {
-    test_cmp_buff("lt-buff", |a, b| a < b)
+    test_cmp_buff(&format!("{STDLIB_PREFIX}.lt-buff"), |a, b| a < b)
 }
 
 #[test]
 fn test_gt_buff() {
-    test_cmp_buff("gt-buff", |a, b| a > b)
+    test_cmp_buff(&format!("{STDLIB_PREFIX}.gt-buff"), |a, b| a > b)
 }
 
 #[test]
 fn test_le_buff() {
-    test_cmp_buff("le-buff", |a, b| a <= b)
+    test_cmp_buff(&format!("{STDLIB_PREFIX}.le-buff"), |a, b| a <= b)
 }
 
 #[test]
 fn test_ge_buff() {
-    test_cmp_buff("ge-buff", |a, b| a >= b)
+    test_cmp_buff(&format!("{STDLIB_PREFIX}.ge-buff"), |a, b| a >= b)
 }
 
 #[test]

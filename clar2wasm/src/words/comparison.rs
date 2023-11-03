@@ -4,6 +4,7 @@ use clarity::vm::{
     ClarityName, SymbolicExpression,
 };
 
+use super::super::STDLIB_PREFIX;
 use super::Word;
 
 fn traverse_comparison(
@@ -37,7 +38,7 @@ fn traverse_comparison(
     let func = generator
         .module
         .funcs
-        .by_name(&format!("{name}-{type_suffix}"))
+        .by_name(&format!("{STDLIB_PREFIX}.{name}-{type_suffix}"))
         .unwrap_or_else(|| panic!("function not found: {name}-{type_suffix}"));
 
     builder.call(func);

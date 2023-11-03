@@ -95,42 +95,61 @@ fn prop_mod_int() {
 
 #[test]
 fn prop_lt_uint() {
-    utils::test_export_two_unsigned_args("lt-uint", |a: u128, b: u128| a < b)
+    utils::test_export_two_unsigned_args(&format!("{STDLIB_PREFIX}.lt-uint"), |a: u128, b: u128| {
+        a < b
+    })
 }
 
 #[test]
 fn prop_lt_int() {
-    utils::test_export_two_signed_args("lt-int", |a: i128, b: i128| a < b);
+    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.lt-int"), |a: i128, b: i128| {
+        a < b
+    });
 }
 
 #[test]
 fn prop_gt_uint() {
-    utils::test_export_two_unsigned_args("gt-uint", |a: u128, b: u128| a > b);
+    utils::test_export_two_unsigned_args(
+        &format!("{STDLIB_PREFIX}.gt-uint"),
+        |a: u128, b: u128| a > b,
+    );
 }
 
 #[test]
 fn prop_gt_int() {
-    utils::test_export_two_signed_args("gt-int", |a: i128, b: i128| a > b);
+    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.gt-int"), |a: i128, b: i128| {
+        a > b
+    });
 }
 
 #[test]
 fn prop_le_uint() {
-    utils::test_export_two_unsigned_args("le-uint", |a: u128, b: u128| a <= b);
+    utils::test_export_two_unsigned_args(
+        &format!("{STDLIB_PREFIX}.le-uint"),
+        |a: u128, b: u128| a <= b,
+    );
 }
 
 #[test]
 fn prop_le_int() {
-    utils::test_export_two_signed_args("le-int", |a: i128, b: i128| a <= b);
+    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.le-int"), |a: i128, b: i128| {
+        a <= b
+    });
 }
 
 #[test]
 fn prop_ge_uint() {
-    utils::test_export_two_unsigned_args("ge-uint", |a: u128, b: u128| a >= b);
+    utils::test_export_two_unsigned_args(
+        &format!("{STDLIB_PREFIX}.ge-uint"),
+        |a: u128, b: u128| a >= b,
+    );
 }
 
 #[test]
 fn prop_ge_int() {
-    utils::test_export_two_signed_args("ge-int", |a: i128, b: i128| a >= b);
+    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.ge-int"), |a: i128, b: i128| {
+        a >= b
+    });
 }
 
 #[test]
@@ -673,20 +692,20 @@ fn prop_buff_to_uint_le() {
 
 #[test]
 fn prop_lt_buff() {
-    test_buff_comparison("lt-buff", |a, b| a < b)
+    test_buff_comparison(&format!("{STDLIB_PREFIX}.lt-buff"), |a, b| a < b)
 }
 
 #[test]
 fn prop_gt_buff() {
-    test_buff_comparison("gt-buff", |a, b| a > b)
+    test_buff_comparison(&format!("{STDLIB_PREFIX}.gt-buff"), |a, b| a > b)
 }
 
 #[test]
 fn prop_le_buff() {
-    test_buff_comparison("le-buff", |a, b| a <= b)
+    test_buff_comparison(&format!("{STDLIB_PREFIX}.le-buff"), |a, b| a <= b)
 }
 
 #[test]
 fn prop_ge_buff() {
-    test_buff_comparison("ge-buff", |a, b| a >= b)
+    test_buff_comparison(&format!("{STDLIB_PREFIX}.ge-buff"), |a, b| a >= b)
 }

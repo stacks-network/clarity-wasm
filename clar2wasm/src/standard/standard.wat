@@ -283,7 +283,7 @@
         (local.set $a_lo)
 
         ;; overflow condition: sum (a) < operand (b)
-        (if (call $lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+        (if (call $stdlib.lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
             (then (call $runtime-error (i32.const 0)))
         )
 
@@ -738,7 +738,7 @@
         (return (local.get $remainder_lo) (local.get $remainder_hi))
     )
 
-    (func $lt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.lt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.lt_u (local.get $a_lo) (local.get $b_lo))
             (i64.lt_u (local.get $a_hi) (local.get $b_hi))
@@ -746,7 +746,7 @@
         )
     )
 
-    (func $gt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.gt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.gt_u (local.get $a_lo) (local.get $b_lo))
             (i64.gt_u (local.get $a_hi) (local.get $b_hi))
@@ -754,7 +754,7 @@
         )
     )
 
-    (func $le-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.le-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.le_u (local.get $a_lo) (local.get $b_lo))
             (i64.le_u (local.get $a_hi) (local.get $b_hi))
@@ -762,7 +762,7 @@
         )
     )
 
-    (func $ge-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.ge-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_u (local.get $a_hi) (local.get $b_hi))
@@ -770,7 +770,7 @@
         )
     )
 
-    (func $lt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.lt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.lt_u (local.get $a_lo) (local.get $b_lo))
             (i64.lt_s (local.get $a_hi) (local.get $b_hi))
@@ -778,7 +778,7 @@
         )
     )
 
-    (func $gt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.gt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.gt_u (local.get $a_lo) (local.get $b_lo))
             (i64.gt_s (local.get $a_hi) (local.get $b_hi))
@@ -786,7 +786,7 @@
         )
     )
 
-    (func $le-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.le-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.le_u (local.get $a_lo) (local.get $b_lo))
             (i64.le_s (local.get $a_hi) (local.get $b_hi))
@@ -794,7 +794,7 @@
         )
     )
 
-    (func $ge-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.ge-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_s (local.get $a_hi) (local.get $b_hi))
@@ -802,7 +802,7 @@
         )
     )
 
-    (func $lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
         ;; pseudo-code:
         ;; let i = min(length_a, length_b)
@@ -852,9 +852,9 @@
         )
     )
 
-    (func $gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -889,9 +889,9 @@
         )
     )
 
-    (func $le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -926,9 +926,9 @@
         )
     )
 
-    (func $ge-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.ge-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -980,7 +980,7 @@
     )
 
     (func $stdlib.log2-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
-        (if (call $le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
+        (if (call $stdlib.le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
             (then (call $runtime-error (i32.const 3)))
         )
         (call $log2 (local.get $lo) (local.get $hi))
@@ -1048,7 +1048,7 @@
             (local.set $c_hi (i64.shr_u (local.get $c_hi) (i64.const 1)))
 
             ;; if n >= tmp
-            (if (call $ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
+            (if (call $stdlib.ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
                 (then
                     ;; n -= tmp
                     (call $stdlib.sub-int128 (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
@@ -1959,18 +1959,18 @@
     (export "stdlib.div-int" (func $stdlib.div-int))
     (export "stdlib.mod-uint" (func $stdlib.mod-uint))
     (export "stdlib.mod-int" (func $stdlib.mod-int))
-    (export "lt-uint" (func $lt-uint))
-    (export "gt-uint" (func $gt-uint))
-    (export "le-uint" (func $le-uint))
-    (export "ge-uint" (func $ge-uint))
-    (export "lt-int" (func $lt-int))
-    (export "gt-int" (func $gt-int))
-    (export "le-int" (func $le-int))
-    (export "ge-int" (func $ge-int))
-    (export "lt-buff" (func $lt-buff))
-    (export "gt-buff" (func $gt-buff))
-    (export "le-buff" (func $le-buff))
-    (export "ge-buff" (func $ge-buff))
+    (export "stdlib.lt-uint" (func $stdlib.lt-uint))
+    (export "stdlib.gt-uint" (func $stdlib.gt-uint))
+    (export "stdlib.le-uint" (func $stdlib.le-uint))
+    (export "stdlib.ge-uint" (func $stdlib.ge-uint))
+    (export "stdlib.lt-int" (func $stdlib.lt-int))
+    (export "stdlib.gt-int" (func $stdlib.gt-int))
+    (export "stdlib.le-int" (func $stdlib.le-int))
+    (export "stdlib.ge-int" (func $stdlib.ge-int))
+    (export "stdlib.lt-buff" (func $stdlib.lt-buff))
+    (export "stdlib.gt-buff" (func $stdlib.gt-buff))
+    (export "stdlib.le-buff" (func $stdlib.le-buff))
+    (export "stdlib.ge-buff" (func $stdlib.ge-buff))
     (export "stdlib.log2-uint" (func $stdlib.log2-uint))
     (export "stdlib.log2-int" (func $stdlib.log2-int))
     (export "stdlib.sqrti-uint" (func $stdlib.sqrti-uint))
