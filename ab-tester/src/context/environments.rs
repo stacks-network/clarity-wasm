@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use blockstack_lib::chainstate::stacks::index::{self, ClarityMarfTrieId, MarfTrieId};
 use color_eyre::{eyre::bail, Result};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
@@ -92,7 +93,10 @@ impl<'a> TestEnv<'a> {
         let mut boot_data = stacks::ChainStateBootData {
             initial_balances: vec![],
             post_flight_callback: None,
-            first_burnchain_block_hash: stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH).unwrap(),
+            first_burnchain_block_hash: stacks::BurnchainHeaderHash::from_hex(
+                stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
+            )
+            .unwrap(),
             first_burnchain_block_height: stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT as u32,
             first_burnchain_block_timestamp: stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP,
             pox_constants: stacks::PoxConstants::mainnet_default(),
@@ -114,29 +118,29 @@ impl<'a> TestEnv<'a> {
                 }))
             })),
             get_bulk_initial_namespaces: Some(Box::new(|| {
-                Box::new(stacks::GenesisData::new(false).read_namespaces().map(|item| {
-                    stacks::ChainstateBNSNamespace {
-                        namespace_id: item.namespace_id,
-                        importer: item.importer,
-                        buckets: item.buckets,
-                        base: item.base as u64,
-                        coeff: item.coeff as u64,
-                        nonalpha_discount: item.nonalpha_discount as u64,
-                        no_vowel_discount: item.no_vowel_discount as u64,
-                        lifetime: item.lifetime as u64,
-                    }
-                }))
-            })),
-            get_bulk_initial_names: Some(Box::new(|| {
                 Box::new(
                     stacks::GenesisData::new(false)
-                        .read_names()
-                        .map(|item| stacks::ChainstateBNSName {
-                            fully_qualified_name: item.fully_qualified_name,
-                            owner: item.owner,
-                            zonefile_hash: item.zonefile_hash,
+                        .read_namespaces()
+                        .map(|item| stacks::ChainstateBNSNamespace {
+                            namespace_id: item.namespace_id,
+                            importer: item.importer,
+                            buckets: item.buckets,
+                            base: item.base as u64,
+                            coeff: item.coeff as u64,
+                            nonalpha_discount: item.nonalpha_discount as u64,
+                            no_vowel_discount: item.no_vowel_discount as u64,
+                            lifetime: item.lifetime as u64,
                         }),
                 )
+            })),
+            get_bulk_initial_names: Some(Box::new(|| {
+                Box::new(stacks::GenesisData::new(false).read_names().map(|item| {
+                    stacks::ChainstateBNSName {
+                        fully_qualified_name: item.fully_qualified_name,
+                        owner: item.owner,
+                        zonefile_hash: item.zonefile_hash,
+                    }
+                }))
             })),
         };
 
@@ -175,7 +179,8 @@ impl<'a> TestEnv<'a> {
         let sortition_db = stacks::SortitionDB::connect(
             &sortition_db_path,
             stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-            &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH).unwrap(),
+            &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
+                .unwrap(),
             stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
             stacks::STACKS_EPOCHS_MAINNET.as_ref(),
             stacks::PoxConstants::mainnet_default(),
@@ -244,7 +249,7 @@ impl<'a> TestEnv<'a> {
 
         // Walk backwards
         while let Some(block) = current_block {
-            let ancestor = schema::chainstate_marf::block_headers::table
+            let block_parent = schema::chainstate_marf::block_headers::table
                 .filter(
                     schema::chainstate_marf::block_headers::index_block_hash
                         .eq(block.parent_block_id),
@@ -254,7 +259,7 @@ impl<'a> TestEnv<'a> {
                 )
                 .optional()?;
 
-            if let Some(b) = ancestor.clone() {
+            if let Some(b) = block_parent.clone() {
                 let parent_consensus_hash = &block.consensus_hash;
 
                 headers.push(BlockHeader::new(
@@ -266,7 +271,7 @@ impl<'a> TestEnv<'a> {
                 ));
             }
 
-            current_block = ancestor;
+            current_block = block_parent;
         }
 
         headers.reverse();
@@ -293,41 +298,36 @@ impl<'a> TestEnv<'a> {
     }
 
     pub fn test(&mut self, block: &Block, tx: &stacks::StacksTransaction) -> Result<()> {
-        let parent_consensus_hash: stacks::ConsensusHash;
-        let new_consensus_hash: stacks::ConsensusHash;
-        let parent_block: stacks::BlockHeaderHash;
-        let new_block: stacks::BlockHeaderHash;
+        //let current_block_id: stacks::StacksBlockId;
+        let current_block_id = <stacks::StacksBlockId as ClarityMarfTrieId>::sentinel();
+        let next_block_id: stacks::StacksBlockId;
 
         match block {
             Block::Genesis(_) => bail!("cannot process genesis"),
             Block::Regular(header, stacks_block) => {
-                parent_consensus_hash = header.parent_consensus_hash()?;
-                new_consensus_hash = header.consensus_hash()?;
-                parent_block = header.parent_block_hash()?;
-                new_block = stacks_block.header.block_hash();
+                //current_block_id = header.parent_stacks_block_id()?;
+                next_block_id = header.stacks_block_id()?;
             }
         }
 
-        let sortdb_conn = self.sortition_db.index_conn();
+        let burndb = self.sortition_db.index_conn();
 
-        info!("beginning block");
-        let mut clarity_tx = self.chainstate.block_begin(
-            &sortdb_conn,
-            &parent_consensus_hash,
-            &parent_block,
-            &new_consensus_hash,
-            &new_block,
+        debug!("creating chainstate tx");
+        let (chainstate_tx, clarity_instance) = self.chainstate.chainstate_tx_begin()?;
+        debug!("chainstate tx started");
+
+        debug!("beginning clarity block");
+        let mut clarity_block_conn = clarity_instance.begin_block(
+            &current_block_id,
+            &next_block_id,
+            &chainstate_tx,
+            &burndb,
         );
 
-        info!("processing transaction");
-        let (fee, receipt) = stacks::StacksChainState::process_transaction(
-            &mut clarity_tx,
-            tx,
-            false,
-            clarity::ASTRules::Typical,
-        )?;
+        debug!("starting clarity tx processing");
+        let clarity_tx_conn = clarity_block_conn.start_transaction_processing();
 
-        //clarity_tx.commit_to_block(consensus_hash, block_hash)
+        debug!("returning");
 
         ok!()
     }

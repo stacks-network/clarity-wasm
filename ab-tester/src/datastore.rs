@@ -4,7 +4,6 @@ use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256
 use crate::appdb::AppDb;
 use crate::clarity;
 use crate::model::app_db::ContractExecution;
-use crate::stacks;
 
 pub struct DataStore<'a> {
     exec: Option<ContractExecution>,

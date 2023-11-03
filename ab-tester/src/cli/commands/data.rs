@@ -9,7 +9,7 @@ use crate::{
     },
     ok,
 };
-use blockstack_lib::chainstate::stacks::{self, TransactionPayload};
+use blockstack_lib::chainstate::stacks::TransactionPayload;
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};

@@ -1,7 +1,4 @@
-use blockstack_lib::{
-    chainstate::stacks::db::{ClarityTx, StacksChainState},
-    core::BLOCK_LIMIT_MAINNET_205,
-};
+use blockstack_lib::{chainstate::stacks::db::StacksChainState, core::BLOCK_LIMIT_MAINNET_205};
 use clarity::vm::{
     analysis::{run_analysis, AnalysisDatabase, ContractAnalysis},
     ast::{self, ASTRules},

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use clarity::vm::types::QualifiedContractIdentifier;
-use color_eyre::{eyre::bail, Result};
+use color_eyre::Result;
 use diesel::{insert_into, prelude::*, OptionalExtension, SqliteConnection};
 use lz4_flex::compress_prepend_size;
 

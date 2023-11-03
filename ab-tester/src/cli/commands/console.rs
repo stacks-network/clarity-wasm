@@ -20,7 +20,7 @@ pub async fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
         theme = Theme::new(ColorScheme::from(theme_str.as_str()), true);
     }
 
-    let blocks = Rc::new(RefCell::new(BlocksScreen::new()));
+    let _blocks = Rc::new(RefCell::new(BlocksScreen::new()));
     let start = Rc::new(RefCell::new(StartScreen::new()));
     let main_layout = Rc::new(RefCell::new(MainLayout::new()));
 

@@ -46,6 +46,14 @@ impl BlockHeader {
         Ok(StacksBlockId(hash))
     }
 
+    pub fn parent_stacks_block_id(&self) -> Result<StacksBlockId> {
+        let hash: [u8; 32] = self.parent_block_id.clone().try_into().map_err(|e| {
+            anyhow!("failed to convert parent block id into stacks block id: {e:?}")
+        })?;
+
+        Ok(StacksBlockId(hash))
+    }
+
     pub fn parent_consensus_hash(&self) -> Result<ConsensusHash> {
         let hash: [u8; 20] = self.parent_consensus_hash.clone().try_into().map_err(|e| {
             anyhow!("failed to convert parent consensus hash bytes into a ConsensusHash: {e:?}")
