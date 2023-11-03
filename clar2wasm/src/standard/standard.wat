@@ -1365,7 +1365,7 @@
         )
     )
 
-    (func $sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1403,7 +1403,7 @@
         (local.get $offset-result) (i32.const 32)
     )
 
-    (func $sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
@@ -1637,7 +1637,7 @@
         (i32.store offset=28 (local.get $origin) (i32.add (i32.load offset=28 (local.get $origin)) (local.get $h)))
     )
 
-    (func $hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
@@ -1646,7 +1646,7 @@
         ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
         (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
         ;; compute sha256
-        (call $sha256-buf (local.get $offset) (local.get $length) (local.get $i))
+        (call $stdlib.sha256-buf (local.get $offset) (local.get $length) (local.get $i))
         drop ;; we don't need the length of sha256, it is always 32
         (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
 
@@ -1656,7 +1656,7 @@
         (local.get $offset-result) (i32.const 20)
     )
 
-    (func $hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
@@ -1665,7 +1665,7 @@
         ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
         (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
         ;; compute sha256
-        (call $sha256-int (local.get $lo) (local.get $hi) (local.get $i))
+        (call $stdlib.sha256-int (local.get $lo) (local.get $hi) (local.get $i))
         drop ;; we don't need the length of sha256, it is always 32
         (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
 
@@ -1989,10 +1989,10 @@
     (export "bit-shift-right-int" (func $bit-shift-right-int))
     (export "pow-uint" (func $pow-uint))
     (export "pow-int" (func $pow-int))
-    (export "sha256-buf" (func $sha256-buf))
-    (export "sha256-int" (func $sha256-int))
-    (export "hash160-buf" (func $hash160-buf))
-    (export "hash160-int" (func $hash160-int))
+    (export "stdlib.sha256-buf" (func $stdlib.sha256-buf))
+    (export "stdlib.sha256-int" (func $stdlib.sha256-int))
+    (export "stdlib.hash160-buf" (func $stdlib.hash160-buf))
+    (export "stdlib.hash160-int" (func $stdlib.hash160-int))
     (export "stdlib.store-i32-be" (func $stdlib.store-i32-be))
     (export "stdlib.store-i64-be" (func $stdlib.store-i64-be))
     (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))

@@ -502,7 +502,7 @@ fn prop_store_i64_be() {
 #[test]
 fn prop_sha256_buff() {
     test_on_buffer_hash(
-        "sha256-buf",
+        &format!("{STDLIB_PREFIX}.sha256-buf"),
         1024,
         END_OF_STANDARD_DATA as usize + 32,
         300,
@@ -514,22 +514,30 @@ fn prop_sha256_buff() {
 
 #[test]
 fn prop_sha256_int_on_signed() {
-    test_on_int_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
-        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
-    })
+    test_on_int_hash(
+        &format!("{STDLIB_PREFIX}.sha256-int"),
+        1024,
+        END_OF_STANDARD_DATA as i32,
+        32,
+        |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
 }
 
 #[test]
 fn prop_sha256_int_on_unsigned() {
-    test_on_uint_hash("sha256-int", 1024, END_OF_STANDARD_DATA as i32, 32, |n| {
-        Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec()
-    })
+    test_on_uint_hash(
+        &format!("{STDLIB_PREFIX}.sha256-int"),
+        1024,
+        END_OF_STANDARD_DATA as i32,
+        32,
+        |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
 }
 
 #[test]
 fn prop_hash160_buff() {
     test_on_buffer_hash(
-        "hash160-buf",
+        &format!("{STDLIB_PREFIX}.hash160-buf"),
         2048,
         END_OF_STANDARD_DATA as usize + 20,
         300,
@@ -541,16 +549,24 @@ fn prop_hash160_buff() {
 
 #[test]
 fn prop_hash160_int_on_signed() {
-    test_on_int_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
-        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
-    })
+    test_on_int_hash(
+        &format!("{STDLIB_PREFIX}.hash160-int"),
+        1024,
+        END_OF_STANDARD_DATA as i32,
+        20,
+        |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
 }
 
 #[test]
 fn prop_hash160_int_on_unsigned() {
-    test_on_uint_hash("hash160-int", 1024, END_OF_STANDARD_DATA as i32, 20, |n| {
-        Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec()
-    })
+    test_on_uint_hash(
+        &format!("{STDLIB_PREFIX}.hash160-int"),
+        1024,
+        END_OF_STANDARD_DATA as i32,
+        20,
+        |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
 }
 
 #[test]

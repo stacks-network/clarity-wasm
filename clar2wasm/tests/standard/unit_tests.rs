@@ -2324,7 +2324,9 @@ fn sha256_buf() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "sha256-buf").unwrap();
+    let sha256 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sha256-buf"))
+        .unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2428,7 +2430,9 @@ fn sha256_int() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "sha256-int").unwrap();
+    let sha256 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sha256-int"))
+        .unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2562,7 +2566,9 @@ fn hash160_buf() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let hash160 = instance.get_func(&mut store, "hash160-buf").unwrap();
+    let hash160 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.hash160-buf"))
+        .unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2636,7 +2642,9 @@ fn hash160_int() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let hash160 = instance.get_func(&mut store, "hash160-int").unwrap();
+    let hash160 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.hash160-int"))
+        .unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
