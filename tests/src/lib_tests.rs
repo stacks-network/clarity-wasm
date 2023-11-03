@@ -3950,3 +3950,23 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_to_int,
+    "noop",
+    "test-to-int",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_call_response!(
+    test_to_uint,
+    "noop",
+    "test-to-uint",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(767));
+    }
+);
