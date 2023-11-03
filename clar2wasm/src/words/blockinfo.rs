@@ -23,7 +23,7 @@ impl Word for GetBlockInfo {
         let block = args.get_expr(1)?;
 
         // Push the property name onto the stack
-        let (id_offset, id_length) = generator.add_identifier_string_literal(prop_name);
+        let (id_offset, id_length) = generator.add_string_literal(prop_name);
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);

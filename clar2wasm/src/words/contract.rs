@@ -70,7 +70,7 @@ impl Word for ContractCall {
             .i32_const(id_length as i32);
 
         // Push the function name onto the stack
-        let (fn_offset, fn_length) = generator.add_identifier_string_literal(function_name);
+        let (fn_offset, fn_length) = generator.add_string_literal(function_name);
         builder
             .i32_const(fn_offset as i32)
             .i32_const(fn_length as i32);

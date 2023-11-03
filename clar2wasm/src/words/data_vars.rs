@@ -25,7 +25,7 @@ impl Word for DefineDataVar {
         let initial = args.get_expr(2)?;
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_identifier_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name);
 
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.

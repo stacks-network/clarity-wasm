@@ -60,7 +60,7 @@ fn traverse_define_function(
 
     // Call the host interface to save this function
     // Arguments are kind (already pushed) and name (offset, length)
-    let (id_offset, id_length) = generator.add_identifier_string_literal(name);
+    let (id_offset, id_length) = generator.add_string_literal(name);
     builder
         .i32_const(id_offset as i32)
         .i32_const(id_length as i32);

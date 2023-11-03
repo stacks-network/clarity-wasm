@@ -258,7 +258,7 @@ impl WasmGenerator {
     }
 
     /// Adds a new string literal into the memory, and returns the offset and length.
-    fn add_string_literal(&mut self, s: &CharType) -> (u32, u32) {
+    pub(crate) fn add_clarity_string_literal(&mut self, s: &CharType) -> (u32, u32) {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
         if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
@@ -292,13 +292,10 @@ impl WasmGenerator {
     }
 
     /// Adds a new string literal into the memory for an identifier
-    pub(crate) fn add_identifier_string_literal(
-        &mut self,
-        name: &clarity::vm::ClarityName,
-    ) -> (u32, u32) {
+    pub(crate) fn add_string_literal(&mut self, name: &str) -> (u32, u32) {
         // If this identifier has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(name.as_str()) {
+        if let Some(offset) = self.literal_memory_offet.get(name) {
             return (*offset, name.len() as u32);
         }
 
@@ -354,7 +351,7 @@ impl WasmGenerator {
             },
             clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
             clarity::vm::Value::Sequence(SequenceData::String(string_data)) => {
-                return self.add_string_literal(string_data);
+                return self.add_clarity_string_literal(string_data);
             }
             _ => unimplemented!("Unsupported literal: {}", value),
         };
@@ -1399,7 +1396,7 @@ impl WasmGenerator {
                 .local_tee(write_ptr);
 
             // Serialize the key name
-            let (offset, length) = self.add_identifier_string_literal(key);
+            let (offset, length) = self.add_string_literal(key);
             builder
                 .i32_const(offset as i32)
                 .i32_const(length as i32)
@@ -1805,7 +1802,7 @@ impl WasmGenerator {
                 Ok(())
             }
             clarity::vm::Value::Sequence(SequenceData::String(s)) => {
-                let (offset, len) = self.add_string_literal(s);
+                let (offset, len) = self.add_clarity_string_literal(s);
                 builder.i32_const(offset as i32);
                 builder.i32_const(len as i32);
                 Ok(())
