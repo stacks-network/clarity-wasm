@@ -5,7 +5,10 @@ use clarity::vm::{
     types::{signatures::CallableSubtype, SequenceSubtype, StringSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
 };
-use walrus::{ir::BinaryOp, InstrSeqBuilder, LocalId};
+use walrus::{
+    ir::{BinaryOp, IfElse, UnaryOp},
+    InstrSeqBuilder, LocalId, ValType,
+};
 
 use super::Word;
 
@@ -85,6 +88,9 @@ fn wasm_equal(
         | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
             wasm_equal_bytes(generator, builder, first_op, nth_op)
         }
+        TypeSignature::OptionalType(some_ty) => {
+            wasm_equal_optional(generator, builder, first_op, nth_op, some_ty)
+        }
         _ => {
             dbg!(ty);
             Err(GeneratorError::NotImplemented)
@@ -134,6 +140,57 @@ fn wasm_equal_bytes(
     // Call the function with the operands on the stack.
     let func = OnceCell::new();
     builder.call(*func.get_or_init(|| generator.func_by_name("stdlib.is-eq-bytes")));
+
+    Ok(())
+}
+
+fn wasm_equal_optional(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    first_op: &[LocalId],
+    nth_op: &[LocalId],
+    some_ty: &TypeSignature,
+) -> Result<(), GeneratorError> {
+    let Some((first_variant, first_inner)) = first_op.split_first() else {
+        return Err(GeneratorError::InternalError(
+            "Optional operand should have at least one argument".into(),
+        ));
+    };
+    let Some((nth_variant, nth_inner)) = nth_op.split_first() else {
+        return Err(GeneratorError::InternalError(
+            "Optional operand should have at least one argument".into(),
+        ));
+    };
+
+    // check if we have (some x, some x) or (none, none)
+    builder
+        .local_get(*first_variant)
+        .local_get(*nth_variant)
+        .binop(BinaryOp::I32Eq);
+
+    // if both operands are identical,
+    // [then]: we check if we have a `none` or if the `some` inner_type are equal
+    // [else]: we push "false" on the stack
+    let then_id = {
+        let mut then = builder.dangling_instr_seq(ValType::I32);
+        // is none ?
+        then.local_get(*first_variant).unop(UnaryOp::I32Eqz);
+        // is some inner equal ?
+        wasm_equal(some_ty, generator, &mut then, first_inner, nth_inner)?; // is some arguments equal ?
+        then.binop(BinaryOp::I32Or);
+        then.id()
+    };
+
+    let else_id = {
+        let mut else_ = builder.dangling_instr_seq(ValType::I32);
+        else_.i32_const(0);
+        else_.id()
+    };
+
+    builder.instr(IfElse {
+        consequent: then_id,
+        alternative: else_id,
+    });
 
     Ok(())
 }
