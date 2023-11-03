@@ -101,3 +101,11 @@
 (define-public (call-principal-unequal-2)
     (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.foo 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR.foo))
 )
+
+(define-public (call-optional-equal)
+    (ok (is-eq (some 1) (some 1)))
+)
+
+(define-public (call-optional-unequal)
+    (ok (is-eq (some 0x01) (some 0x02)))
+)
