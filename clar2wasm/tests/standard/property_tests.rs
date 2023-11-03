@@ -15,52 +15,82 @@ use crate::utils::{
 
 #[test]
 fn prop_add_uint() {
-    utils::test_export_two_unsigned_args_checked("add-uint", |a: u128, b: u128| a.checked_add(b))
+    utils::test_export_two_unsigned_args_checked(
+        &format!("{STDLIB_PREFIX}.add-uint"),
+        |a: u128, b: u128| a.checked_add(b),
+    )
 }
 
 #[test]
 fn prop_add_int() {
-    utils::test_export_two_signed_args_checked("add-int", |a: i128, b: i128| a.checked_add(b))
+    utils::test_export_two_signed_args_checked(
+        &format!("{STDLIB_PREFIX}.add-int"),
+        |a: i128, b: i128| a.checked_add(b),
+    )
 }
 
 #[test]
 fn prop_sub_uint() {
-    utils::test_export_two_unsigned_args_checked("sub-uint", |a: u128, b: u128| a.checked_sub(b))
+    utils::test_export_two_unsigned_args_checked(
+        &format!("{STDLIB_PREFIX}.sub-uint"),
+        |a: u128, b: u128| a.checked_sub(b),
+    )
 }
 
 #[test]
 fn prop_sub_int() {
-    utils::test_export_two_signed_args_checked("sub-int", |a: i128, b: i128| a.checked_sub(b))
+    utils::test_export_two_signed_args_checked(
+        &format!("{STDLIB_PREFIX}.sub-int"),
+        |a: i128, b: i128| a.checked_sub(b),
+    )
 }
 
 #[test]
 fn prop_mul_uint() {
-    utils::test_export_two_unsigned_args_checked("mul-uint", |a: u128, b: u128| a.checked_mul(b))
+    utils::test_export_two_unsigned_args_checked(
+        &format!("{STDLIB_PREFIX}.mul-uint"),
+        |a: u128, b: u128| a.checked_mul(b),
+    )
 }
 
 #[test]
 fn prop_mul_int() {
-    utils::test_export_two_signed_args_checked("mul-int", |a: i128, b: i128| a.checked_mul(b))
+    utils::test_export_two_signed_args_checked(
+        &format!("{STDLIB_PREFIX}.mul-int"),
+        |a: i128, b: i128| a.checked_mul(b),
+    )
 }
 
 #[test]
 fn prop_div_uint() {
-    utils::test_export_two_unsigned_args_checked("div-uint", |a: u128, b: u128| a.checked_div(b))
+    utils::test_export_two_unsigned_args_checked(
+        &format!("{STDLIB_PREFIX}.div-uint"),
+        |a: u128, b: u128| a.checked_div(b),
+    )
 }
 
 #[test]
 fn prop_div_int() {
-    utils::test_export_two_signed_args_checked("div-int", |a: i128, b: i128| a.checked_div(b))
+    utils::test_export_two_signed_args_checked(
+        &format!("{STDLIB_PREFIX}.div-int"),
+        |a: i128, b: i128| a.checked_div(b),
+    )
 }
 
 #[test]
 fn prop_mod_uint() {
-    utils::test_export_two_unsigned_args_checked("mod-uint", |a: u128, b: u128| a.checked_rem(b))
+    utils::test_export_two_unsigned_args_checked(
+        &format!("{STDLIB_PREFIX}.mod-uint"),
+        |a: u128, b: u128| a.checked_rem(b),
+    )
 }
 
 #[test]
 fn prop_mod_int() {
-    utils::test_export_two_signed_args_checked("mod-int", |a: i128, b: i128| a.checked_rem(b))
+    utils::test_export_two_signed_args_checked(
+        &format!("{STDLIB_PREFIX}.mod-int"),
+        |a: i128, b: i128| a.checked_rem(b),
+    )
 }
 
 #[test]
@@ -105,26 +135,28 @@ fn prop_ge_int() {
 
 #[test]
 fn prop_log2_uint() {
-    utils::test_export_one_unsigned_arg_checked("log2-uint", |a: u128| {
+    utils::test_export_one_unsigned_arg_checked(&format!("{STDLIB_PREFIX}.log2-uint"), |a: u128| {
         a.checked_ilog2().map(|u| u as u128)
     })
 }
 
 #[test]
 fn prop_log2_int() {
-    utils::test_export_one_signed_arg_checked("log2-int", |a: i128| {
+    utils::test_export_one_signed_arg_checked(&format!("{STDLIB_PREFIX}.log2-int"), |a: i128| {
         a.checked_ilog2().map(|u| u as i128)
     })
 }
 
 #[test]
 fn prop_sqrti_uint() {
-    utils::test_export_one_unsigned_arg("sqrti-uint", |a: u128| num_integer::Roots::sqrt(&a))
+    utils::test_export_one_unsigned_arg(&format!("{STDLIB_PREFIX}.sqrti-uint"), |a: u128| {
+        num_integer::Roots::sqrt(&a)
+    })
 }
 
 #[test]
 fn prop_sqrti_int() {
-    utils::test_export_one_signed_arg_checked("sqrti-int", |a: i128| {
+    utils::test_export_one_signed_arg_checked(&format!("{STDLIB_PREFIX}.sqrti-int"), |a: i128| {
         (a >= 0).then(|| num_integer::Roots::sqrt(&a))
     })
 }
@@ -204,7 +236,10 @@ fn prop_0_pow_uint_something_is_zero() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-uint")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-uint"),
+        )
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -231,7 +266,10 @@ fn prop_1_pow_uint_something_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-uint")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-uint"),
+        )
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -258,7 +296,10 @@ fn prop_something_pow_uint_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-uint")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-uint"),
+        )
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -285,7 +326,10 @@ fn prop_pow_uint() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-uint")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-uint"),
+        )
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -317,7 +361,10 @@ fn prop_0_pow_int_something_is_zero() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-int")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-int"),
+        )
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -344,7 +391,10 @@ fn prop_1_pow_int_something_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-int")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-int"),
+        )
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -371,7 +421,10 @@ fn prop_something_pow_int_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-int")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-int"),
+        )
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -398,7 +451,10 @@ fn prop_pow_int() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(store.borrow_mut().deref_mut(), "pow-int")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.pow-int"),
+        )
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {

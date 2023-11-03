@@ -8,7 +8,9 @@ use crate::utils::load_stdlib;
 #[test]
 fn test_add_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let add = instance.get_func(&mut store, "add-uint").unwrap();
+    let add = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.add-uint"))
+        .unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -64,7 +66,9 @@ fn test_add_uint() {
 #[test]
 fn test_add_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let add = instance.get_func(&mut store, "add-int").unwrap();
+    let add = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.add-int"))
+        .unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -160,7 +164,9 @@ fn test_add_int() {
 #[test]
 fn test_sub_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sub = instance.get_func(&mut store, "sub-uint").unwrap();
+    let sub = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sub-uint"))
+        .unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -223,7 +229,9 @@ fn test_sub_uint() {
 #[test]
 fn test_sub_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sub = instance.get_func(&mut store, "sub-int").unwrap();
+    let sub = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sub-int"))
+        .unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -285,7 +293,9 @@ fn test_sub_int() {
 #[test]
 fn test_mul_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let mul = instance.get_func(&mut store, "mul-uint").unwrap();
+    let mul = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.mul-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -468,7 +478,9 @@ fn test_mul_uint() {
 #[test]
 fn test_mul_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let mul = instance.get_func(&mut store, "mul-int").unwrap();
+    let mul = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.mul-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -613,7 +625,9 @@ fn test_mul_int() {
 #[test]
 fn test_div_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let div = instance.get_func(&mut store, "div-uint").unwrap();
+    let div = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.div-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -678,7 +692,9 @@ fn test_div_uint() {
 #[test]
 fn test_div_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let div = instance.get_func(&mut store, "div-int").unwrap();
+    let div = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.div-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -740,7 +756,9 @@ fn test_div_int() {
 #[test]
 fn test_mod_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let modulo = instance.get_func(&mut store, "mod-uint").unwrap();
+    let modulo = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.mod-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 % 2 = 0
@@ -811,7 +829,9 @@ fn test_mod_uint() {
 #[test]
 fn test_mod_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let modulo = instance.get_func(&mut store, "mod-int").unwrap();
+    let modulo = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.mod-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 7 % 4 = 3
@@ -1751,7 +1771,9 @@ fn test_ge_buff() {
 #[test]
 fn test_log2_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let log2 = instance.get_func(&mut store, "log2-uint").unwrap();
+    let log2 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.log2-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // log2(0) is an error
@@ -1780,7 +1802,9 @@ fn test_log2_uint() {
 #[test]
 fn test_log2_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let log2 = instance.get_func(&mut store, "log2-int").unwrap();
+    let log2 = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.log2-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // log2(0) is an error
@@ -1805,7 +1829,9 @@ fn test_log2_int() {
 #[test]
 fn test_sqrti_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sqrti = instance.get_func(&mut store, "sqrti-uint").unwrap();
+    let sqrti = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sqrti-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // sqrti(0) = 0
@@ -1847,7 +1873,9 @@ fn test_sqrti_uint() {
 #[test]
 fn test_sqrti_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sqrti = instance.get_func(&mut store, "sqrti-int").unwrap();
+    let sqrti = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.sqrti-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // sqrti(0) = 0
@@ -1901,7 +1929,9 @@ fn bit_not_int() {
 #[test]
 fn pow_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let pow = instance.get_func(&mut store, "pow-uint").unwrap();
+    let pow = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.pow-uint"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // pow(0, 0) == 1
@@ -2014,7 +2044,9 @@ fn pow_uint() {
 #[test]
 fn pow_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let pow = instance.get_func(&mut store, "pow-int").unwrap();
+    let pow = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.pow-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // pow(0, 0) == 1
