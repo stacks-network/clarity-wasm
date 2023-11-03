@@ -18,6 +18,7 @@ use walrus::{
 };
 
 use crate::words;
+use crate::STDLIB_PREFIX;
 
 /// First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 648;
@@ -680,7 +681,7 @@ impl WasmGenerator {
         builder.local_get(high).call(
             self.module
                 .funcs
-                .by_name("store-i64-be")
+                .by_name(&format!("{STDLIB_PREFIX}.store-i64-be"))
                 .expect("store-i64-be not found"),
         );
 
@@ -696,7 +697,7 @@ impl WasmGenerator {
         builder.local_get(low).call(
             self.module
                 .funcs
-                .by_name("store-i64-be")
+                .by_name(&format!("{STDLIB_PREFIX}.store-i64-be"))
                 .expect("store-i64-be not found"),
         );
         written += 8;

@@ -466,7 +466,10 @@ fn prop_store_i64_be() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let store_i64_be = instance
-        .get_func(store.borrow_mut().deref_mut(), "store-i64-be")
+        .get_func(
+            store.borrow_mut().deref_mut(),
+            &format!("{STDLIB_PREFIX}.store-i64-be"),
+        )
         .unwrap();
 
     proptest!(|(val in proptest::num::i64::ANY)| {

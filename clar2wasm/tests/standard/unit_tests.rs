@@ -2701,7 +2701,9 @@ fn store_i32_be() {
 #[test]
 fn store_i64_be() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let store_i64_be = instance.get_func(&mut store, "store-i64-be").unwrap();
+    let store_i64_be = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.store-i64-be"))
+        .unwrap();
     let mut result = [];
 
     // Write to a random unused place in the memory
