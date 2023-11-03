@@ -115,6 +115,9 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &responses::IsErr,
     &bindings::Let,
     &default_to::DefaultTo,
+    &traits::DefineTrait,
+    &traits::UseTrait,
+    &traits::ImplTrait,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {

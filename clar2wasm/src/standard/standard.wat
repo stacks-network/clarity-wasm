@@ -29,6 +29,10 @@
                                                      (param $name_length i32)))
     (import "clarity" "define_map" (func $define_map (param $name_offset i32)
                                                      (param $name_length i32)))
+    (import "clarity" "define_trait" (func $define_trait (param $name_offset i32)
+                                                         (param $name_length i32)))
+    (import "clarity" "impl_trait" (func $impl_trait (param $trait_offset i32)
+                                                     (param $trait_length i32)))
 
     (import "clarity" "get_variable" (func $get_variable (param $name_offset i32)
                                                          (param $name_length i32)
