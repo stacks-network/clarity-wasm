@@ -1,19 +1,17 @@
-use clarity::vm::database::ClarityBackingStore;
-
-use sha2::{Sha512_256, Digest};
+use sha2::{Digest, Sha512_256};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
 use crate::appdb::AppDb;
+use crate::clarity;
 use crate::model::app_db::ContractExecution;
-
-
+use crate::stacks;
 
 pub struct DataStore<'a> {
     exec: Option<ContractExecution>,
     db: &'a AppDb,
     open_chain_tip: StacksBlockId,
     current_chain_tip: StacksBlockId,
-    chain_height: u32
+    chain_height: u32,
 }
 
 impl<'a> DataStore<'a> {
@@ -29,7 +27,7 @@ impl<'a> DataStore<'a> {
         }
     }
 
-    pub fn as_clarity_store(&mut self) -> &mut dyn ClarityBackingStore {
+    pub fn as_clarity_store(&mut self) -> &mut dyn clarity::ClarityBackingStore {
         self
     }
 
@@ -44,26 +42,39 @@ impl<'a> DataStore<'a> {
         let hash = Sha512Trunc256Sum::from_hasher(hasher);
         hash.0
     }
-    
+
     fn height_to_id(height: u32) -> StacksBlockId {
         StacksBlockId(Self::height_to_hashed_bytes(height))
     }
 }
 
-impl ClarityBackingStore for DataStore<'_> {
+impl clarity::ClarityBackingStore for DataStore<'_> {
     fn put_all(&mut self, items: Vec<(String, String)>) {
-
         for (key, value) in items {
-            let contract_var_id = self.db.get_var_id(self.exec.as_ref().expect("contract execution not set").contract_id, &key)
+            let contract_var_id = self
+                .db
+                .get_var_id(
+                    self.exec
+                        .as_ref()
+                        .expect("contract execution not set")
+                        .contract_id,
+                    &key,
+                )
                 .expect("failed to find contract var id")
                 .expect("contract var id does not exist");
 
-            self.db.insert_var_instance(self.exec.as_ref().expect("contract execution not set").id, contract_var_id, value.as_bytes());
+            self.db.insert_var_instance(
+                self.exec.as_ref().expect("contract execution not set").id,
+                contract_var_id,
+                value.as_bytes(),
+            );
         }
     }
 
     fn get(&mut self, key: &str) -> Option<String> {
-        let buff = self.db.get_var_latest(self.exec.as_ref().unwrap().contract_id, key)
+        let buff = self
+            .db
+            .get_var_latest(self.exec.as_ref().unwrap().contract_id, key)
             .expect("failed to retrieve latest var");
 
         if let Some(str) = buff {
@@ -77,18 +88,24 @@ impl ClarityBackingStore for DataStore<'_> {
         None
     }
 
-    fn set_block_hash(&mut self, bhh: stacks_common::types::chainstate::StacksBlockId) -> clarity::vm::errors::InterpreterResult<stacks_common::types::chainstate::StacksBlockId> {
+    fn set_block_hash(
+        &mut self,
+        bhh: stacks_common::types::chainstate::StacksBlockId,
+    ) -> clarity::InterpreterResult<stacks_common::types::chainstate::StacksBlockId> {
         let prior_tip = self.open_chain_tip;
         self.current_chain_tip = bhh;
         Ok(prior_tip)
     }
 
-    fn get_block_at_height(&mut self, height: u32) -> Option<stacks_common::types::chainstate::StacksBlockId> {
+    fn get_block_at_height(
+        &mut self,
+        height: u32,
+    ) -> Option<stacks_common::types::chainstate::StacksBlockId> {
         Some(Self::height_to_id(height))
     }
 
     fn get_current_block_height(&mut self) -> u32 {
-            todo!()
+        todo!()
     }
 
     fn get_open_chain_tip_height(&mut self) -> u32 {
@@ -101,5 +118,80 @@ impl ClarityBackingStore for DataStore<'_> {
 
     fn get_side_store(&mut self) -> &rusqlite::Connection {
         unimplemented!("Side-store not supported.");
+    }
+}
+
+impl clarity::BurnStateDB for DataStore<'_> {
+    fn get_v1_unlock_height(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_v2_unlock_height(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_pox_3_activation_height(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_burn_block_height(
+        &self,
+        sortition_id: &stacks_common::types::chainstate::SortitionId,
+    ) -> Option<u32> {
+        todo!()
+    }
+
+    fn get_burn_start_height(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_pox_prepare_length(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_pox_reward_cycle_length(&self) -> u32 {
+        todo!()
+    }
+
+    fn get_pox_rejection_fraction(&self) -> u64 {
+        todo!()
+    }
+
+    fn get_burn_header_hash(
+        &self,
+        height: u32,
+        sortition_id: &stacks_common::types::chainstate::SortitionId,
+    ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
+        todo!()
+    }
+
+    fn get_sortition_id_from_consensus_hash(
+        &self,
+        consensus_hash: &stacks_common::types::chainstate::ConsensusHash,
+    ) -> Option<stacks_common::types::chainstate::SortitionId> {
+        todo!()
+    }
+
+    fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
+        todo!()
+    }
+
+    fn get_stacks_epoch_by_epoch_id(
+        &self,
+        epoch_id: &stacks_common::types::StacksEpochId,
+    ) -> Option<clarity::StacksEpoch> {
+        todo!()
+    }
+
+    fn get_ast_rules(&self, height: u32) -> clarity::ASTRules {
+        clarity::ASTRules::PrecheckSize
+    }
+
+    fn get_pox_payout_addrs(
+        &self,
+        height: u32,
+        sortition_id: &stacks_common::types::chainstate::SortitionId,
+    ) -> Option<(Vec<clarity::TupleData>, u128)> {
+        todo!()
     }
 }

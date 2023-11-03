@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Result, bail};
+use color_eyre::eyre::{bail, Result};
 use serde_derive::Deserialize;
 use std::fs;
 
@@ -6,7 +6,7 @@ use std::fs;
 pub struct Config {
     pub baseline: Baseline,
     pub app: App,
-    pub environment: Vec<Environment>,
+    environment: Vec<Environment>,
 }
 
 impl Config {
@@ -21,6 +21,10 @@ impl Config {
             Err(err) => bail!("Unable to load data from `{}`: {}", path, err),
         }
     }
+
+    pub fn environments(&self) -> &[Environment] {
+        &self.environment
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -32,7 +36,7 @@ pub struct Baseline {
 #[derive(Debug, Clone, Deserialize)]
 pub struct App {
     pub db_path: String,
-    pub console_theme: Option<String>
+    pub console_theme: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

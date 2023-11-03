@@ -7,9 +7,10 @@ pub mod chainstate_db {
     #[diesel(primary_key(block_height))]
     #[diesel(table_name = block_headers)]
     pub struct BlockHeader {
-        block_height: i32,
+        pub block_height: i32,
         pub index_block_hash: String,
         pub parent_block_id: String,
+        pub consensus_hash: String,
     }
 
     impl BlockHeader {
@@ -60,7 +61,17 @@ pub mod app_db {
         pub name: String,
     }
 
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = environment)]
     pub struct Environment {
         pub id: i32,
@@ -68,18 +79,38 @@ pub mod app_db {
         pub runtime_id: i32,
     }
 
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = block)]
     pub struct Block {
         pub id: i32,
         pub environment_id: i32,
-        pub stacks_block_id: i32,
+        //pub stacks_block_id: i32,
         pub height: i32,
         pub index_hash: Vec<u8>,
         pub marf_trie_root_hash: Vec<u8>,
     }
 
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = marf_entry)]
     pub struct MarfEntry {
         pub id: i32,
@@ -89,7 +120,17 @@ pub mod app_db {
     }
 
     /// A generalized instance to an installed Clarity contract.
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = contract)]
     pub struct Contract {
         pub id: i32,
@@ -99,7 +140,17 @@ pub mod app_db {
     }
 
     /// Holds information about a specific execution of a Clarity contract.
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = contract_execution)]
     pub struct ContractExecution {
         pub id: i32,
@@ -109,7 +160,17 @@ pub mod app_db {
     }
 
     /// A data-var definition for a Clarity contract.
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = contract_var)]
     pub struct ContractVar {
         pub id: i32,
@@ -119,7 +180,17 @@ pub mod app_db {
 
     /// A single Clarity data-var instance which is associated with a specific contract
     /// execution.
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = contract_var_instance)]
     pub struct ContractVarInstance {
         pub id: i32,
@@ -129,7 +200,17 @@ pub mod app_db {
     }
 
     /// Information regarding Clarity maps in a contract.
-    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+    #[derive(
+        Queryable,
+        Selectable,
+        Identifiable,
+        PartialEq,
+        Eq,
+        Debug,
+        Clone,
+        QueryableByName,
+        Insertable,
+    )]
     #[diesel(table_name = contract_map)]
     pub struct ContractMap {
         pub id: i32,

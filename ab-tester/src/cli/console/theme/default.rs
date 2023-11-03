@@ -1,5 +1,3 @@
-
-
 use ratatui::style::Color;
 
 use super::ColorScheme;
@@ -20,7 +18,6 @@ enum ColorPalette {
 }
 
 impl From<ColorPalette> for Color {
-    
     fn from(n: ColorPalette) -> Self {
         use ColorPalette::*;
         match n {
@@ -42,9 +39,9 @@ impl From<ColorPalette> for Color {
 pub fn default() -> ColorScheme {
     use ColorPalette::*;
 
-    ColorScheme { 
-        main_bg: Black1.into(), 
-        main_fg: White.into(), 
+    ColorScheme {
+        main_bg: Black1.into(),
+        main_fg: White.into(),
 
         header_fg: Pink.into(),
         header_bg: Black2.into(),
@@ -53,9 +50,9 @@ pub fn default() -> ColorScheme {
         popup_bg: Black2.into(),
         popup_title_fg: White.into(),
 
-        menu_bg: Black1.into(), 
-        menu_fg: White.into(), 
-        menu_divider_fg: Black2.into(), 
+        menu_bg: Black1.into(),
+        menu_fg: White.into(),
+        menu_divider_fg: Black2.into(),
         menu_highlight_bg: Black1.into(),
         menu_highlight_fg: Orange.into(),
 

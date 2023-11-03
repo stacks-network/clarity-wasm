@@ -3,7 +3,7 @@ pub struct Block {
     pub height: u32,
     pub hash: String,
     pub timestamp: String,
-    pub tx_count: u32
+    pub tx_count: u32,
 }
 
 #[derive(Debug)]

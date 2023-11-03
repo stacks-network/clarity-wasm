@@ -1,4 +1,4 @@
 set dotenv-load
 
 run *args:
-    RUST_BACKTRACE=1 RUST_LOG="info" cargo run -- {{args}}
+    BLOCKSTACK_DEBUG=1 STACKS_LOG_DEBUG=1 BLOCKSTACK_TRACE=1 BLOCKSTACK_ERROR=1 BLOCKSTACK_CRIT=1 RUST_BACKTRACE=1 RUST_LOG="debug" cargo run -- {{args}}

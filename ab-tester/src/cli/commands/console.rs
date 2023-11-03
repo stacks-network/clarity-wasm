@@ -1,13 +1,12 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 use color_eyre::eyre::Result;
-
 
 use crate::cli::{
     console::{
         app::{App, AppState},
-        theme::{Theme, ColorScheme}, 
-        screens::{BlocksScreen, main::MainLayout, StartScreen},
+        screens::{main::MainLayout, BlocksScreen, StartScreen},
+        theme::{ColorScheme, Theme},
     },
     TuiArgs,
 };
@@ -26,10 +25,11 @@ pub async fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
     let main_layout = Rc::new(RefCell::new(MainLayout::new()));
 
     let mut app_state = AppState::new();
-    let mut app = App::new("Stacks A/B Tester Thingy v0.0.0",
+    let mut app = App::new(
+        "Stacks A/B Tester Thingy v0.0.0",
         config,
         &theme,
-        &mut app_state
+        &mut app_state,
     )?;
 
     app.register_component(Rc::clone(&main_layout));

@@ -1,30 +1,39 @@
 use std::cell::RefCell;
 
-use blockstack_lib::chainstate::stacks::{StacksTransaction, db::StacksChainState, index::marf::{MARFOpenOpts, MarfConnection}};
-use diesel::{SqliteConnection, Connection, QueryDsl, ExpressionMethods, RunQueryDsl, OptionalExtension};
-use stacks_common::types::{chainstate::{ConsensusHash, BlockHeaderHash}, StacksEpochId};
-use color_eyre::{Result, eyre::bail};
+use color_eyre::{eyre::bail, Result};
+use diesel::{
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
+};
 use log::*;
 
-use crate::{ok, appdb::AppDb, datastore::DataStore, model, schema, clarity, clarity::ClarityConnection, stacks};
+use crate::{
+    appdb::AppDb,
+    clarity,
+    clarity::ClarityConnection,
+    datastore::DataStore,
+    model, ok,
+    schema::{self, chainstate_marf},
+    stacks,
+};
 
-use super::blocks::BlockCursor;
+use super::{
+    blocks::{BlockCursor, BlockHeader},
+    Block,
+};
 
 pub enum Runtime {
     Interpreter = 1,
-    Wasm = 2
+    Wasm = 2,
 }
 
-/// Holds all state between environments as well as the 
+/// Holds all state between environments as well as the
 pub struct GlobalEnvContext {
     app_db: AppDb,
 }
 
 impl GlobalEnvContext {
     pub fn new(app_db: AppDb) -> Self {
-        Self {
-            app_db,
-        }
+        Self { app_db }
     }
 
     /// Get or create a a test environment.
@@ -47,10 +56,11 @@ pub struct TestEnv<'a> {
     ctx: &'a GlobalEnvContext,
     //chainstate_path: String,
     blocks_dir: String,
-    chainstate: StacksChainState,
+    chainstate: stacks::StacksChainState,
     index_db_conn: RefCell<SqliteConnection>,
     //sortition_db: SortitionDB,
-    clarity_db_conn: SqliteConnection
+    clarity_db_conn: SqliteConnection,
+    burnchain: stacks::Burnchain,
 }
 
 impl std::fmt::Debug for TestEnv<'_> {
@@ -69,6 +79,27 @@ impl std::fmt::Debug for TestEnv<'_> {
 impl<'a> TestEnv<'a> {
     /// Creates a new instance of a [TestEnv] and attempts to open its database files.
     pub fn new(id: i32, name: &str, stacks_dir: &str, ctx: &'a GlobalEnvContext) -> Result<Self> {
+        let mut boot_data = stacks::ChainStateBootData {
+            initial_balances: vec![],
+            post_flight_callback: None,
+            first_burnchain_block_hash: stacks::BurnchainHeaderHash::zero(),
+            first_burnchain_block_height: 0,
+            first_burnchain_block_timestamp: 0,
+            pox_constants: stacks::PoxConstants::mainnet_default(),
+            get_bulk_initial_lockups: None,
+            get_bulk_initial_balances: None,
+            get_bulk_initial_names: None,
+            get_bulk_initial_namespaces: None,
+        };
+
+        stacks::StacksChainState::open_and_exec(
+            true,
+            1,
+            &format!("{}/chainstate", stacks_dir),
+            Some(&mut boot_data),
+            None,
+        )?;
+
         let index_db_path = format!("{}/chainstate/vm/index.sqlite", stacks_dir);
         //let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
         let blocks_dir = format!("{}/chainstate/blocks", stacks_dir);
@@ -87,12 +118,16 @@ impl<'a> TestEnv<'a> {
         let clarity_db_conn = SqliteConnection::establish(&clarity_db_path)?;
         info!("[{name}] successfully connected to clarity db");
 
-        let mut marf_opts = MARFOpenOpts::default();
+        let mut marf_opts = stacks::MARFOpenOpts::default();
         marf_opts.external_blobs = true;
 
         debug!("[{name}] opening chainstate...");
-        let chainstate = StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts))?;
+        let chainstate =
+            stacks::StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts))?;
         info!("[{name}] successfully opened chainstate");
+
+        debug!("[{name}] creating burnchain");
+        let burnchain = stacks::Burnchain::new(stacks_dir, "bitcoin", "mainnet")?;
 
         /*debug!("opening sortition db...");
         let sortition_db = SortitionDB::connect(
@@ -115,44 +150,78 @@ impl<'a> TestEnv<'a> {
             chainstate: chainstate.0,
             index_db_conn: RefCell::new(index_db_conn),
             //sortition_db,
-            clarity_db_conn
+            clarity_db_conn,
+            burnchain,
         })
     }
 
     /// Execute the given block with access to the underlying [ClarityDatabase].
-    pub fn with_clarity_db(&self, f: impl FnOnce(&Self, &mut clarity::ClarityDatabase) -> Result<()>) -> Result<()> {
+    pub fn with_clarity_db(
+        &self,
+        f: impl FnOnce(&Self, &mut clarity::ClarityDatabase) -> Result<()>,
+    ) -> Result<()> {
         let mut data_store = DataStore::new(&self.ctx.app_db);
         let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);
         let mut clarity_db = clarity::ClarityDatabase::new_with_rollback_wrapper(
-            rollback_wrapper, &clarity::NULL_HEADER_DB, &clarity::NULL_BURN_STATE_DB);
+            rollback_wrapper,
+            &clarity::NULL_HEADER_DB,
+            &clarity::NULL_BURN_STATE_DB,
+        );
 
         clarity_db.begin();
-        clarity_db.set_clarity_epoch_version(StacksEpochId::latest());
+        clarity_db.set_clarity_epoch_version(stacks::StacksEpochId::latest());
         clarity_db.commit();
 
         f(self, &mut clarity_db)
     }
 
     /// Retrieve all block headers from the underlying storage.
-    fn block_headers(&self) -> Result<Vec<model::chainstate_db::BlockHeader>> {
+    fn block_headers(&self) -> Result<Vec<BlockHeader>> {
         // Retrieve the tip.
         let tip = schema::chainstate_marf::block_headers::table
             .order_by(schema::chainstate_marf::block_headers::block_height.desc())
             .limit(1)
-            .get_result::<model::chainstate_db::BlockHeader>(&mut *self.index_db_conn.borrow_mut())?;
+            .get_result::<model::chainstate_db::BlockHeader>(
+                &mut *self.index_db_conn.borrow_mut(),
+            )?;
+
+        let tip_parent = schema::chainstate_marf::block_headers::table
+            .filter(chainstate_marf::block_headers::index_block_hash.eq(&tip.parent_block_id))
+            .get_result::<model::chainstate_db::BlockHeader>(
+                &mut *self.index_db_conn.borrow_mut(),
+            )?;
 
         let mut current_block = Some(tip.clone());
-        let mut headers = vec![tip];
-        
+        let mut headers = vec![BlockHeader::new(
+            tip.block_height as u32,
+            hex::decode(tip.index_block_hash)?,
+            hex::decode(&tip.parent_block_id)?,
+            hex::decode(tip.consensus_hash)?,
+            hex::decode(tip_parent.consensus_hash)?,
+        )];
+
         // Walk backwards
         while let Some(block) = current_block {
             let ancestor = schema::chainstate_marf::block_headers::table
-                .filter(schema::chainstate_marf::block_headers::index_block_hash.eq(block.parent_block_id))
-                .get_result::<model::chainstate_db::BlockHeader>(&mut *self.index_db_conn.borrow_mut())
+                .filter(
+                    schema::chainstate_marf::block_headers::index_block_hash
+                        .eq(block.parent_block_id),
+                )
+                .get_result::<model::chainstate_db::BlockHeader>(
+                    &mut *self.index_db_conn.borrow_mut(),
+                )
                 .optional()?;
-            
+
             if let Some(b) = ancestor.clone() {
-                headers.push(b);
+                let parent_consensus_hash = &block.consensus_hash;
+
+                headers.push(BlockHeader::new(
+                    b.block_height as u32,
+                    hex::decode(b.index_block_hash)?,
+                    hex::decode(&tip.parent_block_id)?,
+                    hex::decode(&b.consensus_hash)?,
+                    hex::decode(parent_consensus_hash)?,
+                ));
             }
 
             current_block = ancestor;
@@ -174,33 +243,44 @@ impl<'a> TestEnv<'a> {
     }
 
     pub fn insert_block(&self, height: i32, block_hash: &[u8], index_hash: &[u8]) -> Result<()> {
-        self.ctx.app_db.insert_block(
-            self.id,
-            height,
-            block_hash,
-            index_hash)?;
+        self.ctx
+            .app_db
+            .insert_block(self.id, height, block_hash, index_hash)?;
 
         ok!()
     }
 
-    pub fn test(&mut self, tx: &StacksTransaction) -> Result<()> {
-        let parent_consensus_hash = ConsensusHash::from_bytes(&[1, 2, 3, 4]).unwrap();
-        let new_consensus_hash = ConsensusHash::from_bytes(&[5, 6, 7, 8]).unwrap();
-        let parent_block = BlockHeaderHash::from_bytes(&[1, 2, 3, 4]).unwrap();
-        let new_block = BlockHeaderHash::from_bytes(&[5, 6, 7, 8]).unwrap();
-        
-        let mut clarity_tx = self.chainstate.block_begin(
-            &clarity::NULL_BURN_STATE_DB, 
-            &parent_consensus_hash, 
-            &parent_block, 
-            &new_consensus_hash, 
-            &new_block);
+    pub fn test(&mut self, block: &Block, tx: &stacks::StacksTransaction) -> Result<()> {
+        let parent_consensus_hash: stacks::ConsensusHash;
+        let new_consensus_hash: stacks::ConsensusHash;
+        let parent_block: stacks::BlockHeaderHash;
+        let new_block: stacks::BlockHeaderHash;
 
-        let (fee, receipt) = StacksChainState::process_transaction(
-            &mut clarity_tx, 
-            tx, 
-            false, 
-            clarity::ASTRules::Typical
+        match block {
+            Block::Genesis(_) => bail!("cannot process genesis"),
+            Block::Regular(header, stacks_block) => {
+                parent_consensus_hash = header.parent_consensus_hash()?;
+                new_consensus_hash = header.consensus_hash()?;
+                parent_block = header.parent_block_hash()?;
+                new_block = stacks_block.header.block_hash();
+            }
+        }
+
+        info!("beginning block");
+        let mut clarity_tx = self.chainstate.block_begin(
+            &clarity::NULL_BURN_STATE_DB,
+            &parent_consensus_hash,
+            &parent_block,
+            &new_consensus_hash,
+            &new_block,
+        );
+
+        info!("processing transaction");
+        let (fee, receipt) = stacks::StacksChainState::process_transaction(
+            &mut clarity_tx,
+            tx,
+            false,
+            clarity::ASTRules::Typical,
         )?;
 
         //clarity_tx.commit_to_block(consensus_hash, block_hash)
@@ -213,7 +293,6 @@ impl<'a> TestEnv<'a> {
         at_block: &stacks::StacksBlockId,
         contract_id: &clarity::QualifiedContractIdentifier,
     ) -> Result<()> {
-
         let mut variable_paths: Vec<String> = Default::default();
 
         let mut conn = self.chainstate.clarity_state.read_only_connection(
@@ -238,8 +317,11 @@ impl<'a> TestEnv<'a> {
 
                 // Construct the identifier (key) for this variable in the
                 // persistence layer.
-                let key =
-                    clarity::ClarityDatabase::make_key_for_trip(contract_id, clarity::StoreType::Variable, name);
+                let key = clarity::ClarityDatabase::make_key_for_trip(
+                    contract_id,
+                    clarity::StoreType::Variable,
+                    name,
+                );
 
                 let path = stacks::TriePath::from_key(&key);
                 variable_paths.push(path.to_hex());
@@ -250,7 +332,7 @@ impl<'a> TestEnv<'a> {
                     contract_id,
                     name,
                     &meta,
-                    &StacksEpochId::Epoch24,
+                    &stacks::StacksEpochId::Epoch24,
                 )?;
 
                 trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
@@ -270,7 +352,6 @@ impl<'a> TestEnv<'a> {
 
     /// Loads the specified block from the MARF.
     pub fn load_block(&mut self, block_id: &stacks::StacksBlockId) -> Result<()> {
-
         debug!("beginning to walk the block: {}", block_id);
         let leaves = self.walk_block(block_id, false)?;
 
@@ -287,7 +368,8 @@ impl<'a> TestEnv<'a> {
                 .optional()?;
 
             if let Some(value_unwrapped) = value {
-                let clarity_value = clarity::Value::try_deserialize_hex_untyped(&value_unwrapped.value);
+                let clarity_value =
+                    clarity::Value::try_deserialize_hex_untyped(&value_unwrapped.value);
                 if let Ok(clarity_value) = clarity_value {
                     trace!("deserialized value: {:?}", &clarity_value);
                 } else {
@@ -455,8 +537,9 @@ impl<'a> TestEnv<'a> {
     /// directory for the node).
     pub fn get_stacks_block(&self, block_hash: &str) -> Result<stacks::StacksBlock> {
         let block_id = stacks::StacksBlockId::from_hex(block_hash)?;
-        let block_path = StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
-        let block = StacksChainState::consensus_load(&block_path)?;
+        let block_path =
+            stacks::StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
+        let block = stacks::StacksChainState::consensus_load(&block_path)?;
 
         Ok(block)
     }

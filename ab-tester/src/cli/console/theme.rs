@@ -1,4 +1,4 @@
-use ratatui::style::{Style, Color, Modifier};
+use ratatui::style::{Color, Modifier, Style};
 
 mod default;
 
@@ -58,7 +58,7 @@ pub struct Theme {
 
     pub popup_fg_bg: Style,
     pub popup_title: Style,
-    
+
     pub menu: Style,
     pub menu_divider: Style,
     pub menu_highlight: Style,
@@ -87,9 +87,21 @@ impl Default for Theme {
 
 impl Theme {
     pub fn new(cs: ColorScheme, draw_background: bool) -> Self {
-        let main_bg = if draw_background { cs.main_bg } else { Color::Reset };
-        let menu_bg = if draw_background { cs.menu_bg } else { Color::Reset };
-        let menu_highlight_bg = if draw_background { cs.menu_highlight_bg } else { Color::Reset };
+        let main_bg = if draw_background {
+            cs.main_bg
+        } else {
+            Color::Reset
+        };
+        let menu_bg = if draw_background {
+            cs.menu_bg
+        } else {
+            Color::Reset
+        };
+        let menu_highlight_bg = if draw_background {
+            cs.menu_highlight_bg
+        } else {
+            Color::Reset
+        };
 
         Theme {
             main: Style::default().fg(cs.main_fg).bg(main_bg),
@@ -117,9 +129,15 @@ impl Theme {
                 .fg(cs.blocks_table_header_fg)
                 .add_modifier(Modifier::BOLD),
             //blocks_table_row_gauge: Style::default().fg(cs.blocks_table_row_gauge_fg).bg(cs.calls_table_row_gauge_bg),
-            blocks_table_row_top_1: Style::default().fg(cs.blocks_table_row_top_1_fg).bg(main_bg),
-            blocks_table_row_top_2: Style::default().fg(cs.blocks_table_row_top_2_fg).bg(main_bg),
-            blocks_table_row_bottom: Style::default().fg(cs.blocks_table_row_bottom_fg).bg(main_bg),
+            blocks_table_row_top_1: Style::default()
+                .fg(cs.blocks_table_row_top_1_fg)
+                .bg(main_bg),
+            blocks_table_row_top_2: Style::default()
+                .fg(cs.blocks_table_row_top_2_fg)
+                .bg(main_bg),
+            blocks_table_row_bottom: Style::default()
+                .fg(cs.blocks_table_row_bottom_fg)
+                .bg(main_bg),
             blocks_table_row_highlight: Style::default()
                 .bg(cs.blocks_table_row_highlight_bg)
                 .add_modifier(Modifier::BOLD),
@@ -139,7 +157,7 @@ impl Theme {
                 start_g = g as f32;
                 start_b = b as f32;
             }
-            _ => return Style::default().fg(start_color).bg(bg)
+            _ => return Style::default().fg(start_color).bg(bg),
         }
 
         let min = start_r.min(start_g).min(start_b) as u8;
@@ -156,13 +174,13 @@ impl Theme {
                 stop_g = g as f32;
                 stop_b = b as f32;
             }
-            _ => return Style::default().fg(start_color).bg(bg)
+            _ => return Style::default().fg(start_color).bg(bg),
         }
 
         let s = match size {
             0..=12 => 12,
             13..=30 => size,
-            _ => 30
+            _ => 30,
         } as f32;
 
         let idx = index as f32;
@@ -171,6 +189,8 @@ impl Theme {
         let g = (start_g - (((start_g - stop_g).max(0.0) / s) * idx)).max(stop_g);
         let b = (start_b - (((start_b - stop_b).max(0.0) / s) * idx)).max(stop_b);
 
-        Style::default().fg(Color::Rgb(r as u8, g as u8, b as u8)).bg(bg)
+        Style::default()
+            .fg(Color::Rgb(r as u8, g as u8, b as u8))
+            .bg(bg)
     }
 }

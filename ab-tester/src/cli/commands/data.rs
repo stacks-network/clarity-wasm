@@ -1,24 +1,38 @@
 use std::collections::HashMap;
 
-use crate::{cli::DataArgs, ok, appdb::AppDb, context::{environments::{GlobalEnvContext, Runtime}, Block}};
+use crate::{
+    appdb::AppDb,
+    cli::DataArgs,
+    context::{
+        environments::{GlobalEnvContext, Runtime},
+        Block,
+    },
+    ok,
+};
+use blockstack_lib::chainstate::stacks::{self, TransactionPayload};
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use color_eyre::eyre::Result;
-use blockstack_lib::chainstate::stacks::{TransactionPayload, self};
-use diesel::{SqliteConnection, Connection};
+use diesel::{Connection, SqliteConnection};
 use log::*;
 use stacks_common::types::chainstate::StacksBlockId;
 
 pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
-
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
     let context = GlobalEnvContext::new(app_db);
 
-    let mut baseline_env = context.env(
+    let baseline_env = context.env(
         "baseline",
         Runtime::Interpreter,
-        &config.baseline.chainstate_path)?;
+        &config.baseline.chainstate_path,
+    )?;
+
+    let mut replay_env = context.env(
+        "baseline_replay",
+        Runtime::Interpreter,
+        "/home/cylwit/stacks-replay",
+    )?;
 
     info!(
         "aggregating contract calls starting at block height {}...",
@@ -27,18 +41,15 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let mut processed_block_count = 0;
 
     let mut contracts: HashMap<QualifiedContractIdentifier, StacksBlockId> = HashMap::new();
-    
+
     for block in baseline_env.blocks()?.into_iter() {
-        let (header, stacks_block) = match block {
+        let (header, stacks_block) = match &block {
             Block::Genesis(gen) => {
                 // We can't process genesis (doesn't exist in chainstate), so skip it.
-                info!(
-                    "genesis block - skipping '{}'",
-                    gen.index_block_hash
-                );
+                info!("genesis block - skipping '{:?}'", gen.index_block_hash);
                 continue;
-            },
-            Block::Regular(header, block) => (header, block)
+            }
+            Block::Regular(header, block) => (header, block),
         };
 
         // Ensure that we've reached the specified block-height before beginning
@@ -55,36 +66,36 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
         debug!("processing block #{}", header.block_height());
 
-        let block_id = StacksBlockId::from_hex(&header.index_block_hash)?;
+        let block_id = header.stacks_block_id()?;
 
-        debug!("inserting block into app db");
+        info!("inserting block into app db");
         baseline_env.insert_block(
-            header.block_height() as i32, 
-            stacks_block.block_hash().as_bytes(), 
-            &hex::decode(&header.index_block_hash)?
+            header.block_height() as i32,
+            stacks_block.block_hash().as_bytes(),
+            &header.index_block_hash,
         )?;
 
         for tx in stacks_block.clone().txs.iter() {
-
             info!("processing tx: {}", tx.txid());
-            baseline_env.test(&tx)?;
+            replay_env.test(&block, tx)?;
 
             let origin_principal = StandardPrincipalData::from(tx.origin_address());
 
             #[allow(clippy::single_match)]
             match &tx.payload {
                 TransactionPayload::SmartContract(contract, _) => {
-                    let contract_id = QualifiedContractIdentifier::new(
-                        origin_principal, 
-                        contract.name.clone());
+                    let contract_id =
+                        QualifiedContractIdentifier::new(origin_principal, contract.name.clone());
 
                     if let Some(entry) = contracts.get(&contract_id) {
-                        warn!("duplicate: {}, first block={}, second block={}",
-                            contract_id, entry, &block_id);
+                        warn!(
+                            "duplicate: {}, first block={}, second block={}",
+                            contract_id, entry, &block_id
+                        );
                     } else {
                         contracts.insert(contract_id, block_id);
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -96,18 +107,17 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     std::process::exit(1);
 
-
     //crate::runtime::analyze_contract(contract_identifier, expressions, data_store, cost_tracker);
     //crate::runtime::install_contract(contract_identifier, expressions, clarity_db, cost_tracker);
-/*
+    /*
     let mut baseline_env = TestEnv::new(
-        "baseline", 
-        &config.baseline.chainstate_path, 
+        "baseline",
+        &config.baseline.chainstate_path,
         &mut app_db)?;
-        
+
     let wasm_env = TestEnv::new(
-        "wasm", 
-        &config.envs("wasm").chainstate_path, 
+        "wasm",
+        &config.envs("wasm").chainstate_path,
         &mut app_db)?;
 
     baseline_env.with_env(|ctx| {

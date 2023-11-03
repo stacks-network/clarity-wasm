@@ -1,4 +1,4 @@
-use ratatui::{prelude::*, widgets::*, text::Line};
+use ratatui::{prelude::*, text::Line, widgets::*};
 
 use crate::cli::console::theme::Theme;
 
@@ -6,14 +6,14 @@ use super::Component;
 
 pub struct Menu<'a> {
     pub titles: Vec<&'a str>,
-    selected_tab: usize
+    selected_tab: usize,
 }
 
 impl<'a> Menu<'a> {
     pub fn new(titles: Vec<&'a str>) -> Self {
         Menu {
             titles,
-            selected_tab: 0
+            selected_tab: 0,
         }
     }
 
@@ -23,13 +23,17 @@ impl<'a> Menu<'a> {
 }
 
 impl<'a> Component for Menu<'a> {
-    fn draw(&mut self, f: &mut crate::cli::console::tui::Frame<'_>, area: Rect, theme: &Theme) -> color_eyre::eyre::Result<()> {
+    fn draw(
+        &mut self,
+        f: &mut crate::cli::console::tui::Frame<'_>,
+        area: Rect,
+        theme: &Theme,
+    ) -> color_eyre::eyre::Result<()> {
         let mut titles: Vec<Line> = Vec::new();
         for (i, title) in self.titles.iter().enumerate() {
-
             titles.push(Line::from(vec![
                 Span::styled(format!("[{}]", i + 1), theme.warning_text_1),
-                Span::styled(format!(" {title}"), theme.menu)
+                Span::styled(format!(" {title}"), theme.menu),
             ]));
         }
 

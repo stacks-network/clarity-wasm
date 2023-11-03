@@ -9,20 +9,20 @@ mod model;
 mod schema;
 #[macro_use]
 mod macros;
+mod appdb;
+mod clarity;
 mod datastore;
 mod runtime;
-mod appdb;
 mod stacks;
-mod clarity;
 
 use clap::Parser;
 use cli::*;
+use color_eyre::eyre::{bail, Result};
 use config::Config;
-use diesel::{Connection, SqliteConnection, connection::SimpleConnection};
+use diesel::{connection::SimpleConnection, Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
 use std::process::exit;
-use color_eyre::eyre::{Result, bail};
 
 use crate::errors::AppError;
 

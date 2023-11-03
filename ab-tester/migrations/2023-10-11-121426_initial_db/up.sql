@@ -21,10 +21,12 @@ INSERT INTO environment VALUES (1, 'baseline', 1);
 CREATE TABLE IF NOT EXISTS block (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     environment_id INTEGER NOT NULL,
-    stacks_block_id INTEGER NOT NULL UNIQUE,
+    --stacks_block_id INTEGER NOT NULL UNIQUE,
     height INTEGER UNIQUE NOT NULL,
     index_hash BINARY UNIQUE NOT NULL,
     marf_trie_root_hash BINARY NOT NULL,
+
+    UNIQUE (environment_id, index_hash),
 
     CONSTRAINT fk_environment
     FOREIGN KEY (environment_id)

@@ -3,8 +3,8 @@ mod console;
 
 use std::path::PathBuf;
 
-use color_eyre::eyre::{bail, ensure, Result};
 use clap::{Args, Parser, Subcommand};
+use color_eyre::eyre::{bail, ensure, Result};
 
 use crate::errors::AppError;
 use crate::ok;
@@ -67,7 +67,7 @@ pub struct TuiArgs {
         help = "Sets the color theme for the console.",
         default_value = None
     )]
-    pub theme: Option<String>
+    pub theme: Option<String>,
 }
 
 impl TuiArgs {
@@ -128,7 +128,9 @@ impl DataArgs {
         if let Some(to_height) = self.to_height {
             ensure!(
                 block_height <= to_height,
-                AppError::Graceful("block height has reached the specified maximum block height (to-height)")
+                AppError::Graceful(
+                    "block height has reached the specified maximum block height (to-height)"
+                )
             )
         }
 

@@ -1,12 +1,18 @@
-use std::{marker::PhantomData, rc::Rc, cell::RefCell};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{style::Style, prelude::Rect};
 use color_eyre::Result;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::{prelude::Rect, style::Style};
 use tokio::sync::mpsc;
 
-use crate::{context::BlockCursor, config::Config};
-use super::{theme::Theme, action::Action, tui::{Tui, Event}, components::Component, screens::Screen};
+use super::{
+    action::Action,
+    components::Component,
+    screens::Screen,
+    theme::Theme,
+    tui::{Event, Tui},
+};
+use crate::{config::Config, context::BlockCursor};
 
 /// Application.
 pub struct App<'a> {
@@ -23,19 +29,19 @@ pub struct App<'a> {
     pub should_suspend: bool,
     pub screen: Screen,
     pub last_tick_key_events: Vec<KeyEvent>,
-    
+
     // Styling
     pub styles: AppStyles,
-    pub theme: &'a Theme
+    pub theme: &'a Theme,
 }
 
 impl<'a> App<'a> {
     /// Constructs a new instance of [`App`].
     pub fn new(
-        title: &'a str, 
-        config: &'a Config, 
-        theme: &'a Theme, 
-        state: &'a mut AppState<'a>
+        title: &'a str,
+        config: &'a Config,
+        theme: &'a Theme,
+        state: &'a mut AppState<'a>,
     ) -> Result<Self> {
         Ok(Self {
             title,
@@ -50,14 +56,14 @@ impl<'a> App<'a> {
             should_suspend: false,
             screen: Screen::Start,
             last_tick_key_events: Vec::new(),
-            
+
             // Styling
-            styles: AppStyles { 
-                background: theme.main, 
-                popup_title: theme.popup_title, 
-                popup_content: theme.popup_fg_bg 
+            styles: AppStyles {
+                background: theme.main,
+                popup_title: theme.popup_title,
+                popup_content: theme.popup_fg_bg,
             },
-            theme
+            theme,
         })
     }
 
@@ -69,30 +75,32 @@ impl<'a> App<'a> {
         self.current_screen = Some(component);
     }
 
-
-
     pub async fn run(&mut self) -> Result<()> {
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
-    
+
         let mut tui = Tui::new(self.theme.main)?
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
 
         // tui.mouse(true);
         tui.enter()?;
-    
+
         for component in self.components.iter_mut() {
-          component.borrow_mut().register_action_handler(action_tx.clone())?;
+            component
+                .borrow_mut()
+                .register_action_handler(action_tx.clone())?;
         }
-    
+
         for component in self.components.iter_mut() {
-          component.borrow_mut().register_config_handler(self.config.clone())?;
+            component
+                .borrow_mut()
+                .register_config_handler(self.config.clone())?;
         }
-    
+
         for component in self.components.iter_mut() {
-          component.borrow_mut().init(tui.size()?)?;
+            component.borrow_mut().init(tui.size()?)?;
         }
-    
+
         loop {
             if let Some(e) = tui.next().await {
                 match e {
@@ -105,7 +113,7 @@ impl<'a> App<'a> {
                         #[allow(clippy::single_match)]
                         match key.code {
                             KeyCode::Char('q') => action_tx.send(Action::Quit)?,
-                            _ => ()
+                            _ => (),
                         }
                         /*if let Some(keymap) = self.config.keybindings.get(&self.mode) {
                         if let Some(action) = keymap.get(&vec![key]) {
@@ -115,7 +123,7 @@ impl<'a> App<'a> {
                             // If the key was not handled as a single key action,
                             // then consider it for multi-key combinations.
                             self.last_tick_key_events.push(key);
-            
+
                             // Check for multi-key combinations
                             if let Some(action) = keymap.get(&self.last_tick_key_events) {
                             log::info!("Got action: {action:?}");
@@ -123,8 +131,8 @@ impl<'a> App<'a> {
                             }
                         }
                         };*/
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
 
                 for component in self.components.iter_mut() {
@@ -133,7 +141,7 @@ impl<'a> App<'a> {
                     }
                 }
             }
-        
+
             while let Ok(action) = action_rx.try_recv() {
                 if action != Action::Tick && action != Action::Render {
                     log::debug!("{action:?}");
@@ -142,7 +150,7 @@ impl<'a> App<'a> {
                 match action {
                     Action::Tick => {
                         self.last_tick_key_events.drain(..);
-                    },
+                    }
                     Action::Quit => self.should_quit = true,
                     Action::Suspend => self.should_suspend = true,
                     Action::Resume => self.should_suspend = false,
@@ -157,11 +165,13 @@ impl<'a> App<'a> {
                             for component in self.components.iter_mut() {
                                 let r = component.borrow_mut().draw(f, f.size(), self.theme);
                                 if let Err(e) = r {
-                                    action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
+                                    action_tx
+                                        .send(Action::Error(format!("Failed to draw: {:?}", e)))
+                                        .unwrap();
                                 }
                             }
                         })?;
-                    },
+                    }
                     Action::Render => {
                         tui.draw(|f| {
                             // Set default theme for the frame.
@@ -171,12 +181,14 @@ impl<'a> App<'a> {
                             for component in self.components.iter_mut() {
                                 let r = component.borrow_mut().draw(f, f.size(), self.theme);
                                 if let Err(e) = r {
-                                    action_tx.send(Action::Error(format!("Failed to draw: {:?}", e))).unwrap();
+                                    action_tx
+                                        .send(Action::Error(format!("Failed to draw: {:?}", e)))
+                                        .unwrap();
                                 }
                             }
                         })?;
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
 
                 for component in self.components.iter_mut() {
@@ -195,7 +207,7 @@ impl<'a> App<'a> {
                     .tick_rate(self.tick_rate)
                     .frame_rate(self.frame_rate);
                 // tui.mouse(true);
-                
+
                 tui.enter()?;
             } else if self.should_quit {
                 tui.stop()?;
@@ -205,21 +217,20 @@ impl<'a> App<'a> {
 
         tui.exit()?;
         Ok(())
-      }
+    }
 }
 
 pub struct AppStyles {
     pub background: Style,
     pub popup_title: Style,
-    pub popup_content: Style
+    pub popup_content: Style,
 }
 #[derive(Default)]
 pub struct AppState<'data> {
     _lifetime: PhantomData<&'data ()>,
     pub running: bool,
 
-    baseline_block_cursor: Option<&'data BlockCursor>
-    
+    baseline_block_cursor: Option<&'data BlockCursor>,
 }
 
 impl<'data> AppState<'data> {
@@ -227,7 +238,7 @@ impl<'data> AppState<'data> {
         AppState {
             _lifetime: Default::default(),
             running: true,
-            baseline_block_cursor: None
+            baseline_block_cursor: None,
         }
     }
 }

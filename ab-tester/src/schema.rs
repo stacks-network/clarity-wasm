@@ -6,7 +6,8 @@ pub mod chainstate_marf {
         block_headers (block_height) {
             block_height -> Integer,
             index_block_hash -> Text,
-            parent_block_id -> Text
+            parent_block_id -> Text,
+            consensus_hash -> Text
         }
     }
 }
@@ -60,7 +61,7 @@ pub mod appdb {
             // id of the block according to the blockchain.
             id -> Integer,
             environment_id -> Integer,
-            stacks_block_id -> Integer,
+            //stacks_block_id -> Integer,
             height -> Integer,
             index_hash -> Binary,
             marf_trie_root_hash -> Binary

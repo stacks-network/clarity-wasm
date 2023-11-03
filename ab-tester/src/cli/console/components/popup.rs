@@ -1,13 +1,17 @@
-use ratatui::{widgets::{Widget, Block, Borders, BorderType, Clear}, prelude::Alignment, style::Style};
+use ratatui::{
+    prelude::Alignment,
+    style::Style,
+    widgets::{Block, BorderType, Borders, Clear, Widget},
+};
 
 use crate::cli::console::theme::Theme;
 
-use super::{title_span, centered_rect};
+use super::{centered_rect, title_span};
 
-pub struct Popup<'theme, 'a>  {
+pub struct Popup<'theme, 'a> {
     pub title: &'a str,
     pub theme: &'theme Theme,
-    pub content: Option<Box<dyn Widget>>
+    pub content: Option<Box<dyn Widget>>,
 }
 
 impl<'theme, 'a> Popup<'theme, 'a> {
@@ -15,7 +19,7 @@ impl<'theme, 'a> Popup<'theme, 'a> {
         Self {
             theme,
             title,
-            content: Some(Box::new(content))
+            content: Some(Box::new(content)),
         }
     }
 
@@ -27,7 +31,11 @@ impl<'theme, 'a> Popup<'theme, 'a> {
 impl<'theme, 'a> Widget for &Popup<'theme, 'a> {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
         let popup = Block::default()
-            .title(title_span("Manage Environments", self.theme.popup_title, Style::default()))
+            .title(title_span(
+                "Manage Environments",
+                self.theme.popup_title,
+                Style::default(),
+            ))
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
