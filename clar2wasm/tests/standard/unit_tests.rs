@@ -1915,7 +1915,9 @@ fn test_sqrti_int() {
 #[test]
 fn bit_not_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let bitnot = instance.get_func(&mut store, "bit-not-int").unwrap();
+    let bitnot = instance
+        .get_func(&mut store, &format!("{STDLIB_PREFIX}.bit-not-int"))
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // bit-not(3) = -4
