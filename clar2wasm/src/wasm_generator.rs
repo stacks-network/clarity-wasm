@@ -375,9 +375,9 @@ impl WasmGenerator {
     /// - `include_repr` indicates if space should be reserved for the
     ///   representation of the value (e.g. the offset, length for an in-memory
     ///   type)
-    /// - `include_value` indicates if space should be reserved for the valued
+    /// - `include_value` indicates if space should be reserved for the value
     ///
-    /// Returns a local which is a pointer to the allocated stack space
+    /// Returns a local which is a pointer to the beginning of the allocated stack space
     pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -591,7 +591,6 @@ impl WasmGenerator {
                 4
             }
             TypeSignature::BoolType => {
-                // Memory: Offset -> | Low | High |
                 builder.local_get(offset).load(
                     memory.id(),
                     LoadKind::I32 { atomic: false },
