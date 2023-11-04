@@ -72,7 +72,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         // Ensure that we haven't reached the specified max block-height for processing.
         data_args.assert_block_height_under_max_height(header.block_height())?;
 
-        debug!("processing block #{}", header.block_height());
+        debug!("processing block #{} ({})", header.block_height(), &hex::encode(&header.index_block_hash));
 
         replay_env.block_begin(&block, |_ctx| {
             info!("processing block!");

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use blockstack_lib::chainstate::stacks::{db::StacksChainState, StacksBlock};
 use color_eyre::{
     eyre::{anyhow, bail},
@@ -8,13 +10,26 @@ use stacks_common::types::chainstate::{BlockHeaderHash, ConsensusHash, StacksBlo
 
 use crate::stacks;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BlockHeader {
     consensus_hash: Vec<u8>,
     parent_consensus_hash: Vec<u8>,
     height: u32,
     pub index_block_hash: Vec<u8>,
     parent_block_id: Vec<u8>,
+}
+
+impl Debug for BlockHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f
+            .debug_struct("BlockHeader")
+            .field("height", &self.height)
+            .field("index_block_hash (block id)", &hex::encode(&self.index_block_hash))
+            .field("parent_block_id (parent index block hash)", &hex::encode(&self.parent_block_id))
+            .field("consensus_hash", &hex::encode(&self.consensus_hash))
+            .field("parent_consensus_hash", &hex::encode(&self.parent_consensus_hash))
+            .finish()
+    }
 }
 
 impl BlockHeader {

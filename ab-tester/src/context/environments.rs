@@ -237,42 +237,36 @@ impl<'a> TestEnv<'a> {
                 &mut *self.index_db_conn.borrow_mut(),
             )?;
 
-        let tip_parent = schema::chainstate_marf::block_headers::table
-            .filter(chainstate_marf::block_headers::index_block_hash.eq(&tip.parent_block_id))
-            .get_result::<model::chainstate_db::BlockHeader>(
-                &mut *self.index_db_conn.borrow_mut(),
-            )?;
-
-        let mut current_block = Some(tip.clone());
-        let mut headers = vec![BlockHeader::new(
-            tip.block_height as u32,
-            hex::decode(tip.index_block_hash)?,
-            hex::decode(&tip.parent_block_id)?,
-            hex::decode(tip.consensus_hash)?,
-            hex::decode(tip_parent.consensus_hash)?,
-        )];
+        let mut current_block = Some(tip);
+        let mut headers: Vec<BlockHeader> = Vec::new();
 
         // Walk backwards
         while let Some(block) = current_block {
             let block_parent = schema::chainstate_marf::block_headers::table
                 .filter(
                     schema::chainstate_marf::block_headers::index_block_hash
-                        .eq(block.parent_block_id),
+                        .eq(&block.parent_block_id),
                 )
                 .get_result::<model::chainstate_db::BlockHeader>(
                     &mut *self.index_db_conn.borrow_mut(),
                 )
                 .optional()?;
 
-            if let Some(b) = block_parent.clone() {
-                let parent_consensus_hash = &block.consensus_hash;
-
+            if let Some(parent) = &block_parent {
                 headers.push(BlockHeader::new(
-                    b.block_height as u32,
-                    hex::decode(b.index_block_hash)?,
-                    hex::decode(&tip.parent_block_id)?,
-                    hex::decode(&b.consensus_hash)?,
-                    hex::decode(parent_consensus_hash)?,
+                    block.block_height(),
+                    hex::decode(block.index_block_hash)?,
+                    hex::decode(block.parent_block_id)?,
+                    hex::decode(block.consensus_hash)?,
+                    hex::decode(&parent.consensus_hash)?,
+                ));
+            } else {
+                headers.push(BlockHeader::new(
+                    block.block_height(),
+                    hex::decode(block.index_block_hash)?,
+                    hex::decode(block.parent_block_id)?,
+                    hex::decode(block.consensus_hash)?,
+                    vec![0_u8; 20],
                 ));
             }
 
