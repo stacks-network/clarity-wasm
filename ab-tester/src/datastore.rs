@@ -1,13 +1,7 @@
 use sha2::{Digest, Sha512_256};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
-use crate::{
-    appdb::AppDb,
-    clarity,
-    stacks,
-    model,
-    schema
-};
+use crate::{appdb::AppDb, clarity, model, schema, stacks};
 
 pub struct DataStore<'a> {
     exec: Option<model::app_db::ContractExecution>,
@@ -66,11 +60,13 @@ impl clarity::ClarityBackingStore for DataStore<'_> {
                 .expect("failed to find contract var id")
                 .expect("contract var id does not exist");
 
-            self.db.insert_var_instance(
-                self.exec.as_ref().expect("contract execution not set").id,
-                contract_var_id,
-                value.as_bytes(),
-            ).expect("failed to insert variable instance");
+            self.db
+                .insert_var_instance(
+                    self.exec.as_ref().expect("contract execution not set").id,
+                    contract_var_id,
+                    value.as_bytes(),
+                )
+                .expect("failed to insert variable instance");
         }
     }
 
@@ -203,16 +199,24 @@ impl clarity::HeadersDB for DataStore<'_> {
         todo!()
     }
 
-    fn get_burn_header_hash_for_block(&self, id_bhh: &StacksBlockId)
-        -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
+    fn get_burn_header_hash_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
         todo!()
     }
 
-    fn get_consensus_hash_for_block(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::ConsensusHash> {
+    fn get_consensus_hash_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::ConsensusHash> {
         todo!()
     }
 
-    fn get_vrf_seed_for_block(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::VRFSeed> {
+    fn get_vrf_seed_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::VRFSeed> {
         todo!()
     }
 
@@ -224,7 +228,10 @@ impl clarity::HeadersDB for DataStore<'_> {
         todo!()
     }
 
-    fn get_miner_address(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::StacksAddress> {
+    fn get_miner_address(
+        &self,
+        id_bhh: &StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::StacksAddress> {
         todo!()
     }
 

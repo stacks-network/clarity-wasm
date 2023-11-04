@@ -1,6 +1,5 @@
-use std::{cell::RefCell, rc::Weak};
+use std::cell::RefCell;
 
-use blockstack_lib::chainstate::stacks::index::{self, ClarityMarfTrieId, MarfTrieId};
 use color_eyre::{eyre::bail, Result};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
@@ -8,18 +7,13 @@ use diesel::{
 use log::*;
 
 use crate::{
-    appdb::AppDb,
-    clarity,
-    clarity::ClarityConnection,
-    datastore::DataStore,
-    model, ok,
-    schema,
-    stacks, context::boot_data::mainnet_boot_data,
+    appdb::AppDb, clarity, clarity::ClarityConnection, context::boot_data::mainnet_boot_data,
+    datastore::DataStore, model, ok, schema, stacks,
 };
 
 use super::{
     blocks::{BlockCursor, BlockHeader},
-    Block, Runtime, StoreType, Network, TestEnvPaths,
+    Block, Network, Runtime, StoreType, TestEnvPaths,
 };
 
 /// Holds all state between environments.
@@ -34,12 +28,12 @@ impl GlobalEnvContext {
 
     /// Get or create a a test environment.
     pub fn env(
-        &self, 
-        name: &str, 
-        runtime: Runtime, 
-        store_type: StoreType, 
+        &self,
+        name: &str,
+        runtime: Runtime,
+        store_type: StoreType,
         network: Network,
-        working_dir: &str
+        working_dir: &str,
     ) -> Result<TestEnv> {
         let env_id = if let Some(db_env) = self.app_db.get_env(name)? {
             db_env.id
@@ -67,7 +61,7 @@ pub struct TestEnv<'a> {
     clarity_db_conn: SqliteConnection,
     burnchain: stacks::Burnchain,
 
-    block_tx_ctx: Option<BlockTransactionContext<'a, 'a>>
+    block_tx_ctx: Option<BlockTransactionContext<'a, 'a>>,
 }
 
 impl std::fmt::Debug for TestEnv<'_> {
@@ -85,7 +79,14 @@ impl std::fmt::Debug for TestEnv<'_> {
 
 impl<'a> TestEnv<'a> {
     /// Creates a new instance of a [TestEnv] and attempts to open its database files.
-    pub fn new(id: i32, name: &str, working_dir: &str, store_type: StoreType, network: Network, ctx: &'a GlobalEnvContext) -> Result<Self> {
+    pub fn new(
+        id: i32,
+        name: &str,
+        working_dir: &str,
+        store_type: StoreType,
+        network: Network,
+        ctx: &'a GlobalEnvContext,
+    ) -> Result<Self> {
         // Determine our paths.
         let paths = TestEnvPaths::new(working_dir);
         paths.print(name);
@@ -149,7 +150,7 @@ impl<'a> TestEnv<'a> {
             clarity_db_conn,
             burnchain,
 
-            block_tx_ctx: None
+            block_tx_ctx: None,
         })
     }
 
@@ -241,24 +242,18 @@ impl<'a> TestEnv<'a> {
         Ok(cursor)
     }
 
-    pub fn insert_block(&self, height: i32, block_hash: &[u8], index_hash: &[u8]) -> Result<()> {
-        self.ctx
-            .app_db
-            .insert_block(self.id, height, block_hash, index_hash)?;
-
-        ok!()
-    }
-
-    pub fn block_begin(&mut self, block: &Block, f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>) -> Result<()> {
-        //let current_block_id: stacks::StacksBlockId;
-        // TODO: Only if genesis
+    pub fn block_begin(
+        &mut self,
+        block: &Block,
+        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
+    ) -> Result<()> {
         let current_block_id: stacks::StacksBlockId;
         let next_block_id: stacks::StacksBlockId;
 
         match block {
             Block::Boot(_) => bail!("cannot process the boot block"),
             Block::Genesis(header) => {
-                current_block_id = <stacks::StacksBlockId as ClarityMarfTrieId>::sentinel();
+                current_block_id = <stacks::StacksBlockId as stacks::ClarityMarfTrieId>::sentinel();
                 next_block_id = header.stacks_block_id()?;
             }
             Block::Regular(header, _) => {
@@ -271,10 +266,10 @@ impl<'a> TestEnv<'a> {
 
         // Insert this block into the app database.
         self.ctx.app_db.insert_block(
-            self.id, 
-            block.block_height()? as i32, 
-            block.block_hash()?.as_bytes(), 
-            block.index_block_hash()?
+            self.id,
+            block.block_height()? as i32,
+            block.block_hash()?.as_bytes(),
+            block.index_block_hash()?,
         )?;
 
         // We cannot process genesis as it was already processed as a part of chainstate
@@ -304,10 +299,12 @@ impl<'a> TestEnv<'a> {
         // Enter Clarity transaction processing for the new block.
         debug!("starting clarity tx processing");
         let clarity_tx_conn = clarity_block_conn.start_transaction_processing();
-        
+
         // Call the provided function with our context object.
         //let mut block_tx_ctx = ;
-        f(&mut BlockTransactionContext { clarity_tx_conn: &clarity_tx_conn })?;
+        f(&mut BlockTransactionContext {
+            clarity_tx_conn: &clarity_tx_conn,
+        })?;
 
         debug!("returning");
 
@@ -379,202 +376,8 @@ impl<'a> TestEnv<'a> {
 
         Ok(())
     }
-
-    /// Loads the specified block from the MARF.
-    pub fn load_block(&mut self, block_id: &stacks::StacksBlockId) -> Result<()> {
-        debug!("beginning to walk the block: {}", block_id);
-        let leaves = self.walk_block(block_id, false)?;
-
-        if !leaves.is_empty() {
-            debug!("finished walking, leaf count: {}", leaves.len());
-        } else {
-            warn!("no leaves found");
-        }
-
-        for leaf in leaves {
-            let value = schema::clarity_marf::data_table::table
-                .filter(schema::clarity_marf::data_table::key.eq(leaf.data.to_string()))
-                .first::<model::clarity_db::DataEntry>(&mut self.clarity_db_conn)
-                .optional()?;
-
-            if let Some(value_unwrapped) = value {
-                let clarity_value =
-                    clarity::Value::try_deserialize_hex_untyped(&value_unwrapped.value);
-                if let Ok(clarity_value) = clarity_value {
-                    trace!("deserialized value: {:?}", &clarity_value);
-                } else {
-                    debug!("failed to deserialize value: {:?}", &value_unwrapped.value);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Helper function for [`Self::load_block()`] which is used to walk the MARF,
-    /// looking for leaf nodes.
-    ///
-    /// If `follow_backptrs` is true, the entire MARF from genesis _up to and
-    /// including the specified `block_id`_ will be read. At higher blocks heights this
-    /// is very slow.
-    fn walk_block(
-        &mut self,
-        block_id: &stacks::StacksBlockId,
-        follow_backptrs: bool,
-    ) -> Result<Vec<stacks::TrieLeaf>> {
-        use stacks::*;
-
-        let mut leaves: Vec<TrieLeaf> = Default::default();
-
-        self.chainstate.with_clarity_marf(|marf| -> Result<()> {
-            let mut marf = marf.reopen_readonly()?;
-            let _root_hash = marf.get_root_hash_at(block_id)?;
-
-            let _ = marf.with_conn(|storage| -> Result<()> {
-                debug!("opening block {block_id}");
-                storage.open_block(block_id)?;
-                let (root_node_type, _) = Trie::read_root(storage)?;
-
-                let mut level: u32 = 0;
-                Self::inner_walk_block(
-                    storage,
-                    &root_node_type,
-                    &mut level,
-                    follow_backptrs,
-                    &mut leaves,
-                )?;
-
-                Ok(())
-            });
-            Ok(())
-        })?;
-
-        Ok(leaves)
-    }
-
-    /// Helper function for [`Self::walk_block()`] which is used for recursion
-    /// through the [MARF](blockstack_lib::chainstate::stacks::index::MARF).
-    fn inner_walk_block<T: stacks::MarfTrieId>(
-        storage: &mut stacks::TrieStorageConnection<T>,
-        node: &stacks::TrieNodeType,
-        level: &mut u32,
-        follow_backptrs: bool,
-        leaves: &mut Vec<stacks::TrieLeaf>,
-    ) -> Result<()> {
-        use stacks::*;
-
-        *level += 1;
-        let node_type_id = TrieNodeID::from_u8(node.id()).unwrap();
-        debug!(
-            "[level {level}] processing {node_type_id:?} with {} ptrs",
-            &node.ptrs().len()
-        );
-
-        match &node {
-            TrieNodeType::Leaf(leaf) => {
-                leaves.push(leaf.clone());
-                *level -= 1;
-                trace!("[level {level}] returned to level");
-                return Ok(());
-            }
-            _ => {
-                let mut ptr_number = 0;
-                for ptr in node.ptrs().iter() {
-                    ptr_number += 1;
-                    trace!("[level {level}] [ptr no. {ptr_number}] ptr: {ptr:?}");
-
-                    if is_backptr(ptr.id) {
-                        if !follow_backptrs {
-                            continue;
-                        }
-                        // Handle back-pointers
-
-                        // Snapshot the current block hash & id so that we can rollback
-                        // to them after we're finished processing this back-pointer.
-                        let (current_block, current_id) = storage.get_cur_block_and_id();
-
-                        // Get the block hash for the block the back-pointer is pointing to
-                        let back_block_hash =
-                            storage.get_block_from_local_id(ptr.back_block())?.clone();
-
-                        trace!("[level {level}] following backptr: {ptr:?}, {back_block_hash}");
-
-                        // Open the block to which the back-pointer is pointing.
-                        storage.open_block_known_id(&back_block_hash, ptr.back_block())?;
-
-                        // Read the back-pointer type.
-                        let backptr_node_type =
-                            storage.read_nodetype_nohash(&ptr.from_backptr())?;
-
-                        // Walk the newly opened block using the back-pointer.
-                        Self::inner_walk_block(
-                            storage,
-                            &backptr_node_type,
-                            level,
-                            follow_backptrs,
-                            leaves,
-                        )?;
-
-                        // Return to the previous block
-                        trace!(
-                            "[level {level}] returning to context: {current_block} {current_id:?}"
-                        );
-                        storage.open_block_known_id(&current_block, current_id.unwrap())?;
-                    } else {
-                        trace!("[level {level}] following normal ptr: {ptr:?}");
-                        // Snapshot the current block hash & id so that we can rollback
-                        // to them after we're finished processing this back-pointer.
-                        let (current_block, current_id) = storage.get_cur_block_and_id();
-                        trace!(
-                            "[level {level}] current block: {} :: {current_block}",
-                            current_id.unwrap()
-                        );
-
-                        // Handle nodes contained within this block/trie
-                        trace!("hello");
-                        let type_id = TrieNodeID::from_u8(ptr.id()).unwrap();
-                        if type_id == TrieNodeID::Empty {
-                            trace!("[level {level}] reached empty node, continuing");
-                            continue;
-                        }
-
-                        trace!("[level {level}] ptr node type: {type_id:?}");
-                        let node_type = storage.read_nodetype_nohash(ptr).unwrap();
-
-                        trace!(
-                            "[level {level}] {:?} => {ptr:?}, ptrs: {}",
-                            TrieNodeID::from_u8(ptr.id()),
-                            node_type.ptrs().len()
-                        );
-                        Self::inner_walk_block(
-                            storage,
-                            &node_type,
-                            level,
-                            follow_backptrs,
-                            leaves,
-                        )?;
-                    }
-                }
-            }
-        }
-
-        *level -= 1;
-        trace!("[level {level}] returned to level");
-        Ok(())
-    }
-
-    /// Loads the block with the specified block hash from chainstate (the `blocks`
-    /// directory for the node).
-    pub fn get_stacks_block(&self, block_hash: &str) -> Result<stacks::StacksBlock> {
-        let block_id = stacks::StacksBlockId::from_hex(block_hash)?;
-        let block_path =
-            stacks::StacksChainState::get_index_block_path(&self.paths.blocks_dir, &block_id)?;
-        let block = stacks::StacksChainState::consensus_load(&block_path)?;
-
-        Ok(block)
-    }
 }
 
 pub struct BlockTransactionContext<'a, 'b> {
-    clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>
+    clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>,
 }

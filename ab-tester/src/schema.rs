@@ -17,10 +17,10 @@ pub mod chainstate_marf {
             tx_merkle_root -> Text,
             state_index_root -> Text,
             microblock_pubkey_hash -> Text,
-            // Note: this is *not* unique, since two burn chain forks can commit 
+            // Note: this is *not* unique, since two burn chain forks can commit
             // to the same Stacks block.
             block_hash -> Text,
-            // Note: this is the hash of the block hash and consensus hash of the 
+            // Note: this is the hash of the block hash and consensus hash of the
             // burn block that selected it, and is guaranteed to be globally unique
             // (across all Stacks forks and across all PoX forks).
             // index_block_hash is the block hash fed into the MARF index.

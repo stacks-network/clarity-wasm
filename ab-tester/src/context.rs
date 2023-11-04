@@ -3,8 +3,9 @@ use log::*;
 use crate::clarity;
 
 pub mod blocks;
-pub mod environments;
 mod boot_data;
+pub mod environments;
+mod marf;
 
 pub use self::environments::TestEnv;
 pub use blocks::{Block, BlockCursor};
@@ -65,7 +66,7 @@ pub enum StoreType {
     /// application.
     StacksNode,
     /// Uses the standard MARF, however Clarity backing stores are instrumented.
-    Instrumented
+    Instrumented,
 }
 
 #[derive(Debug, Clone)]

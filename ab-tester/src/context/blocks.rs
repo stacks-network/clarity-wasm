@@ -21,13 +21,21 @@ pub struct BlockHeader {
 
 impl Debug for BlockHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-            .debug_struct("BlockHeader")
+        f.debug_struct("BlockHeader")
             .field("height", &self.height)
-            .field("index_block_hash (block id)", &hex::encode(&self.index_block_hash))
-            .field("parent_block_id (parent index block hash)", &hex::encode(&self.parent_block_id))
+            .field(
+                "index_block_hash (block id)",
+                &hex::encode(&self.index_block_hash),
+            )
+            .field(
+                "parent_block_id (parent index block hash)",
+                &hex::encode(&self.parent_block_id),
+            )
             .field("consensus_hash", &hex::encode(&self.consensus_hash))
-            .field("parent_consensus_hash", &hex::encode(&self.parent_consensus_hash))
+            .field(
+                "parent_consensus_hash",
+                &hex::encode(&self.parent_consensus_hash),
+            )
             .finish()
     }
 }
@@ -294,7 +302,7 @@ impl Block {
         let hash = match self {
             Block::Boot(_) => bail!("don't know block hash for boot"),
             Block::Genesis(gen) => stacks::FIRST_STACKS_BLOCK_HASH,
-            Block::Regular(header, block) => block.block_hash()
+            Block::Regular(header, block) => block.block_hash(),
         };
 
         Ok(hash)
@@ -315,7 +323,7 @@ impl Block {
     /// a [stacks::StacksBlockId].
     pub fn stacks_block_id(&self) -> Result<StacksBlockId> {
         let id = StacksBlockId::from_bytes(self.index_block_hash()?)
-            .ok_or_else(||anyhow!("failed to convert index block hash to stacks block id"))?;
+            .ok_or_else(|| anyhow!("failed to convert index block hash to stacks block id"))?;
 
         Ok(id)
     }

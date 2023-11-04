@@ -7,8 +7,8 @@ pub use clarity::vm::{
     ast::ASTRules,
     clarity::ClarityConnection,
     database::{
-        BurnStateDB, ClarityBackingStore, ClarityDatabase, RollbackWrapper, StoreType,
-        NULL_BURN_STATE_DB, NULL_HEADER_DB, HeadersDB
+        BurnStateDB, ClarityBackingStore, ClarityDatabase, HeadersDB, RollbackWrapper, StoreType,
+        NULL_BURN_STATE_DB, NULL_HEADER_DB,
     },
     errors::InterpreterResult,
     types::{QualifiedContractIdentifier, TupleData},
