@@ -1,12 +1,16 @@
 use sha2::{Digest, Sha512_256};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
-use crate::appdb::AppDb;
-use crate::clarity;
-use crate::model::app_db::ContractExecution;
+use crate::{
+    appdb::AppDb,
+    clarity,
+    stacks,
+    model,
+    schema
+};
 
 pub struct DataStore<'a> {
-    exec: Option<ContractExecution>,
+    exec: Option<model::app_db::ContractExecution>,
     db: &'a AppDb,
     open_chain_tip: StacksBlockId,
     current_chain_tip: StacksBlockId,
@@ -30,7 +34,7 @@ impl<'a> DataStore<'a> {
         self
     }
 
-    pub fn set_exec(&mut self, exec: ContractExecution) {
+    pub fn set_exec(&mut self, exec: model::app_db::ContractExecution) {
         self.exec = Some(exec);
     }
 
@@ -66,7 +70,7 @@ impl clarity::ClarityBackingStore for DataStore<'_> {
                 self.exec.as_ref().expect("contract execution not set").id,
                 contract_var_id,
                 value.as_bytes(),
-            );
+            ).expect("failed to insert variable instance");
         }
     }
 
@@ -76,11 +80,7 @@ impl clarity::ClarityBackingStore for DataStore<'_> {
             .get_var_latest(self.exec.as_ref().unwrap().contract_id, key)
             .expect("failed to retrieve latest var");
 
-        if let Some(str) = buff {
-            Some(String::from_utf8(str).expect("failed to convert var to string"))
-        } else {
-            None
-        }
+        buff.map(|str| String::from_utf8(str).expect("failed to convert var to string"))
     }
 
     fn get_with_proof(&mut self, _key: &str) -> Option<(String, Vec<u8>)> {
@@ -191,6 +191,52 @@ impl clarity::BurnStateDB for DataStore<'_> {
         height: u32,
         sortition_id: &stacks_common::types::chainstate::SortitionId,
     ) -> Option<(Vec<clarity::TupleData>, u128)> {
+        todo!()
+    }
+}
+
+impl clarity::HeadersDB for DataStore<'_> {
+    fn get_stacks_block_header_hash_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::BlockHeaderHash> {
+        todo!()
+    }
+
+    fn get_burn_header_hash_for_block(&self, id_bhh: &StacksBlockId)
+        -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
+        todo!()
+    }
+
+    fn get_consensus_hash_for_block(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::ConsensusHash> {
+        todo!()
+    }
+
+    fn get_vrf_seed_for_block(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::VRFSeed> {
+        todo!()
+    }
+
+    fn get_burn_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64> {
+        todo!()
+    }
+
+    fn get_burn_block_height_for_block(&self, id_bhh: &StacksBlockId) -> Option<u32> {
+        todo!()
+    }
+
+    fn get_miner_address(&self, id_bhh: &StacksBlockId) -> Option<stacks_common::types::chainstate::StacksAddress> {
+        todo!()
+    }
+
+    fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+        todo!()
+    }
+
+    fn get_burnchain_tokens_spent_for_winning_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+        todo!()
+    }
+
+    fn get_tokens_earned_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
         todo!()
     }
 }

@@ -8,7 +8,7 @@ pub use clarity::vm::{
     clarity::ClarityConnection,
     database::{
         BurnStateDB, ClarityBackingStore, ClarityDatabase, RollbackWrapper, StoreType,
-        NULL_BURN_STATE_DB, NULL_HEADER_DB,
+        NULL_BURN_STATE_DB, NULL_HEADER_DB, HeadersDB
     },
     errors::InterpreterResult,
     types::{QualifiedContractIdentifier, TupleData},

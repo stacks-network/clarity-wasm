@@ -4,13 +4,51 @@ pub mod chainstate_db {
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
-    #[diesel(primary_key(block_height))]
+    #[diesel(primary_key(consensus_hash, block_hash))]
     #[diesel(table_name = block_headers)]
     pub struct BlockHeader {
-        pub block_height: i32,
+        pub version: i32,
+        /// Converted to/from u64
+        pub total_burn: String,
+        /// Converted to/from u64
+        pub total_work: String,
+        pub proof: String,
+        /// Hash of parent Stacks block.
+        pub parent_block: String,
+        pub parent_microblock: String,
+        pub parent_microblock_sequence: i32,
+        pub tx_merkle_root: String,
+        pub state_index_root: String,
+        pub microblock_pubkey_hash: String,
+        /// Note: this is *not* unique, since two burn chain forks can commit 
+        /// to the same Stacks block.
+        pub block_hash: String,
+        /// Note: this is the hash of the block hash and consensus hash of the 
+        /// burn block that selected it, and is guaranteed to be globally unique
+        /// (across all Stacks forks and across all PoX forks).
+        /// index_block_hash is the block hash fed into the MARF index.
         pub index_block_hash: String,
-        pub parent_block_id: String,
+        pub block_height: i32,
+        /// Root hash of the internal, not-conensus-critical MARF that allows
+        /// us to track chainstate/fork metadata.
+        pub index_root: String,
+        /// All consensus hashes are guaranteed to be unique.
         pub consensus_hash: String,
+        /// Burn header hash corresponding to the consensus hash (NOT guaranteed
+        /// to be unique, since we can have 2+ blocks per burn block if there's
+        /// a PoX fork).
+        pub burn_header_hash: String,
+        /// Height of the burnchain block header that generated this consensus hash.
+        pub burn_header_height: i32,
+        /// Timestamp from the burnchain block header that generated this consensus hash.
+        pub burn_header_timestamp: i32,
+        /// NOTE: this is the parent index_block_hash.
+        pub parent_block_id: String,
+        pub cost: String,
+        /// Converted to/from u64.
+        pub block_size: String,
+        pub affirmation_weight: i32,
+        
     }
 
     impl BlockHeader {

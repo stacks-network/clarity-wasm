@@ -3,11 +3,48 @@ pub mod chainstate_marf {
     use diesel::prelude::*;
 
     table! {
-        block_headers (block_height) {
-            block_height -> Integer,
+        block_headers (consensus_hash, block_hash) {
+            version -> Integer,
+            // Converted to/from u64.
+            total_burn -> Text,
+            // Converted to/from u64.
+            total_work -> Text,
+            proof -> Text,
+            // Hash of parent Stacks block.
+            parent_block -> Text,
+            parent_microblock -> Text,
+            parent_microblock_sequence -> Integer,
+            tx_merkle_root -> Text,
+            state_index_root -> Text,
+            microblock_pubkey_hash -> Text,
+            // Note: this is *not* unique, since two burn chain forks can commit 
+            // to the same Stacks block.
+            block_hash -> Text,
+            // Note: this is the hash of the block hash and consensus hash of the 
+            // burn block that selected it, and is guaranteed to be globally unique
+            // (across all Stacks forks and across all PoX forks).
+            // index_block_hash is the block hash fed into the MARF index.
             index_block_hash -> Text,
+            block_height -> Integer,
+            // Root hash of the internal, not-conensus-critical MARF that allows
+            // us to track chainstate/fork metadata.
+            index_root -> Text,
+            // All consensus hashes are guaranteed to be unique.
+            consensus_hash -> Text,
+            // Burn header hash corresponding to the consensus hash (NOT guaranteed
+            // to be unique, since we can have 2+ blocks per burn block if there's
+            // a PoX fork).
+            burn_header_hash -> Text,
+            // Height of the burnchain block header that generated this consensus hash.
+            burn_header_height -> Integer,
+            // Timestamp from the burnchain block header that generated this consensus hash.
+            burn_header_timestamp -> Integer,
+            // NOTE: this is the parent index_block_hash.
             parent_block_id -> Text,
-            consensus_hash -> Text
+            cost -> Text,
+            // Converted to/from u64.
+            block_size -> Text,
+            affirmation_weight -> Integer
         }
     }
 }

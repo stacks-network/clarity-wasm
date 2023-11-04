@@ -13,21 +13,16 @@ use crate::{
     clarity::ClarityConnection,
     datastore::DataStore,
     model, ok,
-    schema::{self, chainstate_marf},
-    stacks,
+    schema,
+    stacks, context::boot_data::mainnet_boot_data,
 };
 
 use super::{
     blocks::{BlockCursor, BlockHeader},
-    Block,
+    Block, Runtime, StoreType, Network, TestEnvPaths,
 };
 
-pub enum Runtime {
-    Interpreter = 1,
-    Wasm = 2,
-}
-
-/// Holds all state between environments as well as the
+/// Holds all state between environments.
 pub struct GlobalEnvContext {
     app_db: AppDb,
 }
@@ -38,7 +33,14 @@ impl GlobalEnvContext {
     }
 
     /// Get or create a a test environment.
-    pub fn env(&self, name: &str, runtime: Runtime, stacks_dir: &str) -> Result<TestEnv> {
+    pub fn env(
+        &self, 
+        name: &str, 
+        runtime: Runtime, 
+        store_type: StoreType, 
+        network: Network,
+        working_dir: &str
+    ) -> Result<TestEnv> {
         let env_id = if let Some(db_env) = self.app_db.get_env(name)? {
             db_env.id
         } else {
@@ -46,7 +48,7 @@ impl GlobalEnvContext {
             db_env.id
         };
 
-        TestEnv::new(env_id, name, stacks_dir, self)
+        TestEnv::new(env_id, name, working_dir, store_type, network, self)
     }
 }
 
@@ -55,8 +57,10 @@ pub struct TestEnv<'a> {
     id: i32,
     name: String,
     ctx: &'a GlobalEnvContext,
+    store_type: StoreType,
+    network: Network,
     //chainstate_path: String,
-    blocks_dir: String,
+    paths: TestEnvPaths,
     chainstate: stacks::StacksChainState,
     index_db_conn: RefCell<SqliteConnection>,
     sortition_db: stacks::SortitionDB,
@@ -70,7 +74,7 @@ impl std::fmt::Debug for TestEnv<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TestEnv")
             //.field("chainstate_path", &self.chainstate_path)
-            .field("blocks_dir", &self.blocks_dir)
+            .field("paths", &self.paths)
             .field("chainstate", &"...")
             .field("index_db", &"...")
             .field("sortition_db", &"...")
@@ -81,111 +85,53 @@ impl std::fmt::Debug for TestEnv<'_> {
 
 impl<'a> TestEnv<'a> {
     /// Creates a new instance of a [TestEnv] and attempts to open its database files.
-    pub fn new(id: i32, name: &str, stacks_dir: &str, ctx: &'a GlobalEnvContext) -> Result<Self> {
-        let index_db_path = format!("{}/chainstate/vm/index.sqlite", stacks_dir);
-        let sortition_db_path = format!("{}/burnchain/sortition", stacks_dir);
-        let blocks_dir = format!("{}/chainstate/blocks", stacks_dir);
-        let chainstate_path = format!("{}/chainstate", stacks_dir);
-        let clarity_db_path = format!("{}/chainstate/vm/clarity/marf.sqlite", stacks_dir);
+    pub fn new(id: i32, name: &str, working_dir: &str, store_type: StoreType, network: Network, ctx: &'a GlobalEnvContext) -> Result<Self> {
+        // Determine our paths.
+        let paths = TestEnvPaths::new(working_dir);
+        paths.print(name);
 
-        debug!("[{name}] index_db_path: '{}'", index_db_path);
-        debug!("sortition_db_path: '{}'", sortition_db_path);
-        debug!("[{name}] blocks_dir: '{}'", blocks_dir);
-
-        let mut boot_data = stacks::ChainStateBootData {
-            initial_balances: vec![],
-            post_flight_callback: None,
-            first_burnchain_block_hash: stacks::BurnchainHeaderHash::from_hex(
-                stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
-            )
-            .unwrap(),
-            first_burnchain_block_height: stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT as u32,
-            first_burnchain_block_timestamp: stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP,
-            pox_constants: stacks::PoxConstants::mainnet_default(),
-            get_bulk_initial_lockups: Some(Box::new(|| {
-                Box::new(stacks::GenesisData::new(false).read_lockups().map(|item| {
-                    stacks::ChainstateAccountLockup {
-                        address: item.address,
-                        amount: item.amount,
-                        block_height: item.block_height,
-                    }
-                }))
-            })),
-            get_bulk_initial_balances: Some(Box::new(|| {
-                Box::new(stacks::GenesisData::new(false).read_balances().map(|item| {
-                    stacks::ChainstateAccountBalance {
-                        address: item.address,
-                        amount: item.amount,
-                    }
-                }))
-            })),
-            get_bulk_initial_namespaces: Some(Box::new(|| {
-                Box::new(
-                    stacks::GenesisData::new(false)
-                        .read_namespaces()
-                        .map(|item| stacks::ChainstateBNSNamespace {
-                            namespace_id: item.namespace_id,
-                            importer: item.importer,
-                            buckets: item.buckets,
-                            base: item.base as u64,
-                            coeff: item.coeff as u64,
-                            nonalpha_discount: item.nonalpha_discount as u64,
-                            no_vowel_discount: item.no_vowel_discount as u64,
-                            lifetime: item.lifetime as u64,
-                        }),
-                )
-            })),
-            get_bulk_initial_names: Some(Box::new(|| {
-                Box::new(stacks::GenesisData::new(false).read_names().map(|item| {
-                    stacks::ChainstateBNSName {
-                        fully_qualified_name: item.fully_qualified_name,
-                        owner: item.owner,
-                        zonefile_hash: item.zonefile_hash,
-                    }
-                }))
-            })),
-        };
-
+        // Setup our options for the Marf.
         let mut marf_opts = stacks::MARFOpenOpts::default();
         marf_opts.external_blobs = true;
 
+        // Setup our boot data to be used if the chainstate hasn't been initialized yet.
+        let mut boot_data = if network.is_mainnet() {
+            mainnet_boot_data()
+        } else {
+            todo!("testnet not yet supported")
+        };
+
         debug!("initializing chainstate");
-        let (chainstate, boot_receipt) = stacks::StacksChainState::open_and_exec(
-            true,
+        let (chainstate, _) = stacks::StacksChainState::open_and_exec(
+            network.is_mainnet(),
             1,
-            &format!("{}/chainstate", stacks_dir),
+            &paths.chainstate_path,
             Some(&mut boot_data),
             Some(marf_opts.clone()),
         )?;
         info!("[{name}] chainstate initialized.");
 
         debug!("[{name}] loading index db...");
-        let index_db_conn = SqliteConnection::establish(&index_db_path)?;
+        let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
         info!("[{name}] successfully connected to index db");
 
         debug!("[{name}] loading clarity db...");
-        let clarity_db_conn = SqliteConnection::establish(&clarity_db_path)?;
+        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
         info!("[{name}] successfully connected to clarity db");
 
-        /*debug!("[{name}] opening chainstate...");
-        let chainstate =
-            stacks::StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts.clone()))?;
-        info!("[{name}] successfully opened chainstate");*/
-
         debug!("[{name}] creating burnchain");
-        let burnchain = stacks::Burnchain::new(stacks_dir, "bitcoin", "mainnet")?;
+        let burnchain = stacks::Burnchain::new(working_dir, "bitcoin", "mainnet")?;
 
         //debug!("attempting to migrate sortition db");
-        //stacks::SortitionDB::migrate_if_exists(&sortition_db_path, stacks::STACKS_EPOCHS_MAINNET.as_ref())?;
         debug!("migration successful; opening sortition db");
         let sortition_db = stacks::SortitionDB::connect(
-            &sortition_db_path,
+            &paths.sortition_db_path,
             stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
             &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
                 .unwrap(),
             stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
             stacks::STACKS_EPOCHS_MAINNET.as_ref(),
-            stacks::PoxConstants::mainnet_default(),
+            boot_data.pox_constants,
             true,
         )?;
         info!("successfully opened sortition db");
@@ -194,8 +140,9 @@ impl<'a> TestEnv<'a> {
             id,
             name: name.to_string(),
             ctx,
-            //chainstate_path: chainstate_path.to_string(),
-            blocks_dir,
+            store_type,
+            network,
+            paths,
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             sortition_db,
@@ -211,9 +158,15 @@ impl<'a> TestEnv<'a> {
         &self,
         f: impl FnOnce(&Self, &mut clarity::ClarityDatabase) -> Result<()>,
     ) -> Result<()> {
-        let burndb = self.sortition_db.index_conn();
-        let mut data_store = DataStore::new(&self.ctx.app_db);
-        let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);
+        let burn_state_db = self.sortition_db.index_conn();
+        let mut backing_store = DataStore::new(&self.ctx.app_db);
+        let headers_db = DataStore::new(&self.ctx.app_db);
+        //let burn_state_db = DataStore::new(&self.ctx.app_db);
+
+        clarity::ClarityDatabase::new(&mut backing_store, &headers_db, &burn_state_db);
+        ok!()
+
+        /*let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);
         let mut clarity_db = clarity::ClarityDatabase::new_with_rollback_wrapper(
             rollback_wrapper,
             &clarity::NULL_HEADER_DB,
@@ -224,7 +177,7 @@ impl<'a> TestEnv<'a> {
         clarity_db.set_clarity_epoch_version(stacks::StacksEpochId::latest());
         clarity_db.commit();
 
-        f(self, &mut clarity_db)
+        f(self, &mut clarity_db)*/
     }
 
     /// Retrieve all block headers from the underlying storage.
@@ -284,7 +237,7 @@ impl<'a> TestEnv<'a> {
     /// Retrieve a cursor over all blocks.
     pub fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
-        let cursor = BlockCursor::new(&self.blocks_dir, headers);
+        let cursor = BlockCursor::new(&self.paths.blocks_dir, headers);
         Ok(cursor)
     }
 
@@ -360,7 +313,7 @@ impl<'a> TestEnv<'a> {
 
         clarity_tx_conn.commit();
         clarity_block_conn.commit_to_block(&block.stacks_block_id()?);
-        chainstate_tx.commit();
+        chainstate_tx.commit()?;
 
         ok!()
     }
@@ -615,7 +568,7 @@ impl<'a> TestEnv<'a> {
     pub fn get_stacks_block(&self, block_hash: &str) -> Result<stacks::StacksBlock> {
         let block_id = stacks::StacksBlockId::from_hex(block_hash)?;
         let block_path =
-            stacks::StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
+            stacks::StacksChainState::get_index_block_path(&self.paths.blocks_dir, &block_id)?;
         let block = stacks::StacksChainState::consensus_load(&block_path)?;
 
         Ok(block)

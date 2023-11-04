@@ -4,10 +4,9 @@ use crate::{
     appdb::AppDb,
     cli::DataArgs,
     context::{
-        environments::{GlobalEnvContext, Runtime},
-        Block,
+        environments::GlobalEnvContext,
+        Block, Runtime, StoreType, Network
     },
-    stacks,
     ok,
 };
 use blockstack_lib::chainstate::stacks::TransactionPayload;
@@ -26,14 +25,26 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let baseline_env = context.env(
         "baseline",
         Runtime::Interpreter,
+        StoreType::StacksNode,
+        Network::mainnet(1),
         &config.baseline.chainstate_path,
     )?;
 
     let mut replay_env = context.env(
         "baseline_replay",
         Runtime::Interpreter,
-        "/home/cylwit/stacks-replay",
+        StoreType::Instrumented,
+        Network::mainnet(1),
+        "/home/cylwit/clarity-ab/replay",
     )?;
+
+    let mut wasm_env = context.env(
+        "wasm_env",
+        Runtime::Wasm,
+        StoreType::Instrumented,
+        Network::mainnet(1),
+        "/home/cylwit/clarity-ab/wasm"
+    );
 
     info!(
         "aggregating contract calls starting at block height {}...",
