@@ -155,7 +155,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Ignore this test until dynamic contract-call? is supported
     fn use_trait_call() {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet(
@@ -179,7 +178,7 @@ mod tests {
             "#,
         );
 
-        assert_eq!(val.unwrap(), Value::Int(3));
+        assert_eq!(val.unwrap(), Value::okay(Value::Int(3)).unwrap());
     }
 
     #[test]

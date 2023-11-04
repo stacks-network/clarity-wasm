@@ -1522,7 +1522,7 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         name: &str,
-        ty: &TypeSignature,
+        expr: &SymbolicExpression,
     ) -> bool {
         if let Some(variable) = NativeVariables::lookup_by_name_at_version(
             name,
@@ -1616,6 +1616,7 @@ impl WasmGenerator {
                     true
                 }
                 NativeVariables::NativeNone => {
+                    let ty = self.get_expr_type(expr).expect("'none' must be typed");
                     add_placeholder_for_clarity_type(builder, ty);
                     true
                 }
@@ -1678,23 +1679,28 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         name: &str,
-        ty: &TypeSignature,
+        expr: &SymbolicExpression,
     ) -> bool {
         if let Some(offset) = self.constants.get(name) {
             // Load the offset into a local variable
             let offset_local = self.module.locals.add(ValType::I32);
             builder.i32_const(*offset as i32).local_set(offset_local);
 
+            let ty = self
+                .get_expr_type(expr)
+                .expect("constant must be typed")
+                .clone();
+
             // If `ty` is a value that stays in memory, we can just push the
             // offset and length to the stack.
-            if is_in_memory_type(ty) {
+            if is_in_memory_type(&ty) {
                 builder
                     .local_get(offset_local)
-                    .i32_const(get_type_in_memory_size(ty, false));
+                    .i32_const(get_type_in_memory_size(&ty, false));
                 true
             } else {
                 // Otherwise, we need to load the value from memory.
-                self.read_from_memory(builder, offset_local, 0, ty);
+                self.read_from_memory(builder, offset_local, 0, &ty);
                 true
             }
         } else {
@@ -1824,21 +1830,12 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         atom: &ClarityName,
     ) -> Result<(), GeneratorError> {
-        let ty = match self.get_expr_type(expr) {
-            Some(ty) => ty.clone(),
-            None => {
-                return Err(GeneratorError::InternalError(
-                    "atom expression must be typed".to_string(),
-                ));
-            }
-        };
-
         // Handle builtin variables
-        if self.lookup_reserved_variable(builder, atom.as_str(), &ty) {
+        if self.lookup_reserved_variable(builder, atom.as_str(), expr) {
             return Ok(());
         }
 
-        if self.lookup_constant_variable(builder, atom.as_str(), &ty) {
+        if self.lookup_constant_variable(builder, atom.as_str(), expr) {
             return Ok(());
         }
 

@@ -52,22 +52,27 @@ impl Word for ContractCall {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let function_name = args.get_name(1)?;
-        let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
+        let contract_expr = args.get_expr(0)?;
+        if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
             ref contract_identifier,
-        ))) = args.get_expr(0)?.expr
-        else {
-            todo!("dynamic contract calls are not yet supported")
-        };
+        ))) = contract_expr.expr
+        {
+            // This is a static contract call.
+            // Push the contract identifier onto the stack
+            // TODO(#111): These should be tracked for reuse, similar to the string literals
+            let (id_offset, id_length) = generator.add_literal(&contract_identifier.clone().into());
+            builder
+                .i32_const(id_offset as i32)
+                .i32_const(id_length as i32);
+        } else {
+            // This is a dynamic contract call (via a trait).
+            // Traversing the expression should load the contract identifier
+            // onto the stack.
+            generator.traverse_expr(builder, contract_expr)?;
+        }
 
         // shadow args
         let args = if args.len() >= 2 { &args[2..] } else { &[] };
-
-        // Push the contract identifier onto the stack
-        // TODO(#111): These should be tracked for reuse, similar to the string literals
-        let (id_offset, id_length) = generator.add_literal(&contract_identifier.clone().into());
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
 
         // Push the function name onto the stack
         let (fn_offset, fn_length) = generator.add_string_literal(function_name);
@@ -107,8 +112,8 @@ impl Word for ContractCall {
         // Push the return offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
 
-        // Call the host interface function, `static_contract_call`
-        builder.call(generator.func_by_name("static_contract_call"));
+        // Call the host interface function, `contract_call`
+        builder.call(generator.func_by_name("contract_call"));
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
