@@ -122,3 +122,115 @@ impl Word for ContractCall {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::Value;
+
+    use crate::tools::TestEnvironment;
+
+    #[test]
+    fn static_no_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (no-args)
+    (ok u42)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            "(contract-call? .contract-callee no-args)",
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::UInt(42)).unwrap());
+    }
+
+    #[test]
+    fn static_one_simple_arg() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (one-simple-arg (x int))
+    (ok x)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            "(contract-call? .contract-callee one-simple-arg 42)",
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::Int(42)).unwrap());
+    }
+
+    #[test]
+    fn static_one_arg() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (one-arg (x (string-ascii 16)))
+    (ok x)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"(contract-call? .contract-callee one-arg "hello")"#,
+        );
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn static_two_simple_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (two-simple-args (x int) (y int))
+    (ok (+ x y))
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"(contract-call? .contract-callee two-simple-args 17 42)"#,
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::Int(17 + 42)).unwrap());
+    }
+
+    #[test]
+    fn static_two_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (two-args (x (string-ascii 16)) (y (string-ascii 16)))
+    (ok (concat x y))
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"(contract-call? .contract-callee two-args "hello " "world")"#,
+        );
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(
+                Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+            )
+            .unwrap()
+        );
+    }
+}
