@@ -225,7 +225,9 @@ impl IntoIterator for BlockCursor {
     }
 }
 
+/// Representation of a Stacks block.
 pub enum Block {
+    Boot(BlockHeader),
     Genesis(BlockHeader),
     Regular(BlockHeader, stacks::StacksBlock),
 }
@@ -234,21 +236,33 @@ pub enum Block {
 /// reading information about a Stacks block.
 #[allow(dead_code)]
 impl Block {
+    /// Creates a new Regular block variant, i.e. not Boot or Genesis.
     pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
         Block::Regular(header, block)
     }
 
+    /// Creates a new Genesis block variant. Genesis does not have a
+    /// [stacks::StacksBlock] representation, so this function accepts only
+    /// a [BlockHeader] to represent the block.
     pub fn new_genesis(header: BlockHeader) -> Self {
         Block::Genesis(header)
     }
 
-    pub fn block_height(&self) -> u32 {
-        match self {
+    /// Gets the height for this block.
+    pub fn block_height(&self) -> Result<u32> {
+        let height = match self {
+            Block::Boot(_) => bail!("don't know height for boot"),
             Block::Genesis(_) => 0,
             Block::Regular(header, _) => header.block_height(),
-        }
+        };
+
+        Ok(height)
     }
 
+    /// Gets whether or not this block is the genesis (first) block in the
+    /// chainstate. Note that the genesis block has special handling and is
+    /// loaded from a pre-determined state (using `stx-genesis`) and does not have
+    /// an index block hash in the MARFed chainstate either.
     pub fn is_genesis(&self) -> bool {
         if let Block::Genesis(_) = self {
             return true;
@@ -256,10 +270,29 @@ impl Block {
         return false;
     }
 
-    pub fn index_block_hash(&self) -> Result<String> {
+    /// Retrieves the block hash as a [stacks::BlockHeaderHash] (backed by a
+    /// `[u8;32]`). The boot block does not have a block hash and this function
+    /// will return an error if you attempt to call it on the boot block. The
+    /// genesis block statically returns the [stacks::FIRST_STACKS_BLOCK_HASH]
+    /// constant.
+    pub fn block_hash(&self) -> Result<BlockHeaderHash> {
+        let hash = match self {
+            Block::Boot(_) => bail!("don't know block hash for boot"),
+            Block::Genesis(gen) => stacks::FIRST_STACKS_BLOCK_HASH,
+            Block::Regular(header, block) => block.block_hash()
+        };
+
+        Ok(hash)
+    }
+
+    /// Retrieves the index block hash, i.e. the MARF index hash for this block.
+    /// Boot and Genesis blocks do not have index block hashes and this function
+    /// will return an error if you attempt to call it on either of them.
+    pub fn index_block_hash(&self) -> Result<&[u8]> {
         match self {
-            Block::Genesis(_) => bail!("genesis block does not have an index block hash"),
-            Block::Regular(header, _) => Ok(hex::encode(&header.index_block_hash)),
+            Block::Boot(_) => bail!("don't know index_block_hash for boot"),
+            Block::Genesis(_) => bail!("don't know index block hash for genesis"),
+            Block::Regular(header, _) => Ok(&header.index_block_hash),
         }
     }
 }

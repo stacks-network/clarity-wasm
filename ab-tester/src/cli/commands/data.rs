@@ -44,6 +44,11 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     for block in baseline_env.blocks()?.into_iter() {
         let (header, stacks_block) = match &block {
+            Block::Boot(boot) => {
+                // We can't process the boot block, so skip it.
+                info!("boot block - skipping '{:?}'", boot.index_block_hash);
+                continue;
+            }
             Block::Genesis(gen) => {
                 // We can't process genesis (doesn't exist in chainstate), so skip it.
                 info!("genesis block - skipping '{:?}'", gen.index_block_hash);

@@ -148,7 +148,7 @@ impl<'a> TestEnv<'a> {
         marf_opts.external_blobs = true;
 
         debug!("initializing chainstate");
-        stacks::StacksChainState::open_and_exec(
+        let (chainstate, boot_receipt) = stacks::StacksChainState::open_and_exec(
             true,
             1,
             &format!("{}/chainstate", stacks_dir),
@@ -165,10 +165,10 @@ impl<'a> TestEnv<'a> {
         let clarity_db_conn = SqliteConnection::establish(&clarity_db_path)?;
         info!("[{name}] successfully connected to clarity db");
 
-        debug!("[{name}] opening chainstate...");
+        /*debug!("[{name}] opening chainstate...");
         let chainstate =
             stacks::StacksChainState::open(true, 1, &chainstate_path, Some(marf_opts.clone()))?;
-        info!("[{name}] successfully opened chainstate");
+        info!("[{name}] successfully opened chainstate");*/
 
         debug!("[{name}] creating burnchain");
         let burnchain = stacks::Burnchain::new(stacks_dir, "bitcoin", "mainnet")?;
@@ -194,7 +194,7 @@ impl<'a> TestEnv<'a> {
             ctx,
             //chainstate_path: chainstate_path.to_string(),
             blocks_dir,
-            chainstate: chainstate.0,
+            chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             sortition_db,
             clarity_db_conn,
@@ -207,12 +207,13 @@ impl<'a> TestEnv<'a> {
         &self,
         f: impl FnOnce(&Self, &mut clarity::ClarityDatabase) -> Result<()>,
     ) -> Result<()> {
+        let burndb = self.sortition_db.index_conn();
         let mut data_store = DataStore::new(&self.ctx.app_db);
         let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);
         let mut clarity_db = clarity::ClarityDatabase::new_with_rollback_wrapper(
             rollback_wrapper,
             &clarity::NULL_HEADER_DB,
-            &clarity::NULL_BURN_STATE_DB,
+            &burndb,
         );
 
         clarity_db.begin();
@@ -297,18 +298,31 @@ impl<'a> TestEnv<'a> {
         ok!()
     }
 
+    pub fn block_begin(&mut self, block: &Block) -> Result<()> {
+        self.ctx.app_db.insert_block(
+            self.id, 
+            block.block_height()? as i32, 
+            block.block_hash()?.as_bytes(), 
+            block.index_block_hash()?
+        )?;
+
+        ok!()
+    }
+
     pub fn test(&mut self, block: &Block, tx: &stacks::StacksTransaction) -> Result<()> {
         //let current_block_id: stacks::StacksBlockId;
+        // TODO: Only if genesis
         let current_block_id = <stacks::StacksBlockId as ClarityMarfTrieId>::sentinel();
         let next_block_id: stacks::StacksBlockId;
 
         match block {
-            Block::Genesis(_) => bail!("cannot process genesis"),
+            Block::Boot(_) => bail!("cannot process the boot block"),
+            Block::Genesis(_) => bail!("cannot process the genesis block"),
             Block::Regular(header, stacks_block) => {
                 //current_block_id = header.parent_stacks_block_id()?;
                 next_block_id = header.stacks_block_id()?;
             }
-        }
+        };
 
         let burndb = self.sortition_db.index_conn();
 

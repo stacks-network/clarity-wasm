@@ -20,6 +20,7 @@ pub use blockstack_lib::{
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, STACKS_EPOCHS_MAINNET,
+        FIRST_STACKS_BLOCK_HASH
     },
     types::StacksEpoch,
 };
