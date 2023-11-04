@@ -2,6 +2,7 @@
 /// since we use a lot of similar naming. The convention is to add all usings
 /// from Stacks libs (excluding `clarity` - see `clarity.rs`) to this file as
 /// re-exports and qualifying all usings within this app with `stacks::`.
+
 pub use blockstack_lib::{
     burnchains::{Burnchain, PoxConstants},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
@@ -27,7 +28,10 @@ pub use blockstack_lib::{
 };
 
 pub use stacks_common::types::{
-    chainstate::{BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksBlockId},
+    chainstate::{
+        BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, 
+        StacksBlockId, VRFSeed
+    },
     StacksEpochId,
 };
 

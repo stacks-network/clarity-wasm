@@ -1,13 +1,19 @@
 use std::cell::RefCell;
 
-use clarity::vm::types::QualifiedContractIdentifier;
-use color_eyre::Result;
+use color_eyre::{
+    eyre::anyhow,
+    Result,
+};
 use diesel::{insert_into, prelude::*, OptionalExtension, SqliteConnection};
 use lz4_flex::compress_prepend_size;
 
 use crate::{
-    model::app_db::{Block, Contract, ContractExecution, ContractVarInstance, Environment},
+    clarity,
+    model::app_db::{
+        Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment,
+    },
     schema::appdb::*,
+    stacks,
 };
 
 pub struct AppDb {
@@ -44,7 +50,7 @@ impl AppDb {
 
     pub fn get_contract_id(
         &self,
-        contract_identifier: &QualifiedContractIdentifier,
+        contract_identifier: &clarity::QualifiedContractIdentifier,
     ) -> Result<Option<i32>> {
         let result = contract::table
             .filter(contract::qualified_contract_id.eq(contract_identifier.to_string()))
@@ -108,7 +114,7 @@ impl AppDb {
     pub fn get_var_latest(&self, contract_id: i32, key: &str) -> Result<Option<Vec<u8>>> {
         let contract_var_id = self
             .get_var_id(contract_id, key)
-            .expect("failed to find contract var id")
+            .expect("sql query execution failed")
             .expect("failed to find contract var");
 
         let result = contract_var_instance::table
@@ -177,5 +183,146 @@ impl AppDb {
             .unwrap();
 
         Ok(result)
+    }
+
+    /// Attempts to fetch a [BlockHeader] from the database using its
+    /// [stacks::StacksBlockId]. If no records are found, this function will return
+    /// [None], and will panic if the query fails to execute.
+    fn get_block_header_by_stacks_block_id(
+        &self,
+        id_bhh: &stacks::StacksBlockId,
+    ) -> Result<Option<BlockHeader>> {
+        let result = _block_headers::table
+            .filter(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec()))
+            .first::<BlockHeader>(&mut *self.conn.borrow_mut())
+            .optional()
+            .map_err(|e| anyhow!("sql query execution failed"))?;
+
+        Ok(result)
+    }
+}
+
+/// Implementation of Clarity's [clarity::HeadersDB] for the app datastore.
+impl clarity::HeadersDB for AppDb {
+    /// Retrieves the [stacks::BlockHeaderHash] for the Stacks block header with the
+    /// given index block hash.
+    fn get_stacks_block_header_hash_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::BlockHeaderHash> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| {
+                Some(stacks::BlockHeaderHash(
+                    header
+                        .index_block_hash
+                        .try_into()
+                        .expect("failed to convert index block hash into a 32-byte array"),
+                ))
+            })
+    }
+
+    /// Retrieves the [stacks::BurnchainHeaderHash] for the Stacks block header
+    /// with the given index block hash.
+    fn get_burn_header_hash_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| {
+                Some(stacks::BurnchainHeaderHash(
+                    header
+                        .burn_header_hash
+                        .try_into()
+                        .expect("failed to convert burn header hash into a 32-byte array"),
+                ))
+            })
+    }
+
+    /// Retrieves the [stacks::ConsensusHash] for the Stacks block header with
+    /// the given index block hash.
+    fn get_consensus_hash_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::ConsensusHash> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| {
+                Some(stacks::ConsensusHash(
+                    header
+                        .consensus_hash
+                        .try_into()
+                        .expect("failed to convert consensus hash into a 20-byte array"),
+                ))
+            })
+    }
+
+    /// Retrieves the [stacks::VRFSeed] (proof) for the Stacks block header with
+    /// the given index block hash.
+    fn get_vrf_seed_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::VRFSeed> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| {
+                Some(stacks::VRFSeed(
+                    header
+                        .proof
+                        .try_into()
+                        .expect("failed to convert the VRF seed (proof) into a 32-byte array")
+                ))
+            })
+    }
+
+    /// Retrieves the burn block timestamp as a [u64] for the Stacks block header
+    /// with the given index block hash.
+    fn get_burn_block_time_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<u64> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| Some(header.burn_header_timestamp as u64))
+    }
+
+    /// Retrieves the block height of the associated burn bunrh as a [u32] for
+    /// the Stacks block header with the given index block hash.
+    fn get_burn_block_height_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<u32> {
+        self.get_block_header_by_stacks_block_id(id_bhh)
+            .unwrap()
+            .and_then(|header| Some(header.burn_header_height as u32))
+    }
+
+    fn get_miner_address(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<stacks_common::types::chainstate::StacksAddress> {
+        todo!()
+    }
+
+    fn get_burnchain_tokens_spent_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<u128> {
+        todo!()
+    }
+
+    fn get_burnchain_tokens_spent_for_winning_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<u128> {
+        todo!()
+    }
+
+    fn get_tokens_earned_for_block(
+        &self,
+        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+    ) -> Option<u128> {
+        todo!()
     }
 }

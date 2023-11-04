@@ -154,8 +154,10 @@ impl<'a> TestEnv<'a> {
                 let sortition_db = stacks::SortitionDB::connect(
                     path,
                     stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-                    &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
-                        .unwrap(),
+                    &stacks::BurnchainHeaderHash::from_hex(
+                        stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
+                    )
+                    .unwrap(),
                     stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
                     stacks::STACKS_EPOCHS_MAINNET.as_ref(),
                     boot_data.pox_constants,
@@ -163,7 +165,7 @@ impl<'a> TestEnv<'a> {
                 )?;
 
                 Ok(sortition_db)
-            },
+            }
             Network::Testnet(_) => {
                 todo!("testnet not yet supported")
             }

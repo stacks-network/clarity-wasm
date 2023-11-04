@@ -47,6 +47,13 @@ pub mod chainstate_marf {
             affirmation_weight -> Integer
         }
     }
+
+    table! {
+        payments (address, block_hash) {
+            address -> Text,
+            block_hash -> Text,
+        }
+    }
 }
 
 /// Tables from the Clarity Sqlite database.
@@ -173,6 +180,52 @@ pub mod appdb {
             block_id -> Integer,
             key_hash -> Binary,
             value -> Binary
+        }
+    }
+
+    table! {
+        _block_headers (consensus_hash, block_hash) {
+            version -> Integer,
+            // Converted to/from u64.
+            total_burn -> BigInt,
+            // Converted to/from u64.
+            total_work -> BigInt,
+            proof -> Binary,
+            // Hash of parent Stacks block.
+            parent_block -> Binary,
+            parent_microblock -> Binary,
+            parent_microblock_sequence -> Integer,
+            tx_merkle_root -> Binary,
+            state_index_root -> Binary,
+            microblock_pubkey_hash -> Binary,
+            // Note: this is *not* unique, since two burn chain forks can commit
+            // to the same Stacks block.
+            block_hash -> Binary,
+            // Note: this is the hash of the block hash and consensus hash of the
+            // burn block that selected it, and is guaranteed to be globally unique
+            // (across all Stacks forks and across all PoX forks).
+            // index_block_hash is the block hash fed into the MARF index.
+            index_block_hash -> Binary,
+            block_height -> Integer,
+            // Root hash of the internal, not-conensus-critical MARF that allows
+            // us to track chainstate/fork metadata.
+            index_root -> Binary,
+            // All consensus hashes are guaranteed to be unique.
+            consensus_hash -> Binary,
+            // Burn header hash corresponding to the consensus hash (NOT guaranteed
+            // to be unique, since we can have 2+ blocks per burn block if there's
+            // a PoX fork).
+            burn_header_hash -> Binary,
+            // Height of the burnchain block header that generated this consensus hash.
+            burn_header_height -> Integer,
+            // Timestamp from the burnchain block header that generated this consensus hash.
+            burn_header_timestamp -> BigInt,
+            // NOTE: this is the parent index_block_hash.
+            parent_block_id -> Binary,
+            cost -> BigInt,
+            // Converted to/from u64.
+            block_size -> BigInt,
+            affirmation_weight -> Integer,
         }
     }
 }
