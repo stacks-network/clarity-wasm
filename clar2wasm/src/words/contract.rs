@@ -233,4 +233,144 @@ mod tests {
             .unwrap()
         );
     }
+
+    #[test]
+    fn dynamic_no_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-trait test-trait ((no-args () (response uint uint))))
+(define-public (no-args)
+    (ok u42)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(use-trait test-trait .contract-callee.test-trait)
+(define-private (call-it (t <test-trait>))
+    (contract-call? t no-args)
+)
+(call-it .contract-callee)
+            "#,
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::UInt(42)).unwrap());
+    }
+
+    #[test]
+    fn dynamic_one_simple_arg() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-trait test-trait ((one-simple-arg (int) (response int uint))))
+(define-public (one-simple-arg (x int))
+    (ok x)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(use-trait test-trait .contract-callee.test-trait)
+(define-private (call-it (t <test-trait>) (x int))
+    (contract-call? t one-simple-arg x)
+)
+(call-it .contract-callee 42)
+            "#,
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::Int(42)).unwrap());
+    }
+
+    #[test]
+    fn dynamic_one_arg() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-trait test-trait ((one-arg ((string-ascii 16)) (response (string-ascii 16) uint))))
+(define-public (one-arg (x (string-ascii 16)))
+    (ok x)
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(use-trait test-trait .contract-callee.test-trait)
+(define-private (call-it (t <test-trait>) (x (string-ascii 16)))
+    (contract-call? t one-arg x)
+)
+(call-it .contract-callee "hello")
+            "#,
+        );
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn dynamic_two_simple_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-trait test-trait ((two-simple-args (int int) (response int uint))))
+(define-public (two-simple-args (x int) (y int))
+    (ok (+ x y))
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(use-trait test-trait .contract-callee.test-trait)
+(define-private (call-it (t <test-trait>) (x int) (y int))
+    (contract-call? t two-simple-args x y)
+)
+(call-it .contract-callee 17 42)
+            "#,
+        );
+
+        assert_eq!(val.unwrap(), Value::okay(Value::Int(17 + 42)).unwrap());
+    }
+
+    #[test]
+    fn dynamic_two_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-trait test-trait ((two-args ((string-ascii 16) (string-ascii 16)) (response (string-ascii 32) uint))))
+(define-public (two-args (x (string-ascii 16)) (y (string-ascii 16)))
+    (ok (concat x y))
+)
+            "#,
+        );
+        let val = env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(use-trait test-trait .contract-callee.test-trait)
+(define-private (call-it (t <test-trait>) (x (string-ascii 16)) (y (string-ascii 16)))
+    (contract-call? t two-args x y)
+)
+(call-it .contract-callee "hello " "world")
+            "#,
+        );
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(
+                Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+            )
+            .unwrap()
+        );
+    }
 }
