@@ -124,17 +124,8 @@ impl<'a> TestEnv<'a> {
         let burnchain = stacks::Burnchain::new(working_dir, "bitcoin", "mainnet")?;
 
         //debug!("attempting to migrate sortition db");
-        debug!("migration successful; opening sortition db");
-        let sortition_db = stacks::SortitionDB::connect(
-            &paths.sortition_db_path,
-            stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-            &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
-                .unwrap(),
-            stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
-            stacks::STACKS_EPOCHS_MAINNET.as_ref(),
-            boot_data.pox_constants,
-            true,
-        )?;
+        debug!("opening sortition db");
+        let sortition_db = Self::open_sortition_db(&paths.sortition_db_path, &network)?;
         info!("successfully opened sortition db");
 
         Ok(Self {
@@ -152,6 +143,31 @@ impl<'a> TestEnv<'a> {
 
             block_tx_ctx: None,
         })
+    }
+
+    /// Opens the sortition DB baseed on the provided network.
+    fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionDB> {
+        match network {
+            Network::Mainnet(_) => {
+                let boot_data = mainnet_boot_data();
+
+                let sortition_db = stacks::SortitionDB::connect(
+                    path,
+                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
+                    &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
+                        .unwrap(),
+                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
+                    stacks::STACKS_EPOCHS_MAINNET.as_ref(),
+                    boot_data.pox_constants,
+                    true,
+                )?;
+
+                Ok(sortition_db)
+            },
+            Network::Testnet(_) => {
+                todo!("testnet not yet supported")
+            }
+        }
     }
 
     /// Execute the given block with access to the underlying [ClarityDatabase].
