@@ -11,6 +11,7 @@
         //"ConradLudgate.rust-playground",
         "Gruntfuggly.todo-tree",
         "dtsvet.vscode-wasm",
-        "qwtel.sqlite-viewer"
+        "qwtel.sqlite-viewer",
+        "PKief.material-icon-theme"
     ]
 }
