@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Weak};
 
 use blockstack_lib::chainstate::stacks::index::{self, ClarityMarfTrieId, MarfTrieId};
 use color_eyre::{eyre::bail, Result};
@@ -62,6 +62,8 @@ pub struct TestEnv<'a> {
     sortition_db: stacks::SortitionDB,
     clarity_db_conn: SqliteConnection,
     burnchain: stacks::Burnchain,
+
+    block_tx_ctx: Option<BlockTransactionContext<'a, 'a>>
 }
 
 impl std::fmt::Debug for TestEnv<'_> {
@@ -199,6 +201,8 @@ impl<'a> TestEnv<'a> {
             sortition_db,
             clarity_db_conn,
             burnchain,
+
+            block_tx_ctx: None
         })
     }
 
@@ -298,7 +302,27 @@ impl<'a> TestEnv<'a> {
         ok!()
     }
 
-    pub fn block_begin(&mut self, block: &Block) -> Result<()> {
+    pub fn block_begin(&mut self, block: &Block, f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>) -> Result<()> {
+        //let current_block_id: stacks::StacksBlockId;
+        // TODO: Only if genesis
+        let current_block_id: stacks::StacksBlockId;
+        let next_block_id: stacks::StacksBlockId;
+
+        match block {
+            Block::Boot(_) => bail!("cannot process the boot block"),
+            Block::Genesis(header) => {
+                current_block_id = <stacks::StacksBlockId as ClarityMarfTrieId>::sentinel();
+                next_block_id = header.stacks_block_id()?;
+            }
+            Block::Regular(header, _) => {
+                current_block_id = header.parent_stacks_block_id()?;
+                next_block_id = header.stacks_block_id()?;
+            }
+        };
+
+        info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
+
+        // Insert this block into the app database.
         self.ctx.app_db.insert_block(
             self.id, 
             block.block_height()? as i32, 
@@ -306,42 +330,43 @@ impl<'a> TestEnv<'a> {
             block.index_block_hash()?
         )?;
 
-        ok!()
-    }
+        // We cannot process genesis as it was already processed as a part of chainstate
+        // initialization. Log that we reached it and skip processing.
+        if let Block::Genesis(_) = block {
+            info!("genesis block cannot be processed as it was statically initialized; moving on");
+            return ok!();
+        }
 
-    pub fn test(&mut self, block: &Block, tx: &stacks::StacksTransaction) -> Result<()> {
-        //let current_block_id: stacks::StacksBlockId;
-        // TODO: Only if genesis
-        let current_block_id = <stacks::StacksBlockId as ClarityMarfTrieId>::sentinel();
-        let next_block_id: stacks::StacksBlockId;
+        // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
+        let burn_db = self.sortition_db.index_conn();
 
-        match block {
-            Block::Boot(_) => bail!("cannot process the boot block"),
-            Block::Genesis(_) => bail!("cannot process the genesis block"),
-            Block::Regular(header, stacks_block) => {
-                //current_block_id = header.parent_stacks_block_id()?;
-                next_block_id = header.stacks_block_id()?;
-            }
-        };
-
-        let burndb = self.sortition_db.index_conn();
-
+        // Start a new chainstate transaction.
         debug!("creating chainstate tx");
         let (chainstate_tx, clarity_instance) = self.chainstate.chainstate_tx_begin()?;
         debug!("chainstate tx started");
 
+        // Begin a new Clarity block.
         debug!("beginning clarity block");
         let mut clarity_block_conn = clarity_instance.begin_block(
             &current_block_id,
             &next_block_id,
             &chainstate_tx,
-            &burndb,
+            &burn_db,
         );
 
+        // Enter Clarity transaction processing for the new block.
         debug!("starting clarity tx processing");
         let clarity_tx_conn = clarity_block_conn.start_transaction_processing();
+        
+        // Call the provided function with our context object.
+        //let mut block_tx_ctx = ;
+        f(&mut BlockTransactionContext { clarity_tx_conn: &clarity_tx_conn })?;
 
         debug!("returning");
+
+        clarity_tx_conn.commit();
+        clarity_block_conn.commit_to_block(&block.stacks_block_id()?);
+        chainstate_tx.commit();
 
         ok!()
     }
@@ -601,4 +626,8 @@ impl<'a> TestEnv<'a> {
 
         Ok(block)
     }
+}
+
+pub struct BlockTransactionContext<'a, 'b> {
+    clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>
 }

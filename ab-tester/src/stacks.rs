@@ -4,11 +4,12 @@
 /// re-exports and qualifying all usings within this app with `stacks::`.
 pub use blockstack_lib::{
     burnchains::{Burnchain, PoxConstants},
-    chainstate::burn::db::sortdb::SortitionDB,
+    chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
     chainstate::stacks::{
         db::{
             ChainStateBootData, ChainstateAccountBalance, ChainstateAccountLockup,
             ChainstateBNSName, ChainstateBNSNamespace, StacksChainState,
+            ChainstateTx
         },
         index::marf::{MARFOpenOpts, MarfConnection},
         index::node::{is_backptr, TrieNodeID, TrieNodeType, TriePath},
@@ -23,10 +24,17 @@ pub use blockstack_lib::{
         FIRST_STACKS_BLOCK_HASH
     },
     types::StacksEpoch,
+    clarity_vm::clarity::{
+        ClarityTransactionConnection, ClarityBlockConnection, ClarityInstance
+    },
+    util_lib::db::IndexDBConn
 };
 
 pub use stacks_common::types::{
-    chainstate::{BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, StacksBlockId},
+    chainstate::{
+        BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, StacksBlockId,
+        SortitionId
+    },
     StacksEpochId,
 };
 

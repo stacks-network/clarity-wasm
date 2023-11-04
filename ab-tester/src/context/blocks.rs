@@ -291,8 +291,17 @@ impl Block {
     pub fn index_block_hash(&self) -> Result<&[u8]> {
         match self {
             Block::Boot(_) => bail!("don't know index_block_hash for boot"),
-            Block::Genesis(_) => bail!("don't know index block hash for genesis"),
+            Block::Genesis(header) => Ok(&header.index_block_hash),
             Block::Regular(header, _) => Ok(&header.index_block_hash),
         }
+    }
+
+    /// Retrieves this block's index block hash, i.e. the MARF index hash, as
+    /// a [stacks::StacksBlockId].
+    pub fn stacks_block_id(&self) -> Result<StacksBlockId> {
+        let id = StacksBlockId::from_bytes(self.index_block_hash()?)
+            .ok_or_else(||anyhow!("failed to convert index block hash to stacks block id"))?;
+
+        Ok(id)
     }
 }

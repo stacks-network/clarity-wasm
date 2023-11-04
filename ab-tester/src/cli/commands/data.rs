@@ -7,6 +7,7 @@ use crate::{
         environments::{GlobalEnvContext, Runtime},
         Block,
     },
+    stacks,
     ok,
 };
 use blockstack_lib::chainstate::stacks::TransactionPayload;
@@ -44,17 +45,19 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     for block in baseline_env.blocks()?.into_iter() {
         let (header, stacks_block) = match &block {
-            Block::Boot(boot) => {
+            Block::Boot(header) => {
                 // We can't process the boot block, so skip it.
-                info!("boot block - skipping '{:?}'", boot.index_block_hash);
+                info!("boot block - skipping '{:?}'", header.index_block_hash);
                 continue;
             }
-            Block::Genesis(gen) => {
+            Block::Genesis(header) => {
                 // We can't process genesis (doesn't exist in chainstate), so skip it.
-                info!("genesis block - skipping '{:?}'", gen.index_block_hash);
-                continue;
+                //info!("genesis block - skipping '{:?}'", gen.index_block_hash);
+                //continue;
+                info!("genesis block");
+                (header, None)
             }
-            Block::Regular(header, block) => (header, block),
+            Block::Regular(header, block) => (header, Some(block)),
         };
 
         // Ensure that we've reached the specified block-height before beginning
@@ -71,18 +74,18 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
         debug!("processing block #{}", header.block_height());
 
-        let block_id = header.stacks_block_id()?;
+        replay_env.block_begin(&block, |_ctx| {
+            info!("processing block!");
+            ok!()
+        })?;
 
-        info!("inserting block into app db");
-        baseline_env.insert_block(
-            header.block_height() as i32,
-            stacks_block.block_hash().as_bytes(),
-            &header.index_block_hash,
-        )?;
+        processed_block_count += 1;
+        continue;
 
-        for tx in stacks_block.clone().txs.iter() {
+        /*let block_id = header.stacks_block_id()?;
+
+        for tx in stacks_block.unwrap().txs.iter() {
             info!("processing tx: {}", tx.txid());
-            replay_env.test(&block, tx)?;
 
             let origin_principal = StandardPrincipalData::from(tx.origin_address());
 
@@ -103,9 +106,9 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
                 }
                 _ => {}
             }
-        }
+        }*/
 
-        processed_block_count += 1;
+        
     }
 
     info!("blocks processed: {processed_block_count}");
