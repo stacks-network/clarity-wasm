@@ -2,15 +2,14 @@
 /// since we use a lot of similar naming. The convention is to add all usings
 /// from Stacks libs (excluding `clarity` - see `clarity.rs`) to this file as
 /// re-exports and qualifying all usings within this app with `stacks::`.
-
 pub use blockstack_lib::{
-    burnchains::{Burnchain, PoxConstants, Address},
+    burnchains::{Address, Burnchain, PoxConstants},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
     chainstate::stacks::{
         db::{
-            accounts::MinerReward,
-            ChainStateBootData, ChainstateAccountBalance, ChainstateAccountLockup,
-            ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx, StacksChainState,
+            accounts::MinerReward, ChainStateBootData, ChainstateAccountBalance,
+            ChainstateAccountLockup, ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx,
+            StacksChainState,
         },
         index::marf::{MARFOpenOpts, MarfConnection},
         index::node::{is_backptr, TrieNodeID, TrieNodeType, TriePath},
@@ -22,8 +21,8 @@ pub use blockstack_lib::{
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_STACKS_BLOCK_HASH, 
-        STACKS_EPOCHS_MAINNET, FIRST_BURNCHAIN_CONSENSUS_HASH
+        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_BURNCHAIN_CONSENSUS_HASH,
+        FIRST_STACKS_BLOCK_HASH, STACKS_EPOCHS_MAINNET,
     },
     types::StacksEpoch,
     util_lib::db::IndexDBConn,
@@ -31,8 +30,8 @@ pub use blockstack_lib::{
 
 pub use stacks_common::types::{
     chainstate::{
-        BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, 
-        StacksBlockId, VRFSeed, StacksAddress
+        BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress,
+        StacksBlockId, VRFSeed,
     },
     StacksEpochId,
 };

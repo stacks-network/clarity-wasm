@@ -11,6 +11,6 @@ pub use clarity::vm::{
         NULL_BURN_STATE_DB, NULL_HEADER_DB,
     },
     errors::InterpreterResult,
-    types::{QualifiedContractIdentifier, TupleData, PrincipalData},
+    types::{PrincipalData, QualifiedContractIdentifier, TupleData},
     StacksEpoch, Value,
 };

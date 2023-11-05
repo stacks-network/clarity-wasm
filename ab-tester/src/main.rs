@@ -8,9 +8,9 @@ mod errors;
 #[macro_use]
 mod macros;
 mod clarity;
+mod db;
 mod runtime;
 mod stacks;
-mod db;
 
 use clap::Parser;
 use cli::*;

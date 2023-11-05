@@ -5,8 +5,8 @@ use sha2::{Digest, Sha512_256};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
 use crate::{
-    db::{appdb::AppDb, model},
     clarity,
+    db::{appdb::AppDb, model},
 };
 
 pub struct DataStore<'a> {

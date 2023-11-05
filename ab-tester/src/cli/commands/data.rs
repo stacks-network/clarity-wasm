@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    db::appdb::AppDb,
     cli::DataArgs,
     context::{environments::GlobalEnvContext, Block, Network, Runtime, StoreType},
+    db::appdb::AppDb,
     ok,
 };
 use blockstack_lib::chainstate::stacks::TransactionPayload;

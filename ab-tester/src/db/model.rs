@@ -15,7 +15,7 @@ pub mod chainstate_db {
         pub tx_fees_streamed_confirmed: String,
         pub tx_fees_streamed_produced: String,
         pub child_index_block_hash: String,
-        pub parent_index_block_hash: String
+        pub parent_index_block_hash: String,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -113,7 +113,7 @@ pub mod clarity_db {
 
 /// Types for this application.
 pub mod app_db {
-    use crate::{stacks, clarity, db::schema::appdb::*, stacks::Address};
+    use crate::{clarity, db::schema::appdb::*, stacks, stacks::Address};
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -414,7 +414,7 @@ pub mod app_db {
         pub tx_fees_streamed_confirmed: i32,
         pub tx_fees_streamed_produced: i32,
         pub child_index_block_hash: Vec<u8>,
-        pub parent_index_block_hash: Vec<u8>
+        pub parent_index_block_hash: Vec<u8>,
     }
 
     impl Into<stacks::MinerReward> for &MaturedReward {

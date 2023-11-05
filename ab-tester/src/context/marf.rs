@@ -3,9 +3,9 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, Sqlite
 use log::*;
 
 use crate::{
-    clarity, 
+    clarity,
+    db::{model, schema},
     stacks,
-    db::{model, schema}
 };
 
 struct MarfWalker {}
