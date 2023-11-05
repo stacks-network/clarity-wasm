@@ -2,7 +2,11 @@ use color_eyre::Result;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection};
 use log::*;
 
-use crate::{clarity, model, schema, stacks};
+use crate::{
+    clarity, 
+    stacks,
+    db::{model, schema}
+};
 
 struct MarfWalker {}
 

@@ -7,8 +7,9 @@ use diesel::{
 use log::*;
 
 use crate::{
-    appdb::AppDb, clarity, clarity::ClarityConnection, context::boot_data::mainnet_boot_data,
-    datastore::DataStore, model, ok, schema, stacks,
+    db::{appdb::AppDb, datastore::DataStore, model, schema},
+    clarity, clarity::ClarityConnection, context::boot_data::mainnet_boot_data, 
+    ok, stacks,
 };
 
 use super::{

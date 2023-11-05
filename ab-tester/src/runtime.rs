@@ -17,7 +17,7 @@ use stacks_common::types::{
     StacksEpochId,
 };
 
-use crate::{appdb::AppDb, config::Config, datastore::DataStore, model::app_db::ContractExecution};
+use crate::{db::appdb::AppDb, config::Config, db::datastore::DataStore, db::model::app_db::ContractExecution};
 
 pub fn analyze_contract(
     contract_identifier: &QualifiedContractIdentifier,

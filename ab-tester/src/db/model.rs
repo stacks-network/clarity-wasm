@@ -1,6 +1,6 @@
 /// Types used for reading from a chainstate MARF.
 pub mod chainstate_db {
-    use crate::schema::chainstate_marf::*;
+    use crate::db::schema::chainstate_marf::*;
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -73,7 +73,7 @@ pub mod chainstate_db {
 
 /// Types used for reading from a chainstate Clarity MARF'd database.
 pub mod clarity_db {
-    use crate::schema::clarity_marf::*;
+    use crate::db::schema::clarity_marf::*;
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -96,7 +96,7 @@ pub mod clarity_db {
 
 /// Types for this application.
 pub mod app_db {
-    use crate::schema::appdb::*;
+    use crate::db::schema::appdb::*;
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]

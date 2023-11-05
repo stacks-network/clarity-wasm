@@ -5,15 +5,12 @@ mod cli;
 mod config;
 mod context;
 mod errors;
-mod model;
-mod schema;
 #[macro_use]
 mod macros;
-mod appdb;
 mod clarity;
-mod datastore;
 mod runtime;
 mod stacks;
+mod db;
 
 use clap::Parser;
 use cli::*;

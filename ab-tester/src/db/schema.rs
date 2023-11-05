@@ -38,7 +38,7 @@ pub mod chainstate_marf {
             // Height of the burnchain block header that generated this consensus hash.
             burn_header_height -> Integer,
             // Timestamp from the burnchain block header that generated this consensus hash.
-            burn_header_timestamp -> Integer,
+            burn_header_timestamp -> BigInt,
             // NOTE: this is the parent index_block_hash.
             parent_block_id -> Text,
             cost -> Text,

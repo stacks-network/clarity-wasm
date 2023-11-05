@@ -9,10 +9,13 @@ use lz4_flex::compress_prepend_size;
 
 use crate::{
     clarity,
-    model::app_db::{
-        Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment,
+    db::{
+        model::app_db::{
+            Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, 
+            Environment,
+        },
+        schema::appdb::*,
     },
-    schema::appdb::*,
     stacks,
 };
 

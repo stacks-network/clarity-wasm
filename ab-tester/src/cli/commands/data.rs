@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    appdb::AppDb,
+    db::appdb::AppDb,
     cli::DataArgs,
     context::{environments::GlobalEnvContext, Block, Network, Runtime, StoreType},
     ok,
