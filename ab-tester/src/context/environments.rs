@@ -70,9 +70,19 @@ impl<'a> RuntimeEnv<'a> {
         }
     }
 
-    pub fn from_stacks_node(node_dir: &'a str) -> Self {
-        Self::StacksNode(StacksNodeEnv::new(node_dir))
+    pub fn from_stacks_node(name: &'a str, node_dir: &'a str) -> Result<Self> {
+        Ok(
+            Self::StacksNode(StacksNodeEnv::new(name, node_dir)?)
+        )
     }
+}
+
+pub trait ReadableEnv {
+    fn blocks(&self) -> Result<BlockCursor>;
+}
+
+pub trait WriteableEnv: ReadableEnv {
+    
 }
 
 /// Container for a test environment.

@@ -10,17 +10,6 @@ mod marf;
 pub use self::environments::TestEnv;
 pub use blocks::{Block, BlockCursor};
 
-pub enum ImportSource<'a> {
-    LocalNode {
-        node_root: &'a str,
-    },
-    Network {
-        host: &'a str,
-        port: u16,
-        public_key: &'a str,
-    },
-}
-
 /// Represents a Clarity smart contract.
 #[derive(Debug)]
 pub struct Contract {
@@ -34,20 +23,6 @@ impl Contract {
 
     pub fn contract_analysis(&self) -> &clarity::ContractAnalysis {
         &self.analysis
-    }
-}
-
-pub struct TestEnvContext<'a> {
-    env: &'a mut TestEnv<'a>,
-}
-
-impl<'a> TestEnvContext<'a> {
-    pub fn new(env: &'a mut TestEnv<'a>) -> Self {
-        Self { env }
-    }
-
-    pub fn env(&mut self) -> &'a mut TestEnv {
-        self.env
     }
 }
 
@@ -80,6 +55,13 @@ pub enum Network {
 impl Network {
     pub fn is_mainnet(&self) -> bool {
         matches!(self, Network::Mainnet(_))
+    }
+
+    pub fn chain_id(&self) -> u32 {
+        match self {
+            Network::Mainnet(i) => *i,
+            Network::Testnet(i) => *i
+        }
     }
 
     pub fn mainnet(chain_id: u32) -> Network {

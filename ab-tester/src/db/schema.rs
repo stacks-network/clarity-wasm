@@ -77,6 +77,14 @@ pub mod chainstate_marf {
             parent_index_block_hash -> Text
         }
     }
+
+    table! {
+        db_config (version) {
+            version -> Integer,
+            mainnet -> Bool,
+            chain_id -> Integer
+        }
+    }
 }
 
 /// Tables from the Clarity Sqlite database.

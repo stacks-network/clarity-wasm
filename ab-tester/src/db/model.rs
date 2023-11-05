@@ -4,6 +4,15 @@ pub mod chainstate_db {
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+    #[diesel(primary_key(version))]
+    #[diesel(table_name = db_config)]
+    pub struct DbConfig {
+        pub version: i32,
+        pub mainnet: bool,
+        pub chain_id: i32
+    }
+
+    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
     #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
     #[diesel(table_name = matured_rewards)]
     pub struct MaturedReward {
