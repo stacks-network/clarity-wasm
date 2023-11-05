@@ -14,10 +14,16 @@ use crate::{
     ok, stacks,
 };
 
+use self::{stacks_node::StacksNodeEnv, network::NetworkEnv, instrumented::InstrumentedEnv};
+
 use super::{
     blocks::{BlockCursor, BlockHeader},
     Block, Network, Runtime, StoreType, TestEnvPaths,
 };
+
+mod stacks_node;
+mod instrumented;
+mod network;
 
 /// Holds all state between environments.
 pub struct GlobalEnvContext {
@@ -46,6 +52,26 @@ impl GlobalEnvContext {
         };
 
         TestEnv::new(env_id, name, working_dir, store_type, network, self)
+    }
+}
+
+/// Contains a runtime environment configuration.
+pub enum RuntimeEnv<'a> {
+    StacksNode(StacksNodeEnv<'a>),
+    Network(NetworkEnv<'a>),
+    InstrumentedEnv(InstrumentedEnv<'a>)
+}
+
+impl<'a> RuntimeEnv<'a> {
+    pub fn is_readonly(&self) -> bool {
+        match self {
+            Self::StacksNode(_) | Self::Network(_) => true,
+            Self::InstrumentedEnv(_) => false
+        }
+    }
+
+    pub fn from_stacks_node(node_dir: &'a str) -> Self {
+        Self::StacksNode(StacksNodeEnv::new(node_dir))
     }
 }
 
