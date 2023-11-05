@@ -4,10 +4,11 @@
 /// re-exports and qualifying all usings within this app with `stacks::`.
 
 pub use blockstack_lib::{
-    burnchains::{Burnchain, PoxConstants},
+    burnchains::{Burnchain, PoxConstants, Address},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
     chainstate::stacks::{
         db::{
+            accounts::MinerReward,
             ChainStateBootData, ChainstateAccountBalance, ChainstateAccountLockup,
             ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx, StacksChainState,
         },
@@ -21,7 +22,8 @@ pub use blockstack_lib::{
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_STACKS_BLOCK_HASH, STACKS_EPOCHS_MAINNET,
+        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_STACKS_BLOCK_HASH, 
+        STACKS_EPOCHS_MAINNET, FIRST_BURNCHAIN_CONSENSUS_HASH
     },
     types::StacksEpoch,
     util_lib::db::IndexDBConn,
@@ -30,7 +32,7 @@ pub use blockstack_lib::{
 pub use stacks_common::types::{
     chainstate::{
         BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, 
-        StacksBlockId, VRFSeed
+        StacksBlockId, VRFSeed, StacksAddress
     },
     StacksEpochId,
 };

@@ -4,11 +4,28 @@ pub mod chainstate_db {
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+    #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
+    #[diesel(table_name = matured_rewards)]
+    pub struct MaturedReward {
+        pub address: String,
+        pub recipient: String,
+        pub vtxindex: i32,
+        pub coinbase: String,
+        pub tx_fees_anchored: String,
+        pub tx_fees_streamed_confirmed: String,
+        pub tx_fees_streamed_produced: String,
+        pub child_index_block_hash: String,
+        pub parent_index_block_hash: String
+    }
+
+    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
     #[diesel(primary_key(address, block_hash))]
     #[diesel(table_name = payments)]
     pub struct Payment {
         pub address: String,
         pub block_hash: String,
+        pub burnchain_commit_burn: i32,
+        pub burnchain_sortition_burn: i32,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -96,7 +113,7 @@ pub mod clarity_db {
 
 /// Types for this application.
 pub mod app_db {
-    use crate::db::schema::appdb::*;
+    use crate::{stacks, clarity, db::schema::appdb::*, stacks::Address};
     use diesel::prelude::*;
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -310,6 +327,8 @@ pub mod app_db {
         pub affirmation_weight: i32,
     }
 
+    /// Implement `From` for the `chainstate_db`'s model to keep the app code
+    /// a little cleaner when importing from a Stacks node's db.
     impl From<super::chainstate_db::BlockHeader> for BlockHeader {
         fn from(value: super::chainstate_db::BlockHeader) -> Self {
             Self {
@@ -354,7 +373,62 @@ pub mod app_db {
                     .block_size
                     .parse()
                     .expect("failed to parse block_size as u64"),
-                affirmation_weight: value.affirmation_weight
+                affirmation_weight: value.affirmation_weight,
+            }
+        }
+    }
+
+    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+    #[diesel(primary_key(address, block_hash))]
+    #[diesel(table_name = _payments)]
+    pub struct Payment {
+        pub address: String,
+        pub block_hash: Vec<u8>,
+        pub burnchain_commit_burn: i32,
+        pub burnchain_sortition_burn: i32,
+    }
+
+    /// Implement `From` for the `chainstate_db`'s model to keep the app code
+    /// a little cleaner when importing from a Stacks node's db.
+    impl From<super::chainstate_db::Payment> for Payment {
+        fn from(value: super::chainstate_db::Payment) -> Self {
+            Payment {
+                address: value.address,
+                block_hash: hex::decode(value.block_hash)
+                    .expect("failed to decode block_hash from hex"),
+                burnchain_commit_burn: value.burnchain_commit_burn,
+                burnchain_sortition_burn: value.burnchain_sortition_burn,
+            }
+        }
+    }
+
+    #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+    #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
+    #[diesel(table_name = _matured_rewards)]
+    pub struct MaturedReward {
+        pub address: String,
+        pub recipient: String,
+        pub vtxindex: i32,
+        pub coinbase: i64,
+        pub tx_fees_anchored: i32,
+        pub tx_fees_streamed_confirmed: i32,
+        pub tx_fees_streamed_produced: i32,
+        pub child_index_block_hash: Vec<u8>,
+        pub parent_index_block_hash: Vec<u8>
+    }
+
+    impl Into<stacks::MinerReward> for &MaturedReward {
+        fn into(self) -> stacks::MinerReward {
+            stacks::MinerReward {
+                address: stacks::StacksAddress::from_string(&self.address)
+                    .expect("FATAL: could not parse miner address"),
+                recipient: clarity::PrincipalData::parse(&self.recipient)
+                    .expect("FATAL: could not parse recipient principal"),
+                vtxindex: self.vtxindex as u32,
+                coinbase: self.coinbase as u128,
+                tx_fees_anchored: self.tx_fees_anchored as u128,
+                tx_fees_streamed_confirmed: self.tx_fees_streamed_confirmed as u128,
+                tx_fees_streamed_produced: self.tx_fees_streamed_produced as u128,
             }
         }
     }

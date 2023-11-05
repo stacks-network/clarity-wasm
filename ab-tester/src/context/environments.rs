@@ -183,7 +183,7 @@ impl<'a> TestEnv<'a> {
         let headers_db = DataStore::new(&self.ctx.app_db);
         //let burn_state_db = DataStore::new(&self.ctx.app_db);
 
-        clarity::ClarityDatabase::new(&mut backing_store, &headers_db, &burn_state_db);
+        //clarity::ClarityDatabase::new(&mut backing_store, &headers_db, &burn_state_db);
         ok!()
 
         /*let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);

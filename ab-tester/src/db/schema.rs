@@ -52,6 +52,29 @@ pub mod chainstate_marf {
         payments (address, block_hash) {
             address -> Text,
             block_hash -> Text,
+            burnchain_commit_burn -> Integer,
+            burnchain_sortition_burn -> Integer,
+        }
+    }
+
+    table! {
+        // There are two rewards records per (parent,child) pair. One will have a
+        // non-zero coinbase, the other will have a 0 coinbase.
+        matured_rewards (parent_index_block_hash, child_index_block_hash, coinbase) {
+            // Address of the miner who produced the block
+            address -> Text,
+            // Who received the reward (if different from the miner)
+            recipient -> Text,
+            // Will be 0 if this is the miner, >0 if this is a user burn support
+            vtxindex -> Integer,
+            coinbase -> Text,
+            tx_fees_anchored -> Text,
+            tx_fees_streamed_confirmed -> Text,
+            tx_fees_streamed_produced -> Text,
+            // Fork identifier (1)
+            child_index_block_hash -> Text,
+            // Fork identifier (2)
+            parent_index_block_hash -> Text
         }
     }
 }
@@ -183,6 +206,9 @@ pub mod appdb {
         }
     }
 
+    // Table which represents the MARF index database's `block_headers` table.
+    // Note that in this table schema we are using more optimized storage using
+    // BigInts and Binary (blob) fields instead of strings/hex strings.
     table! {
         _block_headers (consensus_hash, block_hash) {
             version -> Integer,
@@ -226,6 +252,38 @@ pub mod appdb {
             // Converted to/from u64.
             block_size -> BigInt,
             affirmation_weight -> Integer,
+        }
+    }
+
+    // Table which represents the MARF index database's `payments` table. Note
+    // that in this table schema we are using more optimized storage using Binary
+    // (blob) fields instead of hex strings. This schema also only includes a
+    // subset of the fields from the actual MARF index as we do not need all of
+    // the original fields for replaying transactions.
+    table! {
+        _payments (address, block_hash) {
+            address -> Text,
+            block_hash -> Binary,
+            burnchain_commit_burn -> Integer,
+            burnchain_sortition_burn -> Integer,
+        }
+    }
+
+    // Table which represents the MARF index database's `matured_rewards` table.
+    // Note that in this table schema we are using more optimized storage using
+    // Binary (blob) fields instead of hex strings and Integer/BigInt instead of
+    // Text fields.
+    table! {
+        _matured_rewards (parent_index_block_hash, child_index_block_hash, coinbase) {
+            address -> Text,
+            recipient -> Text,
+            vtxindex -> Integer,
+            coinbase -> BigInt,
+            tx_fees_anchored -> Integer,
+            tx_fees_streamed_confirmed -> Integer,
+            tx_fees_streamed_produced -> Integer,
+            child_index_block_hash -> Binary,
+            parent_index_block_hash -> Binary
         }
     }
 }
