@@ -8,7 +8,7 @@ use crate::{
     stacks, 
     db::schema,
     db::model,
-    context::{TestEnvPaths, boot_data::mainnet_boot_data, Network, BlockCursor, blocks::BlockHeader}
+    context::{TestEnvPaths, Network, BlockCursor, blocks::BlockHeader}
 };
 
 use super::ReadableEnv;

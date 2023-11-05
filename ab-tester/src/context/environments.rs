@@ -442,7 +442,6 @@ pub struct BlockTransactionContext<'a, 'b> {
     clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>,
 }
 
-
 /// Opens the sortition DB baseed on the provided network.
 fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionDB> {
     match network {

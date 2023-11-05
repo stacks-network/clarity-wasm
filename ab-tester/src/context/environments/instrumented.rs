@@ -1,15 +1,25 @@
 use std::cell::RefCell;
 
-use diesel::{SqliteConnection, Connection};
+use diesel::{SqliteConnection, Connection, QueryDsl, ExpressionMethods, RunQueryDsl, OptionalExtension};
 use log::*;
 use color_eyre::Result;
 
-use crate::{context::{Runtime, Network, TestEnvPaths, boot_data::mainnet_boot_data}, stacks};
+use crate::{
+    context::{
+        Runtime, Network, TestEnvPaths, boot_data::mainnet_boot_data, blocks::BlockHeader, BlockCursor
+    }, 
+    stacks,
+    db::schema::appdb,
+    db::model::app_db as model,
+};
+
+use super::ReadableEnv;
 
 /// This environment type is app-specific and will instrument all Clarity-related
 /// operations. This environment can be used for comparisons.
 pub struct InstrumentedEnv<'a> {
     working_dir: &'a str,
+    paths: TestEnvPaths,
     runtime: Runtime,
     network: Network,
     index_db_conn: RefCell<SqliteConnection>,
@@ -62,6 +72,7 @@ impl<'a> InstrumentedEnv<'a> {
 
         Ok(Self {
             working_dir,
+            paths,
             runtime,
             network,
             chainstate,
@@ -69,5 +80,67 @@ impl<'a> InstrumentedEnv<'a> {
             clarity_db_conn,
             sortition_db
         })
+    }
+
+    /// Retrieve all block headers from the underlying storage.
+    fn block_headers(&self) -> Result<Vec<BlockHeader>> {
+        // Retrieve the tip.
+        let tip = appdb::_block_headers::table
+            .order_by(appdb::_block_headers::block_height.desc())
+            .limit(1)
+            .get_result::<model::BlockHeader>(
+                &mut *self.index_db_conn.borrow_mut(),
+            )?;
+
+        let mut current_block = Some(tip);
+        let mut headers: Vec<BlockHeader> = Vec::new();
+
+        // Walk backwards
+        while let Some(block) = current_block {
+            let block_parent = appdb::_block_headers::table
+                .filter(
+                    appdb::_block_headers::index_block_hash
+                        .eq(&block.parent_block_id),
+                )
+                .get_result::<model::BlockHeader>(
+                    &mut *self.index_db_conn.borrow_mut(),
+                )
+                .optional()?;
+
+            if let Some(parent) = &block_parent {
+                headers.push(BlockHeader::new(
+                    block.block_height as u32,
+                    hex::decode(block.index_block_hash)?,
+                    hex::decode(block.parent_block_id)?,
+                    hex::decode(block.consensus_hash)?,
+                    hex::decode(&parent.consensus_hash)?,
+                ));
+            } else {
+                headers.push(BlockHeader::new(
+                    block.block_height as u32,
+                    hex::decode(block.index_block_hash)?,
+                    hex::decode(block.parent_block_id)?,
+                    hex::decode(block.consensus_hash)?,
+                    vec![0_u8; 20],
+                ));
+            }
+
+            current_block = block_parent;
+        }
+
+        headers.reverse();
+        debug!("first block: {:?}", headers[0]);
+        debug!("tip: {:?}", headers[headers.len() - 1]);
+        debug!("retrieved {} block headers", headers.len());
+
+        Ok(headers)
+    }
+}
+
+impl ReadableEnv for InstrumentedEnv<'_> {
+    fn blocks(&self) -> Result<BlockCursor> {
+        let headers = self.block_headers()?;
+        let cursor = BlockCursor::new(&self.paths.blocks_dir, headers);
+        Ok(cursor)
     }
 }
