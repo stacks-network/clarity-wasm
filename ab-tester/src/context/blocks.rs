@@ -58,7 +58,7 @@ impl BlockHeader {
     }
 
     pub fn block_height(&self) -> u32 {
-        self.height as u32
+        self.height
     }
 
     pub fn stacks_block_id(&self) -> Result<StacksBlockId> {
@@ -290,7 +290,7 @@ impl Block {
         if let Block::Genesis(_) = self {
             return true;
         }
-        return false;
+        false
     }
 
     /// Retrieves the block hash as a [stacks::BlockHeaderHash] (backed by a
@@ -301,8 +301,8 @@ impl Block {
     pub fn block_hash(&self) -> Result<BlockHeaderHash> {
         let hash = match self {
             Block::Boot(_) => bail!("don't know block hash for boot"),
-            Block::Genesis(gen) => stacks::FIRST_STACKS_BLOCK_HASH,
-            Block::Regular(header, block) => block.block_hash(),
+            Block::Genesis(_) => stacks::FIRST_STACKS_BLOCK_HASH,
+            Block::Regular(_, block) => block.block_hash(),
         };
 
         Ok(hash)

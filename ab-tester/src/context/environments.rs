@@ -182,10 +182,13 @@ impl<'a> TestEnv<'a> {
     ) -> Result<()> {
         let burn_state_db = self.sortition_db.index_conn();
         let mut backing_store = DataStore::new(&self.ctx.app_db);
-        let headers_db = DataStore::new(&self.ctx.app_db);
         //let burn_state_db = DataStore::new(&self.ctx.app_db);
 
-        //clarity::ClarityDatabase::new(&mut backing_store, &headers_db, &burn_state_db);
+        let clarity_db = clarity::ClarityDatabase::new(
+            &mut backing_store, 
+            &self.ctx.app_db, 
+            &burn_state_db);
+
         ok!()
 
         /*let rollback_wrapper = clarity::RollbackWrapper::new(&mut data_store);
