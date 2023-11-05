@@ -441,3 +441,31 @@ impl<'a> TestEnv<'a> {
 pub struct BlockTransactionContext<'a, 'b> {
     clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>,
 }
+
+
+/// Opens the sortition DB baseed on the provided network.
+fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionDB> {
+    match network {
+        Network::Mainnet(_) => {
+            let boot_data = mainnet_boot_data();
+
+            let sortition_db = stacks::SortitionDB::connect(
+                path,
+                stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
+                &stacks::BurnchainHeaderHash::from_hex(
+                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
+                )
+                .unwrap(),
+                stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
+                stacks::STACKS_EPOCHS_MAINNET.as_ref(),
+                boot_data.pox_constants,
+                true,
+            )?;
+
+            Ok(sortition_db)
+        }
+        Network::Testnet(_) => {
+            todo!("testnet not yet supported")
+        }
+    }
+}

@@ -19,6 +19,7 @@ use super::ReadableEnv;
 /// - mainnet: https://archive.hiro.so/mainnet/stacks-blockchain/
 /// - testnet: https://archive.hiro.so/testnet/stacks-blockchain/
 pub struct StacksNodeEnv<'a> {
+    name: &'a str,
     node_dir: &'a str,
     paths: TestEnvPaths,
     index_db_conn: RefCell<SqliteConnection>,
@@ -71,10 +72,11 @@ impl<'a> StacksNodeEnv<'a> {
 
         //debug!("attempting to migrate sortition db");
         debug!("opening sortition db");
-        let sortition_db = Self::open_sortition_db(&paths.sortition_db_path, &network)?;
+        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, &network)?;
         info!("successfully opened sortition db");
 
         Ok(Self {
+            name,
             node_dir,
             paths,
             index_db_conn: RefCell::new(index_db_conn),
@@ -82,33 +84,6 @@ impl<'a> StacksNodeEnv<'a> {
             clarity_db_conn,
             sortition_db
         })
-    }
-
-    /// Opens the sortition DB baseed on the provided network.
-    fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionDB> {
-        match network {
-            Network::Mainnet(_) => {
-                let boot_data = mainnet_boot_data();
-
-                let sortition_db = stacks::SortitionDB::connect(
-                    path,
-                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-                    &stacks::BurnchainHeaderHash::from_hex(
-                        stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
-                    )
-                    .unwrap(),
-                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
-                    stacks::STACKS_EPOCHS_MAINNET.as_ref(),
-                    boot_data.pox_constants,
-                    true,
-                )?;
-
-                Ok(sortition_db)
-            }
-            Network::Testnet(_) => {
-                todo!("testnet not yet supported")
-            }
-        }
     }
 
     /// Retrieve all block headers from the underlying storage.
@@ -167,7 +142,6 @@ impl<'a> StacksNodeEnv<'a> {
 }
 
 impl ReadableEnv for StacksNodeEnv<'_> {
-
     /// Retrieve a cursor over all blocks.
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
