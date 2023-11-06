@@ -13,12 +13,14 @@ use crate::{
     db::model::app_db as model,
 };
 
-use super::ReadableEnv;
+use super::{ReadableEnv, WriteableEnv, RuntimeEnv};
 
 /// This environment type is app-specific and will instrument all Clarity-related
 /// operations. This environment can be used for comparisons.
 pub struct InstrumentedEnv<'a> {
+    name: &'a str,
     working_dir: &'a str,
+    readonly: bool,
     paths: TestEnvPaths,
     runtime: Runtime,
     network: Network,
@@ -71,6 +73,8 @@ impl<'a> InstrumentedEnv<'a> {
         info!("successfully opened sortition db");
 
         Ok(Self {
+            name,
+            readonly: false,
             working_dir,
             paths,
             runtime,
@@ -80,6 +84,10 @@ impl<'a> InstrumentedEnv<'a> {
             clarity_db_conn,
             sortition_db
         })
+    }
+
+    pub fn readonly(&mut self, readonly: bool) {
+        self.readonly = readonly;
     }
 
     /// Retrieve all block headers from the underlying storage.
@@ -137,10 +145,34 @@ impl<'a> InstrumentedEnv<'a> {
     }
 }
 
-impl ReadableEnv for InstrumentedEnv<'_> {
+impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
+    fn name(&self) -> &'a str {
+        self.name
+    }
+
+    fn is_readonly(&self) -> bool {
+        self.readonly
+    }
+
+    fn network(&self) -> Network {
+        self.network
+    }
+}
+
+impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
         let cursor = BlockCursor::new(&self.paths.blocks_dir, headers);
         Ok(cursor)
+    }
+}
+
+impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
+    fn block_begin(
+        &mut self,
+        block: &crate::context::Block,
+        f: impl FnOnce(&mut super::BlockTransactionContext) -> Result<()>,
+    ) -> Result<()> {
+        todo!()
     }
 }

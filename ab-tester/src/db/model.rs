@@ -426,18 +426,18 @@ pub mod app_db {
         pub parent_index_block_hash: Vec<u8>,
     }
 
-    impl Into<stacks::MinerReward> for &MaturedReward {
-        fn into(self) -> stacks::MinerReward {
+    impl From<&MaturedReward> for stacks::MinerReward {
+        fn from(val: &MaturedReward) -> Self {
             stacks::MinerReward {
-                address: stacks::StacksAddress::from_string(&self.address)
+                address: stacks::StacksAddress::from_string(&val.address)
                     .expect("FATAL: could not parse miner address"),
-                recipient: clarity::PrincipalData::parse(&self.recipient)
+                recipient: clarity::PrincipalData::parse(&val.recipient)
                     .expect("FATAL: could not parse recipient principal"),
-                vtxindex: self.vtxindex as u32,
-                coinbase: self.coinbase as u128,
-                tx_fees_anchored: self.tx_fees_anchored as u128,
-                tx_fees_streamed_confirmed: self.tx_fees_streamed_confirmed as u128,
-                tx_fees_streamed_produced: self.tx_fees_streamed_produced as u128,
+                vtxindex: val.vtxindex as u32,
+                coinbase: val.coinbase as u128,
+                tx_fees_anchored: val.tx_fees_anchored as u128,
+                tx_fees_streamed_confirmed: val.tx_fees_streamed_confirmed as u128,
+                tx_fees_streamed_produced: val.tx_fees_streamed_produced as u128,
             }
         }
     }

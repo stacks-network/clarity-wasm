@@ -1,6 +1,6 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt::Write};
 
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{eyre::{bail, anyhow}, Result};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -55,34 +55,39 @@ impl GlobalEnvContext {
     }
 }
 
+pub struct RuntimeEnvBuilder<'a> {
+    app_db: &'a AppDb
+}
+
+impl<'a> RuntimeEnvBuilder<'a> {
+    pub fn stacks_node(name: &'a str, node_dir: &'a str) -> Result<StacksNodeEnv<'a>> {
+        StacksNodeEnv::new(name, node_dir)
+    }
+
+    pub fn instrumented(name: &'a str, runtime: Runtime, network: Network, working_dir: &'a str) -> Result<InstrumentedEnv<'a>> {
+        InstrumentedEnv::new(name, working_dir, runtime, network)
+    }
+}
+
 /// Contains a runtime environment configuration.
-pub enum RuntimeEnv<'a> {
-    StacksNode(StacksNodeEnv<'a>),
-    Network(NetworkEnv<'a>),
-    InstrumentedEnv(InstrumentedEnv<'a>)
+pub trait RuntimeEnv<'a> {
+    fn name(&self) -> &'a str;
+    fn is_readonly(&self) -> bool;
+    fn network(&self) -> Network;
 }
 
-impl<'a> RuntimeEnv<'a> {
-    pub fn is_readonly(&self) -> bool {
-        match self {
-            Self::StacksNode(_) | Self::Network(_) => true,
-            Self::InstrumentedEnv(_) => false
-        }
-    }
-
-    pub fn from_stacks_node(name: &'a str, node_dir: &'a str) -> Result<Self> {
-        Ok(
-            Self::StacksNode(StacksNodeEnv::new(name, node_dir)?)
-        )
-    }
-}
-
-pub trait ReadableEnv {
+/// Defines the functionality for a readable [RuntimeEnv].
+pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
     fn blocks(&self) -> Result<BlockCursor>;
 }
 
-pub trait WriteableEnv: ReadableEnv {
-    
+/// Defines the functionality for a writeable [RuntimeEnv].
+pub trait WriteableEnv<'a> : ReadableEnv<'a> {
+    fn block_begin(
+        &mut self,
+        block: &Block,
+        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
+    ) -> Result<()>;
 }
 
 /// Container for a test environment.

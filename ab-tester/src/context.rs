@@ -1,14 +1,45 @@
 use log::*;
 
-use crate::clarity;
+use crate::{clarity, db::appdb::AppDb};
 
 pub mod blocks;
 mod boot_data;
 pub mod environments;
 mod marf;
 
+use self::environments::{RuntimeEnv, ReadableEnv, WriteableEnv};
 pub use self::environments::TestEnv;
 pub use blocks::{Block, BlockCursor};
+
+pub struct ComparisonContext<'c> {
+    app_db: &'c AppDb,
+}
+
+impl<'a> ComparisonContext<'a> {
+    pub fn new(app_db: &'a AppDb) -> Self {
+        Self { 
+            app_db 
+        }
+    }
+
+    pub fn load_baseline_from(&'a self, env: &'_ impl ReadableEnv<'a>) -> &'a Self {
+        self
+    }
+
+    pub fn into_env(&'a self, env: &'_ mut impl WriteableEnv<'a>) -> &'a Self {
+        self
+    }
+
+    pub fn compare_with(&'a self, env: &'_ impl ReadableEnv<'a>) -> ComparisonRunner<'a> {
+        ComparisonRunner {
+            app_db: self.app_db
+         }
+    }
+}
+
+pub struct ComparisonRunner<'a> {
+    app_db: &'a AppDb
+}
 
 /// Represents a Clarity smart contract.
 #[derive(Debug)]
@@ -44,7 +75,7 @@ pub enum StoreType {
     Instrumented,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 /// Indicates the network the chain should be configured for, as well as the
 /// chain id.
 pub enum Network {

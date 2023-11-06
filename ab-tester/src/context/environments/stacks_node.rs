@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, ops::Deref};
 
 use diesel::{SqliteConnection, Connection, QueryDsl, RunQueryDsl, ExpressionMethods, OptionalExtension};
 use log::*;
@@ -11,7 +11,7 @@ use crate::{
     context::{TestEnvPaths, Network, BlockCursor, blocks::BlockHeader}
 };
 
-use super::ReadableEnv;
+use super::{ReadableEnv, RuntimeEnv};
 
 /// This environment type is read-only and reads directly from a Stacks node's
 /// file/data structure. This can either be directly from a local node, or from
@@ -21,6 +21,7 @@ use super::ReadableEnv;
 pub struct StacksNodeEnv<'a> {
     name: &'a str,
     node_dir: &'a str,
+    network: Network,
     paths: TestEnvPaths,
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
@@ -78,6 +79,7 @@ impl<'a> StacksNodeEnv<'a> {
         Ok(Self {
             name,
             node_dir,
+            network,
             paths,
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
@@ -141,7 +143,21 @@ impl<'a> StacksNodeEnv<'a> {
     }
 }
 
-impl ReadableEnv for StacksNodeEnv<'_> {
+impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
+    fn name(&self) -> &'a str {
+        self.name
+    }
+
+    fn is_readonly(&self) -> bool {
+        true
+    }
+
+    fn network(&self) -> Network {
+        self.network.clone()
+    }
+}
+
+impl<'a> ReadableEnv<'a> for StacksNodeEnv<'a> {
     /// Retrieve a cursor over all blocks.
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;

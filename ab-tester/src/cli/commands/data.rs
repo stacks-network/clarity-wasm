@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     cli::DataArgs,
-    context::{environments::GlobalEnvContext, Block, Network, Runtime, StoreType},
+    context::{
+        environments::{RuntimeEnv, RuntimeEnvBuilder, ReadableEnv, WriteableEnv}, 
+        Block, Network, Runtime, ComparisonContext},
     db::appdb::AppDb,
     ok,
 };
-use blockstack_lib::chainstate::stacks::TransactionPayload;
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::types::QualifiedContractIdentifier;
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
 use log::*;
@@ -17,31 +18,21 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
-    let context = GlobalEnvContext::new(app_db);
+    let baseline_env = RuntimeEnvBuilder::stacks_node(
+        "baseline", 
+        &config.baseline.chainstate_path)?;
 
-    let baseline_env = context.env(
-        "baseline",
-        Runtime::Interpreter,
-        StoreType::StacksNode,
-        Network::mainnet(1),
-        &config.baseline.chainstate_path,
-    )?;
-
-    let mut replay_env = context.env(
+    let mut replay_env = RuntimeEnvBuilder::instrumented(
         "baseline_replay",
         Runtime::Interpreter,
-        StoreType::Instrumented,
-        Network::mainnet(1),
-        "/home/cylwit/clarity-ab/replay",
-    )?;
+        Network::Mainnet(1),
+        "/home/cylwit/clarity-ab/replay")?;
 
-    let mut wasm_env = context.env(
+    let mut wasm_env = RuntimeEnvBuilder::instrumented(
         "wasm_env",
         Runtime::Wasm,
-        StoreType::Instrumented,
-        Network::mainnet(1),
-        "/home/cylwit/clarity-ab/wasm",
-    );
+        Network::Mainnet(1),
+        "/home/cylwit/clarity-ab/wasm")?;
 
     info!(
         "aggregating contract calls starting at block height {}...",
@@ -50,6 +41,12 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let mut processed_block_count = 0;
 
     let mut contracts: HashMap<QualifiedContractIdentifier, StacksBlockId> = HashMap::new();
+
+    let comparison = ComparisonContext::new(&app_db)
+        .load_baseline_from(&baseline_env)
+        .into_env(&mut replay_env)
+        .compare_with(&replay_env);
+
 
     for block in baseline_env.blocks()?.into_iter() {
         let (header, stacks_block) = match &block {
@@ -85,11 +82,10 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             header.block_height(),
             &hex::encode(&header.index_block_hash)
         );
-
-        replay_env.block_begin(&block, |_ctx| {
+        /*replay_env_mut.block_begin(&block, |_ctx| {
             info!("processing block!");
             ok!()
-        })?;
+        })?;*/
 
         processed_block_count += 1;
         continue;

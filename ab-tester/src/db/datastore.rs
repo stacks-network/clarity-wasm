@@ -1,6 +1,3 @@
-use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
-};
 use sha2::{Digest, Sha512_256};
 use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
 
