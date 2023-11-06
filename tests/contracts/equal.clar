@@ -109,3 +109,23 @@
 (define-public (call-optional-unequal)
     (ok (is-eq (some 0x01) (some 0x02)))
 )
+
+(define-public (call-response-ok-equal)
+    (ok (is-eq (ok 0) (ok 0)))
+)
+
+(define-public (call-response-err-equal)
+    (ok (is-eq (err 0x010203) (err 0x010203)))
+)
+
+(define-public (call-response-ok-err-unequal)
+    (ok (is-eq (ok 42) (err "forty-two")))
+)
+
+(define-public (call-response-ok-unequal)
+    (ok (is-eq (ok u5) (ok u55)))
+)
+
+(define-public (call-response-err-unequal)
+    (ok (is-eq (err 0x123456) (err 0xabcdef)))
+)
