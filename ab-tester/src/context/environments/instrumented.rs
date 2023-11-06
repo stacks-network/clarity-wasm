@@ -168,11 +168,11 @@ impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
 }
 
 impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
-    fn block_begin(
+    /*fn block_begin(
         &mut self,
         block: &crate::context::Block,
         f: impl FnOnce(&mut super::BlockTransactionContext) -> Result<()>,
     ) -> Result<()> {
         todo!()
-    }
+    }*/
 }

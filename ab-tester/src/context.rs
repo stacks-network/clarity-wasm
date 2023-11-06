@@ -11,34 +11,38 @@ use self::environments::{RuntimeEnv, ReadableEnv, WriteableEnv};
 pub use self::environments::TestEnv;
 pub use blocks::{Block, BlockCursor};
 
-pub struct ComparisonContext<'c> {
-    app_db: &'c AppDb,
+pub struct ComparisonContext<'a> {
+    app_db: &'a AppDb,
+    baseline_env: Option<&'a dyn ReadableEnv<'a>>,
+    instrumented_envs: Vec<&'a dyn WriteableEnv<'a>>
 }
 
 impl<'a> ComparisonContext<'a> {
     pub fn new(app_db: &'a AppDb) -> Self {
         Self { 
-            app_db 
+            app_db,
+            baseline_env: None,
+            instrumented_envs: Vec::new()
         }
     }
 
-    pub fn load_baseline_from(&'a self, env: &'_ impl ReadableEnv<'a>) -> &'a Self {
+    pub fn using_baseline(&'a mut self, env: &'_ impl ReadableEnv<'a>) -> &'a mut Self {
         self
     }
 
-    pub fn into_env(&'a self, env: &'_ mut impl WriteableEnv<'a>) -> &'a Self {
+    pub fn instrument_into(&'a mut self, env: &'_ mut impl WriteableEnv<'a>) -> &'a mut Self {
         self
     }
 
-    pub fn compare_with(&'a self, env: &'_ impl ReadableEnv<'a>) -> ComparisonRunner<'a> {
-        ComparisonRunner {
-            app_db: self.app_db
-         }
+    pub fn build_comparator(&self, lhs: &'a impl ReadableEnv<'a>, rhs: &'a impl ReadableEnv<'a>) -> ComparisonRunner<'a> {
+        ComparisonRunner { app_db: self.app_db, lhs, rhs }
     }
 }
 
 pub struct ComparisonRunner<'a> {
-    app_db: &'a AppDb
+    app_db: &'a AppDb,
+    lhs: &'a dyn ReadableEnv<'a>,
+    rhs: &'a dyn ReadableEnv<'a>
 }
 
 /// Represents a Clarity smart contract.

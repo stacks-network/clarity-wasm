@@ -153,7 +153,7 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
     }
 
     fn network(&self) -> Network {
-        self.network.clone()
+        self.network
     }
 }
 

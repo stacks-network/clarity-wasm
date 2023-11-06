@@ -83,11 +83,7 @@ pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
 
 /// Defines the functionality for a writeable [RuntimeEnv].
 pub trait WriteableEnv<'a> : ReadableEnv<'a> {
-    fn block_begin(
-        &mut self,
-        block: &Block,
-        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
-    ) -> Result<()>;
+    //fn block_begin(&self, block: &Block, f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>) -> Result<()>;
 }
 
 /// Container for a test environment.

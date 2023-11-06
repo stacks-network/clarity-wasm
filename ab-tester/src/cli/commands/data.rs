@@ -1,28 +1,24 @@
-use std::collections::HashMap;
-
 use crate::{
     cli::DataArgs,
     context::{
-        environments::{RuntimeEnv, RuntimeEnvBuilder, ReadableEnv, WriteableEnv}, 
+        environments::{RuntimeEnvBuilder, ReadableEnv}, 
         Block, Network, Runtime, ComparisonContext},
     db::appdb::AppDb,
     ok,
 };
-use clarity::vm::types::QualifiedContractIdentifier;
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
 use log::*;
-use stacks_common::types::chainstate::StacksBlockId;
 
 pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
-    let baseline_env = RuntimeEnvBuilder::stacks_node(
+    let mut baseline_env = RuntimeEnvBuilder::stacks_node(
         "baseline", 
         &config.baseline.chainstate_path)?;
 
-    let mut replay_env = RuntimeEnvBuilder::instrumented(
+    let mut interpreter_env = RuntimeEnvBuilder::instrumented(
         "baseline_replay",
         Runtime::Interpreter,
         Network::Mainnet(1),
@@ -34,19 +30,18 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         Network::Mainnet(1),
         "/home/cylwit/clarity-ab/wasm")?;
 
+    let comparator = ComparisonContext::new(&app_db)
+        .using_baseline(&baseline_env)
+        .instrument_into(&mut interpreter_env)
+        .instrument_into(&mut wasm_env)
+        .build_comparator(&interpreter_env, &wasm_env);
+
     info!(
         "aggregating contract calls starting at block height {}...",
         data_args.from_height
     );
+
     let mut processed_block_count = 0;
-
-    let mut contracts: HashMap<QualifiedContractIdentifier, StacksBlockId> = HashMap::new();
-
-    let comparison = ComparisonContext::new(&app_db)
-        .load_baseline_from(&baseline_env)
-        .into_env(&mut replay_env)
-        .compare_with(&replay_env);
-
 
     for block in baseline_env.blocks()?.into_iter() {
         let (header, stacks_block) = match &block {
