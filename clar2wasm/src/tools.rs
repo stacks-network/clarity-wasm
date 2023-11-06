@@ -3,83 +3,161 @@
 //! in production. The `tools` module is only available when the
 //! `developer-mode` feature is enabled.
 
+use crate::compile;
+use crate::datastore::{BurnDatastore, StacksConstants};
 use clarity::{
     consts::CHAIN_ID_TESTNET,
     types::StacksEpochId,
     vm::{
         clarity_wasm::initialize_contract,
         contexts::GlobalContext,
+        contracts::Contract,
         costs::LimitedCostTracker,
         database::{ClarityDatabase, MemoryBackingStore},
-        types::{QualifiedContractIdentifier, StandardPrincipalData},
+        types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData},
         ClarityVersion, ContractContext, Value,
     },
 };
+use std::collections::HashMap;
 
-use crate::{
-    compile,
-    datastore::{BurnDatastore, StacksConstants},
-};
+pub struct TestEnvironment {
+    contract_contexts: HashMap<String, ContractContext>,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+    clarity_store: MemoryBackingStore,
+    cost_tracker: LimitedCostTracker,
+}
+
+impl TestEnvironment {
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        let constants = StacksConstants::default();
+        let burn_datastore = BurnDatastore::new(constants.clone());
+        let mut clarity_store = MemoryBackingStore::new();
+        let cost_tracker = LimitedCostTracker::new_free();
+
+        let mut db = ClarityDatabase::new(&mut clarity_store, &burn_datastore, &burn_datastore);
+        db.begin();
+        db.set_clarity_epoch_version(epoch);
+        db.commit();
+
+        // Give one account a starting balance, to be used for testing.
+        let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+        let amount = 1_000_000_000;
+        clarity_store
+            .as_clarity_db()
+            .execute(|database| {
+                let mut snapshot = database.get_stx_balance_snapshot(&recipient);
+                snapshot.credit(amount);
+                snapshot.save();
+                database.increment_ustx_liquid_supply(amount)
+            })
+            .expect("Failed to increment liquid supply.");
+
+        Self {
+            contract_contexts: HashMap::new(),
+            epoch,
+            version,
+            clarity_store,
+            cost_tracker,
+        }
+    }
+
+    pub fn init_contract_with_snippet(
+        &mut self,
+        contract_name: &str,
+        snippet: &str,
+    ) -> Option<Value> {
+        let contract_id = QualifiedContractIdentifier::new(
+            StandardPrincipalData::transient(),
+            (*contract_name).into(),
+        );
+
+        let mut compile_result = self
+            .clarity_store
+            .as_analysis_db()
+            .execute(|analysis_db| {
+                compile(
+                    snippet,
+                    &contract_id,
+                    LimitedCostTracker::new_free(),
+                    self.version,
+                    self.epoch,
+                    analysis_db,
+                )
+            })
+            .expect("Failed to compile contract.");
+
+        self.clarity_store
+            .as_analysis_db()
+            .execute(|analysis_db| {
+                analysis_db.insert_contract(&contract_id, &compile_result.contract_analysis)
+            })
+            .expect("Failed to insert contract analysis.");
+
+        let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
+        // compile_result.module.emit_wasm_file("test.wasm").unwrap();
+        contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
+        let mut cost_tracker = LimitedCostTracker::new_free();
+        std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
+
+        let mut global_context = GlobalContext::new(
+            false,
+            CHAIN_ID_TESTNET,
+            self.clarity_store.as_clarity_db(),
+            cost_tracker,
+            self.epoch,
+        );
+        global_context.begin();
+        global_context
+            .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
+            .expect("Failed to insert contract hash.");
+
+        let return_val = initialize_contract(
+            &mut global_context,
+            &mut contract_context,
+            None,
+            &compile_result.contract_analysis,
+        )
+        .expect("Failed to initialize contract.");
+
+        let data_size = contract_context.data_size;
+        global_context.database.insert_contract(
+            &contract_id,
+            Contract {
+                contract_context: contract_context.clone(),
+            },
+        );
+        global_context
+            .database
+            .set_contract_data_size(&contract_id, data_size)
+            .expect("Failed to set contract data size.");
+
+        global_context.commit().unwrap();
+        self.cost_tracker = global_context.cost_track;
+
+        self.contract_contexts
+            .insert(contract_name.to_string(), contract_context);
+
+        return_val
+    }
+
+    pub fn get_contract_context(&self, contract_name: &str) -> Option<&ContractContext> {
+        self.contract_contexts.get(contract_name)
+    }
+}
+
+impl Default for TestEnvironment {
+    fn default() -> Self {
+        Self::new(StacksEpochId::latest(), ClarityVersion::latest())
+    }
+}
 
 /// Evaluate a Clarity snippet at a specific epoch and version.
 /// Returns an optional value -- the result of the evaluation.
 pub fn evaluate_at(snippet: &str, epoch: StacksEpochId, version: ClarityVersion) -> Option<Value> {
-    let constants = StacksConstants::default();
-    let burn_datastore = BurnDatastore::new(constants);
-    let mut clarity_store = MemoryBackingStore::new();
-    let cost_tracker = LimitedCostTracker::new_free();
-
-    let mut db = ClarityDatabase::new(&mut clarity_store, &burn_datastore, &burn_datastore);
-    db.begin();
-    db.set_clarity_epoch_version(epoch);
-    db.commit();
-
-    let contract_id =
-        QualifiedContractIdentifier::new(StandardPrincipalData::transient(), "contract".into());
-
-    let mut compile_result = clarity_store
-        .as_analysis_db()
-        .execute(|analysis_db| {
-            compile(
-                snippet,
-                &contract_id,
-                LimitedCostTracker::new_free(),
-                version,
-                epoch,
-                analysis_db,
-            )
-        })
-        .expect("Failed to compile contract.");
-
-    clarity_store
-        .as_analysis_db()
-        .execute(|analysis_db| {
-            analysis_db.insert_contract(&contract_id, &compile_result.contract_analysis)
-        })
-        .expect("Failed to insert contract analysis.");
-
-    let mut contract_context = ContractContext::new(contract_id.clone(), version);
-    contract_context.set_wasm_module(compile_result.module.emit_wasm());
-
-    let mut global_context = GlobalContext::new(
-        false,
-        CHAIN_ID_TESTNET,
-        clarity_store.as_clarity_db(),
-        cost_tracker,
-        epoch,
-    );
-    global_context.begin();
-    global_context
-        .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
-        .expect("Failed to insert contract hash.");
-
-    initialize_contract(
-        &mut global_context,
-        &mut contract_context,
-        None,
-        &compile_result.contract_analysis,
-    )
-    .expect("Failed to initialize contract.")
+    let mut env = TestEnvironment::new(epoch, version);
+    env.init_contract_with_snippet("snippet", snippet)
 }
 
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.

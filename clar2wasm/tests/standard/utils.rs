@@ -73,6 +73,26 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "define_trait",
+            |_name_offset: i32, _name_length: i32| {
+                println!("define-trait");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "impl_trait",
+            |_name_offset: i32, _name_length: i32| {
+                println!("impl-trait");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "get_variable",
             |_name_offset: i32, _name_length: i32, _return_offset: i32, _return_length: i32| {
                 println!("var-get");
@@ -411,7 +431,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
-            "static_contract_call",
+            "contract_call",
             |_contract_offset: i32,
              _contract_length: i32,
              _function_offset: i32,
@@ -420,7 +440,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
              _args_length: i32,
              _return_offset: i32,
              _return_length: i32| {
-                println!("static_contract_call");
+                println!("contract_call");
                 Ok(())
             },
         )
