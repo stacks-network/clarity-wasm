@@ -28,9 +28,6 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
     runtime: 5_000_000_000,
 };
 
-// prefix for standard library functions
-pub const STDLIB_PREFIX: &str = "stdlib";
-
 #[derive(Debug)]
 pub struct CompileResult {
     pub diagnostics: Vec<Diagnostic>,

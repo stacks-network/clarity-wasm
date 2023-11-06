@@ -1,7 +1,6 @@
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::super::STDLIB_PREFIX;
 use super::Word;
 
 #[derive(Debug)]
@@ -21,7 +20,7 @@ impl Word for Not {
     ) -> Result<(), GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        builder.call(generator.func_by_name(&format!("{STDLIB_PREFIX}.not")));
+        builder.call(generator.func_by_name("stdlib.not"));
 
         Ok(())
     }

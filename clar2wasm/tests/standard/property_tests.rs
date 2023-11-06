@@ -1,7 +1,6 @@
 use std::{cell::RefCell, ops::DerefMut};
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
-use clar2wasm::STDLIB_PREFIX;
 use clarity::util::hash::{Hash160, Sha256Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
@@ -15,261 +14,208 @@ use crate::utils::{
 
 #[test]
 fn prop_add_uint() {
-    utils::test_export_two_unsigned_args_checked(
-        &format!("{STDLIB_PREFIX}.add-uint"),
-        |a: u128, b: u128| a.checked_add(b),
-    )
-}
-
-#[test]
-fn prop_add_int() {
-    utils::test_export_two_signed_args_checked(
-        &format!("{STDLIB_PREFIX}.add-int"),
-        |a: i128, b: i128| a.checked_add(b),
-    )
-}
-
-#[test]
-fn prop_sub_uint() {
-    utils::test_export_two_unsigned_args_checked(
-        &format!("{STDLIB_PREFIX}.sub-uint"),
-        |a: u128, b: u128| a.checked_sub(b),
-    )
-}
-
-#[test]
-fn prop_sub_int() {
-    utils::test_export_two_signed_args_checked(
-        &format!("{STDLIB_PREFIX}.sub-int"),
-        |a: i128, b: i128| a.checked_sub(b),
-    )
-}
-
-#[test]
-fn prop_mul_uint() {
-    utils::test_export_two_unsigned_args_checked(
-        &format!("{STDLIB_PREFIX}.mul-uint"),
-        |a: u128, b: u128| a.checked_mul(b),
-    )
-}
-
-#[test]
-fn prop_mul_int() {
-    utils::test_export_two_signed_args_checked(
-        &format!("{STDLIB_PREFIX}.mul-int"),
-        |a: i128, b: i128| a.checked_mul(b),
-    )
-}
-
-#[test]
-fn prop_div_uint() {
-    utils::test_export_two_unsigned_args_checked(
-        &format!("{STDLIB_PREFIX}.div-uint"),
-        |a: u128, b: u128| a.checked_div(b),
-    )
-}
-
-#[test]
-fn prop_div_int() {
-    utils::test_export_two_signed_args_checked(
-        &format!("{STDLIB_PREFIX}.div-int"),
-        |a: i128, b: i128| a.checked_div(b),
-    )
-}
-
-#[test]
-fn prop_mod_uint() {
-    utils::test_export_two_unsigned_args_checked(
-        &format!("{STDLIB_PREFIX}.mod-uint"),
-        |a: u128, b: u128| a.checked_rem(b),
-    )
-}
-
-#[test]
-fn prop_mod_int() {
-    utils::test_export_two_signed_args_checked(
-        &format!("{STDLIB_PREFIX}.mod-int"),
-        |a: i128, b: i128| a.checked_rem(b),
-    )
-}
-
-#[test]
-fn prop_lt_uint() {
-    utils::test_export_two_unsigned_args(&format!("{STDLIB_PREFIX}.lt-uint"), |a: u128, b: u128| {
-        a < b
+    utils::test_export_two_unsigned_args_checked("stdlib.add-uint", |a: u128, b: u128| {
+        a.checked_add(b)
     })
 }
 
 #[test]
+fn prop_add_int() {
+    utils::test_export_two_signed_args_checked("stdlib.add-int", |a: i128, b: i128| {
+        a.checked_add(b)
+    })
+}
+
+#[test]
+fn prop_sub_uint() {
+    utils::test_export_two_unsigned_args_checked("stdlib.sub-uint", |a: u128, b: u128| {
+        a.checked_sub(b)
+    })
+}
+
+#[test]
+fn prop_sub_int() {
+    utils::test_export_two_signed_args_checked("stdlib.sub-int", |a: i128, b: i128| {
+        a.checked_sub(b)
+    })
+}
+
+#[test]
+fn prop_mul_uint() {
+    utils::test_export_two_unsigned_args_checked("stdlib.mul-uint", |a: u128, b: u128| {
+        a.checked_mul(b)
+    })
+}
+
+#[test]
+fn prop_mul_int() {
+    utils::test_export_two_signed_args_checked("stdlib.mul-int", |a: i128, b: i128| {
+        a.checked_mul(b)
+    })
+}
+
+#[test]
+fn prop_div_uint() {
+    utils::test_export_two_unsigned_args_checked("stdlib.div-uint", |a: u128, b: u128| {
+        a.checked_div(b)
+    })
+}
+
+#[test]
+fn prop_div_int() {
+    utils::test_export_two_signed_args_checked("stdlib.div-int", |a: i128, b: i128| {
+        a.checked_div(b)
+    })
+}
+
+#[test]
+fn prop_mod_uint() {
+    utils::test_export_two_unsigned_args_checked("stdlib.mod-uint", |a: u128, b: u128| {
+        a.checked_rem(b)
+    })
+}
+
+#[test]
+fn prop_mod_int() {
+    utils::test_export_two_signed_args_checked("stdlib.mod-int", |a: i128, b: i128| {
+        a.checked_rem(b)
+    })
+}
+
+#[test]
+fn prop_lt_uint() {
+    utils::test_export_two_unsigned_args("stdlib.lt-uint", |a: u128, b: u128| a < b)
+}
+
+#[test]
 fn prop_lt_int() {
-    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.lt-int"), |a: i128, b: i128| {
-        a < b
-    });
+    utils::test_export_two_signed_args("stdlib.lt-int", |a: i128, b: i128| a < b);
 }
 
 #[test]
 fn prop_gt_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.gt-uint"),
-        |a: u128, b: u128| a > b,
-    );
+    utils::test_export_two_unsigned_args("stdlib.gt-uint", |a: u128, b: u128| a > b);
 }
 
 #[test]
 fn prop_gt_int() {
-    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.gt-int"), |a: i128, b: i128| {
-        a > b
-    });
+    utils::test_export_two_signed_args("stdlib.gt-int", |a: i128, b: i128| a > b);
 }
 
 #[test]
 fn prop_le_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.le-uint"),
-        |a: u128, b: u128| a <= b,
-    );
+    utils::test_export_two_unsigned_args("stdlib.le-uint", |a: u128, b: u128| a <= b);
 }
 
 #[test]
 fn prop_le_int() {
-    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.le-int"), |a: i128, b: i128| {
-        a <= b
-    });
+    utils::test_export_two_signed_args("stdlib.le-int", |a: i128, b: i128| a <= b);
 }
 
 #[test]
 fn prop_ge_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.ge-uint"),
-        |a: u128, b: u128| a >= b,
-    );
+    utils::test_export_two_unsigned_args("stdlib.ge-uint", |a: u128, b: u128| a >= b);
 }
 
 #[test]
 fn prop_ge_int() {
-    utils::test_export_two_signed_args(&format!("{STDLIB_PREFIX}.ge-int"), |a: i128, b: i128| {
-        a >= b
-    });
+    utils::test_export_two_signed_args("stdlib.ge-int", |a: i128, b: i128| a >= b);
 }
 
 #[test]
 fn prop_log2_uint() {
-    utils::test_export_one_unsigned_arg_checked(&format!("{STDLIB_PREFIX}.log2-uint"), |a: u128| {
+    utils::test_export_one_unsigned_arg_checked("stdlib.log2-uint", |a: u128| {
         a.checked_ilog2().map(|u| u as u128)
     })
 }
 
 #[test]
 fn prop_log2_int() {
-    utils::test_export_one_signed_arg_checked(&format!("{STDLIB_PREFIX}.log2-int"), |a: i128| {
+    utils::test_export_one_signed_arg_checked("stdlib.log2-int", |a: i128| {
         a.checked_ilog2().map(|u| u as i128)
     })
 }
 
 #[test]
 fn prop_sqrti_uint() {
-    utils::test_export_one_unsigned_arg(&format!("{STDLIB_PREFIX}.sqrti-uint"), |a: u128| {
-        num_integer::Roots::sqrt(&a)
-    })
+    utils::test_export_one_unsigned_arg("stdlib.sqrti-uint", |a: u128| num_integer::Roots::sqrt(&a))
 }
 
 #[test]
 fn prop_sqrti_int() {
-    utils::test_export_one_signed_arg_checked(&format!("{STDLIB_PREFIX}.sqrti-int"), |a: i128| {
+    utils::test_export_one_signed_arg_checked("stdlib.sqrti-int", |a: i128| {
         (a >= 0).then(|| num_integer::Roots::sqrt(&a))
     })
 }
 
 #[test]
 fn prop_bit_and_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.bit-and-uint"),
-        |a: u128, b: u128| a & b,
-    )
+    utils::test_export_two_unsigned_args("stdlib.bit-and-uint", |a: u128, b: u128| a & b)
 }
 
 #[test]
 fn prop_bit_and_int() {
-    utils::test_export_two_signed_args(
-        &format!("{STDLIB_PREFIX}.bit-and-int"),
-        |a: i128, b: i128| a & b,
-    )
+    utils::test_export_two_signed_args("stdlib.bit-and-int", |a: i128, b: i128| a & b)
 }
 
 #[test]
 fn prop_bit_or_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.bit-or-uint"),
-        |a: u128, b: u128| a | b,
-    )
+    utils::test_export_two_unsigned_args("stdlib.bit-or-uint", |a: u128, b: u128| a | b)
 }
 
 #[test]
 fn prop_bit_or_int() {
-    utils::test_export_two_signed_args(
-        &format!("{STDLIB_PREFIX}.bit-or-int"),
-        |a: i128, b: i128| a | b,
-    )
+    utils::test_export_two_signed_args("stdlib.bit-or-int", |a: i128, b: i128| a | b)
 }
 
 #[test]
 fn prop_bit_not_uint() {
-    utils::test_export_one_unsigned_arg(&format!("{STDLIB_PREFIX}.bit-not-uint"), |a: u128| !a)
+    utils::test_export_one_unsigned_arg("stdlib.bit-not-uint", |a: u128| !a)
 }
 
 #[test]
 fn prop_bit_not_int() {
-    utils::test_export_one_signed_arg(&format!("{STDLIB_PREFIX}.bit-not-int"), |a: i128| !a)
+    utils::test_export_one_signed_arg("stdlib.bit-not-int", |a: i128| !a)
 }
 
 #[test]
 fn prop_bit_xor_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.bit-xor-uint"),
-        |a: u128, b: u128| a ^ b,
-    )
+    utils::test_export_two_unsigned_args("stdlib.bit-xor-uint", |a: u128, b: u128| a ^ b)
 }
 
 #[test]
 fn prop_bit_xor_int() {
-    utils::test_export_two_signed_args(
-        &format!("{STDLIB_PREFIX}.bit-xor-int"),
-        |a: i128, b: i128| a ^ b,
-    )
+    utils::test_export_two_signed_args("stdlib.bit-xor-int", |a: i128, b: i128| a ^ b)
 }
 
 #[test]
 fn prop_bit_shift_left_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.bit-shift-left-uint"),
-        |a: u128, b: u128| a.wrapping_shl((b % 128) as u32),
-    )
+    utils::test_export_two_unsigned_args("stdlib.bit-shift-left-uint", |a: u128, b: u128| {
+        a.wrapping_shl((b % 128) as u32)
+    })
 }
 
 #[test]
 fn prop_bit_shift_left_int() {
     // NOTE that the two arguments differ in type
-    utils::test_export_two_signed_args(
-        &format!("{STDLIB_PREFIX}.bit-shift-left-int"),
-        |a: i128, b: u128| a.wrapping_shl((b % 128) as u32),
-    )
+    utils::test_export_two_signed_args("stdlib.bit-shift-left-int", |a: i128, b: u128| {
+        a.wrapping_shl((b % 128) as u32)
+    })
 }
 
 #[test]
 fn prop_bit_shift_right_uint() {
-    utils::test_export_two_unsigned_args(
-        &format!("{STDLIB_PREFIX}.bit-shift-right-uint"),
-        |a: u128, b: u128| a.wrapping_shr((b % 128) as u32),
-    )
+    utils::test_export_two_unsigned_args("stdlib.bit-shift-right-uint", |a: u128, b: u128| {
+        a.wrapping_shr((b % 128) as u32)
+    })
 }
 
 #[test]
 fn prop_bit_shift_right_int() {
     // NOTE that the two arguments differ in type
-    utils::test_export_two_signed_args(
-        &format!("{STDLIB_PREFIX}.bit-shift-right-int"),
-        |a: i128, b: u128| a.wrapping_shr((b % 128) as u32),
-    )
+    utils::test_export_two_signed_args("stdlib.bit-shift-right-int", |a: i128, b: u128| {
+        a.wrapping_shr((b % 128) as u32)
+    })
 }
 
 #[test]
@@ -277,10 +223,7 @@ fn prop_0_pow_uint_something_is_zero() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-uint"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-uint")
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -307,10 +250,7 @@ fn prop_1_pow_uint_something_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-uint"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-uint")
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -337,10 +277,7 @@ fn prop_something_pow_uint_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-uint"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-uint")
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -367,10 +304,7 @@ fn prop_pow_uint() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-uint"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-uint")
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -402,10 +336,7 @@ fn prop_0_pow_int_something_is_zero() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-int"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-int")
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -432,10 +363,7 @@ fn prop_1_pow_int_something_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-int"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-int")
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -462,10 +390,7 @@ fn prop_something_pow_int_zero_is_one() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-int"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-int")
         .unwrap();
 
     for st_a in SIGNED_STRATEGIES {
@@ -492,10 +417,7 @@ fn prop_pow_int() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let fun = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.pow-int"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.pow-int")
         .unwrap();
 
     for st_a in UNSIGNED_STRATEGIES {
@@ -531,10 +453,7 @@ fn prop_store_i32_be() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let store_i32_be = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.store-i32-be"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.store-i32-be")
         .unwrap();
 
     proptest!(|(val in proptest::num::i32::ANY)| {
@@ -566,10 +485,7 @@ fn prop_store_i64_be() {
     let (instance, store) = load_stdlib().unwrap();
     let store = RefCell::new(store);
     let store_i64_be = instance
-        .get_func(
-            store.borrow_mut().deref_mut(),
-            &format!("{STDLIB_PREFIX}.store-i64-be"),
-        )
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.store-i64-be")
         .unwrap();
 
     proptest!(|(val in proptest::num::i64::ANY)| {
@@ -599,7 +515,7 @@ fn prop_store_i64_be() {
 #[test]
 fn prop_sha256_buff() {
     test_on_buffer_hash(
-        &format!("{STDLIB_PREFIX}.sha256-buf"),
+        "stdlib.sha256-buf",
         1024,
         END_OF_STANDARD_DATA as usize + 32,
         300,
@@ -612,7 +528,7 @@ fn prop_sha256_buff() {
 #[test]
 fn prop_sha256_int_on_signed() {
     test_on_int_hash(
-        &format!("{STDLIB_PREFIX}.sha256-int"),
+        "stdlib.sha256-int",
         1024,
         END_OF_STANDARD_DATA as i32,
         32,
@@ -623,7 +539,7 @@ fn prop_sha256_int_on_signed() {
 #[test]
 fn prop_sha256_int_on_unsigned() {
     test_on_uint_hash(
-        &format!("{STDLIB_PREFIX}.sha256-int"),
+        "stdlib.sha256-int",
         1024,
         END_OF_STANDARD_DATA as i32,
         32,
@@ -634,7 +550,7 @@ fn prop_sha256_int_on_unsigned() {
 #[test]
 fn prop_hash160_buff() {
     test_on_buffer_hash(
-        &format!("{STDLIB_PREFIX}.hash160-buf"),
+        "stdlib.hash160-buf",
         2048,
         END_OF_STANDARD_DATA as usize + 20,
         300,
@@ -647,7 +563,7 @@ fn prop_hash160_buff() {
 #[test]
 fn prop_hash160_int_on_signed() {
     test_on_int_hash(
-        &format!("{STDLIB_PREFIX}.hash160-int"),
+        "stdlib.hash160-int",
         1024,
         END_OF_STANDARD_DATA as i32,
         20,
@@ -658,7 +574,7 @@ fn prop_hash160_int_on_signed() {
 #[test]
 fn prop_hash160_int_on_unsigned() {
     test_on_uint_hash(
-        &format!("{STDLIB_PREFIX}.hash160-int"),
+        "stdlib.hash160-int",
         1024,
         END_OF_STANDARD_DATA as i32,
         20,
@@ -668,7 +584,7 @@ fn prop_hash160_int_on_unsigned() {
 
 #[test]
 fn prop_buff_to_uint_be() {
-    test_buff_to_uint(&format!("{STDLIB_PREFIX}.buff-to-uint-be"), 1500, |b| {
+    test_buff_to_uint("stdlib.buff-to-uint-be", 1500, |b| {
         PropInt::new({
             let mut b = b.to_vec();
             let offset = 16 - b.len();
@@ -681,7 +597,7 @@ fn prop_buff_to_uint_be() {
 
 #[test]
 fn prop_buff_to_uint_le() {
-    test_buff_to_uint(&format!("{STDLIB_PREFIX}.buff-to-uint-le"), 1500, |b| {
+    test_buff_to_uint("stdlib.buff-to-uint-le", 1500, |b| {
         PropInt::new({
             let mut b = b.to_vec();
             b.extend(std::iter::repeat(0).take(16 - b.len()));
@@ -692,20 +608,20 @@ fn prop_buff_to_uint_le() {
 
 #[test]
 fn prop_lt_buff() {
-    test_buff_comparison(&format!("{STDLIB_PREFIX}.lt-buff"), |a, b| a < b)
+    test_buff_comparison("stdlib.lt-buff", |a, b| a < b)
 }
 
 #[test]
 fn prop_gt_buff() {
-    test_buff_comparison(&format!("{STDLIB_PREFIX}.gt-buff"), |a, b| a > b)
+    test_buff_comparison("stdlib.gt-buff", |a, b| a > b)
 }
 
 #[test]
 fn prop_le_buff() {
-    test_buff_comparison(&format!("{STDLIB_PREFIX}.le-buff"), |a, b| a <= b)
+    test_buff_comparison("stdlib.le-buff", |a, b| a <= b)
 }
 
 #[test]
 fn prop_ge_buff() {
-    test_buff_comparison(&format!("{STDLIB_PREFIX}.ge-buff"), |a, b| a >= b)
+    test_buff_comparison("stdlib.ge-buff", |a, b| a >= b)
 }

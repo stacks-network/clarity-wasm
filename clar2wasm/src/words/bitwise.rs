@@ -2,7 +2,6 @@ use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::InstrSeqBuilder;
 
-use super::super::STDLIB_PREFIX;
 use super::Word;
 
 #[derive(Debug)]
@@ -22,7 +21,7 @@ impl Word for BitwiseNot {
     ) -> Result<(), GeneratorError> {
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 
-        let helper_func = generator.func_by_name(&format!("{STDLIB_PREFIX}.bit-not"));
+        let helper_func = generator.func_by_name("stdlib.bit-not");
         builder.call(helper_func);
         Ok(())
     }
@@ -36,7 +35,7 @@ fn traverse_bitwise(
     builder: &mut InstrSeqBuilder,
     operands: &[SymbolicExpression],
 ) -> Result<(), GeneratorError> {
-    let helper_func = generator.func_by_name(&format!("{STDLIB_PREFIX}.{name}"));
+    let helper_func = generator.func_by_name(&format!("stdlib.{name}"));
 
     // Start off with operand 0, then loop over the rest, calling the
     // helper function with a pair of operands, either operand 0 and 1, or
@@ -128,7 +127,7 @@ impl Word for BitwiseLShift {
 
         generator.traverse_expr(builder, input)?;
         generator.traverse_expr(builder, shamt)?;
-        let func = generator.func_by_name(&format!("{STDLIB_PREFIX}.bit-shift-left"));
+        let func = generator.func_by_name("stdlib.bit-shift-left");
         builder.call(func);
         Ok(())
     }
@@ -168,8 +167,7 @@ impl Word for BitwiseRShift {
             }
         };
 
-        let helper =
-            generator.func_by_name(&format!("{STDLIB_PREFIX}.bit-shift-right-{type_suffix}"));
+        let helper = generator.func_by_name(&format!("stdlib.bit-shift-right-{type_suffix}"));
 
         builder.call(helper);
 

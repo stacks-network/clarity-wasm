@@ -1,7 +1,6 @@
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
-use super::super::STDLIB_PREFIX;
 use super::Word;
 
 // Wrapper function for multi-value typed functions, such as +, - etc
@@ -26,7 +25,7 @@ pub fn traverse_typed_multi_value(
         }
     };
 
-    let func = generator.func_by_name(&format!("{STDLIB_PREFIX}.{name}-{type_suffix}"));
+    let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
     generator.traverse_expr(builder, &args[0])?;
     for operand in args.iter().skip(1) {
