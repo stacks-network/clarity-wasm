@@ -1,3 +1,7 @@
+use color_eyre::eyre::Result;
+use diesel::{Connection, SqliteConnection};
+use log::*;
+
 use crate::{
     cli::DataArgs,
     context::{
@@ -6,16 +10,13 @@ use crate::{
     db::appdb::AppDb,
     ok,
 };
-use color_eyre::eyre::Result;
-use diesel::{Connection, SqliteConnection};
-use log::*;
 
 pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
-    let mut baseline_env = RuntimeEnvBuilder::stacks_node(
-        "baseline", 
+    let baseline_env = RuntimeEnvBuilder::stacks_node(
+        "baseline",
         &config.baseline.chainstate_path)?;
 
     let mut interpreter_env = RuntimeEnvBuilder::instrumented(
@@ -34,7 +35,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         .using_baseline(&baseline_env)
         .instrument_into(&mut interpreter_env)
         .instrument_into(&mut wasm_env)
-        .build_comparator(&interpreter_env, &wasm_env);
+        .replay()?;
 
     info!(
         "aggregating contract calls starting at block height {}...",

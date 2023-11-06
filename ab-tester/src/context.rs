@@ -1,6 +1,9 @@
-use log::*;
+use std::{marker::PhantomData, fmt::Write};
 
-use crate::{clarity, db::appdb::AppDb};
+use log::*;
+use color_eyre::Result;
+
+use crate::{clarity, db::appdb::AppDb, ok};
 
 pub mod blocks;
 mod boot_data;
@@ -14,7 +17,7 @@ pub use blocks::{Block, BlockCursor};
 pub struct ComparisonContext<'a> {
     app_db: &'a AppDb,
     baseline_env: Option<&'a dyn ReadableEnv<'a>>,
-    instrumented_envs: Vec<&'a dyn WriteableEnv<'a>>
+    instrumented_envs: Vec<&'a mut dyn WriteableEnv<'a>>
 }
 
 impl<'a> ComparisonContext<'a> {
@@ -26,23 +29,36 @@ impl<'a> ComparisonContext<'a> {
         }
     }
 
-    pub fn using_baseline(&'a mut self, env: &'_ impl ReadableEnv<'a>) -> &'a mut Self {
+    pub fn using_baseline(&'a mut self, env: &'a impl ReadableEnv<'a>) -> &'a mut Self {
+        self.baseline_env = Some(env);
         self
     }
 
-    pub fn instrument_into(&'a mut self, env: &'_ mut impl WriteableEnv<'a>) -> &'a mut Self {
+    pub fn instrument_into<'b: 'a>(&'a mut self, env: &'b mut impl WriteableEnv<'a>) -> &'a mut Self {
+        self.instrumented_envs.push(env);
         self
     }
 
-    pub fn build_comparator(&self, lhs: &'a impl ReadableEnv<'a>, rhs: &'a impl ReadableEnv<'a>) -> ComparisonRunner<'a> {
-        ComparisonRunner { app_db: self.app_db, lhs, rhs }
+    pub fn replay(&mut self) -> Result<ReplayResult> {
+        let envs: Vec<_> = self.instrumented_envs.iter_mut().collect();
+        for env in envs {
+            BlockReplayer::replay(self.baseline_env.unwrap(), *env)?;
+        }
+
+        todo!()
     }
 }
 
-pub struct ComparisonRunner<'a> {
-    app_db: &'a AppDb,
-    lhs: &'a dyn ReadableEnv<'a>,
-    rhs: &'a dyn ReadableEnv<'a>
+pub struct BlockReplayer {
+}
+
+impl BlockReplayer {
+    pub fn replay<'a>(source: &'_ dyn ReadableEnv<'a>, target: &'_ mut dyn WriteableEnv<'a>) -> Result<()> {
+        todo!()
+    }
+}
+
+pub struct ReplayResult {
 }
 
 /// Represents a Clarity smart contract.
