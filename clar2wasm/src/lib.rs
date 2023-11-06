@@ -15,7 +15,7 @@ mod words;
 
 #[cfg(feature = "developer-mode")]
 pub mod datastore;
-#[cfg(test)]
+#[cfg(feature = "developer-mode")]
 pub mod tools;
 
 // FIXME: This is copied from stacks-blockchain
