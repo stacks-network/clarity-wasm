@@ -1,6 +1,8 @@
 use std::cell::OnceCell;
 
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 use clarity::vm::{
     types::{signatures::CallableSubtype, SequenceSubtype, StringSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
@@ -44,23 +46,39 @@ impl Word for IsEq {
         // Shortcut for a case with only one operand.
         builder.i32_const(1);
 
+        let mut all_correct_type = true;
+        let mut nth_locals = Vec::with_capacity(wasm_types.len());
         // Loop through remainder operands, if the case.
         for operand in args.iter().skip(1) {
             // push the new operand on the stack
             generator.traverse_expr(builder, operand)?;
 
-            // insert the new operand into locals
-            let mut nth_locals = Vec::with_capacity(wasm_types.len());
-            for local_ty in wasm_types.iter().rev() {
-                let local = generator.module.locals.add(*local_ty);
-                nth_locals.push(local);
-                builder.local_set(local);
+            // check if types are identical:
+            // if yes, we go with equality checks,
+            // otherwise it's automatically false
+
+            let operand_ty = generator
+                .get_expr_type(operand)
+                .expect("is-eq value expression must be typed");
+
+            if all_correct_type && &ty == operand_ty {
+                // insert the new operand into locals
+                for local_ty in wasm_types.iter().rev() {
+                    let local = generator.module.locals.add(*local_ty);
+                    nth_locals.push(local);
+                    builder.local_set(local);
+                }
+                nth_locals.reverse();
+
+                // check equality
+                wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
+
+                nth_locals.clear();
+            } else {
+                all_correct_type &= false;
+                drop_value(builder, operand_ty);
+                builder.i32_const(0);
             }
-            nth_locals.reverse();
-
-            // check equality
-            wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
-
             // Do an "and" operation with the result from the previous function call.
             builder.binop(BinaryOp::I32And);
         }
@@ -76,7 +94,12 @@ fn wasm_equal(
     first_op: &[LocalId],
     nth_op: &[LocalId],
 ) -> Result<(), GeneratorError> {
-    match ty {
+    match dbg!(ty) {
+        // we should never compare NoType
+        TypeSignature::NoType => {
+            builder.unreachable();
+            Ok(())
+        }
         // is-eq-int function can be reused to both int and uint types.
         TypeSignature::IntType | TypeSignature::UIntType => {
             wasm_equal_int128(generator, builder, first_op, nth_op)
@@ -91,10 +114,15 @@ fn wasm_equal(
         TypeSignature::OptionalType(some_ty) => {
             wasm_equal_optional(generator, builder, first_op, nth_op, some_ty)
         }
-        _ => {
-            dbg!(ty);
-            Err(GeneratorError::NotImplemented)
-        }
+        TypeSignature::ResponseType(ok_err_ty) => wasm_equal_response(
+            generator,
+            builder,
+            first_op,
+            nth_op,
+            &ok_err_ty.0,
+            &ok_err_ty.1,
+        ),
+        _ => Err(GeneratorError::NotImplemented),
     }
 }
 
@@ -191,6 +219,84 @@ fn wasm_equal_optional(
         consequent: then_id,
         alternative: else_id,
     });
+
+    Ok(())
+}
+
+fn wasm_equal_response(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    first_op: &[LocalId],
+    nth_op: &[LocalId],
+    ok_ty: &TypeSignature,
+    err_ty: &TypeSignature,
+) -> Result<(), GeneratorError> {
+    let split_ok_err_idx = dbg!(clar2wasm_ty(ok_ty)).len();
+    let Some((first_variant, first_ok, first_err)) =
+        first_op.split_first().map(|(variant, rest)| {
+            let (ok, err) = dbg!(rest.split_at(split_ok_err_idx));
+            (variant, ok, err)
+        })
+    else {
+        return Err(GeneratorError::InternalError(
+            "Response operand should have at least one argument".into(),
+        ));
+    };
+    let Some((nth_variant, nth_ok, nth_err)) = nth_op.split_first().map(|(variant, rest)| {
+        let (ok, err) = dbg!(rest.split_at(split_ok_err_idx));
+        (variant, ok, err)
+    }) else {
+        return Err(GeneratorError::InternalError(
+            "Response operand should have at least one argument".into(),
+        ));
+    };
+
+    // We will have a three branch if:
+    // [ok] is the (ok, ok) case, we have to compare if both ok values are identical
+    // [err] is the (err, err) case, we have to compare if both err values are identical
+    // [else] is the (ok, err) or (err, ok) case, it is directly false
+
+    let ok_id = {
+        let mut ok_case = builder.dangling_instr_seq(ValType::I32);
+        wasm_equal(ok_ty, generator, &mut ok_case, first_ok, nth_ok)?;
+        ok_case.id()
+    };
+
+    let err_id = {
+        let mut err_case = builder.dangling_instr_seq(ValType::I32);
+        wasm_equal(err_ty, generator, &mut err_case, first_err, nth_err)?;
+        err_case.id()
+    };
+
+    let else_id = {
+        let mut else_ = builder.dangling_instr_seq(ValType::I32);
+        else_.i32_const(0);
+        else_.id()
+    };
+
+    // inner if is checking if both are err (consequent) or ok (alternative)
+    let inner_if_id = {
+        let mut inner_if = builder.dangling_instr_seq(ValType::I32);
+        inner_if
+            .local_get(*first_variant)
+            // 0 is err
+            .unop(UnaryOp::I32Eqz)
+            .instr(IfElse {
+                consequent: err_id,
+                alternative: ok_id,
+            });
+        inner_if.id()
+    };
+
+    // outer if checks if both variants are identical (consequent) or not (alternative)
+    builder
+        .local_get(*first_variant)
+        .local_get(*nth_variant)
+        .binop(BinaryOp::I32Eq)
+        .instr(IfElse {
+            consequent: inner_if_id,
+            alternative: else_id,
+        });
 
     Ok(())
 }
