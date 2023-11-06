@@ -113,21 +113,17 @@ impl Word for Filter {
         };
 
         builder
-            // [ INPUT_OFFSET, INPUT_LEN ]
+            // [ input_offset, input_len ]
             .local_set(input_len)
-            // [ INPUT_OFFSET ]
+            // [ input_offset ]
             .local_tee(input_offset)
-            // [ INPUT_OFFSET ]
+            // [ input_offset ]
             .local_get(input_len)
-            // [ INPUT_OFFSET, INPUT_LEN ]
+            // [ input_offset, input_len ]
             .binop(ir::BinaryOp::I32Add)
-            // [ INPUT_END ]
+            // [ input_end ]
             .local_set(input_end);
         // [ ]
-
-        // initialize output len (FIXME not neccesary?)
-        builder.i32_const(0).local_set(output_len);
-
         // now we have an empty stack, and three initialized locals
 
         // reserve space for the length of the output list
