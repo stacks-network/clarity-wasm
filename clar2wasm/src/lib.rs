@@ -15,7 +15,6 @@ mod words;
 
 #[cfg(feature = "developer-mode")]
 pub mod datastore;
-
 #[cfg(feature = "developer-mode")]
 pub mod tools;
 

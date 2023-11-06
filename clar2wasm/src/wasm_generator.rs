@@ -376,6 +376,8 @@ impl WasmGenerator {
     ///   representation of the value (e.g. the offset, length for an in-memory
     ///   type)
     /// - `include_value` indicates if space should be reserved for the value
+    ///
+    /// Returns a local which is a pointer to the beginning of the allocated stack space
     pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -393,16 +395,25 @@ impl WasmGenerator {
 
         // Save the offset (current stack pointer) into a local
         let offset = self.module.locals.add(ValType::I32);
-        builder.global_get(self.stack_pointer).local_tee(offset);
+        builder
+            // []
+            .global_get(self.stack_pointer)
+            // [ stack_ptr ]
+            .local_tee(offset);
+        // [ stack_ptr ]
 
         // TODO: The frame stack size can be computed at compile time, so we
         //       should be able to increment the stack pointer once in the function
         //       prelude with a constant instead of incrementing it for each local.
         // (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const <size>))
         builder
+            // [ stack_ptr ]
             .i32_const(size)
+            // [ stack_ptr, size ]
             .binop(BinaryOp::I32Add)
+            // [ new_stack_ptr ]
             .global_set(self.stack_pointer);
+        // [  ]
         self.frame_size += size;
 
         (offset, size)
@@ -577,6 +588,17 @@ impl WasmGenerator {
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
                 builder.i32_const(0);
+                4
+            }
+            TypeSignature::BoolType => {
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32 { atomic: false },
+                    MemArg {
+                        align: 4,
+                        offset: literal_offset,
+                    },
+                );
                 4
             }
             _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),

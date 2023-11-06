@@ -12,6 +12,7 @@ pub mod bitwise;
 pub mod blockinfo;
 pub mod buff_to_integer;
 pub mod comparison;
+pub mod conditionals;
 pub mod constants;
 pub mod contract;
 pub mod control_flow;
@@ -118,6 +119,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &traits::DefineTrait,
     &traits::UseTrait,
     &traits::ImplTrait,
+    &conditionals::If,
+    &conditionals::Filter,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
