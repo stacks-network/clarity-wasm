@@ -19,7 +19,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     let env_builder = RuntimeEnvBuilder::new(&app_db);
 
-    let baseline_env =
+    let mut baseline_env =
         env_builder.stacks_node("baseline", &config.baseline.chainstate_path)?;
 
     let mut interpreter_env = env_builder.instrumented(
@@ -37,7 +37,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     )?;
 
     let comparator = ComparisonContext::new(&app_db)
-        .using_baseline(&baseline_env)
+        .using_baseline(&mut baseline_env)
         .instrument_into(&mut interpreter_env)
         .instrument_into(&mut wasm_env)
         .replay(data_args.into())?;

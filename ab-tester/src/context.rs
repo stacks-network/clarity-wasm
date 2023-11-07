@@ -16,7 +16,7 @@ pub use blocks::{Block, BlockCursor};
 
 pub struct ComparisonContext<'a> {
     app_db: &'a AppDb,
-    baseline_env: Option<&'a dyn ReadableEnv<'a>>,
+    baseline_env: Option<&'a mut dyn ReadableEnv<'a>>,
     instrumented_envs: Vec<&'a mut dyn WriteableEnv<'a>>,
 }
 
@@ -29,7 +29,7 @@ impl<'a> ComparisonContext<'a> {
         }
     }
 
-    pub fn using_baseline(&'a mut self, env: &'a impl ReadableEnv<'a>) -> &'a mut Self {
+    pub fn using_baseline(&'a mut self, env: &'a mut impl ReadableEnv<'a>) -> &'a mut Self {
         self.baseline_env = Some(env);
         self
     }
@@ -44,8 +44,10 @@ impl<'a> ComparisonContext<'a> {
 
     pub fn replay(&mut self, opts: Option<ReplayOpts>) -> Result<ReplayResult> {
         let baseline_env = self
-            .baseline_env
-            .ok_or(anyhow!("baseline environment has not been set"))?;
+            .baseline_env.as_mut()
+            .ok_or(anyhow!("baseline environment has need been specified"))?;
+
+        baseline_env.open()?;
 
         for env in &mut self.instrumented_envs {
             info!(
@@ -53,7 +55,7 @@ impl<'a> ComparisonContext<'a> {
                 baseline_env.name(),
                 env.name()
             );
-            ChainStateReplayer::replay(self.baseline_env.unwrap(), *env, opts)?;
+            ChainStateReplayer::replay(*baseline_env, *env, opts)?;
         }
 
         todo!()
@@ -97,7 +99,7 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a>(
-        source: &'_ dyn ReadableEnv<'a>,
+        source: &'_ mut dyn ReadableEnv<'a>,
         target: &'_ mut dyn WriteableEnv<'a>,
         opts: Option<ReplayOpts>
     ) -> Result<()> {
