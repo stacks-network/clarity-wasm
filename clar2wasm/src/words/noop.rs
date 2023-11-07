@@ -3,6 +3,10 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
 
+// Functions below are considered no-op's because they are instructions that does nothing
+// or has no effect when executed.
+// They only affect the types (in case of to-int and to-uint), and not the values.
+
 fn traverse_noop(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -72,15 +76,25 @@ impl Word for ContractOf {
 
 #[cfg(test)]
 mod tests {
+    use crate::tools::evaluate as eval;
+    use crate::tools::TestEnvironment;
     use clarity::vm::{
         types::{PrincipalData, QualifiedContractIdentifier},
         Value,
     };
 
-    use crate::tools::TestEnvironment;
+    #[test]
+    fn to_int() {
+        assert_eq!(eval("(to-int u42)"), Some(Value::Int(42)));
+    }
 
     #[test]
-    fn contract_of_eval() {
+    fn to_uint() {
+        assert_eq!(eval("(to-uint 767)"), Some(Value::UInt(767)));
+    }
+
+    #[test]
+    fn contract_of_test() {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet(
             "clar2wasm-trait",
