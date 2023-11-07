@@ -5,8 +5,9 @@ use log::*;
 use crate::{
     cli::DataArgs,
     context::{
-        environments::{RuntimeEnvBuilder, ReadableEnv}, 
-        Block, Network, Runtime, ComparisonContext},
+        environments::{ReadableEnv, RuntimeEnvBuilder},
+        Block, ComparisonContext, Network, Runtime,
+    },
     db::appdb::AppDb,
     ok,
 };
@@ -15,21 +16,22 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
-    let baseline_env = RuntimeEnvBuilder::stacks_node(
-        "baseline",
-        &config.baseline.chainstate_path)?;
+    let baseline_env =
+        RuntimeEnvBuilder::stacks_node("baseline", &config.baseline.chainstate_path)?;
 
     let mut interpreter_env = RuntimeEnvBuilder::instrumented(
         "baseline_replay",
         Runtime::Interpreter,
         Network::Mainnet(1),
-        "/home/cylwit/clarity-ab/replay")?;
+        "/home/cylwit/clarity-ab/replay",
+    )?;
 
     let mut wasm_env = RuntimeEnvBuilder::instrumented(
         "wasm_env",
         Runtime::Wasm,
         Network::Mainnet(1),
-        "/home/cylwit/clarity-ab/wasm")?;
+        "/home/cylwit/clarity-ab/wasm",
+    )?;
 
     let comparator = ComparisonContext::new(&app_db)
         .using_baseline(&baseline_env)

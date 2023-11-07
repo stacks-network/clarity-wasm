@@ -1,7 +1,10 @@
-use std::{marker::PhantomData, fmt::Write};
+use std::{fmt::Write, marker::PhantomData};
 
+use color_eyre::{
+    eyre::{anyhow, bail},
+    Result,
+};
 use log::*;
-use color_eyre::{Result, eyre::{bail, anyhow}};
 
 use crate::{clarity, db::appdb::AppDb, ok};
 
@@ -10,22 +13,22 @@ mod boot_data;
 pub mod environments;
 mod marf;
 
-use self::environments::{RuntimeEnv, ReadableEnv, WriteableEnv};
 pub use self::environments::TestEnv;
+use self::environments::{ReadableEnv, RuntimeEnv, WriteableEnv};
 pub use blocks::{Block, BlockCursor};
 
 pub struct ComparisonContext<'a> {
     app_db: &'a AppDb,
     baseline_env: Option<&'a dyn ReadableEnv<'a>>,
-    instrumented_envs: Vec<&'a mut dyn WriteableEnv<'a>>
+    instrumented_envs: Vec<&'a mut dyn WriteableEnv<'a>>,
 }
 
 impl<'a> ComparisonContext<'a> {
     pub fn new(app_db: &'a AppDb) -> Self {
-        Self { 
+        Self {
             app_db,
             baseline_env: None,
-            instrumented_envs: Vec::new()
+            instrumented_envs: Vec::new(),
         }
     }
 
@@ -34,18 +37,25 @@ impl<'a> ComparisonContext<'a> {
         self
     }
 
-    pub fn instrument_into<'b: 'a>(&'a mut self, env: &'b mut impl WriteableEnv<'a>) -> &'a mut Self {
+    pub fn instrument_into<'b: 'a>(
+        &'a mut self,
+        env: &'b mut impl WriteableEnv<'a>,
+    ) -> &'a mut Self {
         self.instrumented_envs.push(env);
         self
     }
 
     pub fn replay(&mut self) -> Result<ReplayResult> {
-        let baseline_env = 
-            self.baseline_env
+        let baseline_env = self
+            .baseline_env
             .ok_or(anyhow!("baseline environment has not been set"))?;
 
         for env in &mut self.instrumented_envs {
-            info!("replaying from '{}' into '{}'...", baseline_env.name(), env.name());
+            info!(
+                "replaying from '{}' into '{}'...",
+                baseline_env.name(),
+                env.name()
+            );
             ChainStateReplayer::replay(self.baseline_env.unwrap(), *env)?;
         }
 
@@ -53,20 +63,18 @@ impl<'a> ComparisonContext<'a> {
     }
 }
 
-pub struct ChainStateReplayer {
-}
+pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a>(
-        source: &'_ dyn ReadableEnv<'a>, 
-        target: &'_ mut dyn WriteableEnv<'a>
+        source: &'_ dyn ReadableEnv<'a>,
+        target: &'_ mut dyn WriteableEnv<'a>,
     ) -> Result<()> {
         todo!()
     }
 }
 
-pub struct ReplayResult {
-}
+pub struct ReplayResult {}
 
 /// Represents a Clarity smart contract.
 #[derive(Debug)]
@@ -118,7 +126,7 @@ impl Network {
     pub fn chain_id(&self) -> u32 {
         match self {
             Network::Mainnet(i) => *i,
-            Network::Testnet(i) => *i
+            Network::Testnet(i) => *i,
         }
     }
 

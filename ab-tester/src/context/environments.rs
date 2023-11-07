@@ -1,6 +1,12 @@
-use std::{cell::RefCell, fmt::{Write, Display}};
+use std::{
+    cell::RefCell,
+    fmt::{Display, Write},
+};
 
-use color_eyre::{eyre::{bail, anyhow}, Result};
+use color_eyre::{
+    eyre::{anyhow, bail},
+    Result,
+};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -14,16 +20,16 @@ use crate::{
     ok, stacks,
 };
 
-use self::{stacks_node::StacksNodeEnv, network::NetworkEnv, instrumented::InstrumentedEnv};
+use self::{instrumented::InstrumentedEnv, network::NetworkEnv, stacks_node::StacksNodeEnv};
 
 use super::{
     blocks::{BlockCursor, BlockHeader},
     Block, Network, Runtime, StoreType, TestEnvPaths,
 };
 
-mod stacks_node;
 mod instrumented;
 mod network;
+mod stacks_node;
 
 /// Holds all state between environments.
 pub struct GlobalEnvContext {
@@ -56,7 +62,7 @@ impl GlobalEnvContext {
 }
 
 pub struct RuntimeEnvBuilder<'a> {
-    app_db: &'a AppDb
+    app_db: &'a AppDb,
 }
 
 impl<'a> RuntimeEnvBuilder<'a> {
@@ -64,7 +70,12 @@ impl<'a> RuntimeEnvBuilder<'a> {
         StacksNodeEnv::new(name, node_dir)
     }
 
-    pub fn instrumented(name: &'a str, runtime: Runtime, network: Network, working_dir: &'a str) -> Result<InstrumentedEnv<'a>> {
+    pub fn instrumented(
+        name: &'a str,
+        runtime: Runtime,
+        network: Network,
+        working_dir: &'a str,
+    ) -> Result<InstrumentedEnv<'a>> {
         InstrumentedEnv::new(name, working_dir, runtime, network)
     }
 }
@@ -84,11 +95,14 @@ pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
-pub trait WriteableEnv<'a> : ReadableEnv<'a> {
-    //fn block_begin(&self, block: &Block, f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>) -> Result<()>;
-    fn test(&mut self) {
-        eprintln!("hi");
-    }
+pub trait WriteableEnv<'a>: ReadableEnv<'a> {
+    fn block_begin(
+        &mut self,
+        block: &Block,
+        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
+    ) -> Result<()>
+    where
+        Self: Sized;
 }
 
 impl Display for &dyn RuntimeEnv<'_> {
@@ -238,10 +252,8 @@ impl<'a> TestEnv<'a> {
         let mut backing_store = DataStore::new(&self.ctx.app_db);
         //let burn_state_db = DataStore::new(&self.ctx.app_db);
 
-        let clarity_db = clarity::ClarityDatabase::new(
-            &mut backing_store, 
-            &self.ctx.app_db, 
-            &burn_state_db);
+        let clarity_db =
+            clarity::ClarityDatabase::new(&mut backing_store, &self.ctx.app_db, &burn_state_db);
 
         ok!()
 
@@ -469,10 +481,8 @@ fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionD
             let sortition_db = stacks::SortitionDB::connect(
                 path,
                 stacks::BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-                &stacks::BurnchainHeaderHash::from_hex(
-                    stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH,
-                )
-                .unwrap(),
+                &stacks::BurnchainHeaderHash::from_hex(stacks::BITCOIN_MAINNET_FIRST_BLOCK_HASH)
+                    .unwrap(),
                 stacks::BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP.into(),
                 stacks::STACKS_EPOCHS_MAINNET.as_ref(),
                 boot_data.pox_constants,

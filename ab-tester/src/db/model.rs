@@ -9,7 +9,7 @@ pub mod chainstate_db {
     pub struct DbConfig {
         pub version: i32,
         pub mainnet: bool,
-        pub chain_id: i32
+        pub chain_id: i32,
     }
 
     #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]

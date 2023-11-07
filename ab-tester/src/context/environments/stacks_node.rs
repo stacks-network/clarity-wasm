@@ -1,14 +1,16 @@
 use std::{cell::RefCell, ops::Deref};
 
-use diesel::{SqliteConnection, Connection, QueryDsl, RunQueryDsl, ExpressionMethods, OptionalExtension};
-use log::*;
 use color_eyre::Result;
+use diesel::{
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
+};
+use log::*;
 
 use crate::{
-    stacks, 
-    db::schema,
+    context::{blocks::BlockHeader, BlockCursor, Network, TestEnvPaths},
     db::model,
-    context::{TestEnvPaths, Network, BlockCursor, blocks::BlockHeader}
+    db::schema,
+    stacks,
 };
 
 use super::{ReadableEnv, RuntimeEnv};
@@ -68,10 +70,11 @@ impl<'a> StacksNodeEnv<'a> {
 
         debug!("opening chainstate");
         let (chainstate, _) = stacks::StacksChainState::open(
-            network.is_mainnet(), 
-            network.chain_id(), 
-            &paths.chainstate_path, 
-            Some(marf_opts))?;
+            network.is_mainnet(),
+            network.chain_id(),
+            &paths.chainstate_path,
+            Some(marf_opts),
+        )?;
         info!("[{name}] successfully opened chainstate");
 
         debug!("[{name}] loading clarity db...");
@@ -91,7 +94,7 @@ impl<'a> StacksNodeEnv<'a> {
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
             clarity_db_conn,
-            sortition_db
+            sortition_db,
         })
     }
 

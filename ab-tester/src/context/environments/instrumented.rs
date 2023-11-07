@@ -1,19 +1,22 @@
 use std::cell::RefCell;
 
-use diesel::{SqliteConnection, Connection, QueryDsl, ExpressionMethods, RunQueryDsl, OptionalExtension};
+use color_eyre::{eyre::anyhow, Result};
+use diesel::{
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
+};
 use log::*;
-use color_eyre::{Result, eyre::anyhow};
 
 use crate::{
     context::{
-        Runtime, Network, TestEnvPaths, boot_data::mainnet_boot_data, blocks::BlockHeader, BlockCursor
-    }, 
-    stacks,
+        blocks::BlockHeader, boot_data::mainnet_boot_data, BlockCursor, Network, Runtime,
+        TestEnvPaths,
+    },
+    db::model::app_db as model,
     db::schema::appdb,
-    db::model::app_db as model, ok,
+    ok, stacks,
 };
 
-use super::{ReadableEnv, WriteableEnv, RuntimeEnv};
+use super::{ReadableEnv, RuntimeEnv, WriteableEnv};
 
 pub struct InstrumentedEnvConfig<'a> {
     working_dir: &'a str,
@@ -27,7 +30,7 @@ pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
-    sortition_db: stacks::SortitionDB
+    sortition_db: stacks::SortitionDB,
 }
 
 /// This environment type is app-specific and will instrument all Clarity-related
@@ -35,14 +38,19 @@ pub struct InstrumentedEnvState {
 pub struct InstrumentedEnv<'a> {
     name: &'a str,
     env_config: InstrumentedEnvConfig<'a>,
-    env_state: Option<InstrumentedEnvState>
+    env_state: Option<InstrumentedEnvState>,
 }
 
 impl<'a> InstrumentedEnv<'a> {
     /// Creates a new [InstrumentedEnv]. This method expects the provided
     /// `working_dir` to either be uninitialized or be using the same [Runtime]
     /// and [Network] configuration.
-    pub fn new(name: &'a str, working_dir: &'a str, runtime: Runtime, network: Network) -> Result<Self> {
+    pub fn new(
+        name: &'a str,
+        working_dir: &'a str,
+        runtime: Runtime,
+        network: Network,
+    ) -> Result<Self> {
         let paths = TestEnvPaths::new(working_dir);
 
         let env_config = InstrumentedEnvConfig {
@@ -50,13 +58,13 @@ impl<'a> InstrumentedEnv<'a> {
             readonly: false,
             paths,
             runtime,
-            network
+            network,
         };
 
         Ok(Self {
             name,
             env_config,
-            env_state: None
+            env_state: None,
         })
     }
 
@@ -110,7 +118,7 @@ impl<'a> InstrumentedEnv<'a> {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
-            sortition_db
+            sortition_db,
         };
 
         self.env_state = Some(state);
@@ -125,7 +133,8 @@ impl<'a> InstrumentedEnv<'a> {
     /// Retrieve all block headers from the underlying storage.
     fn block_headers(&self) -> Result<Vec<BlockHeader>> {
         // Get our state
-        let state = self.env_state
+        let state = self
+            .env_state
             .as_ref()
             .ok_or(anyhow!("environment has not been opened"))?;
 
@@ -133,9 +142,7 @@ impl<'a> InstrumentedEnv<'a> {
         let tip = appdb::_block_headers::table
             .order_by(appdb::_block_headers::block_height.desc())
             .limit(1)
-            .get_result::<model::BlockHeader>(
-                &mut *state.index_db_conn.borrow_mut(),
-            )?;
+            .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())?;
 
         let mut current_block = Some(tip);
         let mut headers: Vec<BlockHeader> = Vec::new();
@@ -143,13 +150,8 @@ impl<'a> InstrumentedEnv<'a> {
         // Walk backwards
         while let Some(block) = current_block {
             let block_parent = appdb::_block_headers::table
-                .filter(
-                    appdb::_block_headers::index_block_hash
-                        .eq(&block.parent_block_id),
-                )
-                .get_result::<model::BlockHeader>(
-                    &mut *state.index_db_conn.borrow_mut(),
-                )
+                .filter(appdb::_block_headers::index_block_hash.eq(&block.parent_block_id))
+                .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())
                 .optional()?;
 
             if let Some(parent) = &block_parent {
@@ -213,11 +215,11 @@ impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
 }
 
 impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
-    /*fn block_begin(
+    fn block_begin(
         &mut self,
         block: &crate::context::Block,
         f: impl FnOnce(&mut super::BlockTransactionContext) -> Result<()>,
     ) -> Result<()> {
         todo!()
-    }*/
+    }
 }
