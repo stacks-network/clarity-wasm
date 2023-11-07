@@ -84,7 +84,6 @@ impl<'a> RuntimeEnvBuilder<'a> {
 pub trait RuntimeEnv<'a> {
     fn name(&self) -> &'a str;
     fn is_readonly(&self) -> bool;
-    fn network(&self) -> Network;
     fn is_open(&self) -> bool;
     fn open(&mut self) -> Result<()>;
 }

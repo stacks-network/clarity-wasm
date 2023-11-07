@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use color_eyre::{eyre::anyhow, Result};
+use color_eyre::{eyre::{anyhow, bail}, Result};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -9,7 +9,7 @@ use log::*;
 use crate::{
     context::{
         blocks::BlockHeader, boot_data::mainnet_boot_data, BlockCursor, Network, Runtime,
-        TestEnvPaths,
+        TestEnvPaths
     },
     db::model::app_db as model,
     db::schema::appdb,
@@ -68,65 +68,7 @@ impl<'a> InstrumentedEnv<'a> {
         })
     }
 
-    pub fn is_open(&self) -> bool {
-        self.env_state.is_some()
-    }
-
-    pub fn open(&mut self) -> Result<()> {
-        let name = self.name;
-        let paths = &self.env_config.paths;
-        let network = &self.env_config.network;
-
-        info!("[{name}] opening environment...");
-        paths.print(name);
-
-        // Setup our options for the Marf.
-        let mut marf_opts = stacks::MARFOpenOpts::default();
-        marf_opts.external_blobs = true;
-
-        // Setup our boot data to be used if the chainstate hasn't been initialized yet.
-        let mut boot_data = if network.is_mainnet() {
-            mainnet_boot_data()
-        } else {
-            todo!("testnet not yet supported")
-        };
-
-        debug!("initializing chainstate");
-        let (chainstate, _) = stacks::StacksChainState::open_and_exec(
-            network.is_mainnet(),
-            1,
-            &paths.chainstate_path,
-            Some(&mut boot_data),
-            Some(marf_opts.clone()),
-        )?;
-        info!("[{name}] chainstate initialized.");
-
-        debug!("[{name}] loading index db...");
-        let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
-        info!("[{name}] successfully connected to index db");
-
-        debug!("[{name}] loading clarity db...");
-        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
-        info!("[{name}] successfully connected to clarity db");
-
-        //debug!("attempting to migrate sortition db");
-        debug!("opening sortition db");
-        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
-        info!("successfully opened sortition db");
-
-        let state = InstrumentedEnvState {
-            chainstate,
-            index_db_conn: RefCell::new(index_db_conn),
-            clarity_db_conn,
-            sortition_db,
-        };
-
-        self.env_state = Some(state);
-
-        ok!()
-    }
-
-    pub fn readonly(&mut self, readonly: bool) {
+    fn readonly(&mut self, readonly: bool) {
         self.env_config.readonly = readonly;
     }
 
@@ -193,17 +135,65 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
         self.env_config.readonly
     }
 
-    fn network(&self) -> Network {
-        self.env_config.network
-    }
-
     fn is_open(&self) -> bool {
-        todo!()
+        self.env_state.is_some()
     }
 
     fn open(&mut self) -> Result<()> {
-        todo!()
+        let name = self.name;
+        let paths = &self.env_config.paths;
+        let network = &self.env_config.network;
+
+        info!("[{name}] opening environment...");
+        paths.print(name);
+
+        // Setup our options for the Marf.
+        let mut marf_opts = stacks::MARFOpenOpts::default();
+        marf_opts.external_blobs = true;
+
+        // Setup our boot data to be used if the chainstate hasn't been initialized yet.
+        let mut boot_data = if network.is_mainnet() {
+            mainnet_boot_data()
+        } else {
+            todo!("testnet not yet supported")
+        };
+
+        debug!("initializing chainstate");
+        let (chainstate, _) = stacks::StacksChainState::open_and_exec(
+            network.is_mainnet(),
+            1,
+            &paths.chainstate_path,
+            Some(&mut boot_data),
+            Some(marf_opts.clone()),
+        )?;
+        info!("[{name}] chainstate initialized.");
+
+        debug!("[{name}] loading index db...");
+        let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
+        info!("[{name}] successfully connected to index db");
+
+        debug!("[{name}] loading clarity db...");
+        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
+        info!("[{name}] successfully connected to clarity db");
+
+        //debug!("attempting to migrate sortition db");
+        debug!("opening sortition db");
+        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
+        info!("successfully opened sortition db");
+
+        let state = InstrumentedEnvState {
+            chainstate,
+            index_db_conn: RefCell::new(index_db_conn),
+            clarity_db_conn,
+            sortition_db,
+        };
+
+        self.env_state = Some(state);
+
+        ok!()
     }
+
+    
 }
 
 impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
@@ -220,6 +210,10 @@ impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
         block: &crate::context::Block,
         f: impl FnOnce(&mut super::BlockTransactionContext) -> Result<()>,
     ) -> Result<()> {
+        if self.is_readonly() {
+            bail!("[{}] environment is read-only.", self.name);
+        }
+
         todo!()
     }
 }

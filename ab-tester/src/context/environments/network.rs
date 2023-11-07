@@ -25,10 +25,6 @@ impl<'a> RuntimeEnv<'a> for NetworkEnv<'_> {
         todo!()
     }
 
-    fn network(&self) -> Network {
-        todo!()
-    }
-
     fn is_open(&self) -> bool {
         todo!()
     }
