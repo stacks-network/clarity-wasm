@@ -4,7 +4,10 @@ use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
 use clarity::vm::{
-    types::{signatures::CallableSubtype, SequenceSubtype, StringSubtype, TypeSignature},
+    types::{
+        signatures::CallableSubtype, SequenceSubtype, StringSubtype, TupleTypeSignature,
+        TypeSignature,
+    },
     ClarityName, SymbolicExpression,
 };
 use walrus::{
@@ -122,6 +125,9 @@ fn wasm_equal(
             &ok_err_ty.0,
             &ok_err_ty.1,
         ),
+        TypeSignature::TupleType(tuple_ty) => {
+            wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty)
+        }
         _ => Err(GeneratorError::NotImplemented),
     }
 }
@@ -297,6 +303,128 @@ fn wasm_equal_response(
             consequent: inner_if_id,
             alternative: else_id,
         });
+
+    Ok(())
+}
+
+fn wasm_equal_tuple(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    first_op: &[LocalId],
+    nth_op: &[LocalId],
+    tuple_ty: &TupleTypeSignature,
+) -> Result<(), GeneratorError> {
+    // we'll compare tuple lazily field by field, so that
+    // `(is-eq {x: a1, y: a2, z: a3} {x: b1, y: b2, z: b3})` becomes
+    // ```
+    // if (a1 == b1)
+    //   then if (a2 == b2)
+    //     then (a3 == b3)
+    //     else false
+    //   else false
+    // ```
+    // we have to build the if sequence bottom-up
+
+    let field_types = tuple_ty.get_type_map();
+
+    // this is the number of elements in the tuple. Always >= 1 due to Clarity constraints.
+    let mut depth = field_types.len();
+
+    // this is an iterator in reverse order (for bottom-up sequence) of
+    // `(ty, range)`, where `ty` is the type of the current tuple element and `range` is
+    // the range index of this element in the list of locals
+    let mut wasm_ranges = field_types.values().rev().scan(
+        field_types.values().map(|ty| clar2wasm_ty(ty).len()).sum(),
+        |i, ty| {
+            (*i != 0).then(|| {
+                let wasm_ty = clar2wasm_ty(ty);
+                let old = *i;
+                *i -= wasm_ty.len();
+                (ty, *i..old)
+            })
+        },
+    );
+
+    // if this is a 1-tuple, we can just check for equality of element
+    if depth == 1 {
+        let (ty, range) = wasm_ranges.next().unwrap();
+        return wasm_equal(
+            ty,
+            generator,
+            builder,
+            &first_op[range.clone()],
+            &nth_op[range],
+        );
+    }
+
+    // bottom equality statement
+    let mut instr_id = {
+        let mut instr = builder.dangling_instr_seq(ValType::I32);
+        let (ty, range) = wasm_ranges.next().unwrap();
+
+        wasm_equal(
+            ty,
+            generator,
+            &mut instr,
+            &first_op[range.clone()],
+            &nth_op[range],
+        )?;
+
+        instr.id()
+    };
+    depth -= 1;
+
+    // intermediary if-else statements
+    while depth > 1 {
+        let (ty, range) = wasm_ranges.next().unwrap();
+        let else_id = {
+            let mut else_ = builder.dangling_instr_seq(ValType::I32);
+            else_.i32_const(0);
+            else_.id()
+        };
+
+        instr_id = {
+            let mut if_else = builder.dangling_instr_seq(ValType::I32);
+
+            wasm_equal(
+                ty,
+                generator,
+                &mut if_else,
+                &first_op[range.clone()],
+                &nth_op[range],
+            )?;
+
+            if_else.instr(IfElse {
+                consequent: instr_id,
+                alternative: else_id,
+            });
+
+            if_else.id()
+        };
+
+        depth -= 1;
+    }
+
+    // top if-else statement
+    let (ty, range) = wasm_ranges.next().unwrap();
+    let top_else_id = {
+        let mut else_ = builder.dangling_instr_seq(ValType::I32);
+        else_.i32_const(0);
+        else_.id()
+    };
+
+    wasm_equal(
+        ty,
+        generator,
+        builder,
+        &first_op[range.clone()],
+        &nth_op[range],
+    )?;
+
+    builder.instr(IfElse {
+        consequent: instr_id,
+        alternative: top_else_id,
+    });
 
     Ok(())
 }
