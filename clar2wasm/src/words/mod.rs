@@ -93,6 +93,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &contract::AsContract,
     &contract::ContractCall,
     &blockinfo::GetBlockInfo,
+    &blockinfo::GetBurnBlockInfo,
     &print::Print,
     &sequences::ListCons,
     &sequences::Fold,

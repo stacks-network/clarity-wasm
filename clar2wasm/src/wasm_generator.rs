@@ -585,6 +585,16 @@ impl WasmGenerator {
                 );
                 8
             }
+            TypeSignature::TupleType(tuple) => {
+                // Memory: Offset -> | Value1 | Value2 | ... |
+                let mut offset_adjust = 0;
+                for ty in tuple.get_type_map().values() {
+                    offset_adjust +=
+                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)
+                            as u32;
+                }
+                offset_adjust as i32
+            }
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
                 builder.i32_const(0);

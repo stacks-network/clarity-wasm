@@ -431,6 +431,22 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "get_burn_block_info",
+            |_name_offset: i32,
+             _name_length: i32,
+             _height_lo: i64,
+             _height_hi: i64,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("get_burn_block_info");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "contract_call",
             |_contract_offset: i32,
              _contract_length: i32,
