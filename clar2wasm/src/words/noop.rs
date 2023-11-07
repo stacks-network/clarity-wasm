@@ -5,7 +5,7 @@ use super::Word;
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.
-// They only affect the types (in case of to-int and to-uint), and not the values.
+// They only affect the types and not the values.
 
 fn traverse_noop(
     generator: &mut WasmGenerator,
