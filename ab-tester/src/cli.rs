@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand};
 use color_eyre::eyre::{bail, ensure, Result};
 
+use crate::context::ReplayOpts;
 use crate::errors::AppError;
 use crate::ok;
 
@@ -111,32 +112,29 @@ pub struct DataArgs {
     pub contract_id: Option<String>,
 }
 
+impl Default for DataArgs {
+    fn default() -> Self {
+        Self { 
+            from_height: 0, 
+            to_height: None, 
+            max_block_count: None, 
+            contract_id: None 
+        }
+    }
+}
+
+impl From<DataArgs> for Option<ReplayOpts> {
+    fn from(value: DataArgs) -> Self {
+        Some(ReplayOpts { 
+            from_height: Some(value.from_height), 
+            to_height: value.to_height, 
+            max_blocks: value.max_block_count
+        })
+    }
+}
+
 /// Implements helper functions for [DataArgs].
 impl DataArgs {
-    pub fn assert_max_processed_block_count(&self, processed_block_count: u32) -> Result<()> {
-        if let Some(max_blocks) = self.max_block_count {
-            ensure!(
-                processed_block_count < max_blocks,
-                AppError::Graceful("number of blocks processed has reached the specified maximum")
-            );
-        }
-
-        ok!()
-    }
-
-    pub fn assert_block_height_under_max_height(&self, block_height: u32) -> Result<()> {
-        if let Some(to_height) = self.to_height {
-            ensure!(
-                block_height <= to_height,
-                AppError::Graceful(
-                    "block height has reached the specified maximum block height (to-height)"
-                )
-            )
-        }
-
-        ok!()
-    }
-
     pub fn validate(_args: &Self) -> Result<()> {
         ok!()
     }

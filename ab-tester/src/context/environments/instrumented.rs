@@ -224,6 +224,7 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
     
 }
 
+/// Implementation of [ReadableEnv] for [InstrumentedEnv].
 impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
@@ -232,6 +233,7 @@ impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
     }
 }
 
+/// Implementation of [WriteableEnv] for [InstrumentedEnv].
 impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
     fn block_begin(
         &mut self,
@@ -275,7 +277,7 @@ impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
         }
 
         let state = self.get_env_state_mut()?;
-        
+
         // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
         let burn_db = state.sortition_db.index_conn();
 

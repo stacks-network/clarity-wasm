@@ -120,23 +120,6 @@ impl Display for &mut dyn RuntimeEnv<'_> {
     }
 }
 
-/// Container for a test environment.
-pub struct TestEnv<'a> {
-    id: i32,
-    name: String,
-    store_type: StoreType,
-    network: Network,
-    //chainstate_path: String,
-    paths: TestEnvPaths,
-    chainstate: stacks::StacksChainState,
-    index_db_conn: RefCell<SqliteConnection>,
-    sortition_db: stacks::SortitionDB,
-    clarity_db_conn: SqliteConnection,
-    burnchain: stacks::Burnchain,
-
-    block_tx_ctx: Option<BlockTransactionContext<'a, 'a>>,
-}
-
 pub struct BlockTransactionContext<'a, 'b> {
     clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>,
 }

@@ -5,8 +5,9 @@ use log::*;
 use crate::{
     cli::DataArgs,
     context::{
+        self,
         environments::{ReadableEnv, RuntimeEnvBuilder},
-        Block, ComparisonContext, Network, Runtime,
+        Block, ComparisonContext, Network, Runtime, ReplayOpts,
     },
     db::appdb::AppDb,
     ok,
@@ -39,89 +40,9 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         .using_baseline(&baseline_env)
         .instrument_into(&mut interpreter_env)
         .instrument_into(&mut wasm_env)
-        .replay()?;
+        .replay(data_args.into())?;
 
     std::process::exit(0);
-
-    info!(
-        "aggregating contract calls starting at block height {}...",
-        data_args.from_height
-    );
-
-    let mut processed_block_count = 0;
-
-    for block in baseline_env.blocks()?.into_iter() {
-        let (header, stacks_block) = match &block {
-            Block::Boot(header) => {
-                // We can't process the boot block, so skip it.
-                info!("boot block - skipping '{:?}'", header.index_block_hash);
-                continue;
-            }
-            Block::Genesis(header) => {
-                // We can't process genesis (doesn't exist in chainstate), so skip it.
-                //info!("genesis block - skipping '{:?}'", gen.index_block_hash);
-                //continue;
-                info!("genesis block");
-                (header, None)
-            }
-            Block::Regular(header, block) => (header, Some(block)),
-        };
-
-        // Ensure that we've reached the specified block-height before beginning
-        // processing.
-        if header.block_height() < data_args.from_height {
-            continue;
-        }
-
-        // Ensure that we haven't exceeded the specified max-blocks for processing.
-        data_args.assert_max_processed_block_count(processed_block_count)?;
-
-        // Ensure that we haven't reached the specified max block-height for processing.
-        data_args.assert_block_height_under_max_height(header.block_height())?;
-
-        debug!(
-            "processing block #{} ({})",
-            header.block_height(),
-            &hex::encode(&header.index_block_hash)
-        );
-        /*replay_env_mut.block_begin(&block, |_ctx| {
-            info!("processing block!");
-            ok!()
-        })?;*/
-
-        processed_block_count += 1;
-        continue;
-
-        /*let block_id = header.stacks_block_id()?;
-
-        for tx in stacks_block.unwrap().txs.iter() {
-            info!("processing tx: {}", tx.txid());
-
-            let origin_principal = StandardPrincipalData::from(tx.origin_address());
-
-            #[allow(clippy::single_match)]
-            match &tx.payload {
-                TransactionPayload::SmartContract(contract, _) => {
-                    let contract_id =
-                        QualifiedContractIdentifier::new(origin_principal, contract.name.clone());
-
-                    if let Some(entry) = contracts.get(&contract_id) {
-                        warn!(
-                            "duplicate: {}, first block={}, second block={}",
-                            contract_id, entry, &block_id
-                        );
-                    } else {
-                        contracts.insert(contract_id, block_id);
-                    }
-                }
-                _ => {}
-            }
-        }*/
-    }
-
-    info!("blocks processed: {processed_block_count}");
-
-    std::process::exit(1);
 
     //crate::runtime::analyze_contract(contract_identifier, expressions, data_store, cost_tracker);
     //crate::runtime::install_contract(contract_identifier, expressions, clarity_db, cost_tracker);
