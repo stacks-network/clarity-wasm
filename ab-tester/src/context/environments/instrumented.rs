@@ -9,15 +9,16 @@ use log::*;
 use crate::{
     context::{
         blocks::BlockHeader, boot_data::mainnet_boot_data, BlockCursor, Network, Runtime,
-        TestEnvPaths
+        TestEnvPaths, environments::BlockTransactionContext, Block
     },
     db::model::app_db as model,
-    db::schema::appdb,
+    db::{schema::appdb, appdb::AppDb},
     ok, stacks,
 };
 
 use super::{ReadableEnv, RuntimeEnv, WriteableEnv};
 
+/// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig<'a> {
     working_dir: &'a str,
     readonly: bool,
@@ -26,6 +27,7 @@ pub struct InstrumentedEnvConfig<'a> {
     network: Network,
 }
 
+/// Holds the opened state of an [InstrumentedEnv].
 pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
@@ -36,7 +38,9 @@ pub struct InstrumentedEnvState {
 /// This environment type is app-specific and will instrument all Clarity-related
 /// operations. This environment can be used for comparisons.
 pub struct InstrumentedEnv<'a> {
+    id: i32,
     name: &'a str,
+    app_db: &'a AppDb,
     env_config: InstrumentedEnvConfig<'a>,
     env_state: Option<InstrumentedEnvState>,
 }
@@ -46,7 +50,9 @@ impl<'a> InstrumentedEnv<'a> {
     /// `working_dir` to either be uninitialized or be using the same [Runtime]
     /// and [Network] configuration.
     pub fn new(
+        id: i32,
         name: &'a str,
+        app_db: &'a AppDb,
         working_dir: &'a str,
         runtime: Runtime,
         network: Network,
@@ -62,7 +68,9 @@ impl<'a> InstrumentedEnv<'a> {
         };
 
         Ok(Self {
+            id,
             name,
+            app_db,
             env_config,
             env_state: None,
         })
@@ -70,6 +78,26 @@ impl<'a> InstrumentedEnv<'a> {
 
     fn readonly(&mut self, readonly: bool) {
         self.env_config.readonly = readonly;
+    }
+
+    /// Attempts to retrieve the [InstrumentedEnvState] for this environment. Will
+    /// return an error if [RuntimeEnv::open] has not been called.
+    fn get_env_state(&self) -> Result<&InstrumentedEnvState> {
+        let state = self.env_state
+            .as_ref()
+            .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
+
+        Ok(state)
+    }
+
+    /// Attempts to retrieve the [InstrumentedEnvState] for this environment as a 
+    /// mutable reference. Will return an error if [RuntimeEnv::open] has not been called.
+    fn get_env_state_mut(&mut self) -> Result<&mut InstrumentedEnvState> {
+        let state = self.env_state
+            .as_mut()
+            .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
+
+        Ok(state)
     }
 
     /// Retrieve all block headers from the underlying storage.
@@ -214,6 +242,73 @@ impl<'a> WriteableEnv<'a> for InstrumentedEnv<'a> {
             bail!("[{}] environment is read-only.", self.name);
         }
 
-        todo!()
+        let current_block_id: stacks::StacksBlockId;
+        let next_block_id: stacks::StacksBlockId;
+
+        match block {
+            Block::Boot(_) => bail!("cannot process the boot block"),
+            Block::Genesis(header) => {
+                current_block_id = <stacks::StacksBlockId as stacks::ClarityMarfTrieId>::sentinel();
+                next_block_id = header.stacks_block_id()?;
+            }
+            Block::Regular(header, _) => {
+                current_block_id = header.parent_stacks_block_id()?;
+                next_block_id = header.stacks_block_id()?;
+            }
+        };
+
+        info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
+
+        // Insert this block into the app database.
+        self.app_db.insert_block(
+            self.id,
+            block.block_height()? as i32,
+            block.block_hash()?.as_bytes(),
+            block.index_block_hash()?,
+        )?;
+
+        // We cannot process genesis as it was already processed as a part of chainstate
+        // initialization. Log that we reached it and skip processing.
+        if let Block::Genesis(_) = block {
+            info!("genesis block cannot be processed as it was statically initialized; moving on");
+            return ok!();
+        }
+
+        let state = self.get_env_state_mut()?;
+        
+        // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
+        let burn_db = state.sortition_db.index_conn();
+
+        // Start a new chainstate transaction.
+        debug!("creating chainstate tx");
+        let (chainstate_tx, clarity_instance) = state.chainstate.chainstate_tx_begin()?;
+        debug!("chainstate tx started");
+
+        // Begin a new Clarity block.
+        debug!("beginning clarity block");
+        let mut clarity_block_conn = clarity_instance.begin_block(
+            &current_block_id,
+            &next_block_id,
+            &chainstate_tx,
+            &burn_db,
+        );
+
+        // Enter Clarity transaction processing for the new block.
+        debug!("starting clarity tx processing");
+        let clarity_tx_conn = clarity_block_conn.start_transaction_processing();
+
+        // Call the provided function with our context object.
+        //let mut block_tx_ctx = ;
+        f(&mut BlockTransactionContext {
+            clarity_tx_conn: &clarity_tx_conn,
+        })?;
+
+        debug!("returning");
+
+        clarity_tx_conn.commit();
+        clarity_block_conn.commit_to_block(&block.stacks_block_id()?);
+        chainstate_tx.commit()?;
+
+        ok!()
     }
 }

@@ -95,6 +95,7 @@ impl Contract {
 /// Indicates which Clarity runtime should be used for processing transactions.
 #[derive(Debug)]
 pub enum Runtime {
+    None = 0,
     Interpreter = 1,
     Wasm = 2,
 }

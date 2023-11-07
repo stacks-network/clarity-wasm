@@ -16,17 +16,19 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
-    let baseline_env =
-        RuntimeEnvBuilder::stacks_node("baseline", &config.baseline.chainstate_path)?;
+    let env_builder = RuntimeEnvBuilder::new(&app_db);
 
-    let mut interpreter_env = RuntimeEnvBuilder::instrumented(
+    let baseline_env =
+        env_builder.stacks_node("baseline", &config.baseline.chainstate_path)?;
+
+    let mut interpreter_env = env_builder.instrumented(
         "baseline_replay",
         Runtime::Interpreter,
         Network::Mainnet(1),
         "/home/cylwit/clarity-ab/replay",
     )?;
 
-    let mut wasm_env = RuntimeEnvBuilder::instrumented(
+    let mut wasm_env = env_builder.instrumented(
         "wasm_env",
         Runtime::Wasm,
         Network::Mainnet(1),

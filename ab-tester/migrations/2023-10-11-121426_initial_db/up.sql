@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS runtime (
     name TEXT NOT NULL
 );
 
+INSERT INTO runtime VALUES (0, 'None (Read-Only)');
 INSERT INTO runtime VALUES (1, 'Interpreter');
 INSERT INTO runtime VALUES (2, 'Wasm');
 

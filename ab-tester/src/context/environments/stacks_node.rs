@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use color_eyre::{Result, eyre::anyhow};
+use color_eyre::{Result, eyre::{anyhow, bail}};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -11,6 +11,7 @@ use crate::{
     db::model,
     db::schema,
     stacks, ok,
+    clarity::{self, ClarityConnection}
 };
 
 use super::{ReadableEnv, RuntimeEnv};
@@ -34,6 +35,7 @@ pub struct StacksNodeEnvState {
 /// - mainnet: https://archive.hiro.so/mainnet/stacks-blockchain/
 /// - testnet: https://archive.hiro.so/testnet/stacks-blockchain/
 pub struct StacksNodeEnv<'a> {
+    id: i32,
     name: &'a str,
     env_config: StacksNodeEnvConfig<'a>,
     env_state: Option<StacksNodeEnvState>
@@ -43,7 +45,7 @@ impl<'a> StacksNodeEnv<'a> {
     /// Creates a new [StacksNodeEnv] instance from the specified node directory.
     /// The node directory should be working directory of the node, i.e.
     /// `/stacks-node/mainnet/` or `/stacks-node/testnet`.
-    pub fn new(name: &'a str, node_dir: &'a str) -> Result<Self> {
+    pub fn new(id: i32, name: &'a str, node_dir: &'a str) -> Result<Self> {
         // Determine our paths.
         let paths = TestEnvPaths::new(node_dir);
         
@@ -53,17 +55,37 @@ impl<'a> StacksNodeEnv<'a> {
         };
 
         Ok(Self {
+            id,
             name,
             env_config,
             env_state: None
         })
     }
 
+    /// Attempts to retrieve the [StacksNodeEnvState] for this environment. Will
+    /// return an error if [RuntimeEnv::open] has not been called.
+    fn get_env_state(&self) -> Result<&StacksNodeEnvState> {
+        let state = self.env_state
+            .as_ref()
+            .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
+
+        Ok(state)
+    }
+
+    /// Attempts to retrieve the [StacksNodeEnvState] for this environment as a 
+    /// mutable reference. Will return an error if [RuntimeEnv::open] has not been called.
+    fn get_env_state_mut(&mut self) -> Result<&mut StacksNodeEnvState> {
+        let state = self.env_state
+            .as_mut()
+            .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
+
+        Ok(state)
+    }
+
     /// Retrieve all block headers from the underlying storage.
     fn block_headers(&self) -> Result<Vec<BlockHeader>> {
         let name = self.name;
-        let state = self.env_state.as_ref()
-            .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
+        let state = self.get_env_state()?;
 
         // Retrieve the tip.
         let tip = schema::chainstate_marf::block_headers::table
@@ -116,6 +138,70 @@ impl<'a> StacksNodeEnv<'a> {
         debug!("[{name}] retrieved {} block headers", headers.len());
 
         Ok(headers)
+    }
+
+    fn load_contract(
+        &mut self,
+        at_block: &stacks::StacksBlockId,
+        contract_id: &clarity::QualifiedContractIdentifier,
+    ) -> Result<()> {
+
+        let state = self.get_env_state_mut()?;
+        let mut variable_paths: Vec<String> = Default::default();
+
+        let mut conn = state.chainstate.clarity_state.read_only_connection(
+            at_block,
+            &clarity::NULL_HEADER_DB,
+            &clarity::NULL_BURN_STATE_DB,
+        );
+
+        conn.with_clarity_db_readonly(|clarity_db| {
+            let contract_analysis = clarity_db.load_contract_analysis(contract_id);
+
+            if contract_analysis.is_none() {
+                bail!("Failed to load contract '{contract_id}'");
+            }
+
+            let contract_analysis = contract_analysis.unwrap();
+
+            // Handle persisted variables.
+            for (name, _) in contract_analysis.persisted_variable_types.iter() {
+                // Get the metadata for the variable.
+                let meta = clarity_db.load_variable(contract_id, name)?;
+
+                // Construct the identifier (key) for this variable in the
+                // persistence layer.
+                let key = clarity::ClarityDatabase::make_key_for_trip(
+                    contract_id,
+                    clarity::StoreType::Variable,
+                    name,
+                );
+
+                let path = stacks::TriePath::from_key(&key);
+                variable_paths.push(path.to_hex());
+                //debug!("[{}](key='{}'; path='{}')", name, key, path);
+
+                // Retrieve the current value.
+                let value = clarity_db.lookup_variable(
+                    contract_id,
+                    name,
+                    &meta,
+                    &stacks::StacksEpochId::Epoch24,
+                )?;
+
+                trace!("[{}](key='{}'; path='{}'): {:?}", name, key, path, value);
+            }
+
+            // Handle maps
+            for map in &contract_analysis.map_types {
+                let _meta = clarity_db.load_map(contract_id, map.0)?;
+                //clarity_db.get_value("asdasdasdasdasdddsss", &TypeSignature::UIntType, &StacksEpochId::Epoch24)?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
