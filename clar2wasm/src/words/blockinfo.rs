@@ -108,7 +108,10 @@ impl Word for GetBurnBlockInfo {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{types::{TupleData, StandardPrincipalData}, Value};
+    use clarity::vm::{
+        types::{StandardPrincipalData, TupleData},
+        Value,
+    };
 
     use crate::tools::evaluate;
 
