@@ -97,6 +97,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &maps::MapGet,
     &maps::MapInsert,
     &maps::MapSet,
+    &noop::ContractOf,
     &noop::ToInt,
     &noop::ToUint,
     &options::IsNone,
