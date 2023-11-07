@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use diesel::{SqliteConnection, Connection, QueryDsl, ExpressionMethods, RunQueryDsl, OptionalExtension};
 use log::*;
-use color_eyre::Result;
+use color_eyre::{Result, eyre::anyhow};
 
 use crate::{
     context::{
@@ -10,24 +10,32 @@ use crate::{
     }, 
     stacks,
     db::schema::appdb,
-    db::model::app_db as model,
+    db::model::app_db as model, ok,
 };
 
 use super::{ReadableEnv, WriteableEnv, RuntimeEnv};
 
-/// This environment type is app-specific and will instrument all Clarity-related
-/// operations. This environment can be used for comparisons.
-pub struct InstrumentedEnv<'a> {
-    name: &'a str,
+pub struct InstrumentedEnvConfig<'a> {
     working_dir: &'a str,
     readonly: bool,
     paths: TestEnvPaths,
     runtime: Runtime,
     network: Network,
+}
+
+pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
     sortition_db: stacks::SortitionDB
+}
+
+/// This environment type is app-specific and will instrument all Clarity-related
+/// operations. This environment can be used for comparisons.
+pub struct InstrumentedEnv<'a> {
+    name: &'a str,
+    env_config: InstrumentedEnvConfig<'a>,
+    env_state: Option<InstrumentedEnvState>
 }
 
 impl<'a> InstrumentedEnv<'a> {
@@ -36,6 +44,32 @@ impl<'a> InstrumentedEnv<'a> {
     /// and [Network] configuration.
     pub fn new(name: &'a str, working_dir: &'a str, runtime: Runtime, network: Network) -> Result<Self> {
         let paths = TestEnvPaths::new(working_dir);
+
+        let env_config = InstrumentedEnvConfig {
+            working_dir,
+            readonly: false,
+            paths,
+            runtime,
+            network
+        };
+
+        Ok(Self {
+            name,
+            env_config,
+            env_state: None
+        })
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.env_state.is_some()
+    }
+
+    pub fn open(&mut self) -> Result<()> {
+        let name = self.name;
+        let paths = &self.env_config.paths;
+        let network = &self.env_config.network;
+
+        info!("[{name}] opening environment...");
         paths.print(name);
 
         // Setup our options for the Marf.
@@ -69,35 +103,38 @@ impl<'a> InstrumentedEnv<'a> {
 
         //debug!("attempting to migrate sortition db");
         debug!("opening sortition db");
-        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, &network)?;
+        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
         info!("successfully opened sortition db");
 
-        Ok(Self {
-            name,
-            readonly: false,
-            working_dir,
-            paths,
-            runtime,
-            network,
+        let state = InstrumentedEnvState {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
             sortition_db
-        })
+        };
+
+        self.env_state = Some(state);
+
+        ok!()
     }
 
     pub fn readonly(&mut self, readonly: bool) {
-        self.readonly = readonly;
+        self.env_config.readonly = readonly;
     }
 
     /// Retrieve all block headers from the underlying storage.
     fn block_headers(&self) -> Result<Vec<BlockHeader>> {
+        // Get our state
+        let state = self.env_state
+            .as_ref()
+            .ok_or(anyhow!("environment has not been opened"))?;
+
         // Retrieve the tip.
         let tip = appdb::_block_headers::table
             .order_by(appdb::_block_headers::block_height.desc())
             .limit(1)
             .get_result::<model::BlockHeader>(
-                &mut *self.index_db_conn.borrow_mut(),
+                &mut *state.index_db_conn.borrow_mut(),
             )?;
 
         let mut current_block = Some(tip);
@@ -111,7 +148,7 @@ impl<'a> InstrumentedEnv<'a> {
                         .eq(&block.parent_block_id),
                 )
                 .get_result::<model::BlockHeader>(
-                    &mut *self.index_db_conn.borrow_mut(),
+                    &mut *state.index_db_conn.borrow_mut(),
                 )
                 .optional()?;
 
@@ -151,18 +188,26 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
     }
 
     fn is_readonly(&self) -> bool {
-        self.readonly
+        self.env_config.readonly
     }
 
     fn network(&self) -> Network {
-        self.network
+        self.env_config.network
+    }
+
+    fn is_open(&self) -> bool {
+        todo!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        todo!()
     }
 }
 
 impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
-        let cursor = BlockCursor::new(&self.paths.blocks_dir, headers);
+        let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
         Ok(cursor)
     }
 }

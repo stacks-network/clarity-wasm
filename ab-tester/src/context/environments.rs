@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Write};
+use std::{cell::RefCell, fmt::{Write, Display}};
 
 use color_eyre::{eyre::{bail, anyhow}, Result};
 use diesel::{
@@ -74,6 +74,8 @@ pub trait RuntimeEnv<'a> {
     fn name(&self) -> &'a str;
     fn is_readonly(&self) -> bool;
     fn network(&self) -> Network;
+    fn is_open(&self) -> bool;
+    fn open(&mut self) -> Result<()>;
 }
 
 /// Defines the functionality for a readable [RuntimeEnv].
@@ -84,6 +86,21 @@ pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
 /// Defines the functionality for a writeable [RuntimeEnv].
 pub trait WriteableEnv<'a> : ReadableEnv<'a> {
     //fn block_begin(&self, block: &Block, f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>) -> Result<()>;
+    fn test(&mut self) {
+        eprintln!("hi");
+    }
+}
+
+impl Display for &dyn RuntimeEnv<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl Display for &mut dyn RuntimeEnv<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 /// Container for a test environment.

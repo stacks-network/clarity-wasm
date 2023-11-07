@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, fmt::Write};
 
 use log::*;
-use color_eyre::Result;
+use color_eyre::{Result, eyre::{bail, anyhow}};
 
 use crate::{clarity, db::appdb::AppDb, ok};
 
@@ -40,20 +40,27 @@ impl<'a> ComparisonContext<'a> {
     }
 
     pub fn replay(&mut self) -> Result<ReplayResult> {
-        let envs: Vec<_> = self.instrumented_envs.iter_mut().collect();
-        for env in envs {
-            BlockReplayer::replay(self.baseline_env.unwrap(), *env)?;
+        let baseline_env = 
+            self.baseline_env
+            .ok_or(anyhow!("baseline environment has not been set"))?;
+
+        for env in &mut self.instrumented_envs {
+            info!("replaying from '{}' into '{}'...", baseline_env.name(), env.name());
+            ChainStateReplayer::replay(self.baseline_env.unwrap(), *env)?;
         }
 
         todo!()
     }
 }
 
-pub struct BlockReplayer {
+pub struct ChainStateReplayer {
 }
 
-impl BlockReplayer {
-    pub fn replay<'a>(source: &'_ dyn ReadableEnv<'a>, target: &'_ mut dyn WriteableEnv<'a>) -> Result<()> {
+impl ChainStateReplayer {
+    pub fn replay<'a>(
+        source: &'_ dyn ReadableEnv<'a>, 
+        target: &'_ mut dyn WriteableEnv<'a>
+    ) -> Result<()> {
         todo!()
     }
 }

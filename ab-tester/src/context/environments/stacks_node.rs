@@ -13,6 +13,13 @@ use crate::{
 
 use super::{ReadableEnv, RuntimeEnv};
 
+pub struct StacksNodeEnvConfig<'a> {
+    name: &'a str,
+    node_dir: &'a str,
+    network: Network,
+    paths: TestEnvPaths,
+}
+
 /// This environment type is read-only and reads directly from a Stacks node's
 /// file/data structure. This can either be directly from a local node, or from
 /// a data archive such as from the Hiro archive:
@@ -154,6 +161,14 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
 
     fn network(&self) -> Network {
         self.network
+    }
+
+    fn is_open(&self) -> bool {
+        todo!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        todo!()
     }
 }
 

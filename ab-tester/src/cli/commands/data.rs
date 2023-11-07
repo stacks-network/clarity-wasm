@@ -37,6 +37,8 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         .instrument_into(&mut wasm_env)
         .replay()?;
 
+    std::process::exit(0);
+
     info!(
         "aggregating contract calls starting at block height {}...",
         data_args.from_height
