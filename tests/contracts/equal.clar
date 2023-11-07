@@ -129,3 +129,39 @@
 (define-public (call-response-err-unequal)
     (ok (is-eq (err 0x123456) (err 0xabcdef)))
 )
+
+(define-public (call-one-tuple-equal)
+    (ok (is-eq {name: "James Bond"} {name: "James Bond"}))
+)
+
+(define-public (call-one-tuple-unequal)
+    (ok (is-eq {name: "James Bond"} {name: "Austin Powers"}))
+)
+
+(define-public (call-tuple-equal)
+    (ok (is-eq {name: "James Bond", alias: "007"} {name: "James Bond", alias: "007"}))
+)
+
+(define-public (call-tuple-unequal)
+    (ok (is-eq {name: "James Bond", alias: "007"} {name: "James Bond", alias: "008"}))
+)
+
+(define-public (call-big-tuple-equal)
+    (ok (is-eq {name: "Hubert Bonisseur de la Bath", alias: "OSS 117", creation: 1949} {name: "Hubert Bonisseur de la Bath", alias: "OSS 117", creation: 1949}))
+)
+
+(define-public (call-big-tuple-slightly-unequal)
+    (ok (is-eq {name: "Hubert Bonisseur de La Bath", alias: "OSS 117", creation: 1949} {name: "Hubert Bonisseur de la Bath", alias: "OSS 117", creation: 1949}))
+)
+
+(define-public (call-big-tuple-unequal)
+    (ok (is-eq {name: "Hubert Bonisseur de la Bath", alias: "OSS 117", creation: 1949} {name: "James Bond", alias: "007", creation: 1953}))
+)
+
+(define-public (call-tuple-recursive-equal)
+    (ok (is-eq {name: "James Bond", creator: {name: "Ian Fleming", date: (some 1953)}} {name: "James Bond", creator: {name: "Ian Fleming", date: (some 1953)}}))
+)
+
+(define-public (call-tuple-recursive-unequal)
+    (ok (is-eq {name: "James Bond", creator: {name: "Ian Fleming", date: (some 1953)}} {name: "James Bond", creator: {name: "Ian Fleming", date: none}}))
+)

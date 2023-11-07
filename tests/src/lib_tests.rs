@@ -3222,6 +3222,96 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_call_one_tuple_equal,
+    "equal",
+    "call-one-tuple-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_one_tuple_unequal,
+    "equal",
+    "call-one-tuple-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_tuple_equal,
+    "equal",
+    "call-tuple-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_tuple_unequal,
+    "equal",
+    "call-tuple-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_big_tuple_equal,
+    "equal",
+    "call-big-tuple-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_big_tuple_slightly_unequal,
+    "equal",
+    "call-big-tuple-slightly-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_big_tuple_unequal,
+    "equal",
+    "call-big-tuple-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_tuple_recursive_equal,
+    "equal",
+    "call-tuple-recursive-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_tuple_recursive_unequal,
+    "equal",
+    "call-tuple-recursive-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_append,
     "sequences",
     "list-append",
