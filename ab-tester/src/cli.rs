@@ -4,10 +4,9 @@ mod console;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use color_eyre::eyre::{bail, ensure, Result};
+use color_eyre::eyre::{bail, Result};
 
 use crate::context::ReplayOpts;
-use crate::errors::AppError;
 use crate::ok;
 
 /// Our CLI entrypoint.
@@ -110,17 +109,6 @@ pub struct DataArgs {
         help = "Filter all processing to only the specified qualified contract id."
     )]
     pub contract_id: Option<String>,
-}
-
-impl Default for DataArgs {
-    fn default() -> Self {
-        Self { 
-            from_height: 0, 
-            to_height: None, 
-            max_block_count: None, 
-            contract_id: None 
-        }
-    }
 }
 
 impl From<DataArgs> for Option<ReplayOpts> {
