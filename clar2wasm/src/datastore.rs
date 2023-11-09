@@ -4,8 +4,6 @@
 //! in production. The `datastore` module is only available when the
 //! `developer-mode` feature is enabled.
 
-use sha2::{Digest, Sha512_256};
-
 use clarity::types::chainstate::BlockHeaderHash;
 use clarity::types::chainstate::BurnchainHeaderHash;
 use clarity::types::chainstate::ConsensusHash;
@@ -15,12 +13,15 @@ use clarity::types::chainstate::StacksBlockId;
 use clarity::types::chainstate::VRFSeed;
 use clarity::types::StacksEpochId;
 use clarity::util::hash::Sha512Trunc256Sum;
+use clarity::vm::analysis::AnalysisDatabase;
 use clarity::vm::database::BurnStateDB;
 use clarity::vm::database::{ClarityBackingStore, HeadersDB};
 use clarity::vm::errors::InterpreterResult as Result;
 use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::types::TupleData;
 use clarity::vm::StacksEpoch;
+use clarity::vm::Value;
+use sha2::{Digest, Sha512_256};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -63,7 +64,13 @@ pub struct BurnDatastore {
     store: HashMap<StacksBlockId, BlockInfo>,
     sortition_lookup: HashMap<SortitionId, StacksBlockId>,
     consensus_hash_lookup: HashMap<ConsensusHash, SortitionId>,
+    block_id_lookup: HashMap<StacksBlockId, StacksBlockId>,
+    open_chain_tip: StacksBlockId,
+    current_chain_tip: StacksBlockId,
+    chain_height: u32,
+    height_at_chain_tip: HashMap<StacksBlockId, u32>,
     constants: StacksConstants,
+    genesis_time: u64,
 }
 
 fn height_to_hashed_bytes(height: u32) -> [u8; 32] {
@@ -76,6 +83,64 @@ fn height_to_hashed_bytes(height: u32) -> [u8; 32] {
 
 fn height_to_id(height: u32) -> StacksBlockId {
     StacksBlockId(height_to_hashed_bytes(height))
+}
+
+fn height_to_block(height: u32, genesis_time: Option<u64>) -> BlockInfo {
+    let bytes = height_to_hashed_bytes(height);
+    let genesis_time = genesis_time.unwrap_or(0);
+
+    let block_header_hash = {
+        let mut buffer = bytes;
+        buffer[0] = 1;
+        BlockHeaderHash(buffer)
+    };
+    let burn_block_header_hash = {
+        let mut buffer = bytes;
+        buffer[0] = 2;
+        BurnchainHeaderHash(buffer)
+    };
+    let consensus_hash = {
+        let mut buffer = bytes;
+        buffer[0] = 3;
+        ConsensusHash::from_bytes(&buffer[0..20]).unwrap()
+    };
+    let vrf_seed = {
+        let mut buffer = bytes;
+        buffer[0] = 4;
+        VRFSeed(buffer)
+    };
+    let time_since_genesis: u64 = (height * 1800).into();
+    let burn_block_time: u64 = genesis_time + time_since_genesis;
+    let burn_block_height = height;
+    let miner = StacksAddress::burn_address(true);
+    let burnchain_tokens_spent_for_block = 2000;
+    let get_burnchain_tokens_spent_for_winning_block = 2000;
+    let tokens_earned_for_block = 5000;
+    let pox_payout_addrs = (
+        vec![TupleData::from_data(vec![
+            (
+                "hashbytes".into(),
+                Value::buff_from([0; 32].to_vec()).unwrap(),
+            ),
+            ("version".into(), Value::buff_from_byte(0)),
+        ])
+        .unwrap()],
+        0_u128,
+    );
+
+    BlockInfo {
+        block_header_hash,
+        burn_block_header_hash,
+        consensus_hash,
+        vrf_seed,
+        burn_block_time,
+        burn_block_height,
+        miner,
+        burnchain_tokens_spent_for_block,
+        get_burnchain_tokens_spent_for_winning_block,
+        tokens_earned_for_block,
+        pox_payout_addrs,
+    }
 }
 
 impl Datastore {
@@ -100,6 +165,27 @@ impl Datastore {
             chain_height: 0,
             height_at_chain_tip: id_height_map,
         }
+    }
+
+    pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
+        let cur_height = self.chain_height;
+        let current_lookup_id = *self
+            .block_id_lookup
+            .get(&self.open_chain_tip)
+            .expect("Open chain tip missing in block id lookup table");
+
+        for i in 1..=count {
+            let height = cur_height + i;
+            let id = height_to_id(height);
+
+            self.block_id_lookup.insert(id, current_lookup_id);
+            self.height_at_chain_tip.insert(id, height);
+        }
+
+        self.chain_height += count;
+        self.open_chain_tip = height_to_id(self.chain_height);
+        self.current_chain_tip = self.open_chain_tip;
+        self.chain_height
     }
 }
 
@@ -214,7 +300,7 @@ impl ClarityBackingStore for Datastore {
     }
 
     #[cfg(not(feature = "wasm"))]
-    fn get_side_store(&mut self) -> &rusqlite::Connection {
+    fn get_side_store(&mut self) -> &::clarity::rusqlite::Connection {
         panic!("Datastore cannot get_side_store")
     }
 }
@@ -237,7 +323,17 @@ impl BurnDatastore {
             burnchain_tokens_spent_for_block: 0,
             get_burnchain_tokens_spent_for_winning_block: 0,
             tokens_earned_for_block: 0,
-            pox_payout_addrs: (vec![], 0),
+            pox_payout_addrs: (
+                vec![TupleData::from_data(vec![
+                    (
+                        "hashbytes".into(),
+                        Value::buff_from([0; 32].to_vec()).unwrap(),
+                    ),
+                    ("version".into(), Value::buff_from_byte(0)),
+                ])
+                .unwrap()],
+                0_u128,
+            ),
         };
 
         let mut height_at_chain_tip = HashMap::new();
@@ -262,12 +358,58 @@ impl BurnDatastore {
             store,
             sortition_lookup,
             consensus_hash_lookup,
+            block_id_lookup,
+            open_chain_tip: id,
+            current_chain_tip: id,
+            chain_height: 0,
+            height_at_chain_tip,
             constants,
+            genesis_time,
         }
+    }
+
+    pub fn advance_chain_tip(&mut self, count: u32) {
+        let cur_height = self.chain_height;
+        let current_lookup_id = *self
+            .block_id_lookup
+            .get(&self.open_chain_tip)
+            .expect("Open chain tip missing in block id lookup table");
+        let genesis_time = self.genesis_time;
+
+        for i in 1..=count {
+            let height = cur_height + i;
+            let bytes = height_to_hashed_bytes(height);
+            let id = StacksBlockId(bytes);
+            let sortition_id = SortitionId(bytes);
+            let block_info = height_to_block(height, Some(genesis_time));
+            self.block_id_lookup.insert(id, current_lookup_id);
+            self.height_at_chain_tip.insert(id, height);
+            self.sortition_lookup.insert(sortition_id, id);
+            self.consensus_hash_lookup
+                .insert(block_info.consensus_hash, sortition_id);
+            self.store.insert(id, block_info);
+        }
+
+        self.chain_height += count;
+        self.open_chain_tip = height_to_id(self.chain_height);
+        self.current_chain_tip = self.open_chain_tip;
     }
 }
 
 impl HeadersDB for BurnDatastore {
+    // fn get(&mut self, key: &str) -> Option<String> {
+    //     let lookup_id = self
+    //         .block_id_lookup
+    //         .get(&self.current_chain_tip)
+    //         .expect("Could not find current chain tip in block_id_lookup map");
+
+    //     if let Some(map) = self.store.get(lookup_id) {
+    //         map.get(key).map(|v| v.clone())
+    //     } else {
+    //         panic!("Block does not exist for current chain tip");
+    //     }
+    // }
+
     fn get_stacks_block_header_hash_for_block(
         &self,
         id_bhh: &StacksBlockId,
@@ -402,8 +544,62 @@ impl BurnStateDB for BurnDatastore {
 }
 
 impl Datastore {
+    pub fn open(_path_str: &str, _miner_tip: Option<&StacksBlockId>) -> Result<Datastore> {
+        Ok(Datastore::new())
+    }
+
+    pub fn as_analysis_db(&mut self) -> AnalysisDatabase<'_> {
+        AnalysisDatabase::new(self)
+    }
+
+    /// begin, commit, rollback a save point identified by key
+    ///    this is used to clean up any data from aborted blocks
+    ///     (NOT aborted transactions that is handled by the clarity vm directly).
+    /// The block header hash is used for identifying savepoints.
+    ///     this _cannot_ be used to rollback to arbitrary prior block hash, because that
+    ///     blockhash would already have committed and no longer exist in the save point stack.
+    /// this is a "lower-level" rollback than the roll backs performed in
+    ///   ClarityDatabase or AnalysisDatabase -- this is done at the backing store level.
+
+    pub fn begin(&mut self, _current: &StacksBlockId, _next: &StacksBlockId) {
+        // self.marf.begin(current, next)
+        //     .expect(&format!("ERROR: Failed to begin new MARF block {} - {})", current, next));
+        // self.chain_tip = self.marf.get_open_chain_tip()
+        //     .expect("ERROR: Failed to get open MARF")
+        //     .clone();
+        // self.side_store.begin(&self.chain_tip);
+    }
+    pub fn rollback(&mut self) {
+        // self.marf.drop_current();
+        // self.side_store.rollback(&self.chain_tip);
+        // self.chain_tip = StacksBlockId::sentinel();
+    }
+    // This is used by miners
+    //   so that the block validation and processing logic doesn't
+    //   reprocess the same data as if it were already loaded
+    pub fn commit_mined_block(&mut self, _will_move_to: &StacksBlockId) {
+        // rollback the side_store
+        //    the side_store shouldn't commit data for blocks that won't be
+        //    included in the processed chainstate (like a block constructed during mining)
+        //    _if_ for some reason, we do want to be able to access that mined chain state in the future,
+        //    we should probably commit the data to a different table which does not have uniqueness constraints.
+        // self.side_store.rollback(&self.chain_tip);
+        // self.marf.commit_mined(will_move_to)
+        //     .expect("ERROR: Failed to commit MARF block");
+    }
+    pub fn commit_to(&mut self, _final_bhh: &StacksBlockId) {
+        // println!("commit_to({})", final_bhh);
+        // self.side_store.commit_metadata_to(&self.chain_tip, final_bhh);
+        // self.side_store.commit(&self.chain_tip);
+        // self.marf.commit_to(final_bhh)
+        //     .expect("ERROR: Failed to commit MARF block");
+    }
     pub fn get_chain_tip(&self) -> &StacksBlockId {
         &self.current_chain_tip
+    }
+
+    pub fn set_chain_tip(&mut self, bhh: &StacksBlockId) {
+        self.current_chain_tip = *bhh;
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
@@ -432,5 +628,9 @@ impl Datastore {
         } else {
             panic!("Block does not exist for current chain tip");
         }
+    }
+
+    pub fn make_contract_hash_key(contract: &QualifiedContractIdentifier) -> String {
+        format!("clarity-contract::{}", contract)
     }
 }

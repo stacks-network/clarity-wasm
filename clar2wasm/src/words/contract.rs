@@ -139,11 +139,14 @@ mod tests {
     (ok u42)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            "(contract-call? .contract-callee no-args)",
-        );
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee no-args)",
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::UInt(42)).unwrap());
     }
@@ -158,11 +161,14 @@ mod tests {
     (ok x)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            "(contract-call? .contract-callee one-simple-arg 42)",
-        );
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee one-simple-arg 42)",
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::Int(42)).unwrap());
     }
@@ -177,11 +183,14 @@ mod tests {
     (ok x)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"(contract-call? .contract-callee one-arg "hello")"#,
-        );
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"(contract-call? .contract-callee one-arg "hello")"#,
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(
             val.unwrap(),
@@ -200,11 +209,14 @@ mod tests {
     (ok (+ x y))
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"(contract-call? .contract-callee two-simple-args 17 42)"#,
-        );
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"(contract-call? .contract-callee two-simple-args 17 42)"#,
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::Int(17 + 42)).unwrap());
     }
@@ -219,11 +231,14 @@ mod tests {
     (ok (concat x y))
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"(contract-call? .contract-callee two-args "hello " "world")"#,
-        );
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"(contract-call? .contract-callee two-args "hello " "world")"#,
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(
             val.unwrap(),
@@ -245,17 +260,20 @@ mod tests {
     (ok u42)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"
 (use-trait test-trait .contract-callee.test-trait)
 (define-private (call-it (t <test-trait>))
     (contract-call? t no-args)
 )
 (call-it .contract-callee)
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::UInt(42)).unwrap());
     }
@@ -271,17 +289,20 @@ mod tests {
     (ok x)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"
 (use-trait test-trait .contract-callee.test-trait)
 (define-private (call-it (t <test-trait>) (x int))
     (contract-call? t one-simple-arg x)
 )
 (call-it .contract-callee 42)
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::Int(42)).unwrap());
     }
@@ -297,17 +318,20 @@ mod tests {
     (ok x)
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"
 (use-trait test-trait .contract-callee.test-trait)
 (define-private (call-it (t <test-trait>) (x (string-ascii 16)))
     (contract-call? t one-arg x)
 )
 (call-it .contract-callee "hello")
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(
             val.unwrap(),
@@ -327,17 +351,20 @@ mod tests {
     (ok (+ x y))
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"
 (use-trait test-trait .contract-callee.test-trait)
 (define-private (call-it (t <test-trait>) (x int) (y int))
     (contract-call? t two-simple-args x y)
 )
 (call-it .contract-callee 17 42)
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::Int(17 + 42)).unwrap());
     }
@@ -353,17 +380,19 @@ mod tests {
     (ok (concat x y))
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "contract-caller",
-            r#"
+        ).expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"
 (use-trait test-trait .contract-callee.test-trait)
 (define-private (call-it (t <test-trait>) (x (string-ascii 16)) (y (string-ascii 16)))
     (contract-call? t two-args x y)
 )
 (call-it .contract-callee "hello " "world")
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(
             val.unwrap(),

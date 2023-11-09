@@ -212,6 +212,24 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "enter_at_block",
+            |_block_hash_offset: i32, _block_hash_length: i32| {
+                println!("at-block: enter");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "exit_at_block", |_: Caller<'_, ()>| {
+            println!("at-block: exit");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "stx_get_balance",
             |_principal_offset: i32, _principal_length: i32| Ok((0i64, 0i64)),
         )

@@ -385,12 +385,11 @@ impl WasmGenerator {
         include_repr: bool,
         include_value: bool,
     ) -> (LocalId, i32) {
-        let size = if include_value {
-            get_type_in_memory_size(ty, include_repr)
-        } else if include_repr {
-            get_type_size(ty)
-        } else {
-            unreachable!("must include either repr or value")
+        let size = match (include_value, include_repr) {
+            (true, true) => get_type_in_memory_size(ty, include_repr) + get_type_size(ty),
+            (true, false) => get_type_in_memory_size(ty, include_repr),
+            (false, true) => get_type_size(ty),
+            (false, false) => unreachable!("must include either repr or value"),
         };
 
         // Save the offset (current stack pointer) into a local
