@@ -142,16 +142,16 @@ impl<'a> RuntimeEnvCallbacks<'a> {
 
 #[derive(Clone, Default)]
 pub struct ReplayCallbacks<'a> {
-    replay_start: Option<&'a dyn Fn(u32)>,
-    replay_finish: Option<&'a dyn Fn()>,
-    replay_block_start: Option<&'a dyn Fn(u32, u32)>,
-    replay_block_finish: Option<&'a dyn Fn()>,
-    replay_tx_start: Option<&'a dyn Fn()>,
-    replay_tx_finish: Option<&'a dyn Fn()>,
+    pub replay_start: Option<&'a dyn Fn(usize)>,
+    pub replay_finish: Option<&'a dyn Fn()>,
+    pub replay_block_start: Option<&'a dyn Fn(u32, u32)>,
+    pub replay_block_finish: Option<&'a dyn Fn()>,
+    pub replay_tx_start: Option<&'a dyn Fn()>,
+    pub replay_tx_finish: Option<&'a dyn Fn()>,
 }
 
 impl ReplayCallbacks<'_> {
-    pub fn replay_start(&self, block_count: u32) {
+    pub fn replay_start(&self, block_count: usize) {
         if let Some(func) = self.replay_start {
             func(block_count);
         }

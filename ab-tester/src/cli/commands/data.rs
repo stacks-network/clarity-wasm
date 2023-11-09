@@ -5,10 +5,8 @@ use log::*;
 use crate::{
     cli::DataArgs,
     context::{
-        self,
-        environments::{ReadableEnv, RuntimeEnvBuilder},
-        replay::ReplayOpts,
-        Block, ComparisonContext, Network, Runtime,
+        callbacks::ReplayCallbacks, environments::RuntimeEnvBuilder, replay::ReplayOpts,
+        ComparisonContext, Network, Runtime,
     },
     db::appdb::AppDb,
     ok,
@@ -36,11 +34,22 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         "/home/cylwit/clarity-ab/wasm",
     )?;
 
+    let mut replay_opts: ReplayOpts = data_args.into();
+
+    replay_opts.with_callbacks(ReplayCallbacks {
+        replay_start: None,
+        replay_finish: None,
+        replay_block_start: Some(&|a, b| {}),
+        replay_block_finish: None,
+        replay_tx_start: None,
+        replay_tx_finish: None,
+    });
+
     let comparator = ComparisonContext::new(&app_db)
         .using_baseline(&mut baseline_env)
         .instrument_into(&mut interpreter_env)
         .instrument_into(&mut wasm_env)
-        .replay(data_args.into())?;
+        .replay(&replay_opts)?;
 
     std::process::exit(0);
 

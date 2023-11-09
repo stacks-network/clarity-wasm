@@ -53,16 +53,13 @@ impl<'a> ComparisonContext<'a> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(&mut self, opts: Option<ReplayOpts>) -> Result<ReplayResult> {
+    pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
         let baseline_env = self
             .baseline_env
             .as_mut()
             .ok_or(anyhow!("baseline environment has need been specified"))?;
 
         baseline_env.open()?;
-
-        let default_opts = ReplayOpts::default();
-        let opts = opts.as_ref().unwrap_or(&default_opts);
 
         for env in &mut self.instrumented_envs {
             info!(

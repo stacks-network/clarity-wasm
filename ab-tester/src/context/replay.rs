@@ -8,6 +8,7 @@ use super::{
     environments::{ReadableEnv, WriteableEnv},
 };
 
+/// Options for replaying an environment's chain into another environment.
 #[derive(Default, Clone)]
 pub struct ReplayOpts<'a> {
     pub from_height: Option<u32>,
@@ -16,7 +17,14 @@ pub struct ReplayOpts<'a> {
     pub callbacks: ReplayCallbacks<'a>,
 }
 
-impl ReplayOpts<'_> {
+/// Validation/assertion helper methods for [ReplayOpts].
+impl<'a> ReplayOpts<'a> {
+    pub fn with_callbacks(&'_ mut self, callbacks: ReplayCallbacks<'a>) {
+        self.callbacks = callbacks;
+    }
+
+    /// Asserts that the current `processeed_block_count` hasn't exceedeed the
+    /// provided block count parameter.
     pub fn assert_max_processed_block_count(&self, processed_block_count: u32) -> Result<()> {
         if let Some(max_blocks) = self.max_blocks {
             ensure!(
@@ -28,6 +36,8 @@ impl ReplayOpts<'_> {
         ok!()
     }
 
+    /// Asserts that the provided block height doesn't exceed the max block height,
+    /// if provided.
     pub fn assert_block_height_under_max_height(&self, block_height: u32) -> Result<()> {
         if let Some(to_height) = self.to_height {
             ensure!(
@@ -42,6 +52,7 @@ impl ReplayOpts<'_> {
     }
 }
 
+/// Provides methods for replaying a [ReadableEnv] into a [WriteableEnv].
 pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
@@ -56,6 +67,9 @@ impl ChainStateReplayer {
         );
 
         let mut processed_block_count = 0;
+
+        let blocks = source.blocks()?;
+        opts.callbacks.replay_start(blocks.len());
 
         for block in source.blocks()?.into_iter() {
             let (header, stacks_block) = match &block {
@@ -126,6 +140,7 @@ impl ChainStateReplayer {
             }*/
         }
 
+        opts.callbacks.replay_finish();
         info!("blocks processed: {processed_block_count}");
 
         ok!()

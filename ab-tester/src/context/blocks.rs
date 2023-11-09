@@ -124,12 +124,18 @@ impl std::fmt::Debug for BlockCursor {
 /// Implementation of [BlockCursor].
 #[allow(dead_code)]
 impl BlockCursor {
+    /// Instantiates a new instance of [BlockCursor] using the provided `blocks_dir`
+    /// and [BlockHeader]s.
     pub fn new(blocks_dir: &str, headers: Vec<BlockHeader>) -> Self {
         Self {
             blocks_dir: blocks_dir.to_string(),
             height: 0,
             headers,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.headers.len()
     }
 
     /// Gets the current position of the cursor.

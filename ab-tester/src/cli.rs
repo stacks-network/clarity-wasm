@@ -204,14 +204,14 @@ pub struct DataArgs {
     pub contract_id: Option<String>,
 }
 
-impl From<DataArgs> for Option<ReplayOpts<'_>> {
+impl From<DataArgs> for ReplayOpts<'_> {
     fn from(value: DataArgs) -> Self {
-        Some(ReplayOpts {
+        ReplayOpts {
             from_height: Some(value.from_height),
             to_height: value.to_height,
             max_blocks: value.max_block_count,
             callbacks: Default::default(),
-        })
+        }
     }
 }
 
