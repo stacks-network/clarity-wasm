@@ -10,7 +10,7 @@ use crate::{
 
 use self::{instrumented::InstrumentedEnv, network::NetworkEnv, stacks_node::StacksNodeEnv};
 
-use super::{blocks::BlockCursor, Block, Network, Runtime, callbacks::RuntimeEnvCallbacks};
+use super::{blocks::BlockCursor, callbacks::RuntimeEnvCallbacks, Block, Network, Runtime};
 
 mod instrumented;
 mod network;

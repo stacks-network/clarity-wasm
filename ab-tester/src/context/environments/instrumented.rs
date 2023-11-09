@@ -19,7 +19,7 @@ use crate::{
     ok, stacks,
 };
 
-use super::{ReadableEnv, RuntimeEnv, WriteableEnv, RuntimeEnvCallbacks};
+use super::{ReadableEnv, RuntimeEnv, RuntimeEnvCallbacks, WriteableEnv};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig<'a> {
@@ -230,7 +230,8 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
 
         //debug!("attempting to migrate sortition db");
         debug!("opening sortition db");
-        self.callbacks.open_sortition_db_start(&paths.sortition_db_path);
+        self.callbacks
+            .open_sortition_db_start(&paths.sortition_db_path);
         let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
         self.callbacks.open_sortition_db_finish();
         info!("successfully opened sortition db");

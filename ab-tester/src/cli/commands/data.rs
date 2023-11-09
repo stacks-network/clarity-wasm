@@ -7,7 +7,8 @@ use crate::{
     context::{
         self,
         environments::{ReadableEnv, RuntimeEnvBuilder},
-        Block, ComparisonContext, Network, ReplayOpts, Runtime,
+        replay::ReplayOpts,
+        Block, ComparisonContext, Network, Runtime,
     },
     db::appdb::AppDb,
     ok,

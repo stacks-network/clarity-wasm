@@ -42,7 +42,7 @@ pub struct StacksNodeEnv<'a> {
     name: &'a str,
     env_config: StacksNodeEnvConfig<'a>,
     env_state: Option<StacksNodeEnvState>,
-    callbacks: RuntimeEnvCallbacks<'a>
+    callbacks: RuntimeEnvCallbacks<'a>,
 }
 
 impl<'a> StacksNodeEnv<'a> {
@@ -234,7 +234,7 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
     fn open(&mut self) -> Result<()> {
         let paths = &self.env_config.paths;
         let name = self.name;
-        
+
         self.callbacks.env_open_start(name);
         paths.print(name);
 
@@ -284,7 +284,8 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
 
         //debug!("attempting to migrate sortition db");
         debug!("[{name}] opening sortition db");
-        self.callbacks.open_sortition_db_start(&paths.sortition_db_path);
+        self.callbacks
+            .open_sortition_db_start(&paths.sortition_db_path);
         let sortition_db = super::open_sortition_db(&paths.sortition_db_path, &network)?;
         self.callbacks.open_sortition_db_finish();
         info!("[{name}] successfully opened sortition db");

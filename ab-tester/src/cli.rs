@@ -7,7 +7,7 @@ use clap::{Args, Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use color_eyre::eyre::{bail, Result};
 
-use crate::context::{ReplayOpts, Runtime};
+use crate::context::{replay::ReplayOpts, Runtime};
 use crate::ok;
 
 /// Our CLI entrypoint.
@@ -204,12 +204,13 @@ pub struct DataArgs {
     pub contract_id: Option<String>,
 }
 
-impl From<DataArgs> for Option<ReplayOpts> {
+impl From<DataArgs> for Option<ReplayOpts<'_>> {
     fn from(value: DataArgs) -> Self {
         Some(ReplayOpts {
             from_height: Some(value.from_height),
             to_height: value.to_height,
             max_blocks: value.max_block_count,
+            callbacks: Default::default(),
         })
     }
 }
