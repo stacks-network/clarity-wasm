@@ -121,14 +121,16 @@ mod tests {
     #[test]
     fn define_trait_check_context() {
         let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "token-trait",
-            r#"
+        let val = env
+            .init_contract_with_snippet(
+                "token-trait",
+                r#"
 (define-trait token-trait
     ((transfer? (principal principal uint) (response uint uint))
         (get-balance (principal) (response uint uint))))
              "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert!(val.is_none());
         let contract_context = env.get_contract_context("token-trait").unwrap();
@@ -147,9 +149,11 @@ mod tests {
 (define-trait my-trait
     ((add (int int) (response int int))))
              "#,
-        );
-        let val =
-            env.init_contract_with_snippet("use-token", "(use-trait the-trait .my-trait.my-trait)");
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet("use-token", "(use-trait the-trait .my-trait.my-trait)")
+            .expect("Failed to init contract.");
 
         assert!(val.is_none());
     }
@@ -166,17 +170,20 @@ mod tests {
   (ok (+ a b))
 )
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "use-trait",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "use-trait",
+                r#"
 (use-trait the-trait .my-trait.my-trait)
 (define-private (foo (adder <the-trait>) (a int) (b int))
     (contract-call? adder add a b)
 )
 (foo .my-trait 1 2)
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert_eq!(val.unwrap(), Value::okay(Value::Int(3)).unwrap());
     }
@@ -190,16 +197,19 @@ mod tests {
 (define-trait my-trait
   ((add (int int) (response int int))))
             "#,
-        );
-        let val = env.init_contract_with_snippet(
-            "impl-trait",
-            r#"
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "impl-trait",
+                r#"
 (impl-trait .my-trait.my-trait)
 (define-public (add (a int) (b int))
   (ok (+ a b))
 )
             "#,
-        );
+            )
+            .expect("Failed to init contract.");
 
         assert!(val.is_none());
 

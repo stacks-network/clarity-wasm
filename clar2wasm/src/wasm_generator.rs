@@ -385,12 +385,11 @@ impl WasmGenerator {
         include_repr: bool,
         include_value: bool,
     ) -> (LocalId, i32) {
-        let size = if include_value {
-            get_type_in_memory_size(ty, include_repr)
-        } else if include_repr {
-            get_type_size(ty)
-        } else {
-            unreachable!("must include either repr or value")
+        let size = match (include_value, include_repr) {
+            (true, true) => get_type_in_memory_size(ty, include_repr) + get_type_size(ty),
+            (true, false) => get_type_in_memory_size(ty, include_repr),
+            (false, true) => get_type_size(ty),
+            (false, false) => unreachable!("must include either repr or value"),
         };
 
         // Save the offset (current stack pointer) into a local
@@ -584,6 +583,16 @@ impl WasmGenerator {
                     },
                 );
                 8
+            }
+            TypeSignature::TupleType(tuple) => {
+                // Memory: Offset -> | Value1 | Value2 | ... |
+                let mut offset_adjust = 0;
+                for ty in tuple.get_type_map().values() {
+                    offset_adjust +=
+                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)
+                            as u32;
+                }
+                offset_adjust as i32
             }
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
