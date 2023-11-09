@@ -480,6 +480,39 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "keccak256",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("keccak256");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("sha512");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512_256",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("sha512_256");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
