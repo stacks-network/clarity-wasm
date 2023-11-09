@@ -35,59 +35,121 @@ impl Word for IsEq {
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
-
-        // Save the first_op to a local to be further used.
-        // This allows to use the first_op value without
-        // traversing again the expression.
         let ty = generator
             .get_expr_type(first_op)
             .expect("is-eq value expression must be typed")
             .clone();
-        let val_locals = generator.save_to_locals(builder, &ty, true);
 
-        // Explicitly set to true.
-        // Shortcut for a case with only one operand.
+        // No need to go further if there is only one argument
+        if args.is_empty() {
+            drop_value(builder, &ty);
+            builder.i32_const(1); // TRUE
+            return Ok(());
+        }
+
+        // Save the first_op to a local to be further used.
+        // This allows to use the first_op value without
+        // traversing again the expression.
+        let wasm_types = clar2wasm_ty(&ty);
+        let val_locals: Vec<_> = wasm_types
+            .iter()
+            .map(|local_ty| generator.module.locals.add(*local_ty))
+            .collect();
+        assign_first_operand_to_locals(builder, &ty, &val_locals)?;
+
+        // initialize (reusable) locals for the other operands
+        let nth_locals: Vec<_> = wasm_types
+            .iter()
+            .map(|local_ty| generator.module.locals.add(*local_ty))
+            .collect();
+
+        // Initialize boolean result accumulator to TRUE
         builder.i32_const(1);
 
-        let mut all_correct_type = true;
-        let mut nth_locals = Vec::with_capacity(wasm_types.len());
         // Loop through remainder operands, if the case.
         for operand in args.iter().skip(1) {
             // push the new operand on the stack
             generator.traverse_expr(builder, operand)?;
 
-            // check if types are identical:
-            // if yes, we go with equality checks,
-            // otherwise it's automatically false
-
+            // insert the new operand into locals
             let operand_ty = generator
                 .get_expr_type(operand)
                 .expect("is-eq value expression must be typed");
+            assign_to_locals(builder, &ty, operand_ty, &nth_locals)?;
 
-            if all_correct_type && &ty == operand_ty {
-                // insert the new operand into locals
-                for local_ty in wasm_types.iter().rev() {
-                    let local = generator.module.locals.add(*local_ty);
-                    nth_locals.push(local);
-                    builder.local_set(local);
-                }
-                nth_locals.reverse();
+            // check equality
+            wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
 
-                // check equality
-                wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
-
-                nth_locals.clear();
-            } else {
-                all_correct_type &= false;
-                drop_value(builder, operand_ty);
-                builder.i32_const(0);
-            }
             // Do an "and" operation with the result from the previous function call.
             builder.binop(BinaryOp::I32And);
         }
 
         Ok(())
     }
+}
+
+fn assign_to_locals(
+    builder: &mut walrus::InstrSeqBuilder,
+    original_ty: &TypeSignature,
+    current_ty: &TypeSignature,
+    locals: &[LocalId],
+) -> Result<(), GeneratorError> {
+    // WE HAVE TO GO THROUGH LOCALS IN REVERSE ORDER!!!
+    match (original_ty, current_ty) {
+        // Any NoType isn't worth assigning to a local, and can just be dropped
+        (TypeSignature::NoType, _) | (_, TypeSignature::NoType) => {
+            drop_value(builder, current_ty);
+        }
+        (TypeSignature::OptionalType(t), TypeSignature::OptionalType(s)) => {
+            let (variant_local, inner_locals) = locals.split_first().ok_or_else(|| {
+                GeneratorError::InternalError("missing locals for optional variant".to_string())
+            })?;
+            assign_to_locals(builder, t, s, inner_locals)?;
+            builder.local_set(*variant_local);
+        }
+        (TypeSignature::ResponseType(t), TypeSignature::ResponseType(s)) => {
+            let (variant_local, inner_locals) = locals.split_first().ok_or_else(|| {
+                GeneratorError::InternalError("missing locals for response variant".to_string())
+            })?;
+            let first_ok_size = clar2wasm_ty(&t.0).len();
+            let (ok_locals, err_locals) = inner_locals.split_at(first_ok_size);
+            assign_to_locals(builder, &t.1, &s.1, err_locals)?;
+            assign_to_locals(builder, &t.0, &s.0, ok_locals)?;
+            builder.local_set(*variant_local);
+        }
+        (TypeSignature::TupleType(t), TypeSignature::TupleType(s)) => {
+            let mut remaining_locals = locals;
+            for (tt, ss) in t
+                .get_type_map()
+                .values()
+                .rev()
+                .zip(s.get_type_map().values().rev())
+            {
+                let tt_size = clar2wasm_ty(tt).len();
+                let (rest, cur_locals) =
+                    remaining_locals.split_at(remaining_locals.len() - tt_size);
+                remaining_locals = rest;
+                assign_to_locals(builder, tt, ss, cur_locals)?;
+            }
+        }
+        // All the other types aren't influenced by inner NoType and can just be assigned automatically
+        _ => {
+            for i in (0..clar2wasm_ty(original_ty).len()).rev() {
+                builder.local_set(*locals.get(i).ok_or_else(|| {
+                    GeneratorError::InternalError("not enough locals for simple type".to_string())
+                })?);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn assign_first_operand_to_locals(
+    builder: &mut walrus::InstrSeqBuilder,
+    ty: &TypeSignature,
+    locals: &[LocalId],
+) -> Result<(), GeneratorError> {
+    assign_to_locals(builder, ty, ty, locals)
 }
 
 fn wasm_equal(
