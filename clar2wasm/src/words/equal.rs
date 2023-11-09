@@ -40,7 +40,7 @@ impl Word for IsEq {
                 return Err(GeneratorError::NotImplemented);
             }
         };
-        let func = generator.func_by_name(&format!("is-eq-{}", type_suffix));
+        let func = generator.func_by_name(&format!("stdlib.is-eq-{}", type_suffix));
 
         // Explicitly set to true.
         // Shortcut for a case with only one operand.

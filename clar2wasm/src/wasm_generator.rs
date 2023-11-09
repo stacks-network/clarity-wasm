@@ -680,7 +680,7 @@ impl WasmGenerator {
         builder.local_get(high).call(
             self.module
                 .funcs
-                .by_name("store-i64-be")
+                .by_name("stdlib.store-i64-be")
                 .expect("store-i64-be not found"),
         );
 
@@ -696,7 +696,7 @@ impl WasmGenerator {
         builder.local_get(low).call(
             self.module
                 .funcs
-                .by_name("store-i64-be")
+                .by_name("stdlib.store-i64-be")
                 .expect("store-i64-be not found"),
         );
         written += 8;
@@ -1103,7 +1103,7 @@ impl WasmGenerator {
         builder.call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name("stdlib.store-i32-be")
                 .expect("store-i32-be not found"),
         );
 
@@ -1225,7 +1225,7 @@ impl WasmGenerator {
         builder.local_get(length).call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name("stdlib.store-i32-be")
                 .expect("store-i32-be not found"),
         );
 
@@ -1295,7 +1295,7 @@ impl WasmGenerator {
         builder.local_get(length).call(
             self.module
                 .funcs
-                .by_name("store-i32-be")
+                .by_name("stdlib.store-i32-be")
                 .expect("store-i32-be not found"),
         );
 
@@ -1396,7 +1396,7 @@ impl WasmGenerator {
             .call(
                 self.module
                     .funcs
-                    .by_name("store-i32-be")
+                    .by_name("stdlib.store-i32-be")
                     .expect("store-i32-be not found"),
             );
 

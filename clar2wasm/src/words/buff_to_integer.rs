@@ -31,7 +31,7 @@ impl Word for BuffToUintBe {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("buff-to-uint-be", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder, args)
     }
 }
 
@@ -52,7 +52,7 @@ impl Word for BuffToIntBe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-be", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("buff-to-uint-be", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder, args)
     }
 }
 
@@ -71,7 +71,7 @@ impl Word for BuffToUintLe {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("buff-to-uint-le", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder, args)
     }
 }
 
@@ -92,6 +92,6 @@ impl Word for BuffToIntLe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-le", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("buff-to-uint-le", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder, args)
     }
 }

@@ -7,7 +7,7 @@ use crate::utils::load_stdlib;
 #[test]
 fn test_add_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let add = instance.get_func(&mut store, "add-uint").unwrap();
+    let add = instance.get_func(&mut store, "stdlib.add-uint").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -63,7 +63,7 @@ fn test_add_uint() {
 #[test]
 fn test_add_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let add = instance.get_func(&mut store, "add-int").unwrap();
+    let add = instance.get_func(&mut store, "stdlib.add-int").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 + 0 = 0
@@ -159,7 +159,7 @@ fn test_add_int() {
 #[test]
 fn test_sub_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sub = instance.get_func(&mut store, "sub-uint").unwrap();
+    let sub = instance.get_func(&mut store, "stdlib.sub-uint").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -222,7 +222,7 @@ fn test_sub_uint() {
 #[test]
 fn test_sub_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sub = instance.get_func(&mut store, "sub-int").unwrap();
+    let sub = instance.get_func(&mut store, "stdlib.sub-int").unwrap();
     let mut sum = [Val::I64(0), Val::I64(0)];
 
     // 0 - 0 = 0
@@ -284,7 +284,7 @@ fn test_sub_int() {
 #[test]
 fn test_mul_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let mul = instance.get_func(&mut store, "mul-uint").unwrap();
+    let mul = instance.get_func(&mut store, "stdlib.mul-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -467,7 +467,7 @@ fn test_mul_uint() {
 #[test]
 fn test_mul_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let mul = instance.get_func(&mut store, "mul-int").unwrap();
+    let mul = instance.get_func(&mut store, "stdlib.mul-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 0 * 0 = 0
@@ -612,7 +612,7 @@ fn test_mul_int() {
 #[test]
 fn test_div_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let div = instance.get_func(&mut store, "div-uint").unwrap();
+    let div = instance.get_func(&mut store, "stdlib.div-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -677,7 +677,7 @@ fn test_div_uint() {
 #[test]
 fn test_div_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let div = instance.get_func(&mut store, "div-int").unwrap();
+    let div = instance.get_func(&mut store, "stdlib.div-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 / 2 = 2
@@ -739,7 +739,7 @@ fn test_div_int() {
 #[test]
 fn test_mod_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let modulo = instance.get_func(&mut store, "mod-uint").unwrap();
+    let modulo = instance.get_func(&mut store, "stdlib.mod-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 4 % 2 = 0
@@ -810,7 +810,7 @@ fn test_mod_uint() {
 #[test]
 fn test_mod_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let modulo = instance.get_func(&mut store, "mod-int").unwrap();
+    let modulo = instance.get_func(&mut store, "stdlib.mod-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // 7 % 4 = 3
@@ -870,7 +870,7 @@ fn test_mod_int() {
 #[test]
 fn test_lt_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let lt = instance.get_func(&mut store, "lt-uint").unwrap();
+    let lt = instance.get_func(&mut store, "stdlib.lt-uint").unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 < 1 is true
@@ -985,7 +985,7 @@ fn test_lt_uint() {
 #[test]
 fn test_gt_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let gt = instance.get_func(&mut store, "gt-uint").unwrap();
+    let gt = instance.get_func(&mut store, "stdlib.gt-uint").unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 > 1 is false
@@ -1100,7 +1100,7 @@ fn test_gt_uint() {
 #[test]
 fn test_le_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let le = instance.get_func(&mut store, "le-uint").unwrap();
+    let le = instance.get_func(&mut store, "stdlib.le-uint").unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 <= 1 is true
@@ -1215,7 +1215,7 @@ fn test_le_uint() {
 #[test]
 fn test_ge_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let ge = instance.get_func(&mut store, "ge-uint").unwrap();
+    let ge = instance.get_func(&mut store, "stdlib.ge-uint").unwrap();
     let mut result = [Val::I32(0)];
 
     // 0 >= 1 is false
@@ -1330,7 +1330,7 @@ fn test_ge_uint() {
 #[test]
 fn test_lt_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let lt = instance.get_func(&mut store, "lt-int").unwrap();
+    let lt = instance.get_func(&mut store, "stdlib.lt-int").unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 < 1 is false
@@ -1418,7 +1418,7 @@ fn test_lt_int() {
 #[test]
 fn test_gt_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let gt = instance.get_func(&mut store, "gt-int").unwrap();
+    let gt = instance.get_func(&mut store, "stdlib.gt-int").unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 > 1 is false
@@ -1506,7 +1506,7 @@ fn test_gt_int() {
 #[test]
 fn test_le_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let le = instance.get_func(&mut store, "le-int").unwrap();
+    let le = instance.get_func(&mut store, "stdlib.le-int").unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 <= 1 is true
@@ -1594,7 +1594,7 @@ fn test_le_int() {
 #[test]
 fn test_ge_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let ge = instance.get_func(&mut store, "ge-int").unwrap();
+    let ge = instance.get_func(&mut store, "stdlib.ge-int").unwrap();
     let mut result = [Val::I32(0)];
 
     // 1 >= 1 is true
@@ -1729,28 +1729,28 @@ fn test_cmp_buff(func_name: &str, reference_func: impl Fn(&[u8], &[u8]) -> bool)
 
 #[test]
 fn test_lt_buff() {
-    test_cmp_buff("lt-buff", |a, b| a < b)
+    test_cmp_buff("stdlib.lt-buff", |a, b| a < b)
 }
 
 #[test]
 fn test_gt_buff() {
-    test_cmp_buff("gt-buff", |a, b| a > b)
+    test_cmp_buff("stdlib.gt-buff", |a, b| a > b)
 }
 
 #[test]
 fn test_le_buff() {
-    test_cmp_buff("le-buff", |a, b| a <= b)
+    test_cmp_buff("stdlib.le-buff", |a, b| a <= b)
 }
 
 #[test]
 fn test_ge_buff() {
-    test_cmp_buff("ge-buff", |a, b| a >= b)
+    test_cmp_buff("stdlib.ge-buff", |a, b| a >= b)
 }
 
 #[test]
 fn test_log2_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let log2 = instance.get_func(&mut store, "log2-uint").unwrap();
+    let log2 = instance.get_func(&mut store, "stdlib.log2-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // log2(0) is an error
@@ -1779,7 +1779,7 @@ fn test_log2_uint() {
 #[test]
 fn test_log2_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let log2 = instance.get_func(&mut store, "log2-int").unwrap();
+    let log2 = instance.get_func(&mut store, "stdlib.log2-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // log2(0) is an error
@@ -1804,7 +1804,7 @@ fn test_log2_int() {
 #[test]
 fn test_sqrti_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sqrti = instance.get_func(&mut store, "sqrti-uint").unwrap();
+    let sqrti = instance.get_func(&mut store, "stdlib.sqrti-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // sqrti(0) = 0
@@ -1846,7 +1846,7 @@ fn test_sqrti_uint() {
 #[test]
 fn test_sqrti_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let sqrti = instance.get_func(&mut store, "sqrti-int").unwrap();
+    let sqrti = instance.get_func(&mut store, "stdlib.sqrti-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // sqrti(0) = 0
@@ -1886,7 +1886,7 @@ fn test_sqrti_int() {
 #[test]
 fn bit_not_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let bitnot = instance.get_func(&mut store, "bit-not-int").unwrap();
+    let bitnot = instance.get_func(&mut store, "stdlib.bit-not-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // bit-not(3) = -4
@@ -1900,7 +1900,7 @@ fn bit_not_int() {
 #[test]
 fn pow_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let pow = instance.get_func(&mut store, "pow-uint").unwrap();
+    let pow = instance.get_func(&mut store, "stdlib.pow-uint").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // pow(0, 0) == 1
@@ -2013,7 +2013,7 @@ fn pow_uint() {
 #[test]
 fn pow_int() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let pow = instance.get_func(&mut store, "pow-int").unwrap();
+    let pow = instance.get_func(&mut store, "stdlib.pow-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     // pow(0, 0) == 1
@@ -2323,7 +2323,7 @@ fn sha256_buf() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "sha256-buf").unwrap();
+    let sha256 = instance.get_func(&mut store, "stdlib.sha256-buf").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2427,7 +2427,7 @@ fn sha256_int() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let sha256 = instance.get_func(&mut store, "sha256-int").unwrap();
+    let sha256 = instance.get_func(&mut store, "stdlib.sha256-int").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2561,7 +2561,7 @@ fn hash160_buf() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let hash160 = instance.get_func(&mut store, "hash160-buf").unwrap();
+    let hash160 = instance.get_func(&mut store, "stdlib.hash160-buf").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2635,7 +2635,7 @@ fn hash160_int() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let hash160 = instance.get_func(&mut store, "hash160-int").unwrap();
+    let hash160 = instance.get_func(&mut store, "stdlib.hash160-int").unwrap();
     let mut result = [Val::I32(0), Val::I32(0)];
 
     // This algo needs space on the stack,
@@ -2673,7 +2673,9 @@ fn hash160_int() {
 #[test]
 fn store_i32_be() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let store_i32_be = instance.get_func(&mut store, "store-i32-be").unwrap();
+    let store_i32_be = instance
+        .get_func(&mut store, "stdlib.store-i32-be")
+        .unwrap();
     let mut result = [];
 
     // Write to a random unused place in the memory
@@ -2700,7 +2702,9 @@ fn store_i32_be() {
 #[test]
 fn store_i64_be() {
     let (instance, mut store) = load_stdlib().unwrap();
-    let store_i64_be = instance.get_func(&mut store, "store-i64-be").unwrap();
+    let store_i64_be = instance
+        .get_func(&mut store, "stdlib.store-i64-be")
+        .unwrap();
     let mut result = [];
 
     // Write to a random unused place in the memory
@@ -2732,7 +2736,9 @@ fn buff_to_uint_be() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let buff_to_uint_be = instance.get_func(&mut store, "buff-to-uint-be").unwrap();
+    let buff_to_uint_be = instance
+        .get_func(&mut store, "stdlib.buff-to-uint-be")
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     let mut test_buff = |buf: &[u8], expected_lo: u64, expected_hi: u64| {
@@ -2794,7 +2800,9 @@ fn buff_to_uint_le() {
         .get_memory(&mut store, "memory")
         .expect("Could not find memory");
 
-    let buff_to_uint_le = instance.get_func(&mut store, "buff-to-uint-le").unwrap();
+    let buff_to_uint_le = instance
+        .get_func(&mut store, "stdlib.buff-to-uint-le")
+        .unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
     let mut test_buff = |buf: &[u8], expected_lo: u64, expected_hi: u64| {

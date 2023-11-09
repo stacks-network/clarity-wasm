@@ -34,7 +34,7 @@ pub fn traverse_hash(
     let hash_func = generator
         .module
         .funcs
-        .by_name(&format!("{name}-{hash_type}"))
+        .by_name(&format!("stdlib.{name}-{hash_type}"))
         .unwrap_or_else(|| panic!("function not found: {name}-{hash_type}"));
 
     builder

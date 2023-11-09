@@ -25,7 +25,7 @@ pub fn traverse_typed_multi_value(
         }
     };
 
-    let func = generator.func_by_name(&format!("{name}-{type_suffix}"));
+    let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
     generator.traverse_expr(builder, &args[0])?;
     for operand in args.iter().skip(1) {

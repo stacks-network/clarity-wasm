@@ -241,7 +241,7 @@
     )
 
     ;; This function can be used to add either signed or unsigned integers
-    (func $add-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.add-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         ;; Add the lower 64 bits
         (local.tee $b_lo (i64.add (local.get $a_lo) (local.get $b_lo))) ;; $b_lo now contains the result lower bits
 
@@ -251,7 +251,7 @@
             (i64.add (local.get $a_hi) (local.get $b_hi)))                      ;; upper 64 bits
     )
 
-    (func $add-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.add-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $sum_hi i64)
         (local $sum_lo i64)
 
@@ -259,7 +259,7 @@
         (local.get $a_hi)
         (local.get $b_lo)
         (local.get $b_hi)
-        (call $add-int128)
+        (call $stdlib.add-int128)
 
         (local.set $sum_hi)
         (local.set $sum_lo)
@@ -277,13 +277,13 @@
         (return (local.get $sum_lo) (local.get $sum_hi))
     )
 
-    (func $add-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
-        (call $add-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+    (func $stdlib.add-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+        (call $stdlib.add-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
         (local.set $a_hi) ;; storing the result in place of first operand
         (local.set $a_lo)
 
         ;; overflow condition: sum (a) < operand (b)
-        (if (call $lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
+        (if (call $stdlib.lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
             (then (call $runtime-error (i32.const 0)))
         )
 
@@ -291,7 +291,7 @@
     )
 
     ;; This function can be used to subtract either signed or unsigned integers
-    (func $sub-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.sub-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $borrow i64)
         (local $diff_lo i64)
         (local $diff_hi i64)
@@ -309,7 +309,7 @@
         (return (local.get $diff_lo) (local.get $diff_hi))
     )
 
-    (func $sub-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.sub-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $diff_hi i64)
         (local $diff_lo i64)
 
@@ -317,7 +317,7 @@
         (local.get $a_hi)
         (local.get $b_lo)
         (local.get $b_hi)
-        (call $sub-int128)
+        (call $stdlib.sub-int128)
 
         (local.set $diff_hi)
         (local.set $diff_lo)
@@ -335,7 +335,7 @@
         (return (local.get $diff_lo) (local.get $diff_hi))
     )
 
-    (func $sub-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.sub-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $diff_hi i64)
         (local $diff_lo i64)
 
@@ -343,7 +343,7 @@
         (local.get $a_hi)
         (local.get $b_lo)
         (local.get $b_hi)
-        (call $sub-int128)
+        (call $stdlib.sub-int128)
 
         (local.set $diff_hi)
         (local.set $diff_lo)
@@ -357,7 +357,7 @@
         (return (local.get $diff_lo) (local.get $diff_hi))
     )
 
-    (func $mul-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.mul-int128 (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
     ;; Adaptation of Hacker's Delight, chapter 8
     ;; u1 <- $a_lo & 0xffffffff; v1 <- $b_lo & 0xffffffff
     ;; u2 <- $a_lo >> 32; v2 <- $b_lo >> 32
@@ -401,7 +401,7 @@
         (i64.add (i64.shr_u (local.get $t3) (i64.const 32)))
     )
 
-    (func $mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.mul-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $tmp i32)
 
         (local.set $tmp  ;; tmp contains the sum of number of leading zeros of arguments
@@ -414,7 +414,7 @@
         (if (i32.ge_u (local.get $tmp) (i32.const 128))
             (then
                 ;; product cannot overflow if the sum of leading zeros is >= 128
-                (return (call $mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
+                (return (call $stdlib.mul-int128 (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi)))
             )
         )
 
@@ -440,7 +440,7 @@
         (i64.shr_u (local.get $b_hi) (i64.const 1))
 
         ;; a * b/2
-        (call $mul-int128 (local.get $a_lo) (local.get $a_hi))
+        (call $stdlib.mul-int128 (local.get $a_lo) (local.get $a_hi))
         ;; b contains the result from now on
         (local.set $b_hi)
         (local.set $b_lo)
@@ -462,7 +462,7 @@
         ;; if b is odd ($tmp), we add a
         (if (local.get $tmp)
             (then
-                (call $add-uint (local.get $b_lo) (local.get $b_hi) (local.get $a_lo) (local.get $a_hi))
+                (call $stdlib.add-uint (local.get $b_lo) (local.get $b_hi) (local.get $a_lo) (local.get $a_hi))
                 (local.set $b_hi)
                 (local.set $b_lo)
             )
@@ -471,7 +471,7 @@
     )
 
 
-    (func $mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.mul-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $sign i32)
 
         ;; this is a shortcut for a multiplication by 1.
@@ -517,7 +517,7 @@
             )
         )
 
-        (call $mul-uint)
+        (call $stdlib.mul-uint)
         (local.set $a_hi)
         (local.set $a_lo)
 
@@ -539,7 +539,7 @@
         )
     )
 
-    (func $div-int128 (type 2) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64 i64 i64)
+    (func $stdlib.div-int128 (type 2) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64 i64 i64)
         (local $quotient_hi i64)
         (local $quotient_lo i64)
         (local $remainder_hi i64)
@@ -585,7 +585,7 @@
                                  (i64.ge_u (local.get $remainder_lo) (local.get $divisor_lo))))
                 (then
                     ;; Subtract the divisor from the remainder
-                    (call $sub-int128 (local.get $remainder_lo) (local.get $remainder_hi) (local.get $divisor_lo) (local.get $divisor_hi))
+                    (call $stdlib.sub-int128 (local.get $remainder_lo) (local.get $remainder_hi) (local.get $divisor_lo) (local.get $divisor_hi))
                     (local.set $remainder_hi)
                     (local.set $remainder_lo)
 
@@ -612,13 +612,13 @@
         (return (local.get $quotient_lo) (local.get $quotient_hi) (local.get $remainder_lo) (local.get $remainder_hi))
     )
 
-    (func $div-uint (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
+    (func $stdlib.div-uint (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
         (local $quotient_hi i64)
         (local $quotient_lo i64)
         (local $remainder_hi i64)
         (local $remainder_lo i64)
 
-        (call $div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
+        (call $stdlib.div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
         (local.set $remainder_hi)
         (local.set $remainder_lo)
         (local.set $quotient_hi)
@@ -627,7 +627,7 @@
         (return (local.get $quotient_lo) (local.get $quotient_hi))
     )
 
-    (func $div-int (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
+    (func $stdlib.div-int (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
         (local $quotient_hi i64)
         (local $quotient_lo i64)
         (local $remainder_hi i64)
@@ -644,20 +644,20 @@
         ;; Perform the division using the absolute values of the operands
         (if (i32.wrap_i64 (local.get $sign_dividend))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_lo) (local.get $dividend_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_lo) (local.get $dividend_hi))
                 (local.set $dividend_hi)
                 (local.set $dividend_lo)
             )
         )
         (if (i32.wrap_i64 (local.get $sign_divisor))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_lo) (local.get $divisor_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_lo) (local.get $divisor_hi))
                 (local.set $divisor_hi)
                 (local.set $divisor_lo)
             )
         )
 
-        (call $div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
+        (call $stdlib.div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
         (local.set $remainder_hi)
         (local.set $remainder_lo)
         (local.set $quotient_hi)
@@ -666,7 +666,7 @@
         ;; If the result should be negative, negate it
         (if (i32.wrap_i64 (local.get $expected_sign))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $quotient_lo) (local.get $quotient_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $quotient_lo) (local.get $quotient_hi))
                 (local.set $quotient_hi)
                 (local.set $quotient_lo)
             )
@@ -675,13 +675,13 @@
         (return (local.get $quotient_lo) (local.get $quotient_hi))
     )
 
-    (func $mod-uint (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
+    (func $stdlib.mod-uint (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
         (local $quotient_hi i64)
         (local $quotient_lo i64)
         (local $remainder_hi i64)
         (local $remainder_lo i64)
 
-        (call $div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
+        (call $stdlib.div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
         (local.set $remainder_hi)
         (local.set $remainder_lo)
         (local.set $quotient_hi)
@@ -690,7 +690,7 @@
         (return (local.get $remainder_lo) (local.get $remainder_hi))
     )
 
-    (func $mod-int (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
+    (func $stdlib.mod-int (type 1) (param $dividend_lo i64) (param $dividend_hi i64) (param $divisor_lo i64) (param $divisor_hi i64) (result i64 i64)
         (local $quotient_hi i64)
         (local $quotient_lo i64)
         (local $remainder_hi i64)
@@ -707,20 +707,20 @@
         ;; Perform the division using the absolute values of the operands
         (if (i32.wrap_i64 (local.get $sign_dividend))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_lo) (local.get $dividend_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $dividend_lo) (local.get $dividend_hi))
                 (local.set $dividend_hi)
                 (local.set $dividend_lo)
             )
         )
         (if (i32.wrap_i64 (local.get $sign_divisor))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_lo) (local.get $divisor_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $divisor_lo) (local.get $divisor_hi))
                 (local.set $divisor_hi)
                 (local.set $divisor_lo)
             )
         )
 
-        (call $div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
+        (call $stdlib.div-int128 (local.get $dividend_lo) (local.get $dividend_hi) (local.get $divisor_lo) (local.get $divisor_hi))
         (local.set $remainder_hi)
         (local.set $remainder_lo)
         (local.set $quotient_hi)
@@ -729,7 +729,7 @@
         ;; If the result should be negative, negate it
         (if (i32.wrap_i64 (local.get $sign_dividend))
             (then
-                (call $sub-int128 (i64.const 0) (i64.const 0) (local.get $remainder_lo) (local.get $remainder_hi))
+                (call $stdlib.sub-int128 (i64.const 0) (i64.const 0) (local.get $remainder_lo) (local.get $remainder_hi))
                 (local.set $remainder_hi)
                 (local.set $remainder_lo)
             )
@@ -738,7 +738,7 @@
         (return (local.get $remainder_lo) (local.get $remainder_hi))
     )
 
-    (func $lt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.lt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.lt_u (local.get $a_lo) (local.get $b_lo))
             (i64.lt_u (local.get $a_hi) (local.get $b_hi))
@@ -746,7 +746,7 @@
         )
     )
 
-    (func $gt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.gt-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.gt_u (local.get $a_lo) (local.get $b_lo))
             (i64.gt_u (local.get $a_hi) (local.get $b_hi))
@@ -754,7 +754,7 @@
         )
     )
 
-    (func $le-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.le-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.le_u (local.get $a_lo) (local.get $b_lo))
             (i64.le_u (local.get $a_hi) (local.get $b_hi))
@@ -762,7 +762,7 @@
         )
     )
 
-    (func $ge-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.ge-uint (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_u (local.get $a_hi) (local.get $b_hi))
@@ -770,7 +770,7 @@
         )
     )
 
-    (func $lt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.lt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.lt_u (local.get $a_lo) (local.get $b_lo))
             (i64.lt_s (local.get $a_hi) (local.get $b_hi))
@@ -778,7 +778,7 @@
         )
     )
 
-    (func $gt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.gt-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.gt_u (local.get $a_lo) (local.get $b_lo))
             (i64.gt_s (local.get $a_hi) (local.get $b_hi))
@@ -786,7 +786,7 @@
         )
     )
 
-    (func $le-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.le-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.le_u (local.get $a_lo) (local.get $b_lo))
             (i64.le_s (local.get $a_hi) (local.get $b_hi))
@@ -794,7 +794,7 @@
         )
     )
 
-    (func $ge-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.ge-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (select
             (i64.ge_u (local.get $a_lo) (local.get $b_lo))
             (i64.ge_s (local.get $a_hi) (local.get $b_hi))
@@ -802,7 +802,7 @@
         )
     )
 
-    (func $lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.lt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
         ;; pseudo-code:
         ;; let i = min(length_a, length_b)
@@ -852,9 +852,9 @@
         )
     )
 
-    (func $gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.gt-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -889,9 +889,9 @@
         )
     )
 
-    (func $le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.le-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -926,9 +926,9 @@
         )
     )
 
-    (func $ge-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
+    (func $stdlib.ge-buff (type 9) (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (local $i i32) (local $sub i32)
-        ;; same algorithm as $lt-buff
+        ;; same algorithm as $stdlib.lt-buff
         (block $done
             (br_if $done
                 (i32.eqz
@@ -971,7 +971,7 @@
         )
     )
 
-    (func $log2-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+    (func $stdlib.log2-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.eqz (i64.or (local.get $hi) (local.get $lo)))
             (then (call $runtime-error (i32.const 3)))
         )
@@ -979,15 +979,15 @@
         (i64.const 0)
     )
 
-    (func $log2-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
-        (if (call $le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
+    (func $stdlib.log2-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+        (if (call $stdlib.le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
             (then (call $runtime-error (i32.const 3)))
         )
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
     )
 
-    (func $sqrti-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+    (func $stdlib.sqrti-uint (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         ;; https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Binary_numeral_system_(base_2)
         (local $d_lo i64) (local $d_hi i64)
         (local $c_lo i64) (local $c_hi i64)
@@ -1034,7 +1034,7 @@
 
         (loop $loop_res
             ;; tmp = c + d
-            (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
+            (call $stdlib.add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
             (local.set $tmp_hi)
             (local.set $tmp_lo)
 
@@ -1048,15 +1048,15 @@
             (local.set $c_hi (i64.shr_u (local.get $c_hi) (i64.const 1)))
 
             ;; if n >= tmp
-            (if (call $ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
+            (if (call $stdlib.ge-uint (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
                 (then
                     ;; n -= tmp
-                    (call $sub-int128 (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
+                    (call $stdlib.sub-int128 (local.get $lo) (local.get $hi) (local.get $tmp_lo) (local.get $tmp_hi))
                     (local.set $hi)
                     (local.set $lo)
 
                     ;; c += d
-                    (call $add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
+                    (call $stdlib.add-int128 (local.get $c_lo) (local.get $c_hi) (local.get $d_lo) (local.get $d_hi))
                     (local.set $c_hi)
                     (local.set $c_lo)
                 )
@@ -1080,35 +1080,35 @@
         (local.get $c_lo) (local.get $c_hi)
     )
 
-    (func $sqrti-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
+    (func $stdlib.sqrti-int (type 3) (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
             (then (call $runtime-error (i32.const 4)))
         )
-        (call $sqrti-uint (local.get $lo) (local.get $hi))
+        (call $stdlib.sqrti-uint (local.get $lo) (local.get $hi))
     )
 
-    (func $bit-and (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-and (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (i64.and (local.get $a_lo) (local.get $b_lo))
         (i64.and (local.get $a_hi) (local.get $b_hi))
     )
 
-    (func $bit-not (type 3) (param $a_lo i64) (param $a_hi i64) (result i64 i64)
+    (func $stdlib.bit-not (type 3) (param $a_lo i64) (param $a_hi i64) (result i64 i64)
           ;; wasm does not have bitwise negation, but xoring with -1 is equivalent
           (i64.xor (local.get $a_lo) (i64.const -1))
           (i64.xor (local.get $a_hi) (i64.const -1))
     )
 
-    (func $bit-or (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-or (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
           (i64.or (local.get $a_lo) (local.get $b_lo))
           (i64.or (local.get $a_hi) (local.get $b_hi))
     )
 
-    (func $bit-xor (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-xor (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
           (i64.xor (local.get $a_lo) (local.get $b_lo))
           (i64.xor (local.get $a_hi) (local.get $b_hi))
     )
 
-    (func $bit-shift-left (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-shift-left (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
           ;; only b_lo is useful here since we will take the reminder by 128
           ;; n % 128 == n & 127 == n & 0x7f
           (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
@@ -1130,7 +1130,7 @@
                (i64.const 0)
                (i64.shl (local.get $a_lo) (i64.sub (local.get $b_lo) (i64.const 64))))))
 
-    (func $bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-shift-right-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
 		  ;; This is just an inverted version of shift-left, see above
           (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
           (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
@@ -1153,7 +1153,7 @@
                                    (i64.const 64)))
                (i64.const 0))))
 
-    (func $bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.bit-shift-right-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
 		  ;; This is just shift-right but taking into account the sign (using shr_s when shifting the high bits)
           (local.set $b_lo (i64.and (local.get $b_lo) (i64.const 0x7f)))
           (if (result i64 i64) (i64.lt_u (local.get $b_lo) (i64.const 64))
@@ -1192,23 +1192,23 @@
             (if (i32.eqz (i32.and (local.get $b) (i32.const 1)))
                 (then
                     (local.set $b (i32.shr_u (local.get $b) (i32.const 1)))
-                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $a_lo) (local.get $a_hi))
+                    (call $stdlib.mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $a_lo) (local.get $a_hi))
                     (local.set $a_hi)
                     (local.set $a_lo)
                 )
                 (else
                     (local.set $b (i32.xor (local.get $b) (i32.const 1)))
-                    (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
+                    (call $stdlib.mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
                     (local.set $carry_hi)
                     (local.set $carry_lo)
                 )
             )
             (br_if 0 (i32.gt_u (local.get $b) (i32.const 1)))
         )
-        (call $mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
+        (call $stdlib.mul-uint (local.get $a_lo) (local.get $a_hi) (local.get $carry_lo) (local.get $carry_hi))
     )
 
-    (func $pow-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.pow-uint (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
         (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
             (then (return (i64.const 1) (i64.const 0)))
@@ -1251,7 +1251,7 @@
         (call $pow-inner (local.get $a_lo) (local.get $a_hi) (i32.wrap_i64 (local.get $b_lo)))
     )
 
-    (func $pow-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
+    (func $stdlib.pow-int (type 1) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $negative i32)
         ;; (a == 0 && b == 0 => 1) & (b == 0 => 1) ==> (b == 0 => 1)
         (if (i64.eqz (i64.or (local.get $b_lo) (local.get $b_hi)))
@@ -1365,7 +1365,7 @@
         )
     )
 
-    (func $sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.sha256-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; see this for an explanation: https://sha256algorithm.com/
 
@@ -1403,7 +1403,7 @@
         (local.get $offset-result) (i32.const 32)
     )
 
-    (func $sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.sha256-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
@@ -1637,7 +1637,7 @@
         (i32.store offset=28 (local.get $origin) (i32.add (i32.load offset=28 (local.get $origin)) (local.get $h)))
     )
 
-    (func $hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.hash160-buf (type 6) (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
@@ -1646,7 +1646,7 @@
         ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
         (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
         ;; compute sha256
-        (call $sha256-buf (local.get $offset) (local.get $length) (local.get $i))
+        (call $stdlib.sha256-buf (local.get $offset) (local.get $length) (local.get $i))
         drop ;; we don't need the length of sha256, it is always 32
         (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
 
@@ -1656,7 +1656,7 @@
         (local.get $offset-result) (i32.const 20)
     )
 
-    (func $hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+    (func $stdlib.hash160-int (type 7) (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         (local $i i32)
         ;; ripemd-160 article: https://www.esat.kuleuven.be/cosic/publications/article-317.pdf
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
@@ -1665,7 +1665,7 @@
         ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
         (global.set $stack-pointer (i32.add (local.tee $i (global.get $stack-pointer)) (i32.const 32)))
         ;; compute sha256
-        (call $sha256-int (local.get $lo) (local.get $hi) (local.get $i))
+        (call $stdlib.sha256-int (local.get $lo) (local.get $hi) (local.get $i))
         drop ;; we don't need the length of sha256, it is always 32
         (global.set $stack-pointer) ;; set $stack-pointer to its original value, aka offset of sha256 result
 
@@ -1825,7 +1825,7 @@
         (i32.add (local.get $k))
     )
 
-    (func $store-i32-be (param $address i32) (param $value i32)
+    (func $stdlib.store-i32-be (param $address i32) (param $value i32)
         (i32.store 
             (local.get $address)
             (i32.or
@@ -1841,7 +1841,7 @@
         )
     )
     
-    (func $store-i64-be (param $address i32) (param $value i64)
+    (func $stdlib.store-i64-be (param $address i32) (param $value i64)
         (i64.store 
             (local.get $address)
             (i64.or
@@ -1869,7 +1869,7 @@
         )
     )
 
-    (func $buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
+    (func $stdlib.buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64) (local $double v128)
         (if (i32.gt_u (local.get $length) (i32.const 16))
             (then (call $runtime-error (i32.const 5)))
@@ -1907,7 +1907,7 @@
         (i64.and (i64x2.extract_lane 0 (local.get $double)) (local.get $mask_hi))
     )
 
-    (func $buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
+    (func $stdlib.buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64)
         (if (i32.gt_u (local.get $length) (i32.const 16))
             (then (call $runtime-error (i32.const 5)))
@@ -1933,70 +1933,70 @@
     )
 
     ;;
-    ;; logical not implementation
+    ;; logical 'not' implementation
     ;;
-    (func $not (type 8) (param $bool_in i32) (result i32)
+    (func $stdlib.not (type 8) (param $bool_in i32) (result i32)
         (i32.eqz (local.get $bool_in))
     )
 
     ;;
-    ;; is-eq-int implementation
+    ;; 'is-eq-int' implementation
     ;;
-    (func $is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
+    (func $stdlib.is-eq-int (type 5) (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
         (i32.and
             (i64.eq (local.get $a_lo) (local.get $b_lo))
             (i64.eq (local.get $a_hi) (local.get $b_hi))
         )
     )
 
-    (export "add-uint" (func $add-uint))
-    (export "add-int" (func $add-int))
-    (export "sub-uint" (func $sub-uint))
-    (export "sub-int" (func $sub-int))
-    (export "mul-uint" (func $mul-uint))
-    (export "mul-int" (func $mul-int))
-    (export "div-uint" (func $div-uint))
-    (export "div-int" (func $div-int))
-    (export "mod-uint" (func $mod-uint))
-    (export "mod-int" (func $mod-int))
-    (export "lt-uint" (func $lt-uint))
-    (export "gt-uint" (func $gt-uint))
-    (export "le-uint" (func $le-uint))
-    (export "ge-uint" (func $ge-uint))
-    (export "lt-int" (func $lt-int))
-    (export "gt-int" (func $gt-int))
-    (export "le-int" (func $le-int))
-    (export "ge-int" (func $ge-int))
-    (export "lt-buff" (func $lt-buff))
-    (export "gt-buff" (func $gt-buff))
-    (export "le-buff" (func $le-buff))
-    (export "ge-buff" (func $ge-buff))
-    (export "log2-uint" (func $log2-uint))
-    (export "log2-int" (func $log2-int))
-    (export "sqrti-uint" (func $sqrti-uint))
-    (export "sqrti-int" (func $sqrti-int))
-    (export "bit-and-uint" (func $bit-and))
-    (export "bit-and-int" (func $bit-and))
-    (export "bit-not-uint" (func $bit-not))
-    (export "bit-not-int" (func $bit-not))
-    (export "bit-or-uint" (func $bit-or))
-    (export "bit-or-int" (func $bit-or))
-    (export "bit-xor-uint" (func $bit-xor))
-    (export "bit-xor-int" (func $bit-xor))
-    (export "bit-shift-left-uint" (func $bit-shift-left))
-    (export "bit-shift-left-int" (func $bit-shift-left))
-    (export "bit-shift-right-uint" (func $bit-shift-right-uint))
-    (export "bit-shift-right-int" (func $bit-shift-right-int))
-    (export "pow-uint" (func $pow-uint))
-    (export "pow-int" (func $pow-int))
-    (export "sha256-buf" (func $sha256-buf))
-    (export "sha256-int" (func $sha256-int))
-    (export "hash160-buf" (func $hash160-buf))
-    (export "hash160-int" (func $hash160-int))
-    (export "store-i32-be" (func $store-i32-be))
-    (export "store-i64-be" (func $store-i64-be))
-    (export "buff-to-uint-be" (func $buff-to-uint-be))
-    (export "buff-to-uint-le" (func $buff-to-uint-le))
-    (export "not" (func $not))
-    (export "is-eq-int" (func $is-eq-int))
+    (export "stdlib.add-uint" (func $stdlib.add-uint))
+    (export "stdlib.add-int" (func $stdlib.add-int))
+    (export "stdlib.sub-uint" (func $stdlib.sub-uint))
+    (export "stdlib.sub-int" (func $stdlib.sub-int))
+    (export "stdlib.mul-uint" (func $stdlib.mul-uint))
+    (export "stdlib.mul-int" (func $stdlib.mul-int))
+    (export "stdlib.div-uint" (func $stdlib.div-uint))
+    (export "stdlib.div-int" (func $stdlib.div-int))
+    (export "stdlib.mod-uint" (func $stdlib.mod-uint))
+    (export "stdlib.mod-int" (func $stdlib.mod-int))
+    (export "stdlib.lt-uint" (func $stdlib.lt-uint))
+    (export "stdlib.gt-uint" (func $stdlib.gt-uint))
+    (export "stdlib.le-uint" (func $stdlib.le-uint))
+    (export "stdlib.ge-uint" (func $stdlib.ge-uint))
+    (export "stdlib.lt-int" (func $stdlib.lt-int))
+    (export "stdlib.gt-int" (func $stdlib.gt-int))
+    (export "stdlib.le-int" (func $stdlib.le-int))
+    (export "stdlib.ge-int" (func $stdlib.ge-int))
+    (export "stdlib.lt-buff" (func $stdlib.lt-buff))
+    (export "stdlib.gt-buff" (func $stdlib.gt-buff))
+    (export "stdlib.le-buff" (func $stdlib.le-buff))
+    (export "stdlib.ge-buff" (func $stdlib.ge-buff))
+    (export "stdlib.log2-uint" (func $stdlib.log2-uint))
+    (export "stdlib.log2-int" (func $stdlib.log2-int))
+    (export "stdlib.sqrti-uint" (func $stdlib.sqrti-uint))
+    (export "stdlib.sqrti-int" (func $stdlib.sqrti-int))
+    (export "stdlib.bit-and-uint" (func $stdlib.bit-and))
+    (export "stdlib.bit-and-int" (func $stdlib.bit-and))
+    (export "stdlib.bit-not-uint" (func $stdlib.bit-not))
+    (export "stdlib.bit-not-int" (func $stdlib.bit-not))
+    (export "stdlib.bit-or-uint" (func $stdlib.bit-or))
+    (export "stdlib.bit-or-int" (func $stdlib.bit-or))
+    (export "stdlib.bit-xor-uint" (func $stdlib.bit-xor))
+    (export "stdlib.bit-xor-int" (func $stdlib.bit-xor))
+    (export "stdlib.bit-shift-left-uint" (func $stdlib.bit-shift-left))
+    (export "stdlib.bit-shift-left-int" (func $stdlib.bit-shift-left))
+    (export "stdlib.bit-shift-right-uint" (func $stdlib.bit-shift-right-uint))
+    (export "stdlib.bit-shift-right-int" (func $stdlib.bit-shift-right-int))
+    (export "stdlib.pow-uint" (func $stdlib.pow-uint))
+    (export "stdlib.pow-int" (func $stdlib.pow-int))
+    (export "stdlib.sha256-buf" (func $stdlib.sha256-buf))
+    (export "stdlib.sha256-int" (func $stdlib.sha256-int))
+    (export "stdlib.hash160-buf" (func $stdlib.hash160-buf))
+    (export "stdlib.hash160-int" (func $stdlib.hash160-int))
+    (export "stdlib.store-i32-be" (func $stdlib.store-i32-be))
+    (export "stdlib.store-i64-be" (func $stdlib.store-i64-be))
+    (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
+    (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
+    (export "stdlib.not" (func $stdlib.not))
+    (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
 )
