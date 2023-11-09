@@ -27,6 +27,7 @@ pub mod maps;
 pub mod options;
 pub mod print;
 pub mod responses;
+pub mod secp256k1;
 pub mod sequences;
 pub mod stx;
 pub mod tokens;
@@ -126,6 +127,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &traits::ImplTrait,
     &conditionals::If,
     &conditionals::Filter,
+    &secp256k1::Recover,
+    &secp256k1::Verify,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
