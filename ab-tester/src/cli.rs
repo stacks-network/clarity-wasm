@@ -4,9 +4,10 @@ mod console;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
+use clap_verbosity_flag::Verbosity;
 use color_eyre::eyre::{bail, Result};
 
-use crate::context::ReplayOpts;
+use crate::context::{ReplayOpts, Runtime};
 use crate::ok;
 
 /// Our CLI entrypoint.
@@ -15,6 +16,10 @@ use crate::ok;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+
+    #[command(flatten)]
+    pub verbosity: Verbosity,
+
     #[arg(
         long = "config",
         short = 'c',
@@ -45,6 +50,7 @@ impl Cli {
         match &self.command {
             Commands::Data(args) => DataArgs::validate(args)?,
             Commands::Tui(args) => TuiArgs::validate(args)?,
+            Commands::Env(args) => {}
         }
 
         Ok(self)
@@ -56,10 +62,98 @@ impl Cli {
 pub enum Commands {
     Tui(TuiArgs),
     Data(DataArgs),
+    Env(EnvArgs),
 }
 
-/// Arguments for the `tui` subcommand, used together with the [commands::tui]
-/// command implementation.
+/// Commands for managing runtime environments for this tool.
+#[derive(Debug, Args)]
+pub struct EnvArgs {
+    #[command(subcommand)]
+    pub commands: EnvSubCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum EnvSubCommands {
+    New(NewEnvArgs),
+    List(ListEnvArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum NewEnvSubCommands {
+    /// Opens an existing Stacks node's data directory. This environment-type is
+    /// read-only and can only be used as a source environment.
+    StacksNode(NewStacksNodeEnvArgs),
+    /// Opens an existing or creates a new instrumented environment which can
+    /// be used for comparisons. This environment type can be used both as a source
+    /// and target for comparisons.
+    Instrumented(NewInstrumentedEnvArgs),
+    /// Opens an existing or creates a new network-synced environment. This
+    /// environment-type is read-only and can only be used as a source environment.
+    Network(NewNetworkEnvArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct NewStacksNodeEnvArgs {
+    #[arg(
+        short = 'p',
+        long = "path",
+        help = "The Stacks node's root path, e.g. `xx/mainnet/`.",
+        required = true
+    )]
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct NewInstrumentedEnvArgs {
+    #[arg(
+        short = 'r',
+        long = "runtime",
+        help = "The Clarity runtime to be used for this environment.",
+        required = true
+    )]
+    pub runtime: Runtime,
+
+    #[arg(
+        short = 'p',
+        long = "path",
+        help = "The working directory for the environment where chainstate, burnstate and blocks will be stored.",
+        required = true
+    )]
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct NewNetworkEnvArgs {
+    pub peer_host: String,
+    pub peer_port: u16,
+    pub peer_key: String,
+}
+
+#[derive(Debug, Args)]
+pub struct NewEnvArgs {
+    #[command(subcommand)]
+    pub commands: NewEnvSubCommands,
+
+    #[arg(
+        short = 'n',
+        long = "name",
+        help = "The name of the environment.",
+        required = true
+    )]
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum EnvType {
+    StacksNode,
+    Instrumented,
+    Network,
+}
+
+#[derive(Debug, Args)]
+pub struct ListEnvArgs {}
+
+/// Run the interactive terminal interface.
 #[derive(Debug, Args)]
 pub struct TuiArgs {
     #[arg(
@@ -76,8 +170,7 @@ impl TuiArgs {
     }
 }
 
-/// Arguments for the `data` subcommand, used together with the [commands::data]
-/// command implementation.
+/// Commands for data-processing using the command line.
 #[derive(Debug, Args)]
 pub struct DataArgs {
     #[arg(
@@ -113,10 +206,10 @@ pub struct DataArgs {
 
 impl From<DataArgs> for Option<ReplayOpts> {
     fn from(value: DataArgs) -> Self {
-        Some(ReplayOpts { 
-            from_height: Some(value.from_height), 
-            to_height: value.to_height, 
-            max_blocks: value.max_block_count
+        Some(ReplayOpts {
+            from_height: Some(value.from_height),
+            to_height: value.to_height,
+            max_blocks: value.max_block_count,
         })
     }
 }

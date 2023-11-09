@@ -148,6 +148,7 @@ pub mod app_db {
         pub id: i32,
         pub name: String,
         pub runtime_id: i32,
+        pub path: String,
     }
 
     #[derive(

@@ -125,7 +125,8 @@ pub mod appdb {
         environment (id) {
             id -> Integer,
             name -> Text,
-            runtime_id -> Integer
+            runtime_id -> Integer,
+            path -> Text,
         }
     }
 

@@ -7,7 +7,7 @@ use crate::{
     context::{
         self,
         environments::{ReadableEnv, RuntimeEnvBuilder},
-        Block, ComparisonContext, Network, Runtime, ReplayOpts,
+        Block, ComparisonContext, Network, ReplayOpts, Runtime,
     },
     db::appdb::AppDb,
     ok,
@@ -19,8 +19,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     let env_builder = RuntimeEnvBuilder::new(&app_db);
 
-    let mut baseline_env =
-        env_builder.stacks_node("baseline", &config.baseline.chainstate_path)?;
+    let mut baseline_env = env_builder.stacks_node("baseline", &config.baseline.chainstate_path)?;
 
     let mut interpreter_env = env_builder.instrumented(
         "baseline_replay",

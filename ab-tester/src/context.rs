@@ -1,15 +1,16 @@
 use color_eyre::{
-    eyre::{anyhow, ensure},
+    eyre::{anyhow, bail, ensure},
     Result,
 };
 use log::*;
 
-use crate::{clarity, db::appdb::AppDb, ok, errors::AppError};
+use crate::{clarity, db::appdb::AppDb, errors::AppError, ok};
 
 pub mod blocks;
 mod boot_data;
 pub mod environments;
 mod marf;
+pub mod callbacks;
 
 use self::environments::{ReadableEnv, WriteableEnv};
 pub use blocks::{Block, BlockCursor};
@@ -44,7 +45,8 @@ impl<'a> ComparisonContext<'a> {
 
     pub fn replay(&mut self, opts: Option<ReplayOpts>) -> Result<ReplayResult> {
         let baseline_env = self
-            .baseline_env.as_mut()
+            .baseline_env
+            .as_mut()
             .ok_or(anyhow!("baseline environment has need been specified"))?;
 
         baseline_env.open()?;
@@ -101,7 +103,7 @@ impl ChainStateReplayer {
     pub fn replay<'a>(
         source: &'_ mut dyn ReadableEnv<'a>,
         target: &'_ mut dyn WriteableEnv<'a>,
-        opts: Option<ReplayOpts>
+        opts: Option<ReplayOpts>,
     ) -> Result<()> {
         let opts = opts.unwrap_or(ReplayOpts::default());
 
@@ -109,9 +111,9 @@ impl ChainStateReplayer {
             "aggregating contract calls starting at block height {}...",
             opts.from_height.unwrap_or(0)
         );
-    
+
         let mut processed_block_count = 0;
-    
+
         for block in source.blocks()?.into_iter() {
             let (header, stacks_block) = match &block {
                 Block::Boot(header) => {
@@ -128,19 +130,19 @@ impl ChainStateReplayer {
                 }
                 Block::Regular(header, block) => (header, Some(block)),
             };
-    
+
             // Ensure that we've reached the specified block-height before beginning
             // processing.
             if header.block_height() < opts.from_height.unwrap_or(0) {
                 continue;
             }
-    
+
             // Ensure that we haven't exceeded the specified max-blocks for processing.
             opts.assert_max_processed_block_count(processed_block_count)?;
-    
+
             // Ensure that we haven't reached the specified max block-height for processing.
             opts.assert_block_height_under_max_height(header.block_height())?;
-    
+
             debug!(
                 "processing block #{} ({})",
                 header.block_height(),
@@ -150,23 +152,23 @@ impl ChainStateReplayer {
                 info!("processing block!");
                 ok!()
             })?;*/
-    
+
             processed_block_count += 1;
             continue;
-    
+
             /*let block_id = header.stacks_block_id()?;
-    
+
             for tx in stacks_block.unwrap().txs.iter() {
                 info!("processing tx: {}", tx.txid());
-    
+
                 let origin_principal = StandardPrincipalData::from(tx.origin_address());
-    
+
                 #[allow(clippy::single_match)]
                 match &tx.payload {
                     TransactionPayload::SmartContract(contract, _) => {
                         let contract_id =
                             QualifiedContractIdentifier::new(origin_principal, contract.name.clone());
-    
+
                         if let Some(entry) = contracts.get(&contract_id) {
                             warn!(
                                 "duplicate: {}, first block={}, second block={}",
@@ -180,7 +182,7 @@ impl ChainStateReplayer {
                 }
             }*/
         }
-    
+
         info!("blocks processed: {processed_block_count}");
 
         ok!()
@@ -206,11 +208,44 @@ impl Contract {
 }
 
 /// Indicates which Clarity runtime should be used for processing transactions.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, clap::ValueEnum)]
 pub enum Runtime {
     None = 0,
     Interpreter = 1,
     Wasm = 2,
+}
+
+impl From<&Runtime> for i32 {
+    fn from(value: &Runtime) -> Self {
+        match *value {
+            Runtime::None => 0,
+            Runtime::Interpreter => 1,
+            Runtime::Wasm => 2,
+        }
+    }
+}
+
+impl TryFrom<i32> for Runtime {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: i32) -> Result<Self> {
+        match value {
+            0 => Ok(Runtime::None),
+            1 => Ok(Runtime::Interpreter),
+            2 => Ok(Runtime::Wasm),
+            _ => bail!("Could not convert i32 '{}' to Runtime enum", value),
+        }
+    }
+}
+
+impl std::fmt::Display for Runtime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Runtime::None => write!(f, "None"),
+            Runtime::Interpreter => write!(f, "Interpreter"),
+            Runtime::Wasm => write!(f, "Wasm"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

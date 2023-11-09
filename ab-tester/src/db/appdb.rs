@@ -46,18 +46,14 @@ impl AppDb {
         Ok(result)
     }
 
-    /// Inserts a new runtime environment into the application database and
-    /// returns the resulting entity.
-    pub fn new_env(&self, name: &str, runtime_id: i32) -> Result<Environment> {
-        let result = insert_into(environment::table)
-            .values((
-                environment::runtime_id.eq(runtime_id),
-                environment::name.eq(name),
-            ))
-            .get_result::<Environment>(&mut *self.conn.borrow_mut())
-            .unwrap();
+    /// Retrieves a list over all [Environment]s existing in the local application
+    /// database.
+    pub fn list_envs(&self) -> Result<Vec<Environment>> {
+        let results = environment::table
+            .order_by(environment::id.asc())
+            .get_results::<Environment>(&mut *self.conn.borrow_mut())?;
 
-        Ok(result)
+        Ok(results)
     }
 
     /// Retrieves the internal id of a contract using the specified
@@ -175,11 +171,17 @@ impl AppDb {
     /// Inserts a new runtime environment into the application database. Runtime
     /// environments are used to distinguish different environments (configurations)
     /// from eachother for comparison purposes.
-    pub fn insert_environment(&self, runtime_id: i32, name: &str) -> Result<Environment> {
+    pub fn insert_environment(
+        &self,
+        runtime_id: i32,
+        name: &str,
+        path: &str,
+    ) -> Result<Environment> {
         let result = insert_into(environment::table)
             .values((
                 environment::runtime_id.eq(runtime_id),
                 environment::name.eq(name),
+                environment::path.eq(path),
             ))
             .get_result::<Environment>(&mut *self.conn.borrow_mut())
             .unwrap();

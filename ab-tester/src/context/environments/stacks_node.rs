@@ -1,20 +1,23 @@
 use std::cell::RefCell;
 
-use color_eyre::{Result, eyre::{anyhow, bail}};
+use color_eyre::{
+    eyre::{anyhow, bail},
+    Result,
+};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
 use crate::{
+    clarity::{self, ClarityConnection},
     context::{blocks::BlockHeader, BlockCursor, Network, TestEnvPaths},
     db::model,
     db::schema,
-    stacks, ok,
-    clarity::{self, ClarityConnection}
+    ok, stacks,
 };
 
-use super::{ReadableEnv, RuntimeEnv};
+use super::{ReadableEnv, RuntimeEnv, RuntimeEnvCallbacks};
 
 pub struct StacksNodeEnvConfig<'a> {
     node_dir: &'a str,
@@ -38,7 +41,8 @@ pub struct StacksNodeEnv<'a> {
     id: i32,
     name: &'a str,
     env_config: StacksNodeEnvConfig<'a>,
-    env_state: Option<StacksNodeEnvState>
+    env_state: Option<StacksNodeEnvState>,
+    callbacks: RuntimeEnvCallbacks<'a>
 }
 
 impl<'a> StacksNodeEnv<'a> {
@@ -48,34 +52,34 @@ impl<'a> StacksNodeEnv<'a> {
     pub fn new(id: i32, name: &'a str, node_dir: &'a str) -> Result<Self> {
         // Determine our paths.
         let paths = TestEnvPaths::new(node_dir);
-        
-        let env_config = StacksNodeEnvConfig {
-            paths,
-            node_dir
-        };
+
+        let env_config = StacksNodeEnvConfig { paths, node_dir };
 
         Ok(Self {
             id,
             name,
             env_config,
-            env_state: None
+            env_state: None,
+            callbacks: Default::default(),
         })
     }
 
     /// Attempts to retrieve the [StacksNodeEnvState] for this environment. Will
     /// return an error if [RuntimeEnv::open] has not been called.
     fn get_env_state(&self) -> Result<&StacksNodeEnvState> {
-        let state = self.env_state
+        let state = self
+            .env_state
             .as_ref()
             .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
 
         Ok(state)
     }
 
-    /// Attempts to retrieve the [StacksNodeEnvState] for this environment as a 
+    /// Attempts to retrieve the [StacksNodeEnvState] for this environment as a
     /// mutable reference. Will return an error if [RuntimeEnv::open] has not been called.
     fn get_env_state_mut(&mut self) -> Result<&mut StacksNodeEnvState> {
-        let state = self.env_state
+        let state = self
+            .env_state
             .as_mut()
             .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
 
@@ -88,17 +92,24 @@ impl<'a> StacksNodeEnv<'a> {
         let state = self.get_env_state()?;
 
         // Retrieve the tip.
+        self.callbacks.get_chain_tip_start();
         let tip = schema::chainstate_marf::block_headers::table
             .order_by(schema::chainstate_marf::block_headers::block_height.desc())
             .limit(1)
             .get_result::<model::chainstate_db::BlockHeader>(
                 &mut *state.index_db_conn.borrow_mut(),
             )?;
-
+        // TODO: Handle when there is no tip (chain uninitialized).
+        self.callbacks.get_chain_tip_finish(tip.block_height);
         let mut current_block = Some(tip);
+
+        // Vec for holding the headers we run into. This will initially be
+        // in reverse order (from tip to genesis) - we reverse it later.
         let mut headers: Vec<BlockHeader> = Vec::new();
 
-        // Walk backwards
+        // Walk backwards from tip to genesis, following the canonical fork. We
+        // do this so that we don't follow orphaned blocks/forks.
+        self.callbacks.load_block_headers_start();
         while let Some(block) = current_block {
             let block_parent = schema::chainstate_marf::block_headers::table
                 .filter(
@@ -127,16 +138,19 @@ impl<'a> StacksNodeEnv<'a> {
                     vec![0_u8; 20],
                 ));
             }
+            self.callbacks.load_block_headers_iter(headers.len());
 
             current_block = block_parent;
         }
 
+        // Reverse the vec so that it is in block-ascending order.
         headers.reverse();
 
         debug!("[{name}] first block: {:?}", headers[0]);
         debug!("[{name}] tip: {:?}", headers[headers.len() - 1]);
         debug!("[{name}] retrieved {} block headers", headers.len());
 
+        self.callbacks.load_block_headers_finish();
         Ok(headers)
     }
 
@@ -145,7 +159,6 @@ impl<'a> StacksNodeEnv<'a> {
         at_block: &stacks::StacksBlockId,
         contract_id: &clarity::QualifiedContractIdentifier,
     ) -> Result<()> {
-
         let state = self.get_env_state_mut()?;
         let mut variable_paths: Vec<String> = Default::default();
 
@@ -221,45 +234,59 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
     fn open(&mut self) -> Result<()> {
         let paths = &self.env_config.paths;
         let name = self.name;
+        
+        self.callbacks.env_open_start(name);
         paths.print(name);
 
         debug!("[{name}] loading index db...");
+        self.callbacks.open_index_db_start(&paths.index_db_path);
         let mut index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
+        self.callbacks.open_index_db_finish();
         info!("[{name}] successfully connected to index db");
 
         // Stacks nodes contain a db configuration in their index database's
         // `db_config` table which indicates version, network and chain id. Retrieve
         // this information and use it for setting up our readers.
+        self.callbacks.load_db_config_start();
         let db_config = schema::chainstate_marf::db_config::table
             .first::<model::chainstate_db::DbConfig>(&mut index_db_conn)?;
+        self.callbacks.load_db_config_finish();
 
         // Convert the db config to a Network variant incl. chain id.
+        self.callbacks.determine_network_start();
         let network = if db_config.mainnet {
             Network::Mainnet(db_config.chain_id as u32)
         } else {
             Network::Testnet(db_config.chain_id as u32)
         };
+        self.callbacks.determine_network_finish(&network);
 
         // Setup our options for the Marf.
         let mut marf_opts = stacks::MARFOpenOpts::default();
         marf_opts.external_blobs = true;
 
         debug!("[{name}] opening chainstate");
+        self.callbacks.open_chainstate_start(&paths.chainstate_path);
         let (chainstate, _) = stacks::StacksChainState::open(
             network.is_mainnet(),
             network.chain_id(),
             &paths.chainstate_path,
             Some(marf_opts),
         )?;
+        self.callbacks.open_chainstate_finish();
         info!("[{name}] successfully opened chainstate");
 
         debug!("[{name}] loading clarity db...");
+        self.callbacks.open_clarity_db_start(&paths.clarity_db_path);
         let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
+        self.callbacks.open_clarity_db_finish();
         info!("[{name}] successfully connected to clarity db");
 
         //debug!("attempting to migrate sortition db");
         debug!("[{name}] opening sortition db");
+        self.callbacks.open_sortition_db_start(&paths.sortition_db_path);
         let sortition_db = super::open_sortition_db(&paths.sortition_db_path, &network)?;
+        self.callbacks.open_sortition_db_finish();
         info!("[{name}] successfully opened sortition db");
 
         let state = StacksNodeEnvState {
@@ -267,11 +294,12 @@ impl<'a> RuntimeEnv<'a> for StacksNodeEnv<'a> {
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
             clarity_db_conn,
-            sortition_db
+            sortition_db,
         };
 
         self.env_state = Some(state);
 
+        self.callbacks.env_open_finish();
         ok!()
     }
 }

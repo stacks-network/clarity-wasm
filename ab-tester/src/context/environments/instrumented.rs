@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 
-use color_eyre::{eyre::{anyhow, bail}, Result};
+use color_eyre::{
+    eyre::{anyhow, bail},
+    Result,
+};
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -8,15 +11,15 @@ use log::*;
 
 use crate::{
     context::{
-        blocks::BlockHeader, boot_data::mainnet_boot_data, BlockCursor, Network, Runtime,
-        TestEnvPaths, environments::BlockTransactionContext, Block
+        blocks::BlockHeader, boot_data::mainnet_boot_data, environments::BlockTransactionContext,
+        Block, BlockCursor, Network, Runtime, TestEnvPaths,
     },
     db::model::app_db as model,
-    db::{schema::appdb, appdb::AppDb},
+    db::{appdb::AppDb, schema::appdb},
     ok, stacks,
 };
 
-use super::{ReadableEnv, RuntimeEnv, WriteableEnv};
+use super::{ReadableEnv, RuntimeEnv, WriteableEnv, RuntimeEnvCallbacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig<'a> {
@@ -43,6 +46,7 @@ pub struct InstrumentedEnv<'a> {
     app_db: &'a AppDb,
     env_config: InstrumentedEnvConfig<'a>,
     env_state: Option<InstrumentedEnvState>,
+    callbacks: RuntimeEnvCallbacks<'a>,
 }
 
 impl<'a> InstrumentedEnv<'a> {
@@ -73,6 +77,7 @@ impl<'a> InstrumentedEnv<'a> {
             app_db,
             env_config,
             env_state: None,
+            callbacks: Default::default(),
         })
     }
 
@@ -83,17 +88,19 @@ impl<'a> InstrumentedEnv<'a> {
     /// Attempts to retrieve the [InstrumentedEnvState] for this environment. Will
     /// return an error if [RuntimeEnv::open] has not been called.
     fn get_env_state(&self) -> Result<&InstrumentedEnvState> {
-        let state = self.env_state
+        let state = self
+            .env_state
             .as_ref()
             .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
 
         Ok(state)
     }
 
-    /// Attempts to retrieve the [InstrumentedEnvState] for this environment as a 
+    /// Attempts to retrieve the [InstrumentedEnvState] for this environment as a
     /// mutable reference. Will return an error if [RuntimeEnv::open] has not been called.
     fn get_env_state_mut(&mut self) -> Result<&mut InstrumentedEnvState> {
-        let state = self.env_state
+        let state = self
+            .env_state
             .as_mut()
             .ok_or(anyhow!("[{}] environment has not been opened", self.name))?;
 
@@ -109,15 +116,21 @@ impl<'a> InstrumentedEnv<'a> {
             .ok_or(anyhow!("environment has not been opened"))?;
 
         // Retrieve the tip.
+        self.callbacks.get_chain_tip_start();
         let tip = appdb::_block_headers::table
             .order_by(appdb::_block_headers::block_height.desc())
             .limit(1)
             .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())?;
-
+        // TODO: Handle when there is no tip (chain uninitialized).
+        self.callbacks.get_chain_tip_finish(tip.block_height);
         let mut current_block = Some(tip);
+
+        // Vec for holding the headers we run into. This will initially be
+        // in reverse order (from tip to genesis) - we reverse it later.
         let mut headers: Vec<BlockHeader> = Vec::new();
 
-        // Walk backwards
+        // Walk backwards from tip to genesis, following the canonical fork. We
+        // do this so that we don't follow orphaned blocks/forks.
         while let Some(block) = current_block {
             let block_parent = appdb::_block_headers::table
                 .filter(appdb::_block_headers::index_block_hash.eq(&block.parent_block_id))
@@ -141,15 +154,19 @@ impl<'a> InstrumentedEnv<'a> {
                     vec![0_u8; 20],
                 ));
             }
+            self.callbacks.load_block_headers_iter(headers.len());
 
             current_block = block_parent;
         }
 
+        // Reverse the vec so that it is in block-ascending order.
         headers.reverse();
+
         debug!("first block: {:?}", headers[0]);
         debug!("tip: {:?}", headers[headers.len() - 1]);
         debug!("retrieved {} block headers", headers.len());
 
+        self.callbacks.load_block_headers_finish();
         Ok(headers)
     }
 }
@@ -173,6 +190,7 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
         let network = &self.env_config.network;
 
         info!("[{name}] opening environment...");
+        self.callbacks.env_open_start(name);
         paths.print(name);
 
         // Setup our options for the Marf.
@@ -187,6 +205,7 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
         };
 
         debug!("initializing chainstate");
+        self.callbacks.open_chainstate_start(&paths.chainstate_path);
         let (chainstate, _) = stacks::StacksChainState::open_and_exec(
             network.is_mainnet(),
             1,
@@ -194,19 +213,26 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
             Some(&mut boot_data),
             Some(marf_opts.clone()),
         )?;
+        self.callbacks.open_chainstate_finish();
         info!("[{name}] chainstate initialized.");
 
         debug!("[{name}] loading index db...");
+        self.callbacks.open_index_db_start(&paths.index_db_path);
         let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
+        self.callbacks.open_index_db_finish();
         info!("[{name}] successfully connected to index db");
 
         debug!("[{name}] loading clarity db...");
+        self.callbacks.open_clarity_db_start(&paths.clarity_db_path);
         let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
+        self.callbacks.open_clarity_db_finish();
         info!("[{name}] successfully connected to clarity db");
 
         //debug!("attempting to migrate sortition db");
         debug!("opening sortition db");
+        self.callbacks.open_sortition_db_start(&paths.sortition_db_path);
         let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
+        self.callbacks.open_sortition_db_finish();
         info!("successfully opened sortition db");
 
         let state = InstrumentedEnvState {
@@ -220,8 +246,6 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
 
         ok!()
     }
-
-    
 }
 
 /// Implementation of [ReadableEnv] for [InstrumentedEnv].

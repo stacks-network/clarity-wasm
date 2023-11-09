@@ -13,9 +13,11 @@ mod runtime;
 mod stacks;
 
 use clap::Parser;
+use clap_verbosity_flag::{ErrorLevel, Verbosity};
 use cli::*;
 use color_eyre::eyre::{bail, Result};
 use config::Config;
+use console::Color;
 use diesel::{connection::SimpleConnection, Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
@@ -31,11 +33,12 @@ pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 async fn main() -> Result<()> {
     // Initialize error reporting.
     color_eyre::install()?;
-    // Initialize logging.
-    env_logger::init();
 
     // Parse & validate command line arguments.
     let cli = Cli::parse().validate()?;
+
+    // Initialize logging.
+    configure_logging(&cli);
 
     // Load the application configuration file. If the `--config` CLI parameter
     // has been provided, attempt to use the provided path, otherwise use the
@@ -50,10 +53,15 @@ async fn main() -> Result<()> {
     let _ = match cli.command {
         Commands::Tui(args) => commands::console::exec(&config, args).await,
         Commands::Data(args) => commands::data::exec(&config, args).await,
+        Commands::Env(args) => commands::env::exec(&config, args).await,
     }
     .map_err(|err| match err.downcast_ref() {
         Some(AppError::Graceful(graceful)) => {
-            info!("terminating gracefully: {:?}", graceful);
+            println!(
+                "{} {:?}",
+                console::style("finished:").bold().fg(Color::Green),
+                graceful
+            );
         }
         _ => {
             error!("the application encountered a fatal error: {err:?}");
@@ -92,4 +100,36 @@ fn apply_db_migrations(config: &Config) -> Result<()> {
     }
 
     ok!()
+}
+
+fn configure_logging(cli: &Cli) {
+    // Initialize logging.
+    env_logger::Builder::new()
+        .filter_level(cli.verbosity.log_level_filter())
+        .init();
+
+    if let Some(level) = cli.verbosity.log_level() {
+        match level {
+            Level::Trace => {
+                std::env::set_var("BLOCKSTACK_TRACE", "1");
+                std::env::set_var("STACKS_LOG_TRACE", "1");
+            }
+            Level::Debug => {
+                std::env::set_var("BLOCKSTACK_DEBUG", "1");
+                std::env::set_var("STACKS_LOG_DEBUG", "1");
+            }
+            Level::Info => {
+                std::env::set_var("BLOCKSTACK_INFO", "1");
+                std::env::set_var("STACKS_LOG_INFO", "1");
+            }
+            Level::Warn => {
+                std::env::set_var("BLOCKSTACK_WARN", "1");
+                std::env::set_var("STACKS_LOG_WARN", "1");
+            }
+            Level::Error => {
+                std::env::set_var("BLOCKSTACK_ERROR", "1");
+                std::env::set_var("STACKS_LOG_ERROR", "1");
+            }
+        }
+    }
 }

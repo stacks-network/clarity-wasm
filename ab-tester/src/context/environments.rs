@@ -1,31 +1,16 @@
-use std::{
-    cell::RefCell,
-    fmt::Display,
-};
+use std::fmt::Display;
 
-use color_eyre::{
-    eyre::{bail, anyhow},
-    Result,
-};
-use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
-};
-use log::*;
+use color_eyre::{eyre::anyhow, Result};
 
 use crate::{
-    clarity,
-    clarity::ClarityConnection,
     context::boot_data::mainnet_boot_data,
-    db::{appdb::AppDb, datastore::DataStore, model, schema},
-    ok, stacks,
+    db::{appdb::AppDb, model},
+    stacks,
 };
 
 use self::{instrumented::InstrumentedEnv, network::NetworkEnv, stacks_node::StacksNodeEnv};
 
-use super::{
-    blocks::{BlockCursor, BlockHeader},
-    Block, Network, Runtime, StoreType, TestEnvPaths,
-};
+use super::{blocks::BlockCursor, Block, Network, Runtime, callbacks::RuntimeEnvCallbacks};
 
 mod instrumented;
 mod network;
@@ -41,9 +26,19 @@ impl<'a> RuntimeEnvBuilder<'a> {
         Self { app_db }
     }
 
-    fn get_or_create_env(&self, name: &'a str) -> Result<model::app_db::Environment> {
-        self.app_db.get_env(name)?
-            .or_else(|| self.app_db.insert_environment(Runtime::None as i32, name).ok())
+    fn get_or_create_env(
+        &self,
+        name: &str,
+        runtime: &Runtime,
+        path: &str,
+    ) -> Result<model::app_db::Environment> {
+        self.app_db
+            .get_env(name)?
+            .or_else(|| {
+                self.app_db
+                    .insert_environment(runtime.into(), name, path)
+                    .ok()
+            })
             .ok_or(anyhow!("failed to get or create runtime environment"))
     }
 
@@ -51,20 +46,21 @@ impl<'a> RuntimeEnvBuilder<'a> {
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
     pub fn stacks_node(&self, name: &'a str, node_dir: &'a str) -> Result<StacksNodeEnv<'a>> {
-        let env = self.get_or_create_env(name)?;
+        let env = self.get_or_create_env(name, &Runtime::None, node_dir)?;
         StacksNodeEnv::new(env.id, name, node_dir)
     }
 
     /// Creates and returns a new [InstrumentedEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn instrumented(&self,
+    pub fn instrumented(
+        &self,
         name: &'a str,
         runtime: Runtime,
         network: Network,
         working_dir: &'a str,
     ) -> Result<InstrumentedEnv<'a>> {
-        let env = self.get_or_create_env(name)?;
+        let env = self.get_or_create_env(name, &runtime, working_dir)?;
         InstrumentedEnv::new(env.id, name, self.app_db, working_dir, runtime, network)
     }
 
@@ -88,11 +84,14 @@ pub trait RuntimeEnv<'a> {
     fn is_open(&self) -> bool;
     /// Opens the environment and initializes it if needed (and writeable).
     fn open(&mut self) -> Result<()>;
+    /// Configures callbacks for the environment.
+    #[allow(unused_variables)]
+    fn with_callbacks(&mut self, callbacks: &'a RuntimeEnvCallbacks) {}
 }
 
 /// Defines the functionality for a readable [RuntimeEnv].
 pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
-    /// Provides a [BlockCursor] over the Stacks blocks contained within this 
+    /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
 }

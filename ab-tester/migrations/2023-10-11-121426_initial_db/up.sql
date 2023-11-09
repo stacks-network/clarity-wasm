@@ -11,13 +11,12 @@ CREATE TABLE IF NOT EXISTS environment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     runtime_id INTEGER NOT NULL,
+    path TEXT NOT NULL,
 
     CONSTRAINT fk_runtime
     FOREIGN KEY (runtime_id)
     REFERENCES runtime (id)
 );
-
-INSERT INTO environment VALUES (1, 'baseline', 1);
 
 CREATE TABLE IF NOT EXISTS block (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
