@@ -147,10 +147,6 @@ mod tests {
 
     use crate::tools::{evaluate, TestEnvironment};
 
-    // These tests are disabled because they require a block to be present in the
-    // chain, which is not the case when running the tests. Once the test framework
-    // supports this, these tests can be re-enabled.
-
     //- Block Info
 
     #[test]

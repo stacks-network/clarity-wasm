@@ -2,7 +2,8 @@
 //! various data storage traits used during program execution.
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production. The `datastore` module is only available when the
-//! `developer-mode` feature is enabled.
+//! `developer-mode` feature is enabled. Many of these methods are just
+//! mock implementations that do nothing.
 
 use clarity::types::chainstate::BlockHeaderHash;
 use clarity::types::chainstate::BurnchainHeaderHash;
@@ -397,19 +398,6 @@ impl BurnDatastore {
 }
 
 impl HeadersDB for BurnDatastore {
-    // fn get(&mut self, key: &str) -> Option<String> {
-    //     let lookup_id = self
-    //         .block_id_lookup
-    //         .get(&self.current_chain_tip)
-    //         .expect("Could not find current chain tip in block_id_lookup map");
-
-    //     if let Some(map) = self.store.get(lookup_id) {
-    //         map.get(key).map(|v| v.clone())
-    //     } else {
-    //         panic!("Block does not exist for current chain tip");
-    //     }
-    // }
-
     fn get_stacks_block_header_hash_for_block(
         &self,
         id_bhh: &StacksBlockId,
@@ -561,39 +549,11 @@ impl Datastore {
     /// this is a "lower-level" rollback than the roll backs performed in
     ///   ClarityDatabase or AnalysisDatabase -- this is done at the backing store level.
 
-    pub fn begin(&mut self, _current: &StacksBlockId, _next: &StacksBlockId) {
-        // self.marf.begin(current, next)
-        //     .expect(&format!("ERROR: Failed to begin new MARF block {} - {})", current, next));
-        // self.chain_tip = self.marf.get_open_chain_tip()
-        //     .expect("ERROR: Failed to get open MARF")
-        //     .clone();
-        // self.side_store.begin(&self.chain_tip);
-    }
-    pub fn rollback(&mut self) {
-        // self.marf.drop_current();
-        // self.side_store.rollback(&self.chain_tip);
-        // self.chain_tip = StacksBlockId::sentinel();
-    }
-    // This is used by miners
-    //   so that the block validation and processing logic doesn't
-    //   reprocess the same data as if it were already loaded
-    pub fn commit_mined_block(&mut self, _will_move_to: &StacksBlockId) {
-        // rollback the side_store
-        //    the side_store shouldn't commit data for blocks that won't be
-        //    included in the processed chainstate (like a block constructed during mining)
-        //    _if_ for some reason, we do want to be able to access that mined chain state in the future,
-        //    we should probably commit the data to a different table which does not have uniqueness constraints.
-        // self.side_store.rollback(&self.chain_tip);
-        // self.marf.commit_mined(will_move_to)
-        //     .expect("ERROR: Failed to commit MARF block");
-    }
-    pub fn commit_to(&mut self, _final_bhh: &StacksBlockId) {
-        // println!("commit_to({})", final_bhh);
-        // self.side_store.commit_metadata_to(&self.chain_tip, final_bhh);
-        // self.side_store.commit(&self.chain_tip);
-        // self.marf.commit_to(final_bhh)
-        //     .expect("ERROR: Failed to commit MARF block");
-    }
+    pub fn begin(&mut self, _current: &StacksBlockId, _next: &StacksBlockId) {}
+    pub fn rollback(&mut self) {}
+    pub fn commit_mined_block(&mut self, _will_move_to: &StacksBlockId) {}
+    pub fn commit_to(&mut self, _final_bhh: &StacksBlockId) {}
+
     pub fn get_chain_tip(&self) -> &StacksBlockId {
         &self.current_chain_tip
     }
