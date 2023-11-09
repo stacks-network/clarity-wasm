@@ -16,50 +16,12 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install Rust toolchain
-        run: |
-          rustup set profile minimal
-          rustup toolchain install stable --component llvm-tools-preview
-          rustup override set stable
-
-      - name: Cache cargo
-        id: cache-cargo
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-grcov-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install dependencies
-        if: steps.cache-cargo.outputs.cache-hit != 'true'
-        run: RUSTC_BOOTSTRAP=1 cargo install grcov
-
-      - name: Build
-        run: cargo build --all --all-features
-
-      - name: Test
-        env:
-          RUSTFLAGS: "-C instrument-coverage"
-          LLVM_PROFILE_FILE: "clarity-wasm-%p-%m.profraw"
-        run: cargo test --all-features -- --nocapture
-
-      - name: Generate coverage
-        run: grcov . --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v3
-        with:
-          name: clarity-wasm
-          verbose: true
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --all --all-features
+      - run: cargo test --all-features -- --nocapture
 
   fmt:
     name: Rustfmt
