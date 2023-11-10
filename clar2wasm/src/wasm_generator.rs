@@ -377,7 +377,8 @@ impl WasmGenerator {
     ///   type)
     /// - `include_value` indicates if space should be reserved for the value
     ///
-    /// Returns a local which is a pointer to the beginning of the allocated stack space
+    /// Returns a local which is a pointer to the beginning of the allocated
+    /// stack space and the size of the allocated space.
     pub(crate) fn create_call_stack_local(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -420,7 +421,8 @@ impl WasmGenerator {
 
     /// Write the value that is on the top of the data stack, which has type
     /// `ty`, to the memory, at offset stored in local variable,
-    /// `offset_local`, plus constant offset `offset`.
+    /// `offset_local`, plus constant offset `offset`. Returns the number of
+    /// bytes written.
     pub(crate) fn write_to_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
