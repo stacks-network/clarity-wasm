@@ -2929,3 +2929,82 @@ fn string_to_uint() {
     test_str("12v345", 0, 0, 0);
     test_str("340282366920938463463374607431768211455!", 0, 0, 0)
 }
+
+#[test]
+fn string_to_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let conv = instance
+        .get_func(&mut store, "stdlib.string-to-int")
+        .unwrap();
+    let mut result = [Val::I32(0), Val::I64(0), Val::I64(0)];
+
+    let mut test_str = |string: &str, expected_opt: i32, expected_lo: i64, expected_hi: i64| {
+        memory
+            .write(&mut store, 1500, string.as_bytes())
+            .expect("Could not write to memory");
+        conv.call(
+            &mut store,
+            &[Val::I32(1500), Val::I32(string.len() as i32)],
+            &mut result,
+        )
+        .expect("call to buff-to-uint-be failed");
+        assert_eq!(result[0].unwrap_i32(), expected_opt);
+        assert_eq!(result[1].unwrap_i64(), expected_lo);
+        assert_eq!(result[2].unwrap_i64(), expected_hi);
+    };
+
+    // Fails with empty string
+    test_str("", 0, 0, 0);
+
+    // Basic tests only using low bytes
+    test_str("0", 1, 0, 0);
+    test_str("1", 1, 1, 0);
+    test_str("42", 1, 42, 0);
+    test_str("1024", 1, 1024, 0);
+
+    // Basic tests with big numbers
+    test_str("184467440737095516156789", 1, -3211, 9999);
+    test_str(
+        "374467440737095681245698132",
+        1,
+        -6666426393504524204,
+        20299920,
+    );
+
+    // Tests with negative numbers
+    test_str("-0", 1, 0, 0);
+    test_str("-1", 1, -1, -1);
+    test_str("-1024", 1, -1024, -1);
+    test_str("-184467440737095516156789", 1, 3211, -10000);
+    test_str(
+        "-37446744073709568124569813",
+        1,
+        -1178031768020502741,
+        -2029993,
+    );
+
+    // Test with biggest valid int
+    test_str(&i128::MIN.to_string(), 1, 0, -9223372036854775808);
+    test_str(&i128::MAX.to_string(), 1, -1, 9223372036854775807);
+
+    // Test with valid uint but invalid int
+    test_str(
+        &(1u128 << 127).to_string(), // abs(i127::MIN)
+        0,
+        0,
+        0,
+    );
+    test_str(&u128::MAX.to_string(), 0, 0, 0);
+
+    // None with invalid inputs
+    test_str("a", 0, 0, 0);
+    test_str("-a", 0, 0, 0);
+    test_str("123a", 0, 0, 0);
+    test_str("12v345", 0, 0, 0);
+    test_str("-340282366920938463463374607431768211455!", 0, 0, 0)
+}
