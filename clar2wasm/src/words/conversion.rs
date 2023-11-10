@@ -47,3 +47,50 @@ impl Word for StringToUint {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::Value;
+
+    use crate::tools::evaluate;
+
+    #[test]
+    fn valid_string_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? "1234567")"#),
+            Some(Value::some(Value::Int(1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn valid_negative_string_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? "-1234567")"#),
+            Some(Value::some(Value::Int(-1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_string_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? "0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+
+    #[test]
+    fn valid_string_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? "98765")"#),
+            Some(Value::some(Value::UInt(98765)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_string_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? "0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+}
