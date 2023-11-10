@@ -2054,6 +2054,49 @@
         )
     )
 
+    (func $stdlib.string-to-int (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $neg i32) (local $lo i64) (local $hi i64)
+
+        ;; Save in neg if the number starts with "-"
+        (local.set $neg (i32.eq (i32.load8_u (local.get $offset)) (i32.const 45)))
+
+        (call $stdlib.string-to-uint 
+            (i32.add (local.get $offset) (local.get $neg))
+            (i32.sub (local.get $len) (local.get $neg))
+        )
+        (local.set $hi)
+        (local.set $lo)
+
+        ;; edge case i127::MIN
+        (if (i32.and (local.get $neg) (i32.and (i64.eqz (local.get $lo)) (i64.eq (local.get $hi) (i64.const -9223372036854775808))))
+            (then
+                (i32.const 1)
+                (i64.const 0)
+                (i64.const -9223372036854775808)
+                return
+            )
+        )
+
+        ;; if result is none or $hi < 0 (number to big to be a i128), return none
+        i32.eqz ;; is-none
+        (if (i32.or (i64.lt_s (local.get $hi) (i64.const 0)))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+
+        ;; result is some
+        (i32.const 1)
+
+        ;; if !neg { current_result } else { -current_result }
+        (if (result i64 i64)
+            (i32.eqz (local.get $neg))
+            (then (local.get $lo) (local.get $hi))
+            (else 
+                (i64.sub (i64.const 0) (local.get $lo))
+                (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+            )
+        )
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -2105,4 +2148,5 @@
     (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
+    (export "stdlib.string-to-int" (func $stdlib.string-to-int))
 )
