@@ -544,6 +544,7 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             },
         )
         .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {

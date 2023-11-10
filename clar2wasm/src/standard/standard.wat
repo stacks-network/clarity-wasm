@@ -222,6 +222,9 @@
     (import "clarity" "is_in_mainnet" (func $is_in_mainnet (result i32)))
     (import "clarity" "chain_id" (func $chain_id (result i64 i64)))
 
+    ;; Useful for debugging, just prints the value
+    (import "" "log" (func $log (param $value i64)))
+
     (global $stack-pointer (mut i32) (i32.const 0))
     (export "stack-pointer" (global $stack-pointer))
     (memory (export "memory") 10)
@@ -1977,6 +1980,270 @@
         )
     )
 
+    ;;
+    ;; `(principal-construct? version pkhash)` implementation
+    ;; `version` is a `(buff 1)` and `pkhash` is a `(buff 20)`.
+    ;;
+    (func $stdlib.principal-construct
+            (param $version_offset i32)
+            (param $version_length i32)
+            (param $pkhash_offset i32)
+            (param $pkhash_length i32)
+            (param $contract_present i32)
+            (param $contract_offset i32)
+            (param $contract_length i32)
+            (result i32 i32 i32 i64 i64 i32 i32 i32)
+        (local $version i32) (local $valid i32) (local $result_length i32)
+        ;; Return `(err u1)` if `version` is empty. The type-checker and
+        ;; compiler ensure it cannot be > 1 byte.
+        ;; PrincipalConstructErrorCode::BUFFER_LENGTH == u1
+        (if (i32.eqz (local.get $version_length))
+            (then
+                (i32.const 0) ;; err indicator
+                (i32.const 0) ;; ok value placeholder
+                (i32.const 0) ;; ok value placeholder
+                (i64.const 1) ;; error_code low
+                (i64.const 0) ;; error_code high
+                (i32.const 0) ;; principal none indicator
+                (i32.const 0) ;; principal placeholder
+                (i32.const 0) ;; principal placeholder
+                (return)
+            )
+        )
+
+        ;; Load the version byte
+        (local.tee $version (i32.load8_u (local.get $version_offset)))
+
+        ;; Return `(err u1)` if `version` is >= 32.
+        (i32.const 32)
+        (if (i32.ge_u)
+            (then
+                (i32.const 0) ;; err indicator
+                (i32.const 0) ;; ok value placeholder
+                (i32.const 0) ;; ok value placeholder
+                (i64.const 1) ;; error_code low
+                (i64.const 0) ;; error_code high
+                (i32.const 0) ;; principal none indicator
+                (i32.const 0) ;; principal placeholder
+                (i32.const 0) ;; principal placeholder
+                (return)
+            )
+        )
+
+        ;; Check if the version matches the current network
+        (if (result i32) (call $is_in_mainnet)
+            (then
+                (local.get $version)
+                (i32.const 20) ;; C32_ADDRESS_VERSION_MAINNET_MULTISIG
+                (i32.eq)
+                (local.get $version)
+                (i32.const 22) ;; C32_ADDRESS_VERSION_MAINNET_SINGLESIG
+                (i32.eq)
+                (i32.or)
+            )
+            (else
+                (local.get $version)
+                (i32.const 21) ;; C32_ADDRESS_VERSION_TESTNET_MULTISIG
+                (i32.eq)
+                (local.get $version)
+                (i32.const 26) ;; C32_ADDRESS_VERSION_TESTNET_SINGLESIG
+                (i32.eq)
+                (i32.or)
+            )
+        )
+        (local.set $valid)
+
+        ;; If the public key hash buffer has less than 20 bytes, this is a
+        ;; runtime error. The type-checker and compiler ensure it cannot be
+        ;; > 20 bytes.
+        (if (i32.lt_u (local.get $pkhash_length) (i32.const 20))
+            (then
+                (i32.const 0) ;; err indicator
+                (i32.const 0) ;; ok value placeholder
+                (i32.const 0) ;; ok value placeholder
+                (i64.const 1) ;; error_code low
+                (i64.const 0) ;; error_code high
+                (i32.const 0) ;; principal none indicator
+                (i32.const 0) ;; principal placeholder
+                (i32.const 0) ;; principal placeholder
+                (return)
+            )
+        )
+
+        ;; Build the principal on the call stack
+        ;; Write the version
+        (i32.store8 (global.get $stack-pointer) (local.get $version))
+        ;; Write the public key hash
+        (memory.copy
+            (i32.add (global.get $stack-pointer) (i32.const 1))
+            (local.get $pkhash_offset)
+            (i32.const 20)
+        )
+        ;; Write the size of the contract name
+        (i32.store offset=21 (global.get $stack-pointer) (local.get $contract_length))
+
+        ;; If a contract name is specified, check if it is valid. If so,
+        ;; append it to the principal
+        (if (i32.eq (local.get $contract_present) (i32.const 1))
+            (then
+                ;; Check if this is a valid contract name. If not return an error.
+                ;; PrincipalConstructErrorCode::CONTRACT_NAME == 2
+                (if (i32.eqz (call $stdlib.is-valid-contract-name (local.get $contract_offset) (local.get $contract_length)))
+                    (then
+                        (i32.const 0) ;; err indicator
+                        (i32.const 0) ;; ok value placeholder
+                        (i32.const 0) ;; ok value placeholder
+                        (i64.const 2) ;; error_code low
+                        (i64.const 0) ;; error_code high
+                        (i32.const 0) ;; principal none indicator
+                        (i32.const 0) ;; principal placeholder
+                        (i32.const 0) ;; principal placeholder
+                        (return)
+                    )
+                )
+
+                ;; Copy the contract name to the stack
+                (memory.copy
+                    (i32.add (global.get $stack-pointer) (i32.const 25))
+                    (local.get $contract_offset)
+                    (local.get $contract_length)
+                )
+            )
+        )
+
+        (local.set $result_length (i32.add (local.get $contract_length) (i32.const 25)))
+
+        ;; If the version was valid, return an ok value
+        (if (result i32 i32 i32 i64 i64 i32 i32 i32) (local.get $valid)
+            (then
+                ;; (ok the-principal)
+                (i32.const 1) ;; ok indicator
+                (global.get $stack-pointer) ;; principal offset
+                (local.get $result_length) ;; principal length
+                (i64.const 0) ;; error_code placeholder
+                (i64.const 0) ;; error_code placeholder
+                (i32.const 0) ;; optional placeholder
+                (i32.const 0) ;; principal placeholder
+                (i32.const 0) ;; principal placeholder
+            )
+            (else
+                ;; (err {error_code: VERSION_BYTE, principal: (some the-principal)})
+                (i32.const 0) ;; err indicator
+                (i32.const 0) ;; ok value placeholder
+                (i32.const 0) ;; ok value placeholder
+                (i64.const 0) ;; error_code low
+                (i64.const 0) ;; error_code high
+                (i32.const 1) ;; principal some indicator
+                (global.get $stack-pointer) ;; principal offset
+                (local.get $result_length) ;; principal length
+            )
+        )
+
+        ;; Adjust the stack pointer
+        (global.set $stack-pointer (i32.add (global.get $stack-pointer) (local.get $result_length)))
+    )
+
+
+    (func $stdlib.is-valid-contract-name (param $offset i32) (param $length i32) (result i32)
+        (local $end i32)
+
+        ;; Check if the string is empty
+        (local.get $length)
+        (if (i32.eqz)
+            (then (return (i32.const 0)))
+        )
+
+        ;; Check the first character: [a-zA-Z]
+        (call $stdlib.is-alpha (i32.load8_u (local.get $offset)))
+        (if (i32.eqz)
+            (then 
+                ;; There is a special case for the contract name `__transient`.
+                (if (call $stdlib.is-transient (local.get $offset) (local.get $length))
+                    (then (return (i32.const 1)))
+                )
+                (return (i32.const 0))
+            )
+        )
+
+        ;; Check remaining characters: [a-zA-Z0-9_-]
+        (local.set $end (i32.add (local.get $offset) (local.get $length)))
+        (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+
+        (loop $char_loop
+            (if (i32.eq (local.get $offset) (local.get $end))
+                (then (return (i32.const 1)))
+            )
+
+            (if (i32.eqz (call $stdlib.is-valid-char (i32.load8_u (local.get $offset))))
+                (then (return (i32.const 0)))
+            )
+
+            (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+            (br $char_loop)
+        )
+
+        (i32.const 0) ;; Fallback false
+    )
+
+    ;; Helper function to check if a character is a letter [a-zA-Z]
+    (func $stdlib.is-alpha (param $char i32) (result i32)
+        (i32.ge_u (local.get $char) (i32.const 65)) ;; >= 'A'
+        (i32.le_u (local.get $char) (i32.const 90)) ;; <= 'Z'
+        (i32.and)
+
+        (i32.ge_u (local.get $char) (i32.const 97)) ;; >= 'a'
+        (i32.le_u (local.get $char) (i32.const 122)) ;; <= 'z'
+        (i32.and)
+
+        (i32.or)
+    )
+
+    ;; Helper function to check if a character is valid [a-zA-Z0-9_-]
+    (func $stdlib.is-valid-char (param $char i32) (result i32)
+        (call $stdlib.is-alpha (local.get $char)) ;; [a-zA-Z]
+        
+        (i32.ge_u (local.get $char) (i32.const 48)) ;; >= '0'
+        (i32.le_u (local.get $char) (i32.const 57)) ;; <= '9'
+        (i32.and)
+
+        (i32.or)
+
+        (i32.eq (local.get $char) (i32.const 45)) ;; '-'
+        (i32.eq (local.get $char) (i32.const 95)) ;; '_'
+        (i32.or)
+
+        (i32.or)
+    )
+
+    ;; Helper function to check if a string is `__transient`
+    (func $stdlib.is-transient (param $offset i32) (param $length i32) (result i32)
+        (if (i32.ne (local.get $length) (i32.const 11)) ;; Length must be 11
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u (local.get $offset)) (i32.const 95)) ;; '_'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=1 (local.get $offset)) (i32.const 95)) ;; '_'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=2 (local.get $offset)) (i32.const 116)) ;; 't'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=3 (local.get $offset)) (i32.const 114)) ;; 'r'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=4 (local.get $offset)) (i32.const 97)) ;; 'a'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=5 (local.get $offset)) (i32.const 110)) ;; 'n'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=6 (local.get $offset)) (i32.const 115)) ;; 's
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=7 (local.get $offset)) (i32.const 105)) ;; 'i'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=8 (local.get $offset)) (i32.const 101)) ;; 'e'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=9 (local.get $offset)) (i32.const 110)) ;; 'n'
+            (then (return (i32.const 0))))
+        (if (i32.ne (i32.load8_u offset=10 (local.get $offset)) (i32.const 116)) ;; 't'
+            (then (return (i32.const 0))))
+        (i32.const 1)
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -2027,4 +2294,9 @@
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
+    (export "stdlib.principal-construct" (func $stdlib.principal-construct))
+    (export "stdlib.is-valid-contract-name" (func $stdlib.is-valid-contract-name))
+    (export "stdlib.is-alpha" (func $stdlib.is-alpha))
+    (export "stdlib.is-valid-char" (func $stdlib.is-valid-char))
+    (export "stdlib.is-transient" (func $stdlib.is-transient))
 )
