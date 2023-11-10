@@ -213,6 +213,59 @@ impl Word for Filter {
     }
 }
 
+fn traverse_short_circuting_list(
+    generator: &mut WasmGenerator,
+    builder: &mut walrus::InstrSeqBuilder,
+    args: &[SymbolicExpression],
+    invert: bool,
+) -> Result<(), GeneratorError> {
+    let n_branches = args.len();
+
+    let mut branches = vec![];
+
+    let noop = builder
+        .dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32],
+        ))
+        // for now, the noop branch just adds a false to break out of the next iteration
+        .i32_const(if invert { 1 } else { 0 })
+        .id();
+
+    for i in 0..n_branches {
+        let branch_expr = args.get_expr(i)?;
+
+        let mut branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+
+        generator.traverse_expr(&mut branch, branch_expr)?;
+
+        branches.push(branch.id());
+    }
+
+    builder.i32_const(if invert { 0 } else { 1 });
+
+    for branch in branches {
+        if invert {
+            builder.instr(ir::IfElse {
+                consequent: noop,
+                alternative: branch,
+            });
+        } else {
+            builder.instr(ir::IfElse {
+                consequent: branch,
+                alternative: noop,
+            });
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Debug)]
 pub struct And;
 
@@ -228,44 +281,7 @@ impl Word for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let n_branches = args.len();
-
-        let mut branches = vec![];
-
-        let noop = builder
-            .dangling_instr_seq(InstrSeqType::new(
-                &mut generator.module.types,
-                &[],
-                &[ValType::I32],
-            ))
-            // for now, the noop branch just adds a false to break out of the next iteration
-            .i32_const(0)
-            .id();
-
-        for i in 0..n_branches {
-            let branch_expr = args.get_expr(i)?;
-
-            let mut branch = builder.dangling_instr_seq(InstrSeqType::new(
-                &mut generator.module.types,
-                &[],
-                &[ValType::I32],
-            ));
-
-            generator.traverse_expr(&mut branch, branch_expr)?;
-
-            branches.push(branch.id());
-        }
-
-        builder.i32_const(1);
-
-        for branch in branches {
-            builder.instr(ir::IfElse {
-                consequent: branch,
-                alternative: noop,
-            });
-        }
-
-        Ok(())
+        traverse_short_circuting_list(generator, builder, args, false)
     }
 }
 
@@ -284,44 +300,7 @@ impl Word for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let n_branches = args.len();
-
-        let mut branches = vec![];
-
-        let noop = builder
-            .dangling_instr_seq(InstrSeqType::new(
-                &mut generator.module.types,
-                &[],
-                &[ValType::I32],
-            ))
-            // for now, the noop branch just adds a true to break out of the next iteration
-            .i32_const(1)
-            .id();
-
-        for i in 0..n_branches {
-            let branch_expr = args.get_expr(i)?;
-
-            let mut branch = builder.dangling_instr_seq(InstrSeqType::new(
-                &mut generator.module.types,
-                &[],
-                &[ValType::I32],
-            ));
-
-            generator.traverse_expr(&mut branch, branch_expr)?;
-
-            branches.push(branch.id());
-        }
-
-        builder.i32_const(0);
-
-        for branch in branches {
-            builder.instr(ir::IfElse {
-                consequent: noop,
-                alternative: branch,
-            });
-        }
-
-        Ok(())
+        traverse_short_circuting_list(generator, builder, args, true)
     }
 }
 
