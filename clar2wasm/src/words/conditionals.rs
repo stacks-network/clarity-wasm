@@ -213,7 +213,7 @@ impl Word for Filter {
     }
 }
 
-fn traverse_short_circuting_list(
+fn traverse_short_circuiting_list(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     args: &[SymbolicExpression],
@@ -281,7 +281,7 @@ impl Word for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        traverse_short_circuting_list(generator, builder, args, false)
+        traverse_short_circuiting_list(generator, builder, args, false)
     }
 }
 
@@ -300,7 +300,7 @@ impl Word for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        traverse_short_circuting_list(generator, builder, args, true)
+        traverse_short_circuiting_list(generator, builder, args, true)
     }
 }
 
