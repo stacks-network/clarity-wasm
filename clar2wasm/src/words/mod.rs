@@ -25,6 +25,7 @@ pub mod hashing;
 pub mod logical;
 pub mod maps;
 pub mod options;
+pub mod principal;
 pub mod print;
 pub mod responses;
 pub mod secp256k1;
@@ -99,6 +100,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &blockinfo::AtBlock,
     &blockinfo::GetBlockInfo,
     &blockinfo::GetBurnBlockInfo,
+    &principal::IsStandard,
     &print::Print,
     &sequences::ListCons,
     &sequences::Fold,
