@@ -1977,6 +1977,126 @@
         )
     )
 
+    (func $stdlib.string-to-uint (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $lo i64) (local $hi i64) (local $loaded i64)
+        ;; a string is automatically invalid if its size is 0 or
+        ;; bigger than 39, the max number of digits of a u128
+        (if (i32.lt_u (i32.sub (local.get $len) (i32.const 40)) (i32.const -39))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+        
+        ;; loop with simple multiplication, for speed
+        (loop $loop_small
+            ;; if next digit is valid, $lo * 10 + digit, otherwise we return none
+            (if (i64.lt_u (local.tee $loaded (i64.sub (i64.load8_u (local.get $offset)) (i64.const 48))) (i64.const 10))
+                (then 
+                    (local.set $lo (i64.add (i64.mul (local.get $lo) (i64.const 10)) (local.get $loaded)))
+                )
+                (else
+                    (return (i32.const 0) (i64.const 0) (i64.const 0))
+                )
+            )
+            (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+            ;; we branch while we still have digits to add and $lo < (u64::MAX / 10)
+            (br_if $loop_small 
+                (i32.and 
+                    (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 1))) (i32.const 0))
+                    (i64.lt_u (local.get $lo) (i64.const 1844674407370955161))
+                )
+            )
+        )
+
+        ;; we return if no more digits
+        (if (i32.eqz (local.get $len))
+            (then (return (i32.const 1) (local.get $lo) (i64.const 0)))
+        )
+
+        ;; here we keep looping but with our defined mul and add instead of i64.mul and i64.add
+        (loop $loop_big
+            (if (i64.lt_u (local.tee $loaded (i64.sub (i64.load8_u (local.get $offset)) (i64.const 48))) (i64.const 10))
+                (then 
+                    (call $stdlib.add-int128 
+                      (call $stdlib.mul-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                      (local.get $loaded) (i64.const 0)
+                    )
+                    (local.set $hi)
+                    (local.set $lo)
+                )
+                (else
+                    (return (i32.const 0) (i64.const 0) (i64.const 0))
+                )
+            )
+            (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+            ;; we branch while we still have digits and $result < (u128::MAX / 10)
+            (br_if $loop_big
+                (i32.and 
+                    (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 1))) (i32.const 0))
+                    (select
+                        (i64.lt_u (local.get $lo) (i64.const -7378697629483820647))
+                        (i64.lt_u (local.get $hi) (i64.const 1844674407370955161))
+                        (i64.eq (local.get $hi) (i64.const 1844674407370955161))
+                    )
+                )
+            )
+        )
+        ;; we have to return if we have no more digits, otherwise it means that we have 
+        ;; a result between (u128::MAX - 5)..u128::MAX or an overflow
+        (if (result i32 i64 i64)
+            (i32.eqz (local.get $len))
+            (then (i32.const 1) (local.get $lo) (local.get $hi))
+            (else
+                (if (result i32 i64 i64)
+                    (i64.le_u (local.tee $loaded (i64.sub (i64.load8_u (local.get $offset)) (i64.const 48))) (i64.const 5))
+                    (then (i32.const 1) (i64.add (i64.const -6) (local.get $loaded)) (i64.const -1))
+                    (else (i32.const 0) (i64.const 0) (i64.const 0))
+                )
+            )
+        )
+    )
+
+    (func $stdlib.string-to-int (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $neg i32) (local $lo i64) (local $hi i64)
+
+        ;; Save in neg if the number starts with "-"
+        (local.set $neg (i32.eq (i32.load8_u (local.get $offset)) (i32.const 45)))
+
+        (call $stdlib.string-to-uint 
+            (i32.add (local.get $offset) (local.get $neg))
+            (i32.sub (local.get $len) (local.get $neg))
+        )
+        (local.set $hi)
+        (local.set $lo)
+
+        ;; edge case i127::MIN
+        (if (i32.and (local.get $neg) (i32.and (i64.eqz (local.get $lo)) (i64.eq (local.get $hi) (i64.const -9223372036854775808))))
+            (then
+                (i32.const 1)
+                (i64.const 0)
+                (i64.const -9223372036854775808)
+                return
+            )
+        )
+
+        ;; if result is none or $hi < 0 (number too big to be a i128), return none
+        i32.eqz ;; is-none
+        (if (i32.or (i64.lt_s (local.get $hi) (i64.const 0)))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+
+        ;; result is some
+        (i32.const 1)
+
+        ;; if !neg { current_result } else { -current_result }
+        (if (result i64 i64)
+            (i32.eqz (local.get $neg))
+            (then (local.get $lo) (local.get $hi))
+            (else 
+                (i64.sub (i64.const 0) (local.get $lo))
+                (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+            )
+        )
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -2027,4 +2147,6 @@
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
     (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
+    (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
+    (export "stdlib.string-to-int" (func $stdlib.string-to-int))
 )
