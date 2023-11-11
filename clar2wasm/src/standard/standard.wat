@@ -2077,7 +2077,7 @@
             )
         )
 
-        ;; if result is none or $hi < 0 (number to big to be a i128), return none
+        ;; if result is none or $hi < 0 (number too big to be a i128), return none
         i32.eqz ;; is-none
         (if (i32.or (i64.lt_s (local.get $hi) (i64.const 0)))
             (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
