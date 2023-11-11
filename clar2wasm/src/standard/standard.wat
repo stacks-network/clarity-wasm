@@ -2031,27 +2031,7 @@
         )
 
         ;; Check if the version matches the current network
-        (if (result i32) (call $is_in_mainnet)
-            (then
-                (local.get $version)
-                (i32.const 20) ;; C32_ADDRESS_VERSION_MAINNET_MULTISIG
-                (i32.eq)
-                (local.get $version)
-                (i32.const 22) ;; C32_ADDRESS_VERSION_MAINNET_SINGLESIG
-                (i32.eq)
-                (i32.or)
-            )
-            (else
-                (local.get $version)
-                (i32.const 21) ;; C32_ADDRESS_VERSION_TESTNET_MULTISIG
-                (i32.eq)
-                (local.get $version)
-                (i32.const 26) ;; C32_ADDRESS_VERSION_TESTNET_SINGLESIG
-                (i32.eq)
-                (i32.or)
-            )
-        )
-        (local.set $valid)
+        (local.set $valid (call $stdlib.is-version-valid (local.get $version)))
 
         ;; If the public key hash buffer has less than 20 bytes, this is a
         ;; runtime error. The type-checker and compiler ensure it cannot be
@@ -2244,6 +2224,30 @@
         (i32.const 1)
     )
 
+    ;; Check if the version matches the current network
+    (func $stdlib.is-version-valid (param $version i32) (result i32)
+        (if (result i32) (call $is_in_mainnet)
+            (then
+                (local.get $version)
+                (i32.const 20) ;; C32_ADDRESS_VERSION_MAINNET_MULTISIG
+                (i32.eq)
+                (local.get $version)
+                (i32.const 22) ;; C32_ADDRESS_VERSION_MAINNET_SINGLESIG
+                (i32.eq)
+                (i32.or)
+            )
+            (else
+                (local.get $version)
+                (i32.const 21) ;; C32_ADDRESS_VERSION_TESTNET_MULTISIG
+                (i32.eq)
+                (local.get $version)
+                (i32.const 26) ;; C32_ADDRESS_VERSION_TESTNET_SINGLESIG
+                (i32.eq)
+                (i32.or)
+            )
+        )
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -2299,4 +2303,5 @@
     (export "stdlib.is-alpha" (func $stdlib.is-alpha))
     (export "stdlib.is-valid-char" (func $stdlib.is-valid-char))
     (export "stdlib.is-transient" (func $stdlib.is-transient))
+    (export "stdlib.is-version-valid" (func $stdlib.is-version-valid))
 )

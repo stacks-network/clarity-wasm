@@ -3204,3 +3204,27 @@ fn principal_construct() {
         2,
     );
 }
+
+#[test]
+fn is_version_valid() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let is_valid = instance
+        .get_func(&mut store, "stdlib.is-version-valid")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_version = |version: u8, expected: bool| {
+        is_valid
+            .call(&mut store, &[Val::I32(version as i32)], &mut result)
+            .expect("call to is-version-valid failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    test_version(21, true);
+    test_version(26, true);
+    test_version(20, false);
+    test_version(22, false);
+    test_version(42, false);
+    test_version(11, false);
+}
