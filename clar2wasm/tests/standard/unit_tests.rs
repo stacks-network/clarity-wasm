@@ -2878,7 +2878,7 @@ fn string_to_uint() {
             &[Val::I32(1500), Val::I32(string.len() as i32)],
             &mut result,
         )
-        .expect("call to buff-to-uint-be failed");
+        .expect("call to string-to-uint failed");
         assert_eq!(result[0].unwrap_i32(), expected_opt);
         assert_eq!(result[1].unwrap_i64(), expected_lo);
         assert_eq!(result[2].unwrap_i64(), expected_hi);
