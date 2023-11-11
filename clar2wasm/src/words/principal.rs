@@ -3,14 +3,20 @@ use clarity::{
         C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
         C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
     },
-    vm::{ClarityName, SymbolicExpression},
+    vm::{
+        clarity_wasm::STANDARD_PRINCIPAL_BYTES,
+        types::{signatures::ASCII_40, TypeSignature, BUFF_1, BUFF_20},
+        ClarityName, SymbolicExpression,
+    },
 };
 use walrus::{
-    ir::{BinaryOp, InstrSeqType, MemArg},
-    ValType,
+    ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg},
+    LocalId, ValType,
 };
 
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{
+    add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 
 use super::Word;
 
@@ -126,6 +132,142 @@ impl Word for Construct {
 
         // Call the principal-construct function in the stdlib
         builder.call(generator.func_by_name("stdlib.principal-construct"));
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Destruct;
+
+/// Build the result tuple:
+/// ```
+/// {
+///   hash-bytes: (buff 20)
+///   name: (optional (string-ascii 40))
+///   version: (buff 1)
+/// }
+/// ```
+fn generate_tuple(
+    builder: &mut walrus::InstrSeqBuilder,
+    principal_offset: LocalId,
+    length: LocalId,
+) {
+    // Push the hash-bytes offset
+    builder
+        .local_get(principal_offset)
+        .i32_const(1)
+        .binop(BinaryOp::I32Add);
+
+    // Push the hash-bytes length
+    builder.i32_const(20);
+
+    // If `length` > 0, then there is a name. This result serves as the
+    // optional name indicator.
+    builder
+        .local_get(length)
+        .i32_const(0)
+        .binop(BinaryOp::I32GtU);
+
+    // If there isn't a name, then the offset and length will be ignored.
+    // Push the name offset
+    builder
+        .local_get(principal_offset)
+        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+        .binop(BinaryOp::I32Add);
+
+    // Push the name length
+    builder.local_get(length);
+
+    // Push the version offset
+    builder.local_get(principal_offset);
+
+    // Push the version length
+    builder.i32_const(1);
+}
+
+impl Word for Destruct {
+    fn name(&self) -> ClarityName {
+        "principal-destruct?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Traverse the principal
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
+
+        // Subtract STANDARD_PRINCIPAL_BYTES from the length to get the length
+        // of the name.
+        builder
+            .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+            .binop(BinaryOp::I32Sub);
+
+        // Save the length and offset in locals
+        let length = generator.module.locals.add(ValType::I32);
+        builder.local_set(length);
+        let principal_offset = generator.module.locals.add(ValType::I32);
+        builder.local_tee(principal_offset);
+
+        // Load the version byte
+        builder.load(
+            generator.get_memory(),
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Check if the version matches the network.
+        builder.call(generator.func_by_name("stdlib.is-version-valid"));
+
+        let ret_ty = generator
+            .get_expr_type(expr)
+            .expect("destruct result should be typed");
+        let tuple_ty = TypeSignature::TupleType(
+            vec![
+                ("hash-bytes".into(), BUFF_20.clone()),
+                (
+                    "name".into(),
+                    TypeSignature::new_option(ASCII_40.clone()).unwrap(),
+                ),
+                ("version".into(), BUFF_1.clone()),
+            ]
+            .try_into()
+            .unwrap(),
+        );
+
+        let return_types = clar2wasm_ty(ret_ty);
+        builder.if_else(
+            InstrSeqType::new(&mut generator.module.types, &[], &return_types),
+            |then| {
+                // Push the indicator
+                then.i32_const(1);
+
+                // Push the tuple
+                generate_tuple(then, principal_offset, length);
+
+                // Push a placeholder for the error value
+                add_placeholder_for_clarity_type(then, &tuple_ty);
+            },
+            |else_| {
+                // Push the indicator
+                else_.i32_const(0);
+
+                // Push a placeholder for the ok tuple
+                add_placeholder_for_clarity_type(else_, &tuple_ty);
+
+                // Push the error tuple
+                generate_tuple(else_, principal_offset, length);
+            },
+        );
 
         Ok(())
     }
@@ -345,7 +487,9 @@ mod tests {
     #[test]
     fn test_construct_empty_contract() {
         assert_eq!(
-            evaluate(r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#),
+            evaluate(
+                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#
+            ),
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -363,12 +507,128 @@ mod tests {
     #[test]
     fn test_construct_illegal_contract() {
         assert_eq!(
-            evaluate(r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#),
+            evaluate(
+                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#
+            ),
             Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(2)),
                         ("value".into(), Value::none())
+                    ])
+                    .unwrap()
+                    .into()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    //- principal-destruct?
+
+    #[test]
+    fn test_destruct_standard() {
+        assert_eq!(
+            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)"),
+            Some(
+                Value::okay(
+                    TupleData::from_data(vec![
+                        (
+                            "hash-bytes".into(),
+                            Value::buff_from(
+                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        ("name".into(), Value::none()),
+                        ("version".into(), Value::buff_from_byte(0x1a))
+                    ])
+                    .unwrap()
+                    .into()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_destruct_contract() {
+        assert_eq!(
+            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)"),
+            Some(
+                Value::okay(
+                    TupleData::from_data(vec![
+                        (
+                            "hash-bytes".into(),
+                            Value::buff_from(
+                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        (
+                            "name".into(),
+                            Value::some(
+                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        ("version".into(), Value::buff_from_byte(0x1a))
+                    ])
+                    .unwrap()
+                    .into()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_destruct_standard_err() {
+        assert_eq!(
+            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)"),
+            Some(
+                Value::error(
+                    TupleData::from_data(vec![
+                        (
+                            "hash-bytes".into(),
+                            Value::buff_from(
+                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        ("name".into(), Value::none()),
+                        ("version".into(), Value::buff_from_byte(0x16))
+                    ])
+                    .unwrap()
+                    .into()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_destruct_contract_err() {
+        assert_eq!(
+            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)"),
+            Some(
+                Value::error(
+                    TupleData::from_data(vec![
+                        (
+                            "hash-bytes".into(),
+                            Value::buff_from(
+                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        (
+                            "name".into(),
+                            Value::some(
+                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap()
+                            )
+                            .unwrap()
+                        ),
+                        ("version".into(), Value::buff_from_byte(0x16))
                     ])
                     .unwrap()
                     .into()

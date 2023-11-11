@@ -102,6 +102,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &blockinfo::GetBurnBlockInfo,
     &principal::IsStandard,
     &principal::Construct,
+    &principal::Destruct,
     &print::Print,
     &sequences::ListCons,
     &sequences::Fold,
