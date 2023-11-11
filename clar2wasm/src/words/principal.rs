@@ -141,13 +141,11 @@ impl Word for Construct {
 pub struct Destruct;
 
 /// Build the result tuple:
-/// ```
 /// {
 ///   hash-bytes: (buff 20)
 ///   name: (optional (string-ascii 40))
 ///   version: (buff 1)
 /// }
-/// ```
 fn generate_tuple(
     builder: &mut walrus::InstrSeqBuilder,
     principal_offset: LocalId,
