@@ -2445,6 +2445,39 @@
         ;; final result is already on the stack
     )
 
+    (func $stdlib.int-to-string (param $lo i64) (param $hi i64) (result i32 i32)
+        (local $offset i32) (local $len i32)
+        (local.set $len (local.tee $offset (i64.lt_s (local.get $hi) (i64.const 0))))
+        ;; add a '-' if n < 0
+        (if (local.get $len)
+            (then 
+                (i32.store8 (global.get $stack-pointer) (i32.const 45))
+                (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const 1)))
+            )
+        )
+
+        ;; if (n >= 0 or n == i128::MIN) { uint-to-string(n) } else { uint-to-string(-n) }
+        (if (result i32 i32)
+            (select
+                (i64.eqz (local.get $lo))
+                (i64.ge_s (local.get $hi) (i64.const 0))
+                (i64.eq (local.get $hi) (i64.const 0x8000000000000000))
+            )
+            (then (call $stdlib.uint-to-string (local.get $lo) (local.get $hi)))
+            (else 
+                (call $stdlib.uint-to-string 
+                    (i64.sub (i64.const 0) (local.get $lo))
+                    (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+                )
+            )
+        )
+
+        ;; we adjust offset and length to account for the '-'
+        (local.set $len (i32.add (local.get $len)))
+        (i32.sub (local.get $offset))
+        (local.get $len)
+    )
+
     ;;
     ;; -- 'to-uint' implementation
     ;;
@@ -2538,6 +2571,7 @@
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
     (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
+    (export "stdlib.int-to-string" (func $stdlib.int-to-string))
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
 )
