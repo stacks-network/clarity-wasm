@@ -1,189 +1,75 @@
-use super::Network;
+use super::{Network, environments::RuntimeEnv};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RuntimeEnvCallbacks<'a> {
-    get_chain_tip_start: Option<&'a dyn Fn()>,
-    get_chain_tip_finish: Option<&'a dyn Fn(i32)>,
-    load_block_headers_start: Option<&'a dyn Fn()>,
-    load_block_headers_iter: Option<&'a dyn Fn(usize)>,
-    load_block_headers_finish: Option<&'a dyn Fn()>,
+    pub get_chain_tip_start: &'a dyn Fn(&dyn RuntimeEnv),
+    pub get_chain_tip_finish: &'a dyn Fn(&dyn RuntimeEnv, i32),
+    pub load_block_headers_start: &'a dyn Fn(&dyn RuntimeEnv),
+    pub load_block_headers_iter: &'a dyn Fn(&dyn RuntimeEnv, usize),
+    pub load_block_headers_finish: &'a dyn Fn(&dyn RuntimeEnv),
 
-    env_open_start: Option<&'a dyn Fn(&str)>,
-    env_open_finish: Option<&'a dyn Fn()>,
-    open_index_db_start: Option<&'a dyn Fn(&str)>,
-    open_index_db_finish: Option<&'a dyn Fn()>,
-    determine_network_start: Option<&'a dyn Fn()>,
-    determine_network_finish: Option<&'a dyn Fn(&Network)>,
-    load_db_config_start: Option<&'a dyn Fn()>,
-    load_db_config_finish: Option<&'a dyn Fn()>,
-    open_chainstate_start: Option<&'a dyn Fn(&str)>,
-    open_chainstate_finish: Option<&'a dyn Fn()>,
-    open_clarity_db_start: Option<&'a dyn Fn(&str)>,
-    open_clarity_db_finish: Option<&'a dyn Fn()>,
-    open_sortition_db_start: Option<&'a dyn Fn(&str)>,
-    open_sortition_db_finish: Option<&'a dyn Fn()>,
+    pub env_open_start: &'a dyn Fn(&dyn RuntimeEnv, &str),
+    pub env_open_finish: &'a dyn Fn(&dyn RuntimeEnv),
+    pub open_index_db_start: &'a dyn Fn(&dyn RuntimeEnv, &str),
+    pub open_index_db_finish: &'a dyn Fn(&dyn RuntimeEnv),
+    pub determine_network_start: &'a dyn Fn(&dyn RuntimeEnv),
+    pub determine_network_finish: &'a dyn Fn(&dyn RuntimeEnv, &Network),
+    pub load_db_config_start: &'a dyn Fn(&dyn RuntimeEnv),
+    pub load_db_config_finish: &'a dyn Fn(&dyn RuntimeEnv),
+    pub open_chainstate_start: &'a dyn Fn(&dyn RuntimeEnv, &str),
+    pub open_chainstate_finish: &'a dyn Fn(&dyn RuntimeEnv),
+    pub open_clarity_db_start: &'a dyn Fn(&dyn RuntimeEnv, &str),
+    pub open_clarity_db_finish: &'a dyn Fn(&dyn RuntimeEnv),
+    pub open_sortition_db_start: &'a dyn Fn(&dyn RuntimeEnv, &str),
+    pub open_sortition_db_finish: &'a dyn Fn(&dyn RuntimeEnv),
 }
 
-impl<'a> RuntimeEnvCallbacks<'a> {
-    pub fn get_chain_tip_start(&self) {
-        if let Some(func) = self.get_chain_tip_start {
-            func();
-        }
-    }
+impl Default for RuntimeEnvCallbacks<'_> {
+    fn default() -> Self {
 
-    pub fn get_chain_tip_finish(&self, tip_height: i32) {
-        if let Some(func) = self.get_chain_tip_finish {
-            func(tip_height);
-        }
-    }
-
-    pub fn load_block_headers_start(&self) {
-        if let Some(func) = self.load_block_headers_start {
-            func();
-        }
-    }
-
-    pub fn load_block_headers_iter(&self, count: usize) {
-        if let Some(func) = self.load_block_headers_iter {
-            func(count);
-        }
-    }
-
-    pub fn load_block_headers_finish(&self) {
-        if let Some(func) = self.load_block_headers_finish {
-            func();
-        }
-    }
-
-    pub fn env_open_start(&self, name: &str) {
-        if let Some(func) = self.env_open_start {
-            func(name);
-        }
-    }
-
-    pub fn env_open_finish(&self) {
-        if let Some(func) = self.env_open_finish {
-            func();
-        }
-    }
-
-    pub fn open_index_db_start(&self, path: &str) {
-        if let Some(func) = self.open_index_db_start {
-            func(path);
-        }
-    }
-
-    pub fn open_index_db_finish(&self) {
-        if let Some(func) = self.open_index_db_finish {
-            func();
-        }
-    }
-
-    pub fn load_db_config_start(&self) {
-        if let Some(func) = self.load_db_config_start {
-            func();
-        }
-    }
-
-    pub fn load_db_config_finish(&self) {
-        if let Some(func) = self.load_db_config_finish {
-            func();
-        }
-    }
-
-    pub fn determine_network_start(&self) {
-        if let Some(func) = self.determine_network_start {
-            func();
-        }
-    }
-
-    pub fn determine_network_finish(&self, network: &Network) {
-        if let Some(func) = self.determine_network_finish {
-            func(network);
-        }
-    }
-
-    pub fn open_chainstate_start(&self, path: &str) {
-        if let Some(func) = self.open_chainstate_start {
-            func(path);
-        }
-    }
-
-    pub fn open_chainstate_finish(&self) {
-        if let Some(func) = self.open_chainstate_finish {
-            func();
-        }
-    }
-
-    pub fn open_clarity_db_start(&self, path: &str) {
-        if let Some(func) = self.open_clarity_db_start {
-            func(path);
-        }
-    }
-
-    pub fn open_clarity_db_finish(&self) {
-        if let Some(func) = self.open_clarity_db_finish {
-            func();
-        }
-    }
-
-    pub fn open_sortition_db_start(&self, path: &str) {
-        if let Some(func) = self.open_sortition_db_start {
-            func(path);
-        }
-    }
-
-    pub fn open_sortition_db_finish(&self) {
-        if let Some(func) = self.open_sortition_db_finish {
-            func();
+        Self {
+            get_chain_tip_start: &|_| {},
+            get_chain_tip_finish: &|_, _| {},
+            load_block_headers_start: &|_| {},
+            load_block_headers_iter: &|_, _| {}, 
+            load_block_headers_finish: &|_| {}, 
+            env_open_start: &|_, _| {}, 
+            env_open_finish: &|_| {}, 
+            open_index_db_start: &|_, _| {}, 
+            open_index_db_finish: &|_| {}, 
+            determine_network_start: &|_| {}, 
+            determine_network_finish: &|_, _| {}, 
+            load_db_config_start: &|_| {}, 
+            load_db_config_finish: &|_| {}, 
+            open_chainstate_start: &|_, _| {}, 
+            open_chainstate_finish: &|_| {}, 
+            open_clarity_db_start: &|_, _| {}, 
+            open_clarity_db_finish: &|_| {}, 
+            open_sortition_db_start: &|_, _| {}, 
+            open_sortition_db_finish: &|_| {} 
         }
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ReplayCallbacks<'a> {
-    pub replay_start: Option<&'a dyn Fn(usize)>,
-    pub replay_finish: Option<&'a dyn Fn()>,
-    pub replay_block_start: Option<&'a dyn Fn(u32, u32)>,
-    pub replay_block_finish: Option<&'a dyn Fn()>,
-    pub replay_tx_start: Option<&'a dyn Fn()>,
-    pub replay_tx_finish: Option<&'a dyn Fn()>,
+    pub replay_start: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv, usize),
+    pub replay_finish: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv),
+    pub replay_block_start: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv, u32, u32),
+    pub replay_block_finish: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv),
+    pub replay_tx_start: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv),
+    pub replay_tx_finish: &'a dyn Fn(&dyn RuntimeEnv, &dyn RuntimeEnv),
 }
 
-impl ReplayCallbacks<'_> {
-    pub fn replay_start(&self, block_count: usize) {
-        if let Some(func) = self.replay_start {
-            func(block_count);
-        }
-    }
-
-    pub fn replay_finish(&self) {
-        if let Some(func) = self.replay_finish {
-            func();
-        }
-    }
-
-    pub fn replay_block_start(&self, height: u32, tx_count: u32) {
-        if let Some(func) = self.replay_block_start {
-            func(height, tx_count);
-        }
-    }
-
-    pub fn replay_block_finish(&self) {
-        if let Some(func) = self.replay_block_finish {
-            func();
-        }
-    }
-
-    pub fn replay_tx_start(&self) {
-        if let Some(func) = self.replay_tx_start {
-            func();
-        }
-    }
-
-    pub fn replay_tx_finish(&self) {
-        if let Some(func) = self.replay_tx_finish {
-            func();
+impl Default for ReplayCallbacks<'_> {
+    fn default() -> Self {
+        Self { 
+            replay_start: &|_, _, _| {}, 
+            replay_finish: &|_, _| {}, 
+            replay_block_start: &|_, _, _, _| {},
+            replay_block_finish: &|_, _| {},
+            replay_tx_start: &|_, _| {},
+            replay_tx_finish: &|_, _| {}, 
         }
     }
 }

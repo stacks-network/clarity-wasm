@@ -87,6 +87,13 @@ pub trait RuntimeEnv<'a> {
     /// Configures callbacks for the environment.
     #[allow(unused_variables)]
     fn with_callbacks(&mut self, callbacks: &'a RuntimeEnvCallbacks) {}
+    fn get_default_callbacks(&self) -> RuntimeEnvCallbacks {
+        RuntimeEnvCallbacks::default()
+    }
+}
+
+pub trait AsRuntimeEnv<'a> : RuntimeEnv<'a> {
+    fn as_env(&self) -> &'a dyn RuntimeEnv<'a>;
 }
 
 /// Defines the functionality for a readable [RuntimeEnv].
@@ -94,6 +101,7 @@ pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
+    fn as_env(&'a self) -> &'a dyn RuntimeEnv<'a>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].

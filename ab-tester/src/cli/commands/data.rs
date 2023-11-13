@@ -1,11 +1,14 @@
+use std::{time::Duration, collections::HashMap};
+
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
+use indicatif::{ProgressBar, ProgressStyle, MultiProgress, WeakProgressBar};
 use log::*;
 
 use crate::{
-    cli::DataArgs,
+    cli::{DataArgs, console::app},
     context::{
-        callbacks::ReplayCallbacks, environments::RuntimeEnvBuilder, replay::ReplayOpts,
+        callbacks::{ReplayCallbacks, RuntimeEnvCallbacks}, environments::{RuntimeEnvBuilder, RuntimeEnv}, replay::ReplayOpts,
         ComparisonContext, Network, Runtime,
     },
     db::appdb::AppDb,
@@ -18,7 +21,10 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     let env_builder = RuntimeEnvBuilder::new(&app_db);
 
-    let mut baseline_env = env_builder.stacks_node("baseline", &config.baseline.chainstate_path)?;
+    let mut baseline_env = env_builder.stacks_node(
+        "baseline", 
+        &config.baseline.chainstate_path
+    )?;
 
     let mut interpreter_env = env_builder.instrumented(
         "baseline_replay",
@@ -34,22 +40,52 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
         "/home/cylwit/clarity-ab/wasm",
     )?;
 
+    let multi_pb = MultiProgress::new();
+    let pb = ProgressBar::new_spinner();
+    pb.enable_steady_tick(Duration::from_millis(120));
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏",]),
+    );
+
+    let mut progress_bars: HashMap<&str, WeakProgressBar> = HashMap::new();
+
+    /*
+    let baseline_env_cb = RuntimeEnvCallbacks::default();
+    //baseline_env.with_callbacks(&baseline_env_cb);
+    let baseline_env_pg = ProgressBar::new(512);
+    progress_bars.insert(baseline_env.name(), baseline_env_pg.downgrade());
+    multi_pb.add(baseline_env_pg);
+
+    let interpreter_env_cb = RuntimeEnvCallbacks::default();
+    interpreter_env.with_callbacks(&interpreter_env_cb);
+    let interpreter_env_pb = ProgressBar::new(512);
+    progress_bars.insert(interpreter_env.name(), interpreter_env_pb.downgrade());
+    multi_pb.add(interpreter_env_pb);
+
+    let wasm_env_cb = RuntimeEnvCallbacks::default();
+    wasm_env.with_callbacks(&wasm_env_cb);
+    let wasm_env_pb = ProgressBar::new(512);
+    progress_bars.insert(wasm_env.name(), wasm_env_pb.downgrade());
+    multi_pb.add(wasm_env_pb);
+
+    
     let mut replay_opts: ReplayOpts = data_args.into();
-
-    replay_opts.with_callbacks(ReplayCallbacks {
-        replay_start: None,
-        replay_finish: None,
-        replay_block_start: Some(&|a, b| {}),
-        replay_block_finish: None,
-        replay_tx_start: None,
-        replay_tx_finish: None,
+    replay_opts.with_callbacks(ReplayCallbacks { 
+        replay_start: &|_,_,_| {}, 
+        replay_finish: &|_,_| {}, 
+        replay_block_start: &|_,_,_,_| {}, 
+        replay_block_finish: &|_,_| {}, 
+        replay_tx_start: &|_,_| {}, 
+        replay_tx_finish: &|_,_| {} 
     });
+*/
+    let tmp = ComparisonContext::new(&app_db)
+        .using_baseline(&mut baseline_env);
 
-    let comparator = ComparisonContext::new(&app_db)
-        .using_baseline(&mut baseline_env)
-        .instrument_into(&mut interpreter_env)
-        .instrument_into(&mut wasm_env)
-        .replay(&replay_opts)?;
 
     std::process::exit(0);
 

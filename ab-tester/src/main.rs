@@ -13,7 +13,6 @@ mod runtime;
 mod stacks;
 
 use clap::Parser;
-use clap_verbosity_flag::{ErrorLevel, Verbosity};
 use cli::*;
 use color_eyre::eyre::{bail, Result};
 use config::Config;

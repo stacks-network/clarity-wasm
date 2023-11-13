@@ -35,6 +35,10 @@ impl AppDb {
         }
     }
 
+    pub fn close(self) -> Result<()> {
+        Ok(())
+    }
+
     /// Retrieves an existing runtime environment by name. Returns [None] if
     /// the environment was not found.
     pub fn get_env(&self, name: &str) -> Result<Option<Environment>> {

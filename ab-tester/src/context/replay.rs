@@ -1,11 +1,11 @@
 use color_eyre::{eyre::ensure, Result};
 use log::*;
 
-use crate::{context::Block, errors::AppError, ok};
+use crate::{context::{Block, environments::RuntimeEnv}, errors::AppError, ok};
 
 use super::{
     callbacks::ReplayCallbacks,
-    environments::{ReadableEnv, WriteableEnv},
+    environments::{ReadableEnv, WriteableEnv, AsRuntimeEnv},
 };
 
 /// Options for replaying an environment's chain into another environment.
@@ -57,9 +57,9 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a>(
-        source: &'_ mut dyn ReadableEnv<'a>,
-        target: &'_ mut dyn WriteableEnv<'a>,
-        opts: &ReplayOpts,
+        source: &'a dyn ReadableEnv<'a>,
+        target: &'a mut dyn WriteableEnv<'a>,
+        opts: &'a ReplayOpts<'a>,
     ) -> Result<()> {
         info!(
             "aggregating contract calls starting at block height {}...",
@@ -69,7 +69,7 @@ impl ChainStateReplayer {
         let mut processed_block_count = 0;
 
         let blocks = source.blocks()?;
-        opts.callbacks.replay_start(blocks.len());
+        (opts.callbacks.replay_start)(source.as_env(), target.as_env(), blocks.len());
 
         for block in source.blocks()?.into_iter() {
             let (header, stacks_block) = match &block {
@@ -140,7 +140,7 @@ impl ChainStateReplayer {
             }*/
         }
 
-        opts.callbacks.replay_finish();
+        (opts.callbacks.replay_finish)(source.as_env(), target.as_env());
         info!("blocks processed: {processed_block_count}");
 
         ok!()

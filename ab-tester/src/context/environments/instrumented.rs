@@ -19,7 +19,7 @@ use crate::{
     ok, stacks,
 };
 
-use super::{ReadableEnv, RuntimeEnv, RuntimeEnvCallbacks, WriteableEnv};
+use super::{ReadableEnv, RuntimeEnv, RuntimeEnvCallbacks, WriteableEnv, AsRuntimeEnv};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig<'a> {
@@ -116,13 +116,13 @@ impl<'a> InstrumentedEnv<'a> {
             .ok_or(anyhow!("environment has not been opened"))?;
 
         // Retrieve the tip.
-        self.callbacks.get_chain_tip_start();
+        (self.callbacks.get_chain_tip_start)(self);
         let tip = appdb::_block_headers::table
             .order_by(appdb::_block_headers::block_height.desc())
             .limit(1)
             .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())?;
         // TODO: Handle when there is no tip (chain uninitialized).
-        self.callbacks.get_chain_tip_finish(tip.block_height);
+        (self.callbacks.get_chain_tip_finish)(self, tip.block_height);
         let mut current_block = Some(tip);
 
         // Vec for holding the headers we run into. This will initially be
@@ -154,7 +154,7 @@ impl<'a> InstrumentedEnv<'a> {
                     vec![0_u8; 20],
                 ));
             }
-            self.callbacks.load_block_headers_iter(headers.len());
+            (self.callbacks.load_block_headers_iter)(self, headers.len());
 
             current_block = block_parent;
         }
@@ -166,7 +166,7 @@ impl<'a> InstrumentedEnv<'a> {
         debug!("tip: {:?}", headers[headers.len() - 1]);
         debug!("retrieved {} block headers", headers.len());
 
-        self.callbacks.load_block_headers_finish();
+        (self.callbacks.load_block_headers_finish)(self);
         Ok(headers)
     }
 }
@@ -190,7 +190,7 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
         let network = &self.env_config.network;
 
         info!("[{name}] opening environment...");
-        self.callbacks.env_open_start(name);
+        (self.callbacks.env_open_start)(self, name);
         paths.print(name);
 
         // Setup our options for the Marf.
@@ -205,7 +205,7 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
         };
 
         debug!("initializing chainstate");
-        self.callbacks.open_chainstate_start(&paths.chainstate_path);
+        (self.callbacks.open_chainstate_start)(self, &paths.chainstate_path);
         let (chainstate, _) = stacks::StacksChainState::open_and_exec(
             network.is_mainnet(),
             1,
@@ -213,27 +213,27 @@ impl<'a> RuntimeEnv<'a> for InstrumentedEnv<'a> {
             Some(&mut boot_data),
             Some(marf_opts.clone()),
         )?;
-        self.callbacks.open_chainstate_finish();
+        (self.callbacks.open_chainstate_finish)(self);
         info!("[{name}] chainstate initialized.");
 
         debug!("[{name}] loading index db...");
-        self.callbacks.open_index_db_start(&paths.index_db_path);
+        (self.callbacks.open_index_db_start)(self, &paths.index_db_path);
         let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
-        self.callbacks.open_index_db_finish();
+        (self.callbacks.open_index_db_finish)(self);
         info!("[{name}] successfully connected to index db");
 
         debug!("[{name}] loading clarity db...");
-        self.callbacks.open_clarity_db_start(&paths.clarity_db_path);
+        (self.callbacks.open_clarity_db_start)(self, &paths.clarity_db_path);
         let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
-        self.callbacks.open_clarity_db_finish();
+        (self.callbacks.open_clarity_db_finish)(self);
         info!("[{name}] successfully connected to clarity db");
 
         //debug!("attempting to migrate sortition db");
         debug!("opening sortition db");
-        self.callbacks
-            .open_sortition_db_start(&paths.sortition_db_path);
+        (self.callbacks
+            .open_sortition_db_start)(self, &paths.sortition_db_path);
         let sortition_db = super::open_sortition_db(&paths.sortition_db_path, network)?;
-        self.callbacks.open_sortition_db_finish();
+        (self.callbacks.open_sortition_db_finish)(self);
         info!("successfully opened sortition db");
 
         let state = InstrumentedEnvState {
@@ -255,6 +255,9 @@ impl<'a> ReadableEnv<'a> for InstrumentedEnv<'a> {
         let headers = self.block_headers()?;
         let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
         Ok(cursor)
+    }
+    fn as_env(&'a self) -> &'a dyn RuntimeEnv<'a> where Self: Sized {
+        self
     }
 }
 

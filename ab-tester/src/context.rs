@@ -1,3 +1,6 @@
+use std::{rc::Rc, ops::DerefMut};
+use std::cell::RefCell;
+
 use color_eyre::{
     eyre::{anyhow, bail, ensure},
     Result,
@@ -36,38 +39,30 @@ impl<'a> ComparisonContext<'a> {
     }
 
     /// Sets the baseline environment to use for comparison.
-    pub fn using_baseline(&'a mut self, env: &'a mut impl ReadableEnv<'a>) -> &'a mut Self {
+    pub fn using_baseline(mut self, env: &'a mut dyn ReadableEnv<'a>) -> Self {
         self.baseline_env = Some(env);
         self
     }
 
     /// Adds a [WriteableEnv] to the instrumentation list for comparison. These
     /// environments will be replayed into and then compared against eachother.
-    pub fn instrument_into<'b: 'a>(
-        &'a mut self,
-        env: &'b mut impl WriteableEnv<'a>,
-    ) -> &'a mut Self {
+    pub fn instrument_into(mut self, env: &'a mut impl WriteableEnv<'a>) -> Self {
         self.instrumented_envs.push(env);
         self
     }
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
+    pub fn replay(&'a mut self, opts: &'a ReplayOpts<'a>) -> Result<ReplayResult> {
         let baseline_env = self
             .baseline_env
-            .as_mut()
+            .as_deref_mut()
             .ok_or(anyhow!("baseline environment has need been specified"))?;
 
         baseline_env.open()?;
 
-        for env in &mut self.instrumented_envs {
-            info!(
-                "replaying from '{}' into '{}'...",
-                baseline_env.name(),
-                env.name()
-            );
-            ChainStateReplayer::replay(*baseline_env, *env, &opts)?;
+        for target in self.instrumented_envs.iter_mut() {
+            ChainStateReplayer::replay(baseline_env, *target, opts)?;
         }
 
         todo!()
