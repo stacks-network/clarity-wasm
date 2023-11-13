@@ -2162,7 +2162,7 @@
             (br $char_loop)
         )
 
-        (i32.const 0) ;; Fallback false
+        (unreachable)
     )
 
     ;; Helper function to check if a character is a letter [a-zA-Z]
