@@ -93,7 +93,10 @@ impl Word for IntToAscii {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
+    use clarity::vm::{
+        types::{ASCIIData, CharType, SequenceData},
+        Value,
+    };
 
     use crate::tools::evaluate;
 
@@ -134,6 +137,42 @@ mod tests {
         assert_eq!(
             evaluate(r#"(string-to-uint? "0xabcd")"#),
             Some(Value::none())
+        )
+    }
+
+    #[test]
+    fn uint_to_string() {
+        assert_eq!(
+            evaluate(r#"(int-to-ascii u42)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
+                ASCIIData {
+                    data: "42".bytes().collect()
+                }
+            ))))
+        )
+    }
+
+    #[test]
+    fn positive_int_to_string() {
+        assert_eq!(
+            evaluate(r#"(int-to-ascii 2048)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
+                ASCIIData {
+                    data: "2048".bytes().collect()
+                }
+            ))))
+        )
+    }
+
+    #[test]
+    fn negative_int_to_string() {
+        assert_eq!(
+            evaluate(r#"(int-to-ascii -2048)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
+                ASCIIData {
+                    data: "-2048".bytes().collect()
+                }
+            ))))
         )
     }
 }
