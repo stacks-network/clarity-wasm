@@ -2371,6 +2371,80 @@
         )
     )
 
+    (func $stdlib.uint-to-string (param $lo i64) (param $hi i64) (result i32 i32)
+        (local $i i32) (local $j i32)
+        (local.set $j (local.tee $i (global.get $stack-pointer)))
+
+        ;; slow loop while $hi > 0
+        (if (i64.ne (local.get $hi) (i64.const 0))
+            (then
+                (loop $loop
+                    (call $stdlib.div-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                    ;; remainder on the stack
+                    drop ;; drop remainder_hi
+                    (local.set $lo (i64.add (i64.const 48))) ;; to ascii
+                    (i64.store8 (local.get $i) (local.get $lo))
+
+                    ;; quotient on the stack
+                    (local.set $hi)
+                    (local.set $lo)
+
+                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                    (br_if $loop (i64.ne (local.get $hi) (i64.const 0)))
+                )
+            )
+        )
+
+        ;; faster loop while $lo > 0 (or at least once in case the number was 0)
+        (loop $loop
+            (local.get $i)
+
+            ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n 
+            (i64.add
+                (local.get $lo)
+                (i64.mul
+                    (local.tee $lo (i64.div_u (local.get $lo) (i64.const 10)))
+                    (i64.const -10)
+                )
+            )
+            ;; to ascii
+            (i64.add (i64.const 48))
+
+            i64.store8
+
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br_if $loop (i64.ne (local.get $lo) (i64.const 0)))
+        )
+
+        ;; final result offset and length on the stack
+        (local.get $j)
+        (i32.sub (local.get $i) (local.get $j))
+        ;; update stack-pointer
+        (global.set $stack-pointer (local.get $i))
+
+        ;; reverse answer in memory
+        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+        (loop $loop
+            (local.get $j)
+            (i32.load8_u (local.get $i))
+
+            (local.get $i)
+            (i32.load8_u (local.get $j))
+        
+            i32.store8
+            i32.store8
+
+            (br_if $loop
+                (i32.lt_u
+                    (local.tee $j (i32.add (local.get $j) (i32.const 1)))
+                    (local.tee $i (i32.sub (local.get $i) (i32.const 1)))
+                )
+            )
+        )
+
+        ;; final result is already on the stack
+    )
+
     ;;
     ;; -- 'to-uint' implementation
     ;;
@@ -2463,6 +2537,7 @@
     (export "stdlib.is-version-valid" (func $stdlib.is-version-valid))
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
+    (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
 )
