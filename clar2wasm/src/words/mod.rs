@@ -136,6 +136,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &secp256k1::Verify,
     &conversion::StringToInt,
     &conversion::StringToUint,
+    &conditionals::And,
+    &conditionals::Or,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
