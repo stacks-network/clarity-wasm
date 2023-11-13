@@ -1899,7 +1899,7 @@ impl WasmGenerator {
             self.module
                 .funcs
                 .by_name(name.as_str())
-                .expect("function not found"),
+                .unwrap_or_else(|| panic!("function not found: {name}")),
         );
         Ok(())
     }

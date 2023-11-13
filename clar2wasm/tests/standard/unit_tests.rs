@@ -3008,3 +3008,376 @@ fn string_to_int() {
     test_str("12v345", 0, 0, 0);
     test_str("-340282366920938463463374607431768211455!", 0, 0, 0)
 }
+
+#[test]
+fn is_transient() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let is_transient = instance
+        .get_func(&mut store, "stdlib.is-transient")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_string = |s: &str, expected: bool| {
+        let s = s.as_bytes();
+        memory
+            .write(&mut store, 1500, s)
+            .expect("Could not write to memory");
+        is_transient
+            .call(
+                &mut store,
+                &[Val::I32(1500), Val::I32(s.len() as i32)],
+                &mut result,
+            )
+            .expect("call to is_transient failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    // Empty string
+    test_string("", false);
+
+    // Non-transient string
+    test_string("HelloWorld", false);
+
+    // Partial transient string
+    test_string("__tra", false);
+
+    // Transient plus suffix string
+    test_string("__transient_", false);
+
+    // Transient string
+    test_string("__transient", true);
+}
+
+#[test]
+fn is_alpha() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let is_alpha = instance.get_func(&mut store, "stdlib.is-alpha").unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_char = |c: char, expected: bool| {
+        is_alpha
+            .call(&mut store, &[Val::I32(c as i32)], &mut result)
+            .expect("call to is-alpha failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    test_char('a', true);
+    test_char('z', true);
+    test_char('m', true);
+    test_char('A', true);
+    test_char('Z', true);
+    test_char('N', true);
+    test_char('0', false);
+    test_char('@', false);
+}
+
+#[test]
+fn is_valid_char() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let is_valid = instance
+        .get_func(&mut store, "stdlib.is-valid-char")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_char = |c: char, expected: bool| {
+        is_valid
+            .call(&mut store, &[Val::I32(c as i32)], &mut result)
+            .expect("call to is-valid-char failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    test_char('a', true);
+    test_char('z', true);
+    test_char('m', true);
+    test_char('A', true);
+    test_char('Z', true);
+    test_char('N', true);
+    test_char('0', true);
+    test_char('9', true);
+    test_char('-', true);
+    test_char('_', true);
+    test_char('?', false);
+    test_char('@', false);
+}
+
+#[test]
+fn is_valid_contract_name() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let is_valid = instance
+        .get_func(&mut store, "stdlib.is-valid-contract-name")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_string = |s: &str, expected: bool| {
+        let s = s.as_bytes();
+        memory
+            .write(&mut store, 1500, s)
+            .expect("Could not write to memory");
+        is_valid
+            .call(
+                &mut store,
+                &[Val::I32(1500), Val::I32(s.len() as i32)],
+                &mut result,
+            )
+            .expect("call to is_transient failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    // Empty string
+    test_string("", false);
+
+    // Starts with capital letter
+    test_string("HelloWorld", true);
+
+    // Starts with lowercase letter
+    test_string("helloWorld", true);
+
+    // Transient string
+    test_string("__transient", true);
+
+    // Single letter
+    test_string("a", true);
+
+    // Starts with '_'
+    test_string("_helloWorld", false);
+
+    // Starts with number
+    test_string("1uhoh", false);
+
+    // Contains '-' character
+    test_string("hello-world", true);
+
+    // Contains '?' character
+    test_string("hello?world", false);
+}
+
+#[test]
+fn principal_construct() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let construct = instance
+        .get_func(&mut store, "stdlib.principal-construct")
+        .unwrap();
+    let mut result = [
+        Val::I32(0),
+        Val::I32(0),
+        Val::I32(0),
+        Val::I64(0),
+        Val::I64(0),
+        Val::I32(0),
+        Val::I32(0),
+        Val::I32(0),
+    ];
+
+    let mut test_construct = |version: &[u8],
+                              pkhash: &[u8],
+                              contract: Option<&str>,
+                              expected_ok: bool,
+                              expected_principal: Option<&[u8]>,
+                              expected_err: u128| {
+        memory
+            .write(&mut store, 1500, version)
+            .expect("Could not write to memory");
+        memory
+            .write(&mut store, 1600, pkhash)
+            .expect("Could not write to memory");
+        let contract_len = if let Some(contract) = contract {
+            memory
+                .write(&mut store, 1700, contract.as_bytes())
+                .expect("Could not write to memory");
+            contract.len() as i32
+        } else {
+            0
+        };
+        construct
+            .call(
+                &mut store,
+                &[
+                    Val::I32(1500),
+                    Val::I32(version.len() as i32),
+                    Val::I32(1600),
+                    Val::I32(pkhash.len() as i32),
+                    Val::I32(contract.is_some() as i32),
+                    Val::I32(1700),
+                    Val::I32(contract_len),
+                ],
+                &mut result,
+            )
+            .expect("call to is_transient failed");
+        assert_eq!(result[0].unwrap_i32(), expected_ok as i32);
+        if let Some(expected_principal) = expected_principal {
+            let (offset, length) = if expected_ok {
+                (result[1].unwrap_i32(), result[2].unwrap_i32())
+            } else {
+                assert_eq!(result[5].unwrap_i32(), 1);
+                (result[6].unwrap_i32(), result[7].unwrap_i32())
+            };
+            assert_eq!(length, expected_principal.len() as i32);
+            let mut buffer = vec![0u8; expected_principal.len()];
+            memory
+                .read(&mut store, offset as usize, &mut buffer)
+                .expect("Could not read from memory");
+            assert_eq!(&buffer, expected_principal);
+        }
+
+        let err = (result[4].unwrap_i64() as u128) << 64 | result[3].unwrap_i64() as u128;
+        assert_eq!(err, expected_err);
+    };
+
+    // Standard principal
+    test_construct(
+        &[26],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        None,
+        true,
+        Some(&[
+            26, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0,
+        ]),
+        0,
+    );
+
+    // Contract principal
+    test_construct(
+        &[21],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        Some("foo"),
+        true,
+        Some(&[
+            21, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 3, 0, 0, 0,
+            b'f', b'o', b'o',
+        ]),
+        0,
+    );
+
+    // Empty version
+    test_construct(
+        &[],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        None,
+        false,
+        None,
+        1,
+    );
+
+    // Mainnet version
+    test_construct(
+        &[22],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        None,
+        false,
+        Some(&[
+            22, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0,
+        ]),
+        0,
+    );
+
+    // Too high version
+    test_construct(
+        &[42],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        None,
+        false,
+        None,
+        1,
+    );
+
+    // Other version
+    test_construct(
+        &[12],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        None,
+        false,
+        Some(&[
+            12, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0,
+        ]),
+        0,
+    );
+
+    // Too short pkhash
+    test_construct(
+        &[26],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        ],
+        None,
+        false,
+        None,
+        1,
+    );
+
+    // Invalid contract name
+    test_construct(
+        &[21],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        Some("foo!"),
+        false,
+        None,
+        2,
+    );
+
+    // Empty contract name
+    test_construct(
+        &[21],
+        &[
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ],
+        Some(""),
+        false,
+        None,
+        2,
+    );
+}
+
+#[test]
+fn is_version_valid() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let is_valid = instance
+        .get_func(&mut store, "stdlib.is-version-valid")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut test_version = |version: u8, expected: bool| {
+        is_valid
+            .call(&mut store, &[Val::I32(version as i32)], &mut result)
+            .expect("call to is-version-valid failed");
+        assert_eq!(result[0].unwrap_i32(), expected as i32);
+    };
+
+    test_version(21, true);
+    test_version(26, true);
+    test_version(20, false);
+    test_version(22, false);
+    test_version(42, false);
+    test_version(11, false);
+}
