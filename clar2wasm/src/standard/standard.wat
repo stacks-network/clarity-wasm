@@ -2195,31 +2195,20 @@
 
     ;; Helper function to check if a string is `__transient`
     (func $stdlib.is-transient (param $offset i32) (param $length i32) (result i32)
-        (if (i32.ne (local.get $length) (i32.const 11)) ;; Length must be 11
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u (local.get $offset)) (i32.const 95)) ;; '_'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=1 (local.get $offset)) (i32.const 95)) ;; '_'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=2 (local.get $offset)) (i32.const 116)) ;; 't'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=3 (local.get $offset)) (i32.const 114)) ;; 'r'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=4 (local.get $offset)) (i32.const 97)) ;; 'a'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=5 (local.get $offset)) (i32.const 110)) ;; 'n'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=6 (local.get $offset)) (i32.const 115)) ;; 's
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=7 (local.get $offset)) (i32.const 105)) ;; 'i'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=8 (local.get $offset)) (i32.const 101)) ;; 'e'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=9 (local.get $offset)) (i32.const 110)) ;; 'n'
-            (then (return (i32.const 0))))
-        (if (i32.ne (i32.load8_u offset=10 (local.get $offset)) (i32.const 116)) ;; 't'
-            (then (return (i32.const 0))))
-        (i32.const 1)
+        (if (result i32)
+            (i32.ne (local.get $length) (i32.const 11)) ;; Length must be 11
+            (then (i32.const 0))
+            (else
+                (v128.load (local.get $offset))
+                ;; keep 11 bytes
+                (v128.and (v128.const i64x2 0xffffffffffffffff 0xffffff))
+                ;; == "__transient"
+                (v128.xor (v128.const i8x16 0x5f 0x5f 0x74 0x72 0x61 0x6e 0x73 0x69 0x65 0x6e 0x74 0x00 0x00 0x00 0x00 0x00))
+                ;; after a xor comparison, if everything is equal, everything is 0
+                v128.any_true
+                i32.eqz
+            )
+        )
     )
 
     ;; Check if the version matches the current network
