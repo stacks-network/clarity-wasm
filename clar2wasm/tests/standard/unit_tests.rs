@@ -3390,3 +3390,69 @@ fn is_version_valid() {
     test_version(42, false);
     test_version(11, false);
 }
+
+#[test]
+fn uint_to_string() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    let conv = instance
+        .get_func(&mut store, "stdlib.uint-to-string")
+        .unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    let mut test_num = |num: u128| {
+        let lo = num as i64;
+        let hi = (num >> 64) as i64;
+
+        let expected = num.to_string();
+
+        // This algo needs space on the stack,
+        // we move the initial value of $stack-pointer
+        // to a random one where it wouldn't matter
+        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
+            .expect("call to uint-to-string failed");
+        assert_eq!(result[0].unwrap_i32(), 1500);
+        assert_eq!(result[1].unwrap_i32(), expected.len() as i32);
+
+        let mut buffer = vec![0u8; expected.len()];
+        memory
+            .read(&mut store, 1500, &mut buffer)
+            .expect("could not read string answer from memory");
+
+        assert_eq!(buffer, expected.as_bytes());
+    };
+
+    // test basic numbers
+    test_num(0);
+    test_num(1);
+    test_num(42);
+    test_num(1024);
+
+    // Basic tests with big numbers
+    test_num(184467440737095516156789);
+    test_num(374467440737095681245698132);
+
+    // Tests with number between 64 and 65 bits
+    let n = u64::MAX as u128;
+    for i in -5..=5 {
+        test_num(n.checked_add_signed(i).unwrap());
+    }
+
+    // Tests with number close to u128::MAX
+    let n = u128::MAX - 10;
+    for i in 0..=10 {
+        test_num(n + i);
+    }
+}
