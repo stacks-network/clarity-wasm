@@ -1,3 +1,7 @@
+use clarity::vm::types::TypeSignature;
+
+use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+
 use super::Word;
 
 #[derive(Debug)]
@@ -42,6 +46,45 @@ impl Word for StringToUint {
         generator.traverse_args(builder, args)?;
 
         let func = generator.func_by_name("stdlib.string-to-uint");
+        builder.call(func);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct IntToAscii;
+
+impl Word for IntToAscii {
+    fn name(&self) -> clarity::vm::ClarityName {
+        "int-to-ascii".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &clarity::vm::SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        generator.traverse_args(builder, args)?;
+
+        let input = args.get_expr(0)?;
+        let ty = generator
+            .get_expr_type(input)
+            .expect("int-to-ascii input must be typed");
+        let type_prefix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "invalid type for int-to-ascii".to_owned(),
+                ));
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-string"));
+
         builder.call(func);
 
         Ok(())
