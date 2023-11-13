@@ -213,6 +213,97 @@ impl Word for Filter {
     }
 }
 
+fn traverse_short_circuiting_list(
+    generator: &mut WasmGenerator,
+    builder: &mut walrus::InstrSeqBuilder,
+    args: &[SymbolicExpression],
+    invert: bool,
+) -> Result<(), GeneratorError> {
+    let n_branches = args.len();
+
+    let mut branches = vec![];
+
+    let noop = builder
+        .dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32],
+        ))
+        // for now, the noop branch just adds a false to break out of the next iteration
+        .i32_const(if invert { 1 } else { 0 })
+        .id();
+
+    for i in 0..n_branches {
+        let branch_expr = args.get_expr(i)?;
+
+        let mut branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32],
+        ));
+
+        generator.traverse_expr(&mut branch, branch_expr)?;
+
+        branches.push(branch.id());
+    }
+
+    builder.i32_const(if invert { 0 } else { 1 });
+
+    for branch in branches {
+        if invert {
+            builder.instr(ir::IfElse {
+                consequent: noop,
+                alternative: branch,
+            });
+        } else {
+            builder.instr(ir::IfElse {
+                consequent: branch,
+                alternative: noop,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub struct And;
+
+impl Word for And {
+    fn name(&self) -> ClarityName {
+        "and".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        traverse_short_circuiting_list(generator, builder, args, false)
+    }
+}
+
+#[derive(Debug)]
+pub struct Or;
+
+impl Word for Or {
+    fn name(&self) -> ClarityName {
+        "or".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        traverse_short_circuiting_list(generator, builder, args, true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tools::evaluate as eval;
@@ -254,6 +345,45 @@ mod tests {
 "
             ),
             eval("(list 3 4)"),
+        );
+    }
+
+    #[test]
+    fn and() {
+        assert_eq!(
+            eval(
+                r#"
+(define-data-var cursor int 6)
+(and
+  (var-set cursor (+ (var-get cursor) 1))
+  true
+  (var-set cursor (+ (var-get cursor) 1))
+  false
+  (var-set cursor (+ (var-get cursor) 1)))
+(var-get cursor)
+                "#
+            ),
+            eval("8")
+        );
+    }
+
+    #[test]
+    fn or() {
+        assert_eq!(
+            eval(
+                r#"
+(define-data-var cursor int 6)
+(or
+  (begin
+    (var-set cursor (+ (var-get cursor) 1))
+    false)
+  false
+  (var-set cursor (+ (var-get cursor) 1))
+  (var-set cursor (+ (var-get cursor) 1)))
+(var-get cursor)
+                "#
+            ),
+            eval("8")
         );
     }
 }
