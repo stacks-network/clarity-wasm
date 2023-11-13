@@ -16,6 +16,7 @@ pub mod conditionals;
 pub mod constants;
 pub mod contract;
 pub mod control_flow;
+pub mod conversion;
 pub mod data_vars;
 pub mod default_to;
 pub mod enums;
@@ -133,6 +134,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::Filter,
     &secp256k1::Recover,
     &secp256k1::Verify,
+    &conversion::StringToInt,
+    &conversion::StringToUint,
 ];
 
 pub trait Word: Sync + core::fmt::Debug {
