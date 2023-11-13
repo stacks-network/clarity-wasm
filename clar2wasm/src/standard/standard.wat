@@ -2167,15 +2167,13 @@
 
     ;; Helper function to check if a character is a letter [a-zA-Z]
     (func $stdlib.is-alpha (param $char i32) (result i32)
-        (i32.ge_u (local.get $char) (i32.const 65)) ;; >= 'A'
-        (i32.le_u (local.get $char) (i32.const 90)) ;; <= 'Z'
-        (i32.and)
-
-        (i32.ge_u (local.get $char) (i32.const 97)) ;; >= 'a'
-        (i32.le_u (local.get $char) (i32.const 122)) ;; <= 'z'
-        (i32.and)
-
-        (i32.or)
+        (i32.lt_u
+            (i32.and
+                (i32.sub (i32.and (local.get $char) (i32.const 223)) (i32.const 65))
+                (i32.const 255)
+            )
+            (i32.const 26)
+        )
     )
 
     ;; Helper function to check if a character is valid [a-zA-Z0-9_-]
