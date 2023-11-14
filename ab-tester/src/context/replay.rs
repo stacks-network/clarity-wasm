@@ -1,25 +1,37 @@
 use color_eyre::{eyre::ensure, Result};
 use log::*;
 
-use crate::{context::{Block, environments::RuntimeEnv}, errors::AppError, ok};
+use crate::{context::{Block}, errors::AppError, ok};
 
 use super::{
-    callbacks::ReplayCallbacks,
-    environments::{ReadableEnv, WriteableEnv, AsRuntimeEnv},
+    callbacks::{ReplayCallbackHandler, DefaultReplayCallbacks},
+    environments::{
+        ReadableEnv, WriteableEnv, RuntimeEnvContext, RuntimeEnvContextMut
+    },
 };
 
 /// Options for replaying an environment's chain into another environment.
-#[derive(Default, Clone)]
-pub struct ReplayOpts<'a> {
+pub struct ReplayOpts {
     pub from_height: Option<u32>,
     pub to_height: Option<u32>,
     pub max_blocks: Option<u32>,
-    pub callbacks: ReplayCallbacks<'a>,
+    pub callbacks: Box<dyn ReplayCallbackHandler>,
+}
+
+impl Default for ReplayOpts {
+    fn default() -> Self {
+        Self { 
+            from_height: Default::default(), 
+            to_height: Default::default(), 
+            max_blocks: Default::default(), 
+            callbacks: Box::new(DefaultReplayCallbacks::default())
+        }
+    }
 }
 
 /// Validation/assertion helper methods for [ReplayOpts].
-impl<'a> ReplayOpts<'a> {
-    pub fn with_callbacks(&'_ mut self, callbacks: ReplayCallbacks<'a>) {
+impl ReplayOpts {
+    pub fn with_callbacks(&mut self, callbacks: Box<dyn ReplayCallbackHandler>) {
         self.callbacks = callbacks;
     }
 
@@ -57,9 +69,9 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a>(
-        source: &'a dyn ReadableEnv<'a>,
-        target: &'a mut dyn WriteableEnv<'a>,
-        opts: &'a ReplayOpts<'a>,
+        source: &'a RuntimeEnvContext,
+        target: &'a RuntimeEnvContextMut,
+        opts: &'a ReplayOpts,
     ) -> Result<()> {
         info!(
             "aggregating contract calls starting at block height {}...",
@@ -69,7 +81,7 @@ impl ChainStateReplayer {
         let mut processed_block_count = 0;
 
         let blocks = source.blocks()?;
-        (opts.callbacks.replay_start)(source.as_env(), target.as_env(), blocks.len());
+        opts.callbacks.replay_start(source, target, blocks.len());
 
         for block in source.blocks()?.into_iter() {
             let (header, stacks_block) = match &block {
@@ -140,7 +152,7 @@ impl ChainStateReplayer {
             }*/
         }
 
-        (opts.callbacks.replay_finish)(source.as_env(), target.as_env());
+        opts.callbacks.replay_finish(source, target);
         info!("blocks processed: {processed_block_count}");
 
         ok!()

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 use color_eyre::{eyre::anyhow, Result};
 
@@ -10,11 +10,11 @@ use crate::{
 
 use self::{instrumented::InstrumentedEnv, network::NetworkEnv, stacks_node::StacksNodeEnv};
 
-use super::{blocks::BlockCursor, callbacks::RuntimeEnvCallbacks, Block, Network, Runtime};
+use super::{blocks::BlockCursor, Block, Network, Runtime};
 
-mod instrumented;
-mod network;
-mod stacks_node;
+pub mod instrumented;
+pub mod network;
+pub mod stacks_node;
 
 /// Helper struct for creating new [RuntimeEnv] instances.
 pub struct RuntimeEnvBuilder<'a> {
@@ -45,8 +45,8 @@ impl<'a> RuntimeEnvBuilder<'a> {
     /// Creates and returns a new [StacksNodeEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn stacks_node(&self, name: &'a str, node_dir: &'a str) -> Result<StacksNodeEnv<'a>> {
-        let env = self.get_or_create_env(name, &Runtime::None, node_dir)?;
+    pub fn stacks_node(&self, name: String, node_dir: String) -> Result<StacksNodeEnv> {
+        let env = self.get_or_create_env(&name, &Runtime::None, &node_dir)?;
         StacksNodeEnv::new(env.id, name, node_dir)
     }
 
@@ -55,27 +55,93 @@ impl<'a> RuntimeEnvBuilder<'a> {
     /// using it.
     pub fn instrumented(
         &self,
-        name: &'a str,
+        name: String,
         runtime: Runtime,
         network: Network,
-        working_dir: &'a str,
+        working_dir: String,
     ) -> Result<InstrumentedEnv<'a>> {
-        let env = self.get_or_create_env(name, &runtime, working_dir)?;
+        let env = self.get_or_create_env(&name, &runtime, &working_dir)?;
         InstrumentedEnv::new(env.id, name, self.app_db, working_dir, runtime, network)
     }
 
     /// Creates and returns a new [NetworkEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn network(&self) -> Result<NetworkEnv<'a>> {
+    pub fn network(&self) -> Result<NetworkEnv> {
         todo!("the 'network' environment type is not currently implemented")
     }
 }
 
+pub struct RuntimeEnvContext {
+    inner: Box<dyn ReadableEnv>
+}
+
+impl RuntimeEnvContext {
+    pub fn new<T: ReadableEnv + 'static>(inner: T) -> Self {
+        Self { 
+            inner: Box::new(inner)
+        }
+    }
+}
+
+impl RuntimeEnv for RuntimeEnvContext {
+    fn name(&self) -> String {
+        self.inner.name()
+    }
+
+    fn is_readonly(&self) -> bool {
+        self.inner.is_readonly()
+    }
+
+    fn is_open(&self) -> bool {
+        self.inner.is_open()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        self.inner.open()
+    }
+}
+
+pub struct RuntimeEnvContextMut {
+    inner: Box<dyn WriteableEnv>
+}
+
+impl RuntimeEnvContextMut {
+    pub fn new<T: WriteableEnv + 'static>(inner: T) -> Self {
+        Self {
+            inner: Box::new(inner)
+        }
+    }
+}
+
+impl RuntimeEnv for RuntimeEnvContextMut {
+    fn name(&self) -> String {
+        self.inner.name()
+    }
+
+    fn is_readonly(&self) -> bool {
+        self.inner.is_readonly()
+    }
+
+    fn is_open(&self) -> bool {
+        self.inner.is_open()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        self.inner.open()
+    }
+}
+
+impl ReadableEnv for RuntimeEnvContext {
+    fn blocks(&self) -> Result<BlockCursor> {
+        self.inner.blocks()
+    }
+}
+
 /// Defines the basic functionality for a [RuntimeEnv] implementation.
-pub trait RuntimeEnv<'a> {
+pub trait RuntimeEnv {
     /// Gets the user-provided name of this environment.
-    fn name(&self) -> &'a str;
+    fn name(&self) -> String;
     /// Gets whether or not this environment is read-only. Note that some environment
     /// types are inherently read-only, meanwhile others can be configured
     /// independently.
@@ -84,28 +150,29 @@ pub trait RuntimeEnv<'a> {
     fn is_open(&self) -> bool;
     /// Opens the environment and initializes it if needed (and writeable).
     fn open(&mut self) -> Result<()>;
-    /// Configures callbacks for the environment.
-    #[allow(unused_variables)]
-    fn with_callbacks(&mut self, callbacks: &'a RuntimeEnvCallbacks) {}
-    fn get_default_callbacks(&self) -> RuntimeEnvCallbacks {
-        RuntimeEnvCallbacks::default()
+}
+
+impl<'a> Display for &dyn RuntimeEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
     }
 }
 
-pub trait AsRuntimeEnv<'a> : RuntimeEnv<'a> {
-    fn as_env(&self) -> &'a dyn RuntimeEnv<'a>;
+impl Display for &mut dyn RuntimeEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 /// Defines the functionality for a readable [RuntimeEnv].
-pub trait ReadableEnv<'a>: RuntimeEnv<'a> {
+pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
-    fn as_env(&'a self) -> &'a dyn RuntimeEnv<'a>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
-pub trait WriteableEnv<'a>: ReadableEnv<'a> {
+pub trait WriteableEnv: ReadableEnv {
     fn block_begin(
         &mut self,
         block: &Block,
@@ -113,18 +180,6 @@ pub trait WriteableEnv<'a>: ReadableEnv<'a> {
     ) -> Result<()>
     where
         Self: Sized;
-}
-
-impl Display for &dyn RuntimeEnv<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-impl Display for &mut dyn RuntimeEnv<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
-    }
 }
 
 pub struct BlockTransactionContext<'a, 'b> {

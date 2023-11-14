@@ -1,13 +1,10 @@
-use std::{rc::Rc, ops::DerefMut};
-use std::cell::RefCell;
-
 use color_eyre::{
-    eyre::{anyhow, bail, ensure},
+    eyre::{anyhow, bail},
     Result,
 };
 use log::*;
 
-use crate::{clarity, context::replay::ChainStateReplayer, db::appdb::AppDb, errors::AppError, ok};
+use crate::{clarity, context::replay::ChainStateReplayer, db::appdb::AppDb};
 
 pub mod blocks;
 mod boot_data;
@@ -16,16 +13,48 @@ pub mod environments;
 mod marf;
 pub mod replay;
 
-use self::{
-    environments::{ReadableEnv, WriteableEnv},
-    replay::{ReplayOpts, ReplayResult},
-};
+use self::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnv, RuntimeEnvContextMut};
+use self::replay::{ReplayOpts, ReplayResult};
 pub use blocks::{Block, BlockCursor};
+
+pub struct BaselineBuilder<'a>(ComparisonContext<'a>);
+
+impl<'a> BaselineBuilder<'a> {
+    pub fn stacks_node(
+        mut self, 
+        name: String, 
+        node_dir: String
+    ) -> Result<ComparisonContext<'a>> {
+        let env = self.0.env_builder.stacks_node(name, node_dir)?;
+        let env_ctx = RuntimeEnvContext::new(env);
+        self.0.baseline_env = Some(env_ctx);
+        Ok(self.0)
+    }
+}
+
+pub struct InstrumentIntoBuilder<'a>(ComparisonContext<'a>);
+
+impl<'a> InstrumentIntoBuilder<'a> {
+    pub fn instrumented(
+        mut self, 
+        name: String,
+        runtime: Runtime,
+        network: Network,
+        working_dir: String
+    ) -> Result<ComparisonContext<'a>> {
+        let env = self.0.env_builder.instrumented(name, runtime, network, working_dir)?;
+        let env_ctx = RuntimeEnvContextMut::new(env);
+        self.0.instrumented_envs.push(env_ctx);
+        Ok(self.0)
+    }
+}
+
 
 pub struct ComparisonContext<'a> {
     app_db: &'a AppDb,
-    baseline_env: Option<&'a mut dyn ReadableEnv<'a>>,
-    instrumented_envs: Vec<&'a mut dyn WriteableEnv<'a>>,
+    env_builder: RuntimeEnvBuilder<'a>,
+    baseline_env: Option<RuntimeEnvContext>,
+    instrumented_envs: Vec<RuntimeEnvContextMut>,
 }
 
 impl<'a> ComparisonContext<'a> {
@@ -33,36 +62,40 @@ impl<'a> ComparisonContext<'a> {
     pub fn new(app_db: &'a AppDb) -> Self {
         Self {
             app_db,
+            env_builder: RuntimeEnvBuilder::new(app_db),
             baseline_env: None,
             instrumented_envs: Vec::new(),
         }
     }
 
     /// Sets the baseline environment to use for comparison.
-    pub fn using_baseline(mut self, env: &'a mut dyn ReadableEnv<'a>) -> Self {
-        self.baseline_env = Some(env);
-        self
+    pub fn using_baseline(mut self, f: impl FnOnce(BaselineBuilder<'a>) -> Result<Self>) -> Result<Self> {
+        let builder = BaselineBuilder(self);
+        let ctx = f(builder)?;
+        Ok(ctx)
     }
 
     /// Adds a [WriteableEnv] to the instrumentation list for comparison. These
     /// environments will be replayed into and then compared against eachother.
-    pub fn instrument_into(mut self, env: &'a mut impl WriteableEnv<'a>) -> Self {
-        self.instrumented_envs.push(env);
-        self
+    pub fn instrument_into(mut self, f: impl FnOnce(InstrumentIntoBuilder<'a>) -> Result<Self>) -> Result<Self> {
+        let env_builder = RuntimeEnvBuilder::new(self.app_db);
+        let builder = InstrumentIntoBuilder(self);
+        let ctx = f(builder)?;
+        Ok(ctx)
     }
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(&'a mut self, opts: &'a ReplayOpts<'a>) -> Result<ReplayResult> {
-        let baseline_env = self
+    pub fn replay(&'a mut self, opts: &'a ReplayOpts) -> Result<ReplayResult> {
+        let mut baseline_env = self
             .baseline_env
-            .as_deref_mut()
+            .as_mut()
             .ok_or(anyhow!("baseline environment has need been specified"))?;
 
         baseline_env.open()?;
 
         for target in self.instrumented_envs.iter_mut() {
-            ChainStateReplayer::replay(baseline_env, *target, opts)?;
+            ChainStateReplayer::replay(&baseline_env, target, opts)?;
         }
 
         todo!()

@@ -10,14 +10,14 @@ use super::RuntimeEnv;
 ///
 /// TODO: Not currently implemented, just a placeholder so that I'm forced to
 /// think about the possibility of additional types of environments :)
-pub struct NetworkEnv<'a> {
-    working_dir: &'a str,
+pub struct NetworkEnv {
+    working_dir: String,
     runtime: Runtime,
     network: Network,
 }
 
-impl<'a> RuntimeEnv<'a> for NetworkEnv<'_> {
-    fn name(&self) -> &'a str {
+impl RuntimeEnv for NetworkEnv {
+    fn name(&self) -> String {
         todo!()
     }
 
