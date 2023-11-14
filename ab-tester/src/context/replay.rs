@@ -1,13 +1,11 @@
 use color_eyre::{eyre::ensure, Result};
 use log::*;
 
-use crate::{context::{Block}, errors::AppError, ok};
+use crate::{context::Block, errors::AppError, ok};
 
 use super::{
-    callbacks::{ReplayCallbackHandler, DefaultReplayCallbacks},
-    environments::{
-        ReadableEnv, WriteableEnv, RuntimeEnvContext, RuntimeEnvContextMut
-    },
+    callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler},
+    environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut, WriteableEnv},
 };
 
 /// Options for replaying an environment's chain into another environment.
@@ -20,11 +18,11 @@ pub struct ReplayOpts {
 
 impl Default for ReplayOpts {
     fn default() -> Self {
-        Self { 
-            from_height: Default::default(), 
-            to_height: Default::default(), 
-            max_blocks: Default::default(), 
-            callbacks: Box::new(DefaultReplayCallbacks::default())
+        Self {
+            from_height: Default::default(),
+            to_height: Default::default(),
+            max_blocks: Default::default(),
+            callbacks: Box::new(DefaultReplayCallbacks::default()),
         }
     }
 }

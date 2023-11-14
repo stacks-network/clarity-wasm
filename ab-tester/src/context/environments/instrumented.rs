@@ -11,8 +11,11 @@ use log::*;
 
 use crate::{
     context::{
-        blocks::BlockHeader, boot_data::mainnet_boot_data, environments::BlockTransactionContext,
-        Block, BlockCursor, Network, Runtime, TestEnvPaths, callbacks::{RuntimeEnvCallbackHandler, DefaultEnvCallbacks},
+        blocks::BlockHeader,
+        boot_data::mainnet_boot_data,
+        callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler},
+        environments::BlockTransactionContext,
+        Block, BlockCursor, Network, Runtime, TestEnvPaths,
     },
     db::model::app_db as model,
     db::{appdb::AppDb, schema::appdb},
@@ -122,7 +125,8 @@ impl InstrumentedEnv {
             .limit(1)
             .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())?;
         // TODO: Handle when there is no tip (chain uninitialized).
-        self.callbacks.get_chain_tip_finish(self, tip.block_height as u32);
+        self.callbacks
+            .get_chain_tip_finish(self, tip.block_height as u32);
         let mut current_block = Some(tip);
 
         // Vec for holding the headers we run into. This will initially be
@@ -166,7 +170,8 @@ impl InstrumentedEnv {
         debug!("tip: {:?}", headers[headers.len() - 1]);
         debug!("retrieved {} block headers", headers.len());
 
-        self.callbacks.load_block_headers_finish(self, headers.len());
+        self.callbacks
+            .load_block_headers_finish(self, headers.len());
         Ok(headers)
     }
 }
@@ -205,7 +210,8 @@ impl RuntimeEnv for InstrumentedEnv {
         };
 
         debug!("initializing chainstate");
-        self.callbacks.open_chainstate_start(self, &paths.chainstate_path);
+        self.callbacks
+            .open_chainstate_start(self, &paths.chainstate_path);
         let (chainstate, _) = stacks::StacksChainState::open_and_exec(
             network.is_mainnet(),
             1,
@@ -217,13 +223,15 @@ impl RuntimeEnv for InstrumentedEnv {
         info!("[{name}] chainstate initialized.");
 
         debug!("[{name}] loading index db...");
-        self.callbacks.open_index_db_start(self, &paths.index_db_path);
+        self.callbacks
+            .open_index_db_start(self, &paths.index_db_path);
         let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
         debug!("[{name}] loading clarity db...");
-        self.callbacks.open_clarity_db_start(self, &paths.clarity_db_path);
+        self.callbacks
+            .open_clarity_db_start(self, &paths.clarity_db_path);
         let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");

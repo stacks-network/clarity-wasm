@@ -61,7 +61,14 @@ impl RuntimeEnvBuilder {
         working_dir: String,
     ) -> Result<InstrumentedEnv> {
         let env = self.get_or_create_env(&name, &runtime, &working_dir)?;
-        InstrumentedEnv::new(env.id, name, Rc::clone(&self.app_db), working_dir, runtime, network)
+        InstrumentedEnv::new(
+            env.id,
+            name,
+            Rc::clone(&self.app_db),
+            working_dir,
+            runtime,
+            network,
+        )
     }
 
     /// Creates and returns a new [NetworkEnv] with the provided configuration.
@@ -73,13 +80,13 @@ impl RuntimeEnvBuilder {
 }
 
 pub struct RuntimeEnvContext {
-    inner: Box<dyn ReadableEnv>
+    inner: Box<dyn ReadableEnv>,
 }
 
 impl RuntimeEnvContext {
     pub fn new<T: ReadableEnv + 'static>(inner: T) -> Self {
-        Self { 
-            inner: Box::new(inner)
+        Self {
+            inner: Box::new(inner),
         }
     }
 }
@@ -103,13 +110,13 @@ impl RuntimeEnv for RuntimeEnvContext {
 }
 
 pub struct RuntimeEnvContextMut {
-    inner: Box<dyn WriteableEnv>
+    inner: Box<dyn WriteableEnv>,
 }
 
 impl RuntimeEnvContextMut {
     pub fn new<T: WriteableEnv + 'static>(inner: T) -> Self {
         Self {
-            inner: Box::new(inner)
+            inner: Box::new(inner),
         }
     }
 }

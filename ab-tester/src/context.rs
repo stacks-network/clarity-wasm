@@ -15,19 +15,18 @@ pub mod environments;
 mod marf;
 pub mod replay;
 
-use self::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnv, RuntimeEnvContextMut};
+use self::environments::{RuntimeEnv, RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 use self::replay::{ReplayOpts, ReplayResult};
 pub use blocks::{Block, BlockCursor};
 
 pub struct BaselineBuilder(ComparisonContext);
 
 impl BaselineBuilder {
-    pub fn stacks_node(
-        mut self, 
-        name: String, 
-        node_dir: String
-    ) -> Result<ComparisonContext> {
-        let env = self.0.env_builder.stacks_node(name, node_dir)?;
+    pub fn stacks_node(mut self, name: &str, node_dir: &str) -> Result<ComparisonContext> {
+        let env = self
+            .0
+            .env_builder
+            .stacks_node(name.to_string(), node_dir.to_string())?;
         let env_ctx = RuntimeEnvContext::new(env);
         self.0.baseline_env = Some(env_ctx);
         Ok(self.0)
@@ -38,16 +37,21 @@ pub struct InstrumentIntoBuilder<'a>(&'a mut ComparisonContext);
 
 impl<'a> InstrumentIntoBuilder<'a> {
     pub fn instrumented(
-        &mut self, 
-        name: String,
+        mut self,
+        name: &str,
         runtime: Runtime,
         network: Network,
-        working_dir: String
-    ) -> Result<&'_ mut ComparisonContext> {
-        let env = self.0.env_builder.instrumented(name, runtime, network, working_dir)?;
+        working_dir: &str,
+    ) -> Result<InstrumentIntoBuilder<'a>> {
+        let env = self.0.env_builder.instrumented(
+            name.to_string(),
+            runtime,
+            network,
+            working_dir.to_string(),
+        )?;
         let env_ctx = RuntimeEnvContextMut::new(env);
         self.0.instrumented_envs.push(env_ctx);
-        Ok(self.0)
+        Ok(self)
     }
 }
 
@@ -70,10 +74,7 @@ impl ComparisonContext {
     }
 
     /// Sets the baseline environment to use for comparison.
-    pub fn using_baseline(
-        self, 
-        f: impl FnOnce(BaselineBuilder) -> Result<Self>
-    ) -> Result<Self> {
+    pub fn using_baseline(self, f: impl FnOnce(BaselineBuilder) -> Result<Self>) -> Result<Self> {
         let builder = BaselineBuilder(self);
         let ctx = f(builder)?;
         Ok(ctx)
@@ -82,12 +83,12 @@ impl ComparisonContext {
     /// Adds a [WriteableEnv] to the instrumentation list for comparison. These
     /// environments will be replayed into and then compared against eachother.
     pub fn instrument_into(
-        &mut self, 
-        f: impl FnOnce(InstrumentIntoBuilder) -> Result<Self>
-    ) -> Result<Self> {
+        &mut self,
+        f: impl FnOnce(InstrumentIntoBuilder) -> Result<InstrumentIntoBuilder>,
+    ) -> Result<&mut Self> {
         let builder = InstrumentIntoBuilder(self);
         let ctx = f(builder)?;
-        Ok(ctx)
+        Ok(self)
     }
 
     /// Executes the replay process from the baseline environment into the

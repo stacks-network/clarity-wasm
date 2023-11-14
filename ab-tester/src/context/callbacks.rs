@@ -1,9 +1,9 @@
 use std::pin::Pin;
 
-use futures::Future;
 use color_eyre::Result;
+use futures::Future;
 
-use super::{Network, environments::RuntimeEnv};
+use super::{environments::RuntimeEnv, Network};
 
 pub type AsyncFn<A, R> = Box<dyn Fn(A) -> Pin<Box<dyn Future<Output = R>>>>;
 

@@ -1,14 +1,15 @@
-use std::{time::Duration, collections::HashMap, sync::Arc, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Arc, time::Duration};
 
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress, WeakProgressBar};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle, WeakProgressBar};
 use log::*;
 
 use crate::{
     cli::DataArgs,
     context::{
-        environments::{RuntimeEnvBuilder, RuntimeEnv}, replay::ReplayOpts,
+        environments::{RuntimeEnv, RuntimeEnvBuilder},
+        replay::ReplayOpts,
         ComparisonContext, Network, Runtime,
     },
     db::appdb::AppDb,
@@ -27,21 +28,30 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             .unwrap()
             // For more spinners check out the cli-spinners project:
             // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏",]),
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
     );
-    
-    //let replay_opts: ReplayOpts = data_args.into();
 
-    let mut tmp = ComparisonContext::new(app_db);
+    let replay_opts: ReplayOpts = data_args.into();
 
-    tmp.using_baseline(|from| {
-        from.stacks_node(
-            "baseline".to_string(), 
-            config.baseline.chainstate_path.clone()
-        )
-    })?;
-        //.instrument_into(&mut interpreter_env)
-        //.instrument_into(&mut wasm_env);
+    let _compare_ctx = ComparisonContext::new(app_db)
+        .using_baseline(|from| from.stacks_node("baseline", &config.baseline.chainstate_path))?
+        .instrument_into(|into| {
+            into.instrumented(
+                "interpreter_replay",
+                Runtime::Interpreter,
+                Network::Mainnet(1),
+                "/home/cylwit/clarity-ab/replay",
+            )?
+            .instrumented(
+                "wasm",
+                Runtime::Wasm,
+                Network::Mainnet(1),
+                "/home/cylwit/clarity-ab/wasm",
+            )
+        })?
+        .replay(&replay_opts)?;
+    //.instrument_into(&mut interpreter_env)
+    //.instrument_into(&mut wasm_env);
 
     std::process::exit(0);
 
