@@ -1,4 +1,4 @@
-use color_eyre::{eyre::bail, Result};
+use color_eyre::Result;
 use comfy_table::{Row, Table};
 use console::Color;
 use diesel::{Connection, SqliteConnection};
@@ -29,7 +29,7 @@ async fn exec_new(config: &Config, env_args: &NewEnvArgs) -> Result<()> {
     }
 }
 
-async fn exec_new_from_stacks_node(config: &Config, args: &NewStacksNodeEnvArgs) -> Result<()> {
+async fn exec_new_from_stacks_node(_config: &Config, _args: &NewStacksNodeEnvArgs) -> Result<()> {
     println!(
         "{} the specified stacks-node path does not exist",
         console::style("error:").bold().fg(Color::Red)
@@ -37,11 +37,11 @@ async fn exec_new_from_stacks_node(config: &Config, args: &NewStacksNodeEnvArgs)
     ok!()
 }
 
-async fn exec_new_instrumented(config: &Config, args: &NewInstrumentedEnvArgs) -> Result<()> {
+async fn exec_new_instrumented(_config: &Config, _args: &NewInstrumentedEnvArgs) -> Result<()> {
     ok!()
 }
 
-async fn exec_new_network(config: &Config, args: &NewNetworkEnvArgs) -> Result<()> {
+async fn exec_new_network(_config: &Config, _args: &NewNetworkEnvArgs) -> Result<()> {
     ok!()
 }
 

@@ -1,14 +1,12 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc, time::Duration};
+use std::{rc::Rc, time::Duration};
 
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle, WeakProgressBar};
-use log::*;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::{
     cli::DataArgs,
     context::{
-        environments::{RuntimeEnv, RuntimeEnvBuilder},
         replay::ReplayOpts,
         ComparisonContext, Network, Runtime,
     },
@@ -20,7 +18,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = Rc::new(AppDb::new(app_db_conn));
 
-    let multi_pb = MultiProgress::new();
+    let _multi_pb = MultiProgress::new();
     let pb = ProgressBar::new_spinner();
     pb.enable_steady_tick(Duration::from_millis(120));
     pb.set_style(
@@ -33,7 +31,7 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
 
     let replay_opts: ReplayOpts = data_args.into();
 
-    let _compare_ctx = ComparisonContext::new(app_db)
+    let _compare_ctx = ComparisonContext::new(app_db.clone())
         .using_baseline(|from| from.stacks_node("baseline", &config.baseline.chainstate_path))?
         .instrument_into(|into| {
             into.instrumented(

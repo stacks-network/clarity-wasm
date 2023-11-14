@@ -64,7 +64,7 @@ impl StacksNodeEnv {
             name,
             env_config,
             env_state: None,
-            callbacks: Box::new(DefaultEnvCallbacks::default()),
+            callbacks: Box::<DefaultEnvCallbacks>::default(),
         })
     }
 
@@ -241,7 +241,7 @@ impl RuntimeEnv for StacksNodeEnv {
         let paths = &self.env_config.paths;
         let name = &self.name;
 
-        self.callbacks.env_open_start(self, &name);
+        self.callbacks.env_open_start(self, name);
         paths.print(name);
 
         debug!("[{name}] loading index db...");

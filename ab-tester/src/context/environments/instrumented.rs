@@ -80,7 +80,7 @@ impl InstrumentedEnv {
             app_db,
             env_config,
             env_state: None,
-            callbacks: Box::new(DefaultEnvCallbacks::default()),
+            callbacks: Box::<DefaultEnvCallbacks>::default(),
         })
     }
 
@@ -195,7 +195,7 @@ impl RuntimeEnv for InstrumentedEnv {
         let network = &self.env_config.network;
 
         info!("[{name}] opening environment...");
-        self.callbacks.env_open_start(self, &name);
+        self.callbacks.env_open_start(self, name);
         paths.print(name);
 
         // Setup our options for the Marf.

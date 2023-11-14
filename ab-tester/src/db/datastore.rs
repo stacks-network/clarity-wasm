@@ -134,7 +134,7 @@ impl clarity::BurnStateDB for DataStore<'_> {
 
     fn get_burn_block_height(
         &self,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
+        _sortition_id: &stacks_common::types::chainstate::SortitionId,
     ) -> Option<u32> {
         todo!()
     }
@@ -157,38 +157,38 @@ impl clarity::BurnStateDB for DataStore<'_> {
 
     fn get_burn_header_hash(
         &self,
-        height: u32,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
+        _height: u32,
+        _sortition_id: &stacks_common::types::chainstate::SortitionId,
     ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
         todo!()
     }
 
     fn get_sortition_id_from_consensus_hash(
         &self,
-        consensus_hash: &stacks_common::types::chainstate::ConsensusHash,
+        _consensus_hash: &stacks_common::types::chainstate::ConsensusHash,
     ) -> Option<stacks_common::types::chainstate::SortitionId> {
         todo!()
     }
 
-    fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
+    fn get_stacks_epoch(&self, _height: u32) -> Option<clarity::StacksEpoch> {
         todo!()
     }
 
     fn get_stacks_epoch_by_epoch_id(
         &self,
-        epoch_id: &stacks_common::types::StacksEpochId,
+        _epoch_id: &stacks_common::types::StacksEpochId,
     ) -> Option<clarity::StacksEpoch> {
         todo!()
     }
 
-    fn get_ast_rules(&self, height: u32) -> clarity::ASTRules {
+    fn get_ast_rules(&self, _height: u32) -> clarity::ASTRules {
         clarity::ASTRules::PrecheckSize
     }
 
     fn get_pox_payout_addrs(
         &self,
-        height: u32,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
+        _height: u32,
+        _sortition_id: &stacks_common::types::chainstate::SortitionId,
     ) -> Option<(Vec<clarity::TupleData>, u128)> {
         todo!()
     }

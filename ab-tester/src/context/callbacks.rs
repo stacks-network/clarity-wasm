@@ -1,12 +1,6 @@
-use std::pin::Pin;
-
-use color_eyre::Result;
-use futures::Future;
-
 use super::{environments::RuntimeEnv, Network};
 
-pub type AsyncFn<A, R> = Box<dyn Fn(A) -> Pin<Box<dyn Future<Output = R>>>>;
-
+#[allow(unused_variables)]
 pub trait RuntimeEnvCallbackHandler {
     fn get_chain_tip_start(&self, env: &dyn RuntimeEnv) {}
     fn get_chain_tip_finish(&self, env: &dyn RuntimeEnv, tip_height: u32) {}
@@ -34,6 +28,7 @@ pub trait RuntimeEnvCallbackHandler {
 pub struct DefaultEnvCallbacks {}
 impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 
+#[allow(unused_variables)]
 pub trait ReplayCallbackHandler {
     fn replay_start(&self, source: &dyn RuntimeEnv, target: &dyn RuntimeEnv, block_count: usize) {}
     fn replay_finish(&self, source: &dyn RuntimeEnv, target: &dyn RuntimeEnv) {}
@@ -45,4 +40,5 @@ pub trait ReplayCallbackHandler {
 
 #[derive(Clone, Default)]
 pub struct DefaultReplayCallbacks {}
+
 impl ReplayCallbackHandler for DefaultReplayCallbacks {}

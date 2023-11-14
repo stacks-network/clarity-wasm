@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref, rc::Rc};
+use std::{fmt::Display, rc::Rc};
 
 use color_eyre::{eyre::anyhow, Result};
 
@@ -159,7 +159,7 @@ pub trait RuntimeEnv {
     fn open(&mut self) -> Result<()>;
 }
 
-impl<'a> Display for &dyn RuntimeEnv {
+impl Display for &dyn RuntimeEnv {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
     }

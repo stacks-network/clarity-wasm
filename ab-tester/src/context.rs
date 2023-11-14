@@ -37,7 +37,7 @@ pub struct InstrumentIntoBuilder<'a>(&'a mut ComparisonContext);
 
 impl<'a> InstrumentIntoBuilder<'a> {
     pub fn instrumented(
-        mut self,
+        self,
         name: &str,
         runtime: Runtime,
         network: Network,
@@ -66,8 +66,8 @@ impl ComparisonContext {
     /// Creates a new, empty [ComparisonContext].
     pub fn new(app_db: Rc<AppDb>) -> Self {
         Self {
-            app_db: Rc::clone(&app_db),
-            env_builder: RuntimeEnvBuilder::new(Rc::clone(&app_db)),
+            env_builder: RuntimeEnvBuilder::new(app_db.clone()),
+            app_db,
             baseline_env: None,
             instrumented_envs: Vec::new(),
         }
@@ -87,7 +87,7 @@ impl ComparisonContext {
         f: impl FnOnce(InstrumentIntoBuilder) -> Result<InstrumentIntoBuilder>,
     ) -> Result<&mut Self> {
         let builder = InstrumentIntoBuilder(self);
-        let ctx = f(builder)?;
+        f(builder)?;
         Ok(self)
     }
 

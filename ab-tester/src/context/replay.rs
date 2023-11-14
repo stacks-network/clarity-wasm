@@ -5,7 +5,7 @@ use crate::{context::Block, errors::AppError, ok};
 
 use super::{
     callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler},
-    environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut, WriteableEnv},
+    environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut},
 };
 
 /// Options for replaying an environment's chain into another environment.
@@ -22,7 +22,7 @@ impl Default for ReplayOpts {
             from_height: Default::default(),
             to_height: Default::default(),
             max_blocks: Default::default(),
-            callbacks: Box::new(DefaultReplayCallbacks::default()),
+            callbacks: Box::<DefaultReplayCallbacks>::default(),
         }
     }
 }
@@ -82,7 +82,7 @@ impl ChainStateReplayer {
         opts.callbacks.replay_start(source, target, blocks.len());
 
         for block in source.blocks()?.into_iter() {
-            let (header, stacks_block) = match &block {
+            let (header, _stacks_block) = match &block {
                 Block::Boot(header) => {
                     // We can't process the boot block, so skip it.
                     info!("boot block - skipping '{:?}'", header.index_block_hash);

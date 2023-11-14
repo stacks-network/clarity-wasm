@@ -51,7 +51,7 @@ impl Cli {
         match &self.command {
             Commands::Data(args) => DataArgs::validate(args)?,
             Commands::Tui(args) => TuiArgs::validate(args)?,
-            Commands::Env(args) => {}
+            Commands::Env(_args) => {}
         }
 
         Ok(self)
@@ -211,7 +211,7 @@ impl From<DataArgs> for ReplayOpts {
             from_height: Some(value.from_height),
             to_height: value.to_height,
             max_blocks: value.max_block_count,
-            callbacks: Box::new(DefaultReplayCallbacks::default()),
+            callbacks: Box::<DefaultReplayCallbacks>::default(),
         }
     }
 }
