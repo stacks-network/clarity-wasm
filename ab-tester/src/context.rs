@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use color_eyre::{
     eyre::{anyhow, bail},
     Result,
@@ -17,14 +19,14 @@ use self::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnv, Runti
 use self::replay::{ReplayOpts, ReplayResult};
 pub use blocks::{Block, BlockCursor};
 
-pub struct BaselineBuilder<'a>(ComparisonContext<'a>);
+pub struct BaselineBuilder(ComparisonContext);
 
-impl<'a> BaselineBuilder<'a> {
+impl BaselineBuilder {
     pub fn stacks_node(
         mut self, 
         name: String, 
         node_dir: String
-    ) -> Result<ComparisonContext<'a>> {
+    ) -> Result<ComparisonContext> {
         let env = self.0.env_builder.stacks_node(name, node_dir)?;
         let env_ctx = RuntimeEnvContext::new(env);
         self.0.baseline_env = Some(env_ctx);
@@ -32,16 +34,16 @@ impl<'a> BaselineBuilder<'a> {
     }
 }
 
-pub struct InstrumentIntoBuilder<'a>(ComparisonContext<'a>);
+pub struct InstrumentIntoBuilder<'a>(&'a mut ComparisonContext);
 
 impl<'a> InstrumentIntoBuilder<'a> {
     pub fn instrumented(
-        mut self, 
+        &mut self, 
         name: String,
         runtime: Runtime,
         network: Network,
         working_dir: String
-    ) -> Result<ComparisonContext<'a>> {
+    ) -> Result<&'_ mut ComparisonContext> {
         let env = self.0.env_builder.instrumented(name, runtime, network, working_dir)?;
         let env_ctx = RuntimeEnvContextMut::new(env);
         self.0.instrumented_envs.push(env_ctx);
@@ -49,27 +51,29 @@ impl<'a> InstrumentIntoBuilder<'a> {
     }
 }
 
-
-pub struct ComparisonContext<'a> {
-    app_db: &'a AppDb,
-    env_builder: RuntimeEnvBuilder<'a>,
+pub struct ComparisonContext {
+    app_db: Rc<AppDb>,
+    env_builder: RuntimeEnvBuilder,
     baseline_env: Option<RuntimeEnvContext>,
     instrumented_envs: Vec<RuntimeEnvContextMut>,
 }
 
-impl<'a> ComparisonContext<'a> {
+impl ComparisonContext {
     /// Creates a new, empty [ComparisonContext].
-    pub fn new(app_db: &'a AppDb) -> Self {
+    pub fn new(app_db: Rc<AppDb>) -> Self {
         Self {
-            app_db,
-            env_builder: RuntimeEnvBuilder::new(app_db),
+            app_db: Rc::clone(&app_db),
+            env_builder: RuntimeEnvBuilder::new(Rc::clone(&app_db)),
             baseline_env: None,
             instrumented_envs: Vec::new(),
         }
     }
 
     /// Sets the baseline environment to use for comparison.
-    pub fn using_baseline(mut self, f: impl FnOnce(BaselineBuilder<'a>) -> Result<Self>) -> Result<Self> {
+    pub fn using_baseline(
+        self, 
+        f: impl FnOnce(BaselineBuilder) -> Result<Self>
+    ) -> Result<Self> {
         let builder = BaselineBuilder(self);
         let ctx = f(builder)?;
         Ok(ctx)
@@ -77,8 +81,10 @@ impl<'a> ComparisonContext<'a> {
 
     /// Adds a [WriteableEnv] to the instrumentation list for comparison. These
     /// environments will be replayed into and then compared against eachother.
-    pub fn instrument_into(mut self, f: impl FnOnce(InstrumentIntoBuilder<'a>) -> Result<Self>) -> Result<Self> {
-        let env_builder = RuntimeEnvBuilder::new(self.app_db);
+    pub fn instrument_into(
+        &mut self, 
+        f: impl FnOnce(InstrumentIntoBuilder) -> Result<Self>
+    ) -> Result<Self> {
         let builder = InstrumentIntoBuilder(self);
         let ctx = f(builder)?;
         Ok(ctx)
@@ -86,8 +92,8 @@ impl<'a> ComparisonContext<'a> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(&'a mut self, opts: &'a ReplayOpts) -> Result<ReplayResult> {
-        let mut baseline_env = self
+    pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
+        let baseline_env = self
             .baseline_env
             .as_mut()
             .ok_or(anyhow!("baseline environment has need been specified"))?;
@@ -95,7 +101,7 @@ impl<'a> ComparisonContext<'a> {
         baseline_env.open()?;
 
         for target in self.instrumented_envs.iter_mut() {
-            ChainStateReplayer::replay(&baseline_env, target, opts)?;
+            ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
 
         todo!()

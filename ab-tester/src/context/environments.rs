@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, rc::Rc};
 
 use color_eyre::{eyre::anyhow, Result};
 
@@ -17,12 +17,12 @@ pub mod network;
 pub mod stacks_node;
 
 /// Helper struct for creating new [RuntimeEnv] instances.
-pub struct RuntimeEnvBuilder<'a> {
-    app_db: &'a AppDb,
+pub struct RuntimeEnvBuilder {
+    app_db: Rc<AppDb>,
 }
 
-impl<'a> RuntimeEnvBuilder<'a> {
-    pub fn new(app_db: &'a AppDb) -> Self {
+impl RuntimeEnvBuilder {
+    pub fn new(app_db: Rc<AppDb>) -> Self {
         Self { app_db }
     }
 
@@ -59,9 +59,9 @@ impl<'a> RuntimeEnvBuilder<'a> {
         runtime: Runtime,
         network: Network,
         working_dir: String,
-    ) -> Result<InstrumentedEnv<'a>> {
+    ) -> Result<InstrumentedEnv> {
         let env = self.get_or_create_env(&name, &runtime, &working_dir)?;
-        InstrumentedEnv::new(env.id, name, self.app_db, working_dir, runtime, network)
+        InstrumentedEnv::new(env.id, name, Rc::clone(&self.app_db), working_dir, runtime, network)
     }
 
     /// Creates and returns a new [NetworkEnv] with the provided configuration.

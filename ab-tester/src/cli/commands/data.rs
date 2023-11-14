@@ -1,4 +1,4 @@
-use std::{time::Duration, collections::HashMap, sync::Arc};
+use std::{time::Duration, collections::HashMap, sync::Arc, rc::Rc};
 
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
@@ -17,7 +17,7 @@ use crate::{
 
 pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
-    let app_db = AppDb::new(app_db_conn);
+    let app_db = Rc::new(AppDb::new(app_db_conn));
 
     let multi_pb = MultiProgress::new();
     let pb = ProgressBar::new_spinner();
@@ -29,11 +29,10 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
             .tick_strings(&["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏",]),
     );
-
     
     //let replay_opts: ReplayOpts = data_args.into();
 
-    let tmp = ComparisonContext::new(&app_db);
+    let mut tmp = ComparisonContext::new(app_db);
 
     tmp.using_baseline(|from| {
         from.stacks_node(

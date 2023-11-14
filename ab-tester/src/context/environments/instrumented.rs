@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use color_eyre::{
     eyre::{anyhow, bail},
@@ -40,23 +40,23 @@ pub struct InstrumentedEnvState {
 
 /// This environment type is app-specific and will instrument all Clarity-related
 /// operations. This environment can be used for comparisons.
-pub struct InstrumentedEnv<'a> {
+pub struct InstrumentedEnv {
     id: i32,
     name: String,
-    app_db: &'a AppDb,
+    app_db: Rc<AppDb>,
     env_config: InstrumentedEnvConfig,
     env_state: Option<InstrumentedEnvState>,
     callbacks: Box<dyn RuntimeEnvCallbackHandler>,
 }
 
-impl<'a> InstrumentedEnv<'a> {
+impl InstrumentedEnv {
     /// Creates a new [InstrumentedEnv]. This method expects the provided
     /// `working_dir` to either be uninitialized or be using the same [Runtime]
     /// and [Network] configuration.
     pub fn new(
         id: i32,
         name: String,
-        app_db: &'a AppDb,
+        app_db: Rc<AppDb>,
         working_dir: String,
         runtime: Runtime,
         network: Network,
@@ -171,7 +171,7 @@ impl<'a> InstrumentedEnv<'a> {
     }
 }
 
-impl RuntimeEnv for InstrumentedEnv<'_> {
+impl RuntimeEnv for InstrumentedEnv {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -250,7 +250,7 @@ impl RuntimeEnv for InstrumentedEnv<'_> {
 }
 
 /// Implementation of [ReadableEnv] for [InstrumentedEnv].
-impl ReadableEnv for InstrumentedEnv<'_> {
+impl ReadableEnv for InstrumentedEnv {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
         let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
@@ -259,7 +259,7 @@ impl ReadableEnv for InstrumentedEnv<'_> {
 }
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
-impl<'a> WriteableEnv for InstrumentedEnv<'a> {
+impl WriteableEnv for InstrumentedEnv {
     fn block_begin(
         &mut self,
         block: &crate::context::Block,
