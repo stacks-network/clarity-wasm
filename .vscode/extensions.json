@@ -12,6 +12,7 @@
         "Gruntfuggly.todo-tree",
         "dtsvet.vscode-wasm",
         "qwtel.sqlite-viewer",
-        "PKief.material-icon-theme"
+        "PKief.material-icon-theme",
+        "GitHub.vscode-pull-request-github"
     ]
 }
