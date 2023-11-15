@@ -1,33 +1,27 @@
 use std::cell::RefCell;
 
-use color_eyre::{
-    eyre::{anyhow, bail},
-    Result,
-};
+use color_eyre::eyre::{anyhow, bail};
+use color_eyre::Result;
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
-use crate::{
-    clarity::{self, ClarityConnection},
-    context::{
-        blocks::BlockHeader,
-        callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler},
-        BlockCursor, Network, TestEnvPaths,
-    },
-    db::model,
-    db::schema,
-    ok, stacks,
-};
-
 use super::{ReadableEnv, RuntimeEnv};
+use crate::clarity::{self, ClarityConnection};
+use crate::context::blocks::BlockHeader;
+use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
+use crate::context::{BlockCursor, Network, StacksEnvPaths};
+use crate::db::{model, schema};
+use crate::{ok, stacks};
 
+/// Holds initialization config for a [StacksNodeEnv].
 pub struct StacksNodeEnvConfig {
     node_dir: String,
-    paths: TestEnvPaths,
+    paths: StacksEnvPaths,
 }
 
+/// Holds state for a [StacksNodeEnv].
 pub struct StacksNodeEnvState {
     network: Network,
     index_db_conn: RefCell<SqliteConnection>,
@@ -55,7 +49,7 @@ impl StacksNodeEnv {
     /// `/stacks-node/mainnet/` or `/stacks-node/testnet`.
     pub fn new(id: i32, name: String, node_dir: String) -> Result<Self> {
         // Determine our paths.
-        let paths = TestEnvPaths::new(&node_dir);
+        let paths = StacksEnvPaths::new(&node_dir);
 
         let env_config = StacksNodeEnvConfig { paths, node_dir };
 
@@ -160,6 +154,8 @@ impl StacksNodeEnv {
         Ok(headers)
     }
 
+    /// Loads a Clarity contract from chainstate for the provided
+    /// [clarity::QualifiedContractIdentifier] at the given [stacks::StacksBlockId].
     fn load_contract(
         &mut self,
         at_block: &stacks::StacksBlockId,
@@ -224,6 +220,7 @@ impl StacksNodeEnv {
     }
 }
 
+/// Implement [RuntimeEnv] for [StacksNodeEnv].
 impl RuntimeEnv for StacksNodeEnv {
     fn name(&self) -> String {
         self.name.clone()
@@ -274,11 +271,11 @@ impl RuntimeEnv for StacksNodeEnv {
 
         debug!("[{name}] opening chainstate");
         self.callbacks
-            .open_chainstate_start(self, &paths.chainstate_path);
+            .open_chainstate_start(self, &paths.chainstate_dir);
         let (chainstate, _) = stacks::StacksChainState::open(
             network.is_mainnet(),
             network.chain_id(),
-            &paths.chainstate_path,
+            &paths.chainstate_dir,
             Some(marf_opts),
         )?;
         self.callbacks.open_chainstate_finish(self);
@@ -294,8 +291,8 @@ impl RuntimeEnv for StacksNodeEnv {
         //debug!("attempting to migrate sortition db");
         debug!("[{name}] opening sortition db");
         self.callbacks
-            .open_sortition_db_start(self, &paths.sortition_db_path);
-        let sortition_db = super::open_sortition_db(&paths.sortition_db_path, &network)?;
+            .open_sortition_db_start(self, &paths.sortition_dir);
+        let sortition_db = super::open_sortition_db(&paths.sortition_dir, &network)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("[{name}] successfully opened sortition db");
 
@@ -314,6 +311,7 @@ impl RuntimeEnv for StacksNodeEnv {
     }
 }
 
+/// Implementation of [ReadableEnv] for [StacksNodeEnv].
 impl ReadableEnv for StacksNodeEnv {
     /// Retrieve a cursor over all blocks.
     fn blocks(&self) -> Result<BlockCursor> {

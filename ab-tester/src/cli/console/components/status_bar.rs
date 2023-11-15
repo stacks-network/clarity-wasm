@@ -1,8 +1,7 @@
 use ratatui::widgets::Paragraph;
 
-use crate::cli::console::theme::Theme;
-
 use super::Component;
+use crate::cli::console::theme::Theme;
 
 pub struct StatusBar {}
 

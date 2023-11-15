@@ -1,8 +1,9 @@
-use color_eyre::eyre::Result;
-use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use color_eyre::eyre::Result;
+use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 
 /// Terminal events.
 #[derive(Clone, Copy, Debug)]

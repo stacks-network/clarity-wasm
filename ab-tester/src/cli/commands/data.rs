@@ -1,18 +1,15 @@
-use std::{rc::Rc, time::Duration};
+use std::rc::Rc;
+use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use diesel::{Connection, SqliteConnection};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
-use crate::{
-    cli::DataArgs,
-    context::{
-        replay::ReplayOpts,
-        ComparisonContext, Network, Runtime,
-    },
-    db::appdb::AppDb,
-    ok,
-};
+use crate::cli::DataArgs;
+use crate::context::replay::ReplayOpts;
+use crate::context::{ComparisonContext, Network, Runtime};
+use crate::db::appdb::AppDb;
+use crate::ok;
 
 pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;

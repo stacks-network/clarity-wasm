@@ -1,12 +1,12 @@
-use color_eyre::{eyre::ensure, Result};
+use color_eyre::eyre::ensure;
+use color_eyre::Result;
 use log::*;
 
-use crate::{context::Block, errors::AppError, ok};
-
-use super::{
-    callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler},
-    environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut},
-};
+use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
+use super::environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut};
+use crate::context::Block;
+use crate::errors::AppError;
+use crate::{clarity, ok, stacks};
 
 /// Options for replaying an environment's chain into another environment.
 pub struct ReplayOpts {
@@ -82,7 +82,9 @@ impl ChainStateReplayer {
         opts.callbacks.replay_start(source, target, blocks.len());
 
         for block in source.blocks()?.into_iter() {
-            let (header, _stacks_block) = match &block {
+            opts.callbacks
+                .replay_block_start(source, target, block.block_height()?);
+            let (header, stacks_block) = match &block {
                 Block::Boot(header) => {
                     // We can't process the boot block, so skip it.
                     info!("boot block - skipping '{:?}'", header.index_block_hash);
@@ -115,39 +117,35 @@ impl ChainStateReplayer {
                 header.block_height(),
                 &hex::encode(&header.index_block_hash)
             );
+
             /*replay_env_mut.block_begin(&block, |_ctx| {
                 info!("processing block!");
                 ok!()
             })?;*/
 
-            processed_block_count += 1;
-            continue;
-
-            /*let block_id = header.stacks_block_id()?;
+            let block_id = header.stacks_block_id()?;
 
             for tx in stacks_block.unwrap().txs.iter() {
                 info!("processing tx: {}", tx.txid());
 
-                let origin_principal = StandardPrincipalData::from(tx.origin_address());
+                let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
 
                 #[allow(clippy::single_match)]
                 match &tx.payload {
-                    TransactionPayload::SmartContract(contract, _) => {
-                        let contract_id =
-                            QualifiedContractIdentifier::new(origin_principal, contract.name.clone());
+                    stacks::TransactionPayload::SmartContract(contract, _) => {
+                        let contract_id = clarity::QualifiedContractIdentifier::new(
+                            origin_principal,
+                            contract.name.clone(),
+                        );
 
-                        if let Some(entry) = contracts.get(&contract_id) {
-                            warn!(
-                                "duplicate: {}, first block={}, second block={}",
-                                contract_id, entry, &block_id
-                            );
-                        } else {
-                            contracts.insert(contract_id, block_id);
-                        }
+                        info!("block id: {block_id:?}, contract id: {contract_id:?}");
                     }
                     _ => {}
                 }
-            }*/
+            }
+
+            opts.callbacks.replay_block_finish(source, target);
+            processed_block_count += 1;
         }
 
         opts.callbacks.replay_finish(source, target);

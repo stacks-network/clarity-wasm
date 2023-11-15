@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use color_eyre::{
-    eyre::{anyhow, bail},
-    Result,
-};
+use color_eyre::eyre::{anyhow, bail};
+use color_eyre::Result;
 use log::*;
 
-use crate::{clarity, context::replay::ChainStateReplayer, db::appdb::AppDb};
+use crate::context::replay::ChainStateReplayer;
+use crate::db::appdb::AppDb;
+use crate::{clarity, stacks};
 
 pub mod blocks;
 mod boot_data;
@@ -15,9 +15,10 @@ pub mod environments;
 mod marf;
 pub mod replay;
 
+pub use blocks::{Block, BlockCursor};
+
 use self::environments::{RuntimeEnv, RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 use self::replay::{ReplayOpts, ReplayResult};
-pub use blocks::{Block, BlockCursor};
 
 pub struct BaselineBuilder(ComparisonContext);
 
@@ -106,6 +107,35 @@ impl ComparisonContext {
         }
 
         todo!()
+    }
+}
+
+pub enum BlockTransactionContext<'a, 'b> {
+    Genesis,
+    Regular(RegularBlockTransactionContext<'b, 'a>),
+}
+
+pub struct RegularBlockTransactionContext<'b, 'a: 'b> {
+    stacks_block_id: stacks::StacksBlockId,
+    clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
+    clarity_tx_conn: Option<stacks::ClarityTransactionConnection<'a, 'b>>,
+}
+
+impl<'a, 'b> RegularBlockTransactionContext<'a, 'b> {
+    pub fn new(
+        stacks_block_id: stacks::StacksBlockId,
+        clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
+    ) -> Self {
+        Self {
+            stacks_block_id,
+            clarity_block_conn,
+            clarity_tx_conn: None,
+        }
+    }
+
+    pub fn begin<'c: 'a>(&'c mut self) -> Result<()> {
+        self.clarity_tx_conn = Some(self.clarity_block_conn.start_transaction_processing());
+        Ok(())
     }
 }
 
@@ -209,25 +239,27 @@ impl Network {
 /// Helper struct to carry all of the different paths involved in chainstate
 /// and sortition.
 #[derive(Debug, Clone)]
-struct TestEnvPaths {
+struct StacksEnvPaths {
     working_dir: String,
 
     index_db_path: String,
+    sortition_dir: String,
     sortition_db_path: String,
     blocks_dir: String,
-    chainstate_path: String,
+    chainstate_dir: String,
     clarity_db_path: String,
 }
 
-impl TestEnvPaths {
+impl StacksEnvPaths {
     pub fn new(working_dir: &str) -> Self {
         Self {
             working_dir: working_dir.to_string(),
 
             index_db_path: format!("{}/chainstate/vm/index.sqlite", working_dir),
-            sortition_db_path: format!("{}/burnchain/sortition", working_dir),
+            sortition_dir: format!("{}/burnchain/sortition", working_dir),
+            sortition_db_path: format!("{}/burnchain/sortition/marf.sqlite", working_dir),
             blocks_dir: format!("{}/chainstate/blocks", working_dir),
-            chainstate_path: format!("{}/chainstate", working_dir),
+            chainstate_dir: format!("{}/chainstate", working_dir),
             clarity_db_path: format!("{}/chainstate/vm/clarity/marf.sqlite", working_dir),
         }
     }
@@ -235,9 +267,10 @@ impl TestEnvPaths {
     pub fn print(&self, env_name: &str) {
         info!("[{env_name}] using working dir: {}", self.working_dir);
         debug!("[{env_name}] index db: {}", self.index_db_path);
+        debug!("[{env_name}] sortition dir: {}", self.sortition_dir);
         debug!("[{env_name}] sortition db: {}", self.sortition_db_path);
         debug!("[{env_name}] clarity db: {}", self.clarity_db_path);
         debug!("[{env_name}] blocks dir: {}", self.blocks_dir);
-        debug!("[{env_name}] chainstate dir: {}", self.chainstate_path);
+        debug!("[{env_name}] chainstate dir: {}", self.chainstate_dir);
     }
 }

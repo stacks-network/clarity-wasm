@@ -1,24 +1,19 @@
-use std::{
-    ops::{Deref, DerefMut},
-    time::Duration,
-};
+use std::ops::{Deref, DerefMut};
+use std::time::Duration;
 
 use color_eyre::eyre::Result;
-use crossterm::{
-    cursor,
-    event::{
-        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-        Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent,
-    },
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+use crossterm::cursor;
+use crossterm::event::{
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent,
 };
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use futures::{FutureExt, StreamExt};
-use ratatui::{backend::CrosstermBackend as Backend, style::Style};
+use ratatui::backend::CrosstermBackend as Backend;
+use ratatui::style::Style;
 use tokio::sync::mpsc;
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
-    task::JoinHandle,
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 pub type Frame<'a> = ratatui::Frame<'a>;

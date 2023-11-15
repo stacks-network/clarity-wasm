@@ -12,15 +12,17 @@ mod db;
 mod runtime;
 mod stacks;
 
+use std::process::exit;
+
 use clap::Parser;
 use cli::*;
 use color_eyre::eyre::{bail, Result};
 use config::Config;
 use console::Color;
-use diesel::{connection::SimpleConnection, Connection, SqliteConnection};
+use diesel::connection::SimpleConnection;
+use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
-use std::process::exit;
 
 use crate::errors::AppError;
 

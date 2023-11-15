@@ -1,16 +1,18 @@
-use std::{fmt::Display, rc::Rc};
+use std::fmt::Display;
+use std::rc::Rc;
 
-use color_eyre::{eyre::anyhow, Result};
+use color_eyre::eyre::anyhow;
+use color_eyre::Result;
 
-use crate::{
-    context::boot_data::mainnet_boot_data,
-    db::{appdb::AppDb, model},
-    stacks,
-};
-
-use self::{instrumented::InstrumentedEnv, network::NetworkEnv, stacks_node::StacksNodeEnv};
-
-use super::{blocks::BlockCursor, Block, Network, Runtime};
+use self::instrumented::InstrumentedEnv;
+use self::network::NetworkEnv;
+use self::stacks_node::StacksNodeEnv;
+use super::blocks::BlockCursor;
+use super::{Block, BlockTransactionContext, Network, Runtime};
+use crate::context::boot_data::mainnet_boot_data;
+use crate::db::appdb::AppDb;
+use crate::db::model;
+use crate::{clarity, stacks};
 
 pub mod instrumented;
 pub mod network;
@@ -145,6 +147,23 @@ impl ReadableEnv for RuntimeEnvContext {
     }
 }
 
+impl ReadableEnv for RuntimeEnvContextMut {
+    fn blocks(&self) -> Result<BlockCursor> {
+        self.inner.blocks()
+    }
+}
+
+impl RuntimeEnvContextMut {
+    fn block_begin(
+        &mut self,
+        block: &Block,
+        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
+    ) -> Result<()> {
+        let mut block_tx_ctx = self.inner.block_begin(block)?;
+        f(&mut block_tx_ctx)
+    }
+}
+
 /// Defines the basic functionality for a [RuntimeEnv] implementation.
 pub trait RuntimeEnv {
     /// Gets the user-provided name of this environment.
@@ -180,17 +199,12 @@ pub trait ReadableEnv: RuntimeEnv {
 
 /// Defines the functionality for a writeable [RuntimeEnv].
 pub trait WriteableEnv: ReadableEnv {
-    fn block_begin(
-        &mut self,
-        block: &Block,
-        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
-    ) -> Result<()>
-    where
-        Self: Sized;
-}
+    fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext>;
 
-pub struct BlockTransactionContext<'a, 'b> {
-    clarity_tx_conn: &'a stacks::ClarityTransactionConnection<'a, 'b>,
+    fn block_commit(
+        &mut self,
+        block_tx_ctx: BlockTransactionContext,
+    ) -> Result<clarity::LimitedCostTracker>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

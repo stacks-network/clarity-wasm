@@ -1,10 +1,9 @@
 use std::fmt::Debug;
 
-use blockstack_lib::chainstate::stacks::{db::StacksChainState, StacksBlock};
-use color_eyre::{
-    eyre::{anyhow, bail},
-    Result,
-};
+use blockstack_lib::chainstate::stacks::db::StacksChainState;
+use blockstack_lib::chainstate::stacks::StacksBlock;
+use color_eyre::eyre::{anyhow, bail};
+use color_eyre::Result;
 use log::*;
 use stacks_common::types::chainstate::{BlockHeaderHash, ConsensusHash, StacksBlockId};
 

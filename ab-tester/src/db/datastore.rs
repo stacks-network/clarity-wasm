@@ -1,10 +1,10 @@
 use sha2::{Digest, Sha512_256};
-use stacks_common::{types::chainstate::StacksBlockId, util::hash::Sha512Trunc256Sum};
+use stacks_common::types::chainstate::StacksBlockId;
+use stacks_common::util::hash::Sha512Trunc256Sum;
 
-use crate::{
-    clarity,
-    db::{appdb::AppDb, model},
-};
+use crate::clarity;
+use crate::db::appdb::AppDb;
+use crate::db::model;
 
 pub struct DataStore<'a> {
     exec: Option<model::app_db::ContractExecution>,

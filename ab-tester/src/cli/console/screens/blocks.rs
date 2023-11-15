@@ -1,19 +1,13 @@
 use color_eyre::eyre::Result;
-use ratatui::{
-    prelude::{Alignment, Constraint, Rect},
-    text::{Line, Span},
-    widgets::{BorderType, Borders, Row, Table, TableState},
-};
+use ratatui::prelude::{Alignment, Constraint, Rect};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{BorderType, Borders, Row, Table, TableState};
 
-use crate::{
-    cli::console::{
-        components::{title_span, Component},
-        data::Block,
-        theme::Theme,
-        tui::Frame,
-    },
-    context::BlockCursor,
-};
+use crate::cli::console::components::{title_span, Component};
+use crate::cli::console::data::Block;
+use crate::cli::console::theme::Theme;
+use crate::cli::console::tui::Frame;
+use crate::context::BlockCursor;
 
 pub struct BlocksScreen<'a> {
     blocks: Vec<Block>,

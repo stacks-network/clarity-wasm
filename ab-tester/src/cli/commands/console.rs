@@ -1,15 +1,13 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use color_eyre::eyre::Result;
 
-use crate::cli::{
-    console::{
-        app::{App, AppState},
-        screens::{main::MainLayout, BlocksScreen, StartScreen},
-        theme::{ColorScheme, Theme},
-    },
-    TuiArgs,
-};
+use crate::cli::console::app::{App, AppState};
+use crate::cli::console::screens::main::MainLayout;
+use crate::cli::console::screens::{BlocksScreen, StartScreen};
+use crate::cli::console::theme::{ColorScheme, Theme};
+use crate::cli::TuiArgs;
 
 pub async fn exec(config: &crate::config::Config, args: TuiArgs) -> Result<()> {
     // Determine the theme to use.

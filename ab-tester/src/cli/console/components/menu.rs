@@ -1,8 +1,9 @@
-use ratatui::{prelude::*, text::Line, widgets::*};
-
-use crate::cli::console::theme::Theme;
+use ratatui::prelude::*;
+use ratatui::text::Line;
+use ratatui::widgets::*;
 
 use super::Component;
+use crate::cli::console::theme::Theme;
 
 pub struct Menu<'a> {
     pub titles: Vec<&'a str>,

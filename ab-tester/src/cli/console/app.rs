@@ -1,18 +1,20 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::cell::RefCell;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{prelude::Rect, style::Style};
+use ratatui::prelude::Rect;
+use ratatui::style::Style;
 use tokio::sync::mpsc;
 
-use super::{
-    action::Action,
-    components::Component,
-    screens::Screen,
-    theme::Theme,
-    tui::{Event, Tui},
-};
-use crate::{config::Config, context::BlockCursor};
+use super::action::Action;
+use super::components::Component;
+use super::screens::Screen;
+use super::theme::Theme;
+use super::tui::{Event, Tui};
+use crate::config::Config;
+use crate::context::BlockCursor;
 
 /// Application.
 pub struct App<'a> {

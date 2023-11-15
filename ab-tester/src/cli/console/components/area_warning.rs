@@ -1,12 +1,9 @@
-use ratatui::{
-    prelude::Alignment,
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget},
-};
-
-use crate::cli::console::theme::Theme;
+use ratatui::prelude::Alignment;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 
 use super::title_span;
+use crate::cli::console::theme::Theme;
 
 pub struct AreaWarning<'theme> {
     title: String,

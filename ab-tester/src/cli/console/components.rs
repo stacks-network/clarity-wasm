@@ -1,21 +1,16 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::{
-    layout::Rect,
-    prelude::{Constraint, Direction, Layout},
-    style::Style,
-    symbols::line::{TOP_LEFT, TOP_RIGHT},
-    text::{Line, Span},
-};
+use ratatui::layout::Rect;
+use ratatui::prelude::{Constraint, Direction, Layout};
+use ratatui::style::Style;
+use ratatui::symbols::line::{TOP_LEFT, TOP_RIGHT};
+use ratatui::text::{Line, Span};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::cli::console::{
-    action::Action,
-    tui::{Event, Frame},
-};
-use crate::config::Config;
-
 use super::theme::Theme;
+use crate::cli::console::action::Action;
+use crate::cli::console::tui::{Event, Frame};
+use crate::config::Config;
 
 pub mod area_warning;
 pub mod empty;
@@ -24,10 +19,12 @@ pub mod menu;
 pub mod popup;
 pub mod status_bar;
 
-pub use {
-    area_warning::AreaWarning, empty::Empty, header::Header, menu::Menu, popup::Popup,
-    status_bar::StatusBar,
-};
+pub use area_warning::AreaWarning;
+pub use empty::Empty;
+pub use header::Header;
+pub use menu::Menu;
+pub use popup::Popup;
+pub use status_bar::StatusBar;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,

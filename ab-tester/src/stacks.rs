@@ -27,13 +27,9 @@ pub use blockstack_lib::{
     types::StacksEpoch,
     util_lib::db::IndexDBConn,
 };
-
-pub use stacks_common::types::{
-    chainstate::{
-        BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress,
-        StacksBlockId, VRFSeed,
-    },
-    StacksEpochId,
+pub use stacks_common::types::chainstate::{
+    BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
+    VRFSeed,
 };
-
+pub use stacks_common::types::StacksEpochId;
 pub use stx_genesis::*;

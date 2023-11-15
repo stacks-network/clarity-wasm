@@ -3,16 +3,14 @@ use comfy_table::{Row, Table};
 use console::Color;
 use diesel::{Connection, SqliteConnection};
 
-use crate::{
-    cli::{
-        EnvArgs, EnvSubCommands, ListEnvArgs, NewEnvArgs, NewEnvSubCommands,
-        NewInstrumentedEnvArgs, NewNetworkEnvArgs, NewStacksNodeEnvArgs,
-    },
-    config::Config,
-    context::Runtime,
-    db::appdb::AppDb,
-    ok,
+use crate::cli::{
+    EnvArgs, EnvSubCommands, ListEnvArgs, NewEnvArgs, NewEnvSubCommands, NewInstrumentedEnvArgs,
+    NewNetworkEnvArgs, NewStacksNodeEnvArgs,
 };
+use crate::config::Config;
+use crate::context::Runtime;
+use crate::db::appdb::AppDb;
+use crate::ok;
 
 pub async fn exec(config: &Config, env_args: EnvArgs) -> Result<()> {
     match &env_args.commands {

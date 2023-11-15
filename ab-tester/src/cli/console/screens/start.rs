@@ -1,11 +1,12 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
-use ratatui::{
-    prelude::{Constraint, Direction, Layout, Rect},
-    widgets::{Block, BorderType, Borders, Paragraph},
-};
+use ratatui::prelude::{Constraint, Direction, Layout, Rect};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-use crate::cli::console::{action::Action, components::Component, theme::Theme, tui::Frame};
+use crate::cli::console::action::Action;
+use crate::cli::console::components::Component;
+use crate::cli::console::theme::Theme;
+use crate::cli::console::tui::Frame;
 
 pub struct StartScreen {}
 

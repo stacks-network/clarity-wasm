@@ -1,26 +1,22 @@
-use blockstack_lib::{chainstate::stacks::db::StacksChainState, core::BLOCK_LIMIT_MAINNET_205};
-use clarity::vm::{
-    analysis::{run_analysis, AnalysisDatabase, ContractAnalysis},
-    ast::{self, ASTRules},
-    contexts::GlobalContext,
-    costs::LimitedCostTracker,
-    database::{
-        ClarityBackingStore, ClarityDatabase, RollbackWrapper, NULL_BURN_STATE_DB, NULL_HEADER_DB,
-    },
-    eval_all,
-    types::QualifiedContractIdentifier,
-    ClarityVersion, ContractContext, SymbolicExpression,
+use blockstack_lib::chainstate::stacks::db::StacksChainState;
+use blockstack_lib::core::BLOCK_LIMIT_MAINNET_205;
+use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
+use clarity::vm::ast::{self, ASTRules};
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{
+    ClarityBackingStore, ClarityDatabase, RollbackWrapper, NULL_BURN_STATE_DB, NULL_HEADER_DB,
 };
+use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::{eval_all, ClarityVersion, ContractContext, SymbolicExpression};
 use color_eyre::Result;
-use stacks_common::types::{
-    chainstate::{BlockHeaderHash, ConsensusHash},
-    StacksEpochId,
-};
+use stacks_common::types::chainstate::{BlockHeaderHash, ConsensusHash};
+use stacks_common::types::StacksEpochId;
 
-use crate::{
-    config::Config, db::appdb::AppDb, db::datastore::DataStore,
-    db::model::app_db::ContractExecution,
-};
+use crate::config::Config;
+use crate::db::appdb::AppDb;
+use crate::db::datastore::DataStore;
+use crate::db::model::app_db::ContractExecution;
 
 pub fn analyze_contract(
     contract_identifier: &QualifiedContractIdentifier,

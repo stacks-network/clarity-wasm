@@ -6,11 +6,12 @@ pub use clarity::vm::{
     analysis::ContractAnalysis,
     ast::ASTRules,
     clarity::ClarityConnection,
+    costs::LimitedCostTracker,
     database::{
         BurnStateDB, ClarityBackingStore, ClarityDatabase, HeadersDB, RollbackWrapper, StoreType,
         NULL_BURN_STATE_DB, NULL_HEADER_DB,
     },
     errors::InterpreterResult,
-    types::{PrincipalData, QualifiedContractIdentifier, TupleData},
+    types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData},
     StacksEpoch, Value,
 };

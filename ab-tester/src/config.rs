@@ -1,6 +1,7 @@
+use std::fs;
+
 use color_eyre::eyre::{bail, Result};
 use serde_derive::Deserialize;
-use std::fs;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {

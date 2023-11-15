@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 
-use color_eyre::{eyre::anyhow, Result};
-use diesel::{insert_into, prelude::*, OptionalExtension, QueryDsl, SqliteConnection};
+use color_eyre::eyre::anyhow;
+use color_eyre::Result;
+use diesel::prelude::*;
+use diesel::{insert_into, OptionalExtension, QueryDsl, SqliteConnection};
 use lz4_flex::compress_prepend_size;
 
 #[allow(unused_imports)]

@@ -1,8 +1,7 @@
 use color_eyre::Result;
 
-use crate::context::{Network, Runtime};
-
 use super::RuntimeEnv;
+use crate::context::{Network, Runtime};
 
 /// This environment type is read-only and can be used to sync from the Stacks
 /// blockchain using the specified [Network]. This environment will process
