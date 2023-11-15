@@ -184,8 +184,7 @@ fn wasm_equal(
             builder,
             first_op,
             nth_op,
-            &ok_err_ty.0,
-            &ok_err_ty.1,
+            (&ok_err_ty.0, &ok_err_ty.1),
         ),
         TypeSignature::TupleType(tuple_ty) => {
             wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty)
@@ -296,10 +295,9 @@ fn wasm_equal_response(
     builder: &mut InstrSeqBuilder,
     first_op: &[LocalId],
     nth_op: &[LocalId],
-    ok_ty: &TypeSignature,
-    err_ty: &TypeSignature,
+    ok_err_ty: (&TypeSignature, &TypeSignature),
 ) -> Result<(), GeneratorError> {
-    let split_ok_err_idx = dbg!(clar2wasm_ty(ok_ty)).len();
+    let split_ok_err_idx = dbg!(clar2wasm_ty(ok_err_ty.0)).len();
     let Some((first_variant, first_ok, first_err)) =
         first_op.split_first().map(|(variant, rest)| {
             let (ok, err) = dbg!(rest.split_at(split_ok_err_idx));
@@ -326,13 +324,13 @@ fn wasm_equal_response(
 
     let ok_id = {
         let mut ok_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(ok_ty, generator, &mut ok_case, first_ok, nth_ok)?;
+        wasm_equal(ok_err_ty.0, generator, &mut ok_case, first_ok, nth_ok)?;
         ok_case.id()
     };
 
     let err_id = {
         let mut err_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(err_ty, generator, &mut err_case, first_err, nth_err)?;
+        wasm_equal(ok_err_ty.1, generator, &mut err_case, first_err, nth_err)?;
         err_case.id()
     };
 
