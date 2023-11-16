@@ -122,10 +122,7 @@ impl RuntimeEnvContextMut {
         }
     }
 
-    pub fn block_begin(
-        &mut self,
-        block: &Block,
-    ) -> Result<BlockTransactionContext> {
+    pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
         self.inner.block_begin(block)
     }
 }

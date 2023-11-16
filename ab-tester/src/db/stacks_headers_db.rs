@@ -9,16 +9,14 @@ use super::model::chainstate_db::{BlockHeader, MaturedReward, Payment};
 use super::schema::chainstate_marf::*;
 use crate::{clarity, stacks};
 
-pub struct StacksNodeDb {
-    index_conn: RefCell<SqliteConnection>,
-    sortition_conn: RefCell<SqliteConnection>,
+pub struct StacksHeadersDb {
+    conn: RefCell<SqliteConnection>,
 }
 
-impl StacksNodeDb {
-    pub fn new(index_db_path: &str, sortition_db_path: &str) -> Result<Self> {
+impl StacksHeadersDb {
+    pub fn new(index_db_path: &str) -> Result<Self> {
         Ok(Self {
-            index_conn: RefCell::new(SqliteConnection::establish(index_db_path)?),
-            sortition_conn: RefCell::new(SqliteConnection::establish(sortition_db_path)?),
+            conn: RefCell::new(SqliteConnection::establish(index_db_path)?),
         })
     }
 
@@ -31,7 +29,7 @@ impl StacksNodeDb {
     ) -> Result<Option<BlockHeader>> {
         let result = block_headers::table
             .filter(block_headers::index_block_hash.eq(id_bhh.to_hex()))
-            .first::<BlockHeader>(&mut *self.index_conn.borrow_mut())
+            .first::<BlockHeader>(&mut *self.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;
 
@@ -47,7 +45,7 @@ impl StacksNodeDb {
     ) -> Result<Option<Payment>> {
         let result = payments::table
             .filter(payments::block_hash.eq(id_bhh.to_hex()))
-            .first::<Payment>(&mut *self.index_conn.borrow_mut())
+            .first::<Payment>(&mut *self.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;
 
@@ -55,11 +53,11 @@ impl StacksNodeDb {
     }
 }
 
-impl clarity::HeadersDB for StacksNodeDb {
+impl clarity::HeadersDB for StacksHeadersDb {
     fn get_stacks_block_header_hash_for_block(
         &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<stacks_common::types::chainstate::BlockHeaderHash> {
+        id_bhh: &stacks::StacksBlockId,
+    ) -> Option<stacks::BlockHeaderHash> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| {
@@ -74,8 +72,8 @@ impl clarity::HeadersDB for StacksNodeDb {
 
     fn get_burn_header_hash_for_block(
         &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
+        id_bhh: &stacks::StacksBlockId,
+    ) -> Option<stacks::BurnchainHeaderHash> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| {
@@ -90,8 +88,8 @@ impl clarity::HeadersDB for StacksNodeDb {
 
     fn get_consensus_hash_for_block(
         &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<stacks_common::types::chainstate::ConsensusHash> {
+        id_bhh: &stacks::StacksBlockId,
+    ) -> Option<stacks::ConsensusHash> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| {
@@ -104,10 +102,7 @@ impl clarity::HeadersDB for StacksNodeDb {
             })
     }
 
-    fn get_vrf_seed_for_block(
-        &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<stacks_common::types::chainstate::VRFSeed> {
+    fn get_vrf_seed_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<stacks::VRFSeed> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| {
@@ -120,28 +115,19 @@ impl clarity::HeadersDB for StacksNodeDb {
             })
     }
 
-    fn get_burn_block_time_for_block(
-        &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<u64> {
+    fn get_burn_block_time_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<u64> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| header.burn_header_timestamp as u64)
     }
 
-    fn get_burn_block_height_for_block(
-        &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<u32> {
+    fn get_burn_block_height_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<u32> {
         self.get_block_header_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|header| header.burn_header_height as u32)
     }
 
-    fn get_miner_address(
-        &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<stacks_common::types::chainstate::StacksAddress> {
+    fn get_miner_address(&self, id_bhh: &stacks::StacksBlockId) -> Option<stacks::StacksAddress> {
         self.get_payment_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|payment| {
@@ -150,10 +136,7 @@ impl clarity::HeadersDB for StacksNodeDb {
             })
     }
 
-    fn get_burnchain_tokens_spent_for_block(
-        &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<u128> {
+    fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<u128> {
         self.get_payment_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|payment| payment.burnchain_sortition_burn as u128)
@@ -161,17 +144,14 @@ impl clarity::HeadersDB for StacksNodeDb {
 
     fn get_burnchain_tokens_spent_for_winning_block(
         &self,
-        id_bhh: &stacks_common::types::chainstate::StacksBlockId,
+        id_bhh: &stacks::StacksBlockId,
     ) -> Option<u128> {
         self.get_payment_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|payment| payment.burnchain_commit_burn as u128)
     }
 
-    fn get_tokens_earned_for_block(
-        &self,
-        child_id_bhh: &stacks_common::types::chainstate::StacksBlockId,
-    ) -> Option<u128> {
+    fn get_tokens_earned_for_block(&self, child_id_bhh: &stacks::StacksBlockId) -> Option<u128> {
         let parent_id_bhh = self
             .get_block_header_by_stacks_block_id(child_id_bhh)
             .unwrap()
@@ -184,7 +164,7 @@ impl clarity::HeadersDB for StacksNodeDb {
                     .eq(parent_id_bhh)
                     .and(matured_rewards::child_index_block_hash.eq(child_id_bhh.to_hex())),
             )
-            .get_results::<MaturedReward>(&mut *self.index_conn.borrow_mut())
+            .get_results::<MaturedReward>(&mut *self.conn.borrow_mut())
             .expect("failed to find matured rewards for parent+child block combination")
             .iter()
             .map(|result| result.into())
@@ -214,80 +194,5 @@ impl clarity::HeadersDB for StacksNodeDb {
         };
 
         reward.and_then(|reward| reward.total().into())
-    }
-}
-
-impl clarity::BurnStateDB for StacksNodeDb {
-    fn get_v1_unlock_height(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_v2_unlock_height(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_pox_3_activation_height(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_burn_block_height(
-        &self,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
-    ) -> Option<u32> {
-        todo!()
-    }
-
-    fn get_burn_start_height(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_pox_prepare_length(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_pox_reward_cycle_length(&self) -> u32 {
-        todo!()
-    }
-
-    fn get_pox_rejection_fraction(&self) -> u64 {
-        todo!()
-    }
-
-    fn get_burn_header_hash(
-        &self,
-        height: u32,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
-    ) -> Option<stacks_common::types::chainstate::BurnchainHeaderHash> {
-        todo!()
-    }
-
-    fn get_sortition_id_from_consensus_hash(
-        &self,
-        consensus_hash: &stacks_common::types::chainstate::ConsensusHash,
-    ) -> Option<stacks_common::types::chainstate::SortitionId> {
-        todo!()
-    }
-
-    fn get_stacks_epoch(&self, height: u32) -> Option<::clarity::vm::StacksEpoch> {
-        todo!()
-    }
-
-    fn get_stacks_epoch_by_epoch_id(
-        &self,
-        epoch_id: &stacks_common::types::StacksEpochId,
-    ) -> Option<::clarity::vm::StacksEpoch> {
-        todo!()
-    }
-
-    fn get_ast_rules(&self, height: u32) -> ::clarity::vm::ast::ASTRules {
-        todo!()
-    }
-
-    fn get_pox_payout_addrs(
-        &self,
-        height: u32,
-        sortition_id: &stacks_common::types::chainstate::SortitionId,
-    ) -> Option<(Vec<::clarity::vm::types::TupleData>, u128)> {
-        todo!()
     }
 }

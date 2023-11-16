@@ -10,7 +10,7 @@ pub struct Epoch {
     pub end_block_height: i32,
     pub epoch_id: i32,
     pub block_limit: String,
-    pub network_epoch: i32
+    pub network_epoch: i32,
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -34,7 +34,7 @@ pub struct BlockCommit {
     pub sunset_burn: String,
     pub input: String,
     pub apparent_sender: String,
-    pub burn_parent_modules: i32
+    pub burn_parent_modules: i32,
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -64,5 +64,5 @@ pub struct Snapshot {
     pub canonical_stacks_tip_consensus_hash: String,
     pub pox_valid: bool,
     pub accumulated_coinbase_ustx: String,
-    pub pox_payouts: String
+    pub pox_payouts: String,
 }

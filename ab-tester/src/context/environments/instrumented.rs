@@ -19,7 +19,8 @@ use crate::context::{
 use crate::db::appdb::AppDb;
 use crate::db::model::app_db as model;
 use crate::db::schema::appdb;
-use crate::db::stacks_node::StacksNodeDb;
+use crate::db::stacks_burnstate_db::StacksBurnStateDb;
+use crate::db::stacks_headers_db::StacksHeadersDb;
 use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
@@ -245,15 +246,11 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_sortition_db_finish(self);
         info!("successfully opened sortition db");
 
-        let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksNodeDb::new(
-            &paths.index_db_path,
-            &paths.sortition_db_path,
-        )?);
+        let burnstate_db: Box<dyn clarity::BurnStateDB> =
+            Box::new(StacksBurnStateDb::new(&paths.sortition_db_path)?);
 
-        let headers_db: Box<dyn clarity::HeadersDB> = Box::new(StacksNodeDb::new(
-            &paths.index_db_path,
-            &paths.sortition_db_path,
-        )?);
+        let headers_db: Box<dyn clarity::HeadersDB> =
+            Box::new(StacksHeadersDb::new(&paths.index_db_path)?);
 
         let state = InstrumentedEnvState {
             chainstate,
@@ -301,14 +298,18 @@ impl WriteableEnv for InstrumentedEnv {
 
                 info!("beginning genesis block");
                 let clarity_tx = state.chainstate.block_begin(
-                    &*state.burnstate_db, 
-                    &inner.header.parent_consensus_hash()?, 
-                    &inner.header.parent_block_hash()?, 
-                    &inner.header.consensus_hash()?, 
-                    &inner.header.stacks_block_hash()?);
+                    &*state.burnstate_db,
+                    &inner.header.parent_consensus_hash()?,
+                    &inner.header.parent_block_hash()?,
+                    &inner.header.consensus_hash()?,
+                    &inner.header.stacks_block_hash()?,
+                );
 
                 info!("committing genesis block");
-                clarity_tx.commit_to_block(&inner.header.consensus_hash()?, &inner.header.stacks_block_hash()?);
+                clarity_tx.commit_to_block(
+                    &inner.header.consensus_hash()?,
+                    &inner.header.stacks_block_hash()?,
+                );
             }
             Block::Regular(inner) => {
                 current_block_id = inner.header.stacks_block_id()?;
@@ -332,11 +333,9 @@ impl WriteableEnv for InstrumentedEnv {
         // We cannot process genesis as it was already processed as a part of chainstate
         // initialization. Log that we reached it and skip processing.
         //if let Block::Genesis(_) = block {
-            //info!("genesis block cannot be processed as it was statically initialized; moving on");
-            //return Ok(BlockTransactionContext::Genesis);
+        //info!("genesis block cannot be processed as it was statically initialized; moving on");
+        //return Ok(BlockTransactionContext::Genesis);
         //}
-
-        
 
         // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
 
@@ -345,16 +344,19 @@ impl WriteableEnv for InstrumentedEnv {
 
         debug!("beginning clarity block");
         let clarity_block_conn = state.chainstate.clarity_state.begin_block(
-            &current_block_id, 
-            &next_block_id, 
-            &*state.headers_db, 
-            &*state.burnstate_db);
+            &current_block_id,
+            &next_block_id,
+            &*state.headers_db,
+            &*state.burnstate_db,
+        );
 
-        Ok(BlockTransactionContext::Regular(RegularBlockTransactionContext { 
-            stacks_block_id: current_block_id, 
-            clarity_block_conn, 
-            clarity_tx_conn: None 
-        }))
+        Ok(BlockTransactionContext::Regular(
+            RegularBlockTransactionContext {
+                stacks_block_id: current_block_id,
+                clarity_block_conn,
+                clarity_tx_conn: None,
+            },
+        ))
     }
 
     fn block_commit(

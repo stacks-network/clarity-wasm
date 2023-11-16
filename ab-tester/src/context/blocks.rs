@@ -168,7 +168,6 @@ impl BlockCursor {
             return Ok(None);
         }
 
-        
         debug!("retrieving block with height {}", self.height);
         let block = self.get_block(height);
 
@@ -235,9 +234,7 @@ impl BlockCursor {
 
         if height == 0 {
             debug!("returning genesis");
-            return Ok(
-                Some(Block::new_genesis(header.clone(), next_block_header))
-            );
+            return Ok(Some(Block::new_genesis(header.clone(), next_block_header)));
         }
 
         // Get the block's path in chainstate.
@@ -289,13 +286,13 @@ pub enum Block {
 pub struct RegularBlockInner {
     pub header: BlockHeader,
     pub stacks_block: stacks::StacksBlock,
-    pub next_header: Option<BlockHeader>
+    pub next_header: Option<BlockHeader>,
 }
 
 #[derive(Debug)]
 pub struct GenesisBlockInner {
     pub header: BlockHeader,
-    pub next_header: Option<BlockHeader>
+    pub next_header: Option<BlockHeader>,
 }
 
 /// Implementation of [Block] which provides various functions to consumers for
@@ -303,15 +300,26 @@ pub struct GenesisBlockInner {
 #[allow(dead_code)]
 impl Block {
     /// Creates a new Regular block variant, i.e. not Boot or Genesis.
-    pub fn new(header: BlockHeader, stacks_block: StacksBlock, next_header: Option<BlockHeader>) -> Self {
-        Block::Regular(RegularBlockInner { header, stacks_block, next_header })
+    pub fn new(
+        header: BlockHeader,
+        stacks_block: StacksBlock,
+        next_header: Option<BlockHeader>,
+    ) -> Self {
+        Block::Regular(RegularBlockInner {
+            header,
+            stacks_block,
+            next_header,
+        })
     }
 
     /// Creates a new Genesis block variant. Genesis does not have a
     /// [stacks::StacksBlock] representation, so this function accepts only
     /// a [BlockHeader] to represent the block.
     pub fn new_genesis(header: BlockHeader, next_header: Option<BlockHeader>) -> Self {
-        Block::Genesis(GenesisBlockInner { header, next_header })
+        Block::Genesis(GenesisBlockInner {
+            header,
+            next_header,
+        })
     }
 
     /// Gets the height for this block.

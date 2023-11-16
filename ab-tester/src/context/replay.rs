@@ -1,4 +1,4 @@
-use color_eyre::eyre::{ensure, bail};
+use color_eyre::eyre::{bail, ensure};
 use color_eyre::Result;
 use log::*;
 
@@ -147,52 +147,63 @@ impl ChainStateReplayer {
 
     /// Replays the specified block into `target`.
     fn replay_block_into(
-        header: &BlockHeader, 
-        block: &Block, 
-        stacks_block: &stacks::StacksBlock, 
-        target: &mut RuntimeEnvContextMut
+        header: &BlockHeader,
+        block: &Block,
+        stacks_block: &stacks::StacksBlock,
+        target: &mut RuntimeEnvContextMut,
     ) -> Result<()> {
         let block_id = header.stacks_block_id()?;
-            
+
         // Begin a new block in `target`.
         let block_ctx = target.block_begin(block)?;
 
-        let mut block_ctx = 
-            if let BlockTransactionContext::Regular(ctx) = block_ctx 
-                { ctx } else { bail!("could not begin transaction")};
+        let mut block_ctx = if let BlockTransactionContext::Regular(ctx) = block_ctx {
+            ctx
+        } else {
+            bail!("could not begin transaction")
+        };
 
         for tx in stacks_block.txs.iter() {
             info!("processing tx: {}", tx.txid());
 
             let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
-            
+
             // Begin a new Clarity transaction in `target` and process the source
             // transaction. This transaction will be automatically committed.
-            block_ctx.clarity_block_conn.as_transaction(|_clarity_tx| -> Result<()> {
-                debug!("IN PROCESS TX SCOPE");
+            block_ctx
+                .clarity_block_conn
+                .as_transaction(|_clarity_tx| -> Result<()> {
+                    debug!("IN PROCESS TX SCOPE");
 
-                #[allow(clippy::single_match)]
-                match &tx.payload {
-                    stacks::TransactionPayload::ContractCall(call) => {
-                        let contract_id = clarity::QualifiedContractIdentifier::parse(
-                            &format!("{}.{}", call.address, call.contract_name))?;
-                        info!("contract call at block id: {block_id:?}, contract id: {}", contract_id.to_string());
+                    #[allow(clippy::single_match)]
+                    match &tx.payload {
+                        stacks::TransactionPayload::ContractCall(call) => {
+                            let contract_id = clarity::QualifiedContractIdentifier::parse(
+                                &format!("{}.{}", call.address, call.contract_name),
+                            )?;
+                            info!(
+                                "contract call at block id: {block_id:?}, contract id: {}",
+                                contract_id.to_string()
+                            );
+                        }
+                        stacks::TransactionPayload::SmartContract(contract, _) => {
+                            let contract_id = clarity::QualifiedContractIdentifier::new(
+                                origin_principal,
+                                contract.name.clone(),
+                            );
+
+                            info!(
+                                "install contract at block id: {block_id:?}, contract id: {}",
+                                contract_id.to_string()
+                            );
+                        }
+                        _ => {}
                     }
-                    stacks::TransactionPayload::SmartContract(contract, _) => {
-                        let contract_id = clarity::QualifiedContractIdentifier::new(
-                            origin_principal,
-                            contract.name.clone(),
-                        );
 
-                        info!("install contract at block id: {block_id:?}, contract id: {}", contract_id.to_string());
-                    }
-                    _ => {}
-                }
-
-                ok!()
-            })?;
+                    ok!()
+                })?;
         }
-        
+
         ok!()
     }
 }
