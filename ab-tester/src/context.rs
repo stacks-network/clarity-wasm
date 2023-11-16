@@ -103,6 +103,7 @@ impl ComparisonContext {
         baseline_env.open()?;
 
         for target in self.instrumented_envs.iter_mut() {
+            target.open()?;
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
 

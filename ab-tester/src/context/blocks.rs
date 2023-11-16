@@ -68,6 +68,14 @@ impl BlockHeader {
         Ok(StacksBlockId(hash))
     }
 
+    pub fn stacks_block_hash(&self) -> Result<BlockHeaderHash> {
+        let hash: [u8; 32] = self.index_block_hash.clone().try_into().map_err(|e| {
+            anyhow!("failed to convert index block hash into block header hash: {e:?}")
+        })?;
+
+        Ok(BlockHeaderHash(hash))
+    }
+
     pub fn parent_stacks_block_id(&self) -> Result<StacksBlockId> {
         let hash: [u8; 32] = self.parent_block_id.clone().try_into().map_err(|e| {
             anyhow!("failed to convert parent block id into stacks block id: {e:?}")
@@ -160,9 +168,13 @@ impl BlockCursor {
             return Ok(None);
         }
 
-        self.height += 1;
+        
         debug!("retrieving block with height {}", self.height);
-        self.get_block(height)
+        let block = self.get_block(height);
+
+        self.height += 1;
+
+        block
     }
 
     /// Decrements the cursor position and retrieves the [Block] at the
@@ -211,9 +223,21 @@ impl BlockCursor {
         let header = self.headers[height].clone();
         trace!("header: {header:?}");
 
+        // Attempt to load the next (child) block header of this block. Note that
+        // we can do this here because we know that we're using a canonical chain
+        // with no forks. In the "real world" we would need to account for the
+        // possibility of multiple children - one for each fork.
+        let next_block_header = if let Some(next) = self.headers.get(height + 1) {
+            Some(next.clone())
+        } else {
+            None
+        };
+
         if height == 0 {
             debug!("returning genesis");
-            return Ok(Some(Block::new_genesis(header.clone())));
+            return Ok(
+                Some(Block::new_genesis(header.clone(), next_block_header))
+            );
         }
 
         // Get the block's path in chainstate.
@@ -226,13 +250,14 @@ impl BlockCursor {
         let stacks_block = StacksChainState::consensus_load(&block_path)?;
         trace!("block loaded: {stacks_block:?}");
 
-        let block = Block::new(header, stacks_block);
+        let block = Block::new(header, stacks_block, next_block_header);
 
         Ok(Some(block))
     }
 }
 
 /// Provides an [Iterator] over blocks.
+#[derive(Debug)]
 pub struct BlockIntoIter(BlockCursor);
 
 impl Iterator for BlockIntoIter {
@@ -254,10 +279,23 @@ impl IntoIterator for BlockCursor {
 }
 
 /// Representation of a Stacks block.
+#[derive(Debug)]
 pub enum Block {
-    Boot(BlockHeader),
-    Genesis(BlockHeader),
-    Regular(BlockHeader, stacks::StacksBlock),
+    Genesis(GenesisBlockInner),
+    Regular(RegularBlockInner),
+}
+
+#[derive(Debug)]
+pub struct RegularBlockInner {
+    pub header: BlockHeader,
+    pub stacks_block: stacks::StacksBlock,
+    pub next_header: Option<BlockHeader>
+}
+
+#[derive(Debug)]
+pub struct GenesisBlockInner {
+    pub header: BlockHeader,
+    pub next_header: Option<BlockHeader>
 }
 
 /// Implementation of [Block] which provides various functions to consumers for
@@ -265,23 +303,22 @@ pub enum Block {
 #[allow(dead_code)]
 impl Block {
     /// Creates a new Regular block variant, i.e. not Boot or Genesis.
-    pub fn new(header: BlockHeader, block: StacksBlock) -> Self {
-        Block::Regular(header, block)
+    pub fn new(header: BlockHeader, stacks_block: StacksBlock, next_header: Option<BlockHeader>) -> Self {
+        Block::Regular(RegularBlockInner { header, stacks_block, next_header })
     }
 
     /// Creates a new Genesis block variant. Genesis does not have a
     /// [stacks::StacksBlock] representation, so this function accepts only
     /// a [BlockHeader] to represent the block.
-    pub fn new_genesis(header: BlockHeader) -> Self {
-        Block::Genesis(header)
+    pub fn new_genesis(header: BlockHeader, next_header: Option<BlockHeader>) -> Self {
+        Block::Genesis(GenesisBlockInner { header, next_header })
     }
 
     /// Gets the height for this block.
     pub fn block_height(&self) -> Result<u32> {
         let height = match self {
-            Block::Boot(_) => bail!("don't know height for boot"),
             Block::Genesis(_) => 0,
-            Block::Regular(header, _) => header.block_height(),
+            Block::Regular(inner) => inner.header.block_height(),
         };
 
         Ok(height)
@@ -305,9 +342,8 @@ impl Block {
     /// constant.
     pub fn block_hash(&self) -> Result<BlockHeaderHash> {
         let hash = match self {
-            Block::Boot(_) => bail!("don't know block hash for boot"),
             Block::Genesis(_) => stacks::FIRST_STACKS_BLOCK_HASH,
-            Block::Regular(_, block) => block.block_hash(),
+            Block::Regular(inner) => inner.stacks_block.block_hash(),
         };
 
         Ok(hash)
@@ -318,9 +354,8 @@ impl Block {
     /// will return an error if you attempt to call it on either of them.
     pub fn index_block_hash(&self) -> Result<&[u8]> {
         match self {
-            Block::Boot(_) => bail!("don't know index_block_hash for boot"),
-            Block::Genesis(header) => Ok(&header.index_block_hash),
-            Block::Regular(header, _) => Ok(&header.index_block_hash),
+            Block::Genesis(inner) => Ok(&inner.header.index_block_hash),
+            Block::Regular(inner) => Ok(&inner.header.index_block_hash),
         }
     }
 

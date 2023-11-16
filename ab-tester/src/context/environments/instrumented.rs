@@ -38,6 +38,7 @@ pub struct InstrumentedEnvState {
     clarity_db_conn: SqliteConnection,
     sortition_db: stacks::SortitionDB,
     burnstate_db: Box<dyn clarity::BurnStateDB>,
+    headers_db: Box<dyn clarity::HeadersDB>,
 }
 
 /// This environment type is app-specific and will instrument all Clarity-related
@@ -249,12 +250,18 @@ impl RuntimeEnv for InstrumentedEnv {
             &paths.sortition_db_path,
         )?);
 
+        let headers_db: Box<dyn clarity::HeadersDB> = Box::new(StacksNodeDb::new(
+            &paths.index_db_path,
+            &paths.sortition_db_path,
+        )?);
+
         let state = InstrumentedEnvState {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
             sortition_db,
             burnstate_db,
+            headers_db,
         };
 
         self.env_state = Some(state);
@@ -282,15 +289,31 @@ impl WriteableEnv for InstrumentedEnv {
         let current_block_id: stacks::StacksBlockId;
         let next_block_id: stacks::StacksBlockId;
 
+        warn!("block: {block:?}");
+
         match block {
-            Block::Boot(_) => bail!("cannot process the boot block"),
-            Block::Genesis(header) => {
-                current_block_id = <stacks::StacksBlockId as stacks::ClarityMarfTrieId>::sentinel();
-                next_block_id = header.stacks_block_id()?;
+            Block::Genesis(inner) => {
+                current_block_id = inner.header.stacks_block_id()?;
+                // TODO: Fix unwrap
+                next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
+
+                let state = self.get_env_state_mut()?;
+
+                info!("beginning genesis block");
+                let clarity_tx = state.chainstate.block_begin(
+                    &*state.burnstate_db, 
+                    &inner.header.parent_consensus_hash()?, 
+                    &inner.header.parent_block_hash()?, 
+                    &inner.header.consensus_hash()?, 
+                    &inner.header.stacks_block_hash()?);
+
+                info!("committing genesis block");
+                clarity_tx.commit_to_block(&inner.header.consensus_hash()?, &inner.header.stacks_block_hash()?);
             }
-            Block::Regular(header, _) => {
-                current_block_id = header.parent_stacks_block_id()?;
-                next_block_id = header.stacks_block_id()?;
+            Block::Regular(inner) => {
+                current_block_id = inner.header.stacks_block_id()?;
+                // TODO: Fix unwrap
+                next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
             }
         };
 
@@ -304,54 +327,34 @@ impl WriteableEnv for InstrumentedEnv {
             block.index_block_hash()?,
         )?;
 
+        let state = self.get_env_state_mut()?;
+
         // We cannot process genesis as it was already processed as a part of chainstate
         // initialization. Log that we reached it and skip processing.
-        if let Block::Genesis(_) = block {
-            info!("genesis block cannot be processed as it was statically initialized; moving on");
-            return Ok(BlockTransactionContext::Genesis);
-        }
+        //if let Block::Genesis(_) = block {
+            //info!("genesis block cannot be processed as it was statically initialized; moving on");
+            //return Ok(BlockTransactionContext::Genesis);
+        //}
 
-        let state = self.get_env_state_mut()?;
+        
 
         // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
 
-        let mut chainstate_tx = state.chainstate.state_index.begin_tx()?;
-        chainstate_tx.begin(&current_block_id, &next_block_id)?;
+        // Start a new chainstate transaction on the index. This starts a new storage
+        // transaction for the 'blocks' directory.
 
-
-        todo!();
-
+        debug!("beginning clarity block");
         let clarity_block_conn = state.chainstate.clarity_state.begin_block(
-            &current_block_id,
-            &next_block_id,
-            &state.chainstate.state_index,
-            &*state.burnstate_db,
-        );
+            &current_block_id, 
+            &next_block_id, 
+            &*state.headers_db, 
+            &*state.burnstate_db);
 
-        // Start a new chainstate transaction.
-        //debug!("creating chainstate tx");
-        //let (chainstate_tx, clarity_instance) = state.chainstate.chainstate_tx_begin()?;
-        //debug!("chainstate tx started");
-
-        // Begin a new Clarity block.
-        //debug!("beginning clarity block");
-        /*let mut clarity_block_conn = clarity_instance.begin_block(
-            &current_block_id,
-            &next_block_id,
-            &state.chainstate.state_index,
-            &*state.burnstate_db,
-        );*/
-
-        // Enter Clarity transaction processing for the new block.
-        debug!("starting clarity tx processing");
-        //let clarity_tx_conn = ;
-
-        // Call the provided function with our context object.
-        //let mut block_tx_ctx = ;
-        let block_tx_ctx =
-            RegularBlockTransactionContext::new(block.stacks_block_id()?, clarity_block_conn);
-
-        Ok(BlockTransactionContext::Regular(block_tx_ctx))
+        Ok(BlockTransactionContext::Regular(RegularBlockTransactionContext { 
+            stacks_block_id: current_block_id, 
+            clarity_block_conn, 
+            clarity_tx_conn: None 
+        }))
     }
 
     fn block_commit(

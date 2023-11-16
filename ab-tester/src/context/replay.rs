@@ -1,10 +1,11 @@
-use color_eyre::eyre::ensure;
+use color_eyre::eyre::{ensure, bail};
 use color_eyre::Result;
 use log::*;
 
+use super::blocks::BlockHeader;
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
 use super::environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut};
-use crate::context::{Block, BlockTransactionContext};
+use crate::context::{Block, BlockTransactionContext, RegularBlockTransactionContext};
 use crate::errors::AppError;
 use crate::{clarity, ok, stacks};
 
@@ -86,19 +87,14 @@ impl ChainStateReplayer {
                 .replay_block_start(source, target, block.block_height()?);
 
             let (header, stacks_block) = match &block {
-                Block::Boot(header) => {
-                    // We can't process the boot block, so skip it.
-                    info!("boot block - skipping '{:?}'", header.index_block_hash);
-                    continue;
-                }
-                Block::Genesis(header) => {
+                Block::Genesis(inner) => {
                     // We can't process genesis (doesn't exist in chainstate), so skip it.
                     //info!("genesis block - skipping '{:?}'", gen.index_block_hash);
                     //continue;
-                    info!("genesis block");
-                    (header, None)
+                    info!("genesis block: '{:?}'", inner.header.index_block_hash);
+                    (inner.header.clone(), None)
                 }
-                Block::Regular(header, block) => (header, Some(block)),
+                Block::Regular(inner) => (inner.header.clone(), Some(inner.stacks_block.clone())),
             };
 
             // Ensure that we've reached the specified block-height before beginning
@@ -113,55 +109,28 @@ impl ChainStateReplayer {
             // Ensure that we haven't reached the specified max block-height for processing.
             opts.assert_block_height_under_max_height(header.block_height())?;
 
-            info!(
-                "processing block #{} ({})",
-                header.block_height(),
-                &hex::encode(&header.index_block_hash)
-            );
-
-            /*replay_env_mut.block_begin(&block, |_ctx| {
-                info!("processing block!");
-                ok!()
-            })?;*/
-
-            let block_id = header.stacks_block_id()?;
-
-            let block_ctx = target.block_begin(&block)?;
-
-            match block_ctx {
-                BlockTransactionContext::Genesis => {
-                    info!("This is the genesis block, it won't be processed.");
-                }
-                BlockTransactionContext::Regular(mut ctx) => {
-                    ctx.clarity_block_conn.as_transaction(|clarity_tx| {
-
-                    });
-                }
-            }      
-
             if let Some(stacks_block) = stacks_block {
-                for tx in stacks_block.txs.iter() {
-                    info!("processing tx: {}", tx.txid());
+                info!(
+                    "processing block #{} ({})",
+                    header.block_height(),
+                    &hex::encode(&header.index_block_hash)
+                );
 
-                    let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
+                // Now we have ensured that we are not in genesis and that the
+                // StacksBlock could be retrieved. Replay the block into `target`.
+                Self::replay_block_into(&header, &block, &stacks_block, target)?;
+            } else {
+                info!(
+                    "processing GENESIS block #{} ({})",
+                    header.block_height(),
+                    &hex::encode(&header.index_block_hash)
+                );
 
-                    #[allow(clippy::single_match)]
-                    match &tx.payload {
-                        stacks::TransactionPayload::ContractCall(call) => {
-                            let contract_id = clarity::QualifiedContractIdentifier::parse(
-                                &format!("{}.{}", call.address, call.contract_name))?;
-                            info!("contract call at block id: {block_id:?}, contract id: {}", contract_id.to_string());
-                        }
-                        stacks::TransactionPayload::SmartContract(contract, _) => {
-                            let contract_id = clarity::QualifiedContractIdentifier::new(
-                                origin_principal,
-                                contract.name.clone(),
-                            );
+                info!("beginning genesis block in target");
+                let ctx = target.block_begin(&block)?;
 
-                            info!("install contract at block id: {block_id:?}, contract id: {}", contract_id.to_string());
-                        }
-                        _ => {}
-                    }
+                if let BlockTransactionContext::Genesis = ctx {
+                    warn!("got here!")
                 }
             }
 
@@ -172,6 +141,57 @@ impl ChainStateReplayer {
         opts.callbacks.replay_finish(source, target);
         info!("blocks processed: {processed_block_count}");
 
+        ok!()
+    }
+
+    /// Replays the specified block into `target`.
+    fn replay_block_into(
+        header: &BlockHeader, 
+        block: &Block, 
+        stacks_block: &stacks::StacksBlock, 
+        target: &mut RuntimeEnvContextMut
+    ) -> Result<()> {
+        let block_id = header.stacks_block_id()?;
+            
+        // Begin a new block in `target`.
+        let block_ctx = target.block_begin(block)?;
+
+        let mut block_ctx = 
+            if let BlockTransactionContext::Regular(ctx) = block_ctx 
+                { ctx } else { bail!("could not begin transaction")};
+
+        for tx in stacks_block.txs.iter() {
+            info!("processing tx: {}", tx.txid());
+
+            let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
+            
+            // Begin a new Clarity transaction in `target` and process the source
+            // transaction. This transaction will be automatically committed.
+            block_ctx.clarity_block_conn.as_transaction(|_clarity_tx| -> Result<()> {
+                debug!("IN PROCESS TX SCOPE");
+
+                #[allow(clippy::single_match)]
+                match &tx.payload {
+                    stacks::TransactionPayload::ContractCall(call) => {
+                        let contract_id = clarity::QualifiedContractIdentifier::parse(
+                            &format!("{}.{}", call.address, call.contract_name))?;
+                        info!("contract call at block id: {block_id:?}, contract id: {}", contract_id.to_string());
+                    }
+                    stacks::TransactionPayload::SmartContract(contract, _) => {
+                        let contract_id = clarity::QualifiedContractIdentifier::new(
+                            origin_principal,
+                            contract.name.clone(),
+                        );
+
+                        info!("install contract at block id: {block_id:?}, contract id: {}", contract_id.to_string());
+                    }
+                    _ => {}
+                }
+
+                ok!()
+            })?;
+        }
+        
         ok!()
     }
 }
