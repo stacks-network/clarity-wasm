@@ -104,7 +104,15 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
     }
 
     fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
-        todo!()
+        epochs::table
+            .filter(
+                epochs::start_block_height.le(height as i32)
+                .and(epochs::end_block_height.gt(height as i32))
+            )
+            .get_result(&mut *self.conn.borrow_mut())
+            .optional()
+            .expect("failed to execute database query")
+            .map(|epoch: Epoch| epoch.into())
     }
 
     fn get_stacks_epoch_by_epoch_id(
