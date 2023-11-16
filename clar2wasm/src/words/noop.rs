@@ -1,5 +1,5 @@
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{types::Value, ClarityName, SymbolicExpression, SymbolicExpressionType};
 
 use super::Word;
 
@@ -32,6 +32,14 @@ impl Word for ToInt {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if let SymbolicExpressionType::LiteralValue(Value::UInt(val)) = args[0].expr {
+            i128::try_from(val).map_err(|_| {
+                GeneratorError::InternalError(
+                    "Supplied argument is out of convertion range".to_string(),
+                )
+            })?;
+        }
+
         traverse_noop(generator, builder, args)
     }
 }
@@ -51,6 +59,12 @@ impl Word for ToUint {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if let SymbolicExpressionType::LiteralValue(Value::Int(val)) = args[0].expr {
+            u128::try_from(val).map_err(|_| {
+                GeneratorError::InternalError("Error converting a negative argument".to_string())
+            })?;
+        }
+
         traverse_noop(generator, builder, args)
     }
 }
@@ -84,8 +98,23 @@ mod tests {
     };
 
     #[test]
+    #[should_panic(expected = "Supplied argument is out of convertion range")]
+    fn to_int_big() {
+        assert_eq!(
+            eval("(to-int u340282366920938463463374607431768211455)"),
+            Some(Value::Int(42))
+        );
+    }
+
+    #[test]
     fn to_int() {
         assert_eq!(eval("(to-int u42)"), Some(Value::Int(42)));
+    }
+
+    #[test]
+    #[should_panic(expected = "Error converting a negative argument")]
+    fn to_uint_negative() {
+        assert_eq!(eval("(to-uint -31)"), Some(Value::UInt(767)));
     }
 
     #[test]
@@ -94,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_of_test() {
+    fn contract_of() {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet(
             "clar2wasm-trait",
