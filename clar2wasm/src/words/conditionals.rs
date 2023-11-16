@@ -304,6 +304,25 @@ impl Word for Or {
     }
 }
 
+#[derive(Debug)]
+pub struct Match;
+
+impl Word for Match {
+    fn name(&self) -> ClarityName {
+        "or".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tools::evaluate as eval;
@@ -384,6 +403,20 @@ mod tests {
                 "#
             ),
             eval("8")
+        );
+    }
+
+    #[test]
+    fn match1() {
+        // This should typecheck, and it does in clarinet repl. However somehow here it is complaining
+        assert_eq!(
+            eval(
+                "(define-private (add-10 (x (optional int)))
+                   (match value
+                     value (+ 10 y)
+                   10))"
+            ),
+            None
         );
     }
 }
