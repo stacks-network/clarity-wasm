@@ -8,7 +8,7 @@ use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use super::blocks::BlockCursor;
-use super::{Block, BlockTransactionContext, Network, Runtime};
+use super::{Block, BlockTransactionContext, Network, RegularBlockTransactionContext, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
@@ -121,6 +121,13 @@ impl RuntimeEnvContextMut {
             inner: Box::new(inner),
         }
     }
+
+    pub fn block_begin(
+        &mut self,
+        block: &Block,
+    ) -> Result<BlockTransactionContext> {
+        self.inner.block_begin(block)
+    }
 }
 
 impl RuntimeEnv for RuntimeEnvContextMut {
@@ -150,17 +157,6 @@ impl ReadableEnv for RuntimeEnvContext {
 impl ReadableEnv for RuntimeEnvContextMut {
     fn blocks(&self) -> Result<BlockCursor> {
         self.inner.blocks()
-    }
-}
-
-impl RuntimeEnvContextMut {
-    fn block_begin(
-        &mut self,
-        block: &Block,
-        f: impl FnOnce(&mut BlockTransactionContext) -> Result<()>,
-    ) -> Result<()> {
-        let mut block_tx_ctx = self.inner.block_begin(block)?;
-        f(&mut block_tx_ctx)
     }
 }
 

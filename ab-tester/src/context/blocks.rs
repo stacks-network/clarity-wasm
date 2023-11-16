@@ -161,7 +161,7 @@ impl BlockCursor {
         }
 
         self.height += 1;
-        info!("retrieving block with height {}", self.height);
+        debug!("retrieving block with height {}", self.height);
         self.get_block(height)
     }
 
@@ -202,29 +202,29 @@ impl BlockCursor {
     /// Loads the block with the specified block hash from chainstate (the `blocks`
     /// directory for the node).
     fn get_block(&self, height: usize) -> Result<Option<Block>> {
-        info!("loading block at height: {height}");
+        debug!("loading block at height: {height}");
         if height >= self.headers.len() {
-            info!("> headers.len, returning None");
+            debug!("> headers.len, returning None");
             return Ok(None);
         }
 
         let header = self.headers[height].clone();
-        info!("header: {header:?}");
+        trace!("header: {header:?}");
 
         if height == 0 {
-            info!("returning genesis");
+            debug!("returning genesis");
             return Ok(Some(Block::new_genesis(header.clone())));
         }
 
         // Get the block's path in chainstate.
         let block_id = header.stacks_block_id()?;
-        info!("block_id: {block_id:?}");
+        debug!("block_id: {block_id:?}");
         let block_path = StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
-        info!("block_path: {block_path:?}");
+        debug!("block_path: {block_path:?}");
         // Load the block from chainstate.
-        info!("loading block with id {block_id} and path '{block_path}'");
+        debug!("loading block with id {block_id} and path '{block_path}'");
         let stacks_block = StacksChainState::consensus_load(&block_path)?;
-        info!("block loaded: {stacks_block:?}");
+        trace!("block loaded: {stacks_block:?}");
 
         let block = Block::new(header, stacks_block);
 

@@ -315,7 +315,13 @@ impl WriteableEnv for InstrumentedEnv {
 
         // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
 
-        let mut clarity_block_conn = state.chainstate.clarity_state.begin_block(
+        let mut chainstate_tx = state.chainstate.state_index.begin_tx()?;
+        chainstate_tx.begin(&current_block_id, &next_block_id)?;
+
+
+        todo!();
+
+        let clarity_block_conn = state.chainstate.clarity_state.begin_block(
             &current_block_id,
             &next_block_id,
             &state.chainstate.state_index,

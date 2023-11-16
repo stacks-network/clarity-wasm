@@ -4,7 +4,7 @@ use log::*;
 
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
 use super::environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut};
-use crate::context::Block;
+use crate::context::{Block, BlockTransactionContext};
 use crate::errors::AppError;
 use crate::{clarity, ok, stacks};
 
@@ -68,7 +68,7 @@ pub struct ChainStateReplayer {}
 impl ChainStateReplayer {
     pub fn replay<'a>(
         source: &'a RuntimeEnvContext,
-        target: &'a RuntimeEnvContextMut,
+        target: &'a mut RuntimeEnvContextMut,
         opts: &'a ReplayOpts,
     ) -> Result<()> {
         info!(
@@ -84,6 +84,7 @@ impl ChainStateReplayer {
         for block in source.blocks()?.into_iter() {
             opts.callbacks
                 .replay_block_start(source, target, block.block_height()?);
+
             let (header, stacks_block) = match &block {
                 Block::Boot(header) => {
                     // We can't process the boot block, so skip it.
@@ -112,7 +113,7 @@ impl ChainStateReplayer {
             // Ensure that we haven't reached the specified max block-height for processing.
             opts.assert_block_height_under_max_height(header.block_height())?;
 
-            debug!(
+            info!(
                 "processing block #{} ({})",
                 header.block_height(),
                 &hex::encode(&header.index_block_hash)
@@ -125,22 +126,42 @@ impl ChainStateReplayer {
 
             let block_id = header.stacks_block_id()?;
 
-            for tx in stacks_block.unwrap().txs.iter() {
-                info!("processing tx: {}", tx.txid());
+            let block_ctx = target.block_begin(&block)?;
 
-                let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
+            match block_ctx {
+                BlockTransactionContext::Genesis => {
+                    info!("This is the genesis block, it won't be processed.");
+                }
+                BlockTransactionContext::Regular(mut ctx) => {
+                    ctx.clarity_block_conn.as_transaction(|clarity_tx| {
 
-                #[allow(clippy::single_match)]
-                match &tx.payload {
-                    stacks::TransactionPayload::SmartContract(contract, _) => {
-                        let contract_id = clarity::QualifiedContractIdentifier::new(
-                            origin_principal,
-                            contract.name.clone(),
-                        );
+                    });
+                }
+            }      
 
-                        info!("block id: {block_id:?}, contract id: {contract_id:?}");
+            if let Some(stacks_block) = stacks_block {
+                for tx in stacks_block.txs.iter() {
+                    info!("processing tx: {}", tx.txid());
+
+                    let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
+
+                    #[allow(clippy::single_match)]
+                    match &tx.payload {
+                        stacks::TransactionPayload::ContractCall(call) => {
+                            let contract_id = clarity::QualifiedContractIdentifier::parse(
+                                &format!("{}.{}", call.address, call.contract_name))?;
+                            info!("contract call at block id: {block_id:?}, contract id: {}", contract_id.to_string());
+                        }
+                        stacks::TransactionPayload::SmartContract(contract, _) => {
+                            let contract_id = clarity::QualifiedContractIdentifier::new(
+                                origin_principal,
+                                contract.name.clone(),
+                            );
+
+                            info!("install contract at block id: {block_id:?}, contract id: {}", contract_id.to_string());
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
 
