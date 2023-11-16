@@ -6,7 +6,7 @@ pub use clarity::vm::{
     analysis::ContractAnalysis,
     ast::ASTRules,
     clarity::ClarityConnection,
-    costs::LimitedCostTracker,
+    costs::{LimitedCostTracker, ExecutionCost},
     database::{
         BurnStateDB, ClarityBackingStore, ClarityDatabase, HeadersDB, RollbackWrapper, StoreType,
         NULL_BURN_STATE_DB, NULL_HEADER_DB,

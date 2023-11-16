@@ -231,6 +231,7 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
+        // Open the Clarity sqlite db
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, &paths.clarity_db_path);
@@ -238,7 +239,7 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
-        //debug!("attempting to migrate sortition db");
+        // Open the sortition db
         debug!("opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
@@ -246,9 +247,14 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_sortition_db_finish(self);
         info!("successfully opened sortition db");
 
+        // Open the burnstate db
         let burnstate_db: Box<dyn clarity::BurnStateDB> =
-            Box::new(StacksBurnStateDb::new(&paths.sortition_db_path)?);
+            Box::new(StacksBurnStateDb::new(
+                &paths.sortition_db_path, 
+                boot_data.pox_constants
+            )?);
 
+        // Open the headers db
         let headers_db: Box<dyn clarity::HeadersDB> =
             Box::new(StacksHeadersDb::new(&paths.index_db_path)?);
 

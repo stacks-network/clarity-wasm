@@ -61,3 +61,10 @@ table! {
         pox_payouts -> Text,
     }
 }
+
+table! {
+    ast_rule_heights (ast_rule_id) {
+        ast_rule_id -> Integer,
+        block_height -> Integer
+    }
+}

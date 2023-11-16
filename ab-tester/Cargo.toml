@@ -37,6 +37,7 @@ comfy-table = { version = "7.1.0", features = ["custom_styling"] }
 console = "0.15.7"
 clap-verbosity-flag = "2.1.0"
 indicatif = { version = "0.17.7", features = ["futures", "tokio", "improved_unicode"] }
+serde_json = "1.0.108"
 
 [profile.dev.package.backtrace]
 opt-level = 3

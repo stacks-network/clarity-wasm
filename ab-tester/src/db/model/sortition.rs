@@ -1,6 +1,10 @@
 use diesel::prelude::*;
+use serde;
+use serde::Deserialize;
 
 use crate::db::schema::sortition::*;
+use crate::clarity;
+use crate::stacks;
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(primary_key(start_block_height, epoch_id))]
@@ -11,6 +15,19 @@ pub struct Epoch {
     pub epoch_id: i32,
     pub block_limit: String,
     pub network_epoch: i32,
+}
+
+impl From<Epoch> for clarity::StacksEpoch {
+    fn from(value: Epoch) -> Self {
+        clarity::StacksEpoch {
+            start_height: value.start_block_height as u64,
+            end_height: value.end_block_height as u64,
+            epoch_id: (value.epoch_id as u32).try_into().expect("failed to convert epoch id from database to a StacksEpochId"),
+            block_limit: serde_json::from_str(&value.block_limit)
+                .expect("failed to deserialize block limit json"),
+            network_epoch: value.network_epoch as u8
+        }
+    }
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -65,4 +82,22 @@ pub struct Snapshot {
     pub pox_valid: bool,
     pub accumulated_coinbase_ustx: String,
     pub pox_payouts: String,
+}
+
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[diesel(primary_key(ast_rule_id))]
+#[diesel(table_name = ast_rule_heights)]
+pub struct AstRuleHeight {
+    pub ast_rule_id: i32,
+    pub block_height: i32
+}
+
+impl From<AstRuleHeight> for clarity::ASTRules {
+    fn from(value: AstRuleHeight) -> Self {
+        match value.ast_rule_id {
+            0 => clarity::ASTRules::Typical,
+            1 => clarity::ASTRules::PrecheckSize,
+            _ => panic!("failed to convert AstRuleHeight to clarity::ASTRules")
+        }
+    }
 }
