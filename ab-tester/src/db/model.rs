@@ -4,3 +4,4 @@ pub mod app_db;
 pub mod chainstate_db;
 /// Types used for reading from a chainstate Clarity MARF'd database.
 pub mod clarity_db;
+pub mod sortition;
