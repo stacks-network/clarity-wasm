@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn contract_of() {
         let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet(
+        let _ = env.init_contract_with_snippet(
             "clar2wasm-trait",
             r#"
 (define-trait clar2wasm-trait
@@ -147,13 +147,15 @@ mod tests {
 
         assert_eq!(
             val.unwrap(),
-            Value::okay(Value::Principal(PrincipalData::Contract(
-                QualifiedContractIdentifier::parse(
-                    "S1G2081040G2081040G2081040G208105NK8PE5.clar2wasm-trait"
-                )
+            Some(
+                Value::okay(Value::Principal(PrincipalData::Contract(
+                    QualifiedContractIdentifier::parse(
+                        "S1G2081040G2081040G2081040G208105NK8PE5.clar2wasm-trait"
+                    )
+                    .unwrap()
+                )))
                 .unwrap()
-            )))
-            .unwrap()
+            )
         );
     }
 }
