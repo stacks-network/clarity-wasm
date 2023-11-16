@@ -40,11 +40,23 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
     }
 
     fn get_burn_block_height(&self, sortition_id: &stacks::SortitionId) -> Option<u32> {
-        todo!()
+        snapshots::table
+            .filter(snapshots::sortition_id.eq(sortition_id.to_hex()))
+            .select(snapshots::block_height)
+            .get_result(&mut *self.conn.borrow_mut())
+            .optional()
+            .expect("failed to execute database query")
+            .map(|height: i32| height as u32)
     }
 
     fn get_burn_start_height(&self) -> u32 {
-        todo!()
+        let first_height: i32 = snapshots::table
+            .order_by(snapshots::block_height.asc())
+            .select(snapshots::block_height)
+            .get_result(&mut *self.conn.borrow_mut())
+            .expect("failed to execute database query");
+
+        first_height as u32
     }
 
     fn get_pox_prepare_length(&self) -> u32 {
@@ -64,14 +76,31 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
         height: u32,
         sortition_id: &stacks::SortitionId,
     ) -> Option<stacks::BurnchainHeaderHash> {
-        todo!()
+        snapshots::table
+            .filter(
+                snapshots::sortition_id.eq(sortition_id.to_hex())
+                .and(snapshots::block_height.eq(height as i32))
+            )
+            .select(snapshots::burn_header_hash)
+            .get_result(&mut *self.conn.borrow_mut())
+            .optional()
+            .expect("failed to execute database query")
+            .map(|hash: String| stacks::BurnchainHeaderHash::from_hex(&hash)
+                .expect("failed to parse burnchain header hash hex"))
     }
 
     fn get_sortition_id_from_consensus_hash(
         &self,
         consensus_hash: &stacks::ConsensusHash,
     ) -> Option<stacks::SortitionId> {
-        todo!()
+        snapshots::table
+            .filter(snapshots::consensus_hash.eq(&consensus_hash.to_hex()))
+            .select(snapshots::sortition_id)
+            .get_result(&mut *self.conn.borrow_mut())
+            .optional()
+            .expect("failed to execute database query")
+            .map(|hex: String| stacks::SortitionId::from_hex(&hex)
+                .expect("failed to parse sortition id hex"))
     }
 
     fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
