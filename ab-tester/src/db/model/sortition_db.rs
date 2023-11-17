@@ -1,10 +1,10 @@
+use color_eyre::eyre::anyhow;
+use color_eyre::Result;
 use diesel::prelude::*;
-use color_eyre::{Result, eyre::anyhow};
 
 use crate::db::schema::sortition::*;
-use crate::clarity;
-use crate::stacks;
 use crate::utils::*;
+use crate::{clarity, stacks};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(primary_key(start_block_height, epoch_id))]
@@ -22,10 +22,12 @@ impl From<Epoch> for clarity::StacksEpoch {
         clarity::StacksEpoch {
             start_height: value.start_block_height as u64,
             end_height: value.end_block_height as u64,
-            epoch_id: (value.epoch_id as u32).try_into().expect("failed to convert epoch id from database to a StacksEpochId"),
+            epoch_id: (value.epoch_id as u32)
+                .try_into()
+                .expect("failed to convert epoch id from database to a StacksEpochId"),
             block_limit: serde_json::from_str(&value.block_limit)
                 .expect("failed to deserialize block limit json"),
-            network_epoch: value.network_epoch as u8
+            network_epoch: value.network_epoch as u8,
         }
     }
 }
@@ -37,10 +39,11 @@ impl TryFrom<Epoch> for crate::types::Epoch {
         Ok(Self {
             start_block_height: value.start_block_height as u32,
             end_block_height: value.end_block_height as u32,
-            epoch_id: (value.epoch_id as u32).try_into()
+            epoch_id: (value.epoch_id as u32)
+                .try_into()
                 .map_err(|e| anyhow!("{e:?}"))?,
             block_limit: serde_json::from_str(&value.block_limit)?,
-            network_epoch: value.network_epoch as u32
+            network_epoch: value.network_epoch as u32,
         })
     }
 }
@@ -91,7 +94,7 @@ impl TryFrom<BlockCommit> for crate::types::BlockCommit {
             sunset_burn: value.sunset_burn.parse()?,
             input: serde_json::from_str(&value.input)?,
             apparent_sender: stacks::BurnchainSigner(value.apparent_sender),
-            burn_parent_modulus: value.burn_parent_modulus as u32
+            burn_parent_modulus: value.burn_parent_modulus as u32,
         })
     }
 }
@@ -136,25 +139,33 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
             sortition_id: stacks::SortitionId::from_hex(&value.sortition_id)?,
             parent_sortition_id: stacks::SortitionId::from_hex(&value.parent_sortition_id)?,
             burn_header_timestamp: value.burn_header_timestamp as u64,
-            parent_burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.parent_burn_header_hash)?,
+            parent_burn_header_hash: stacks::BurnchainHeaderHash::from_hex(
+                &value.parent_burn_header_hash,
+            )?,
             consensus_hash: stacks::ConsensusHash::from_hex(&value.consensus_hash)?,
             ops_hash: stacks::OpsHash::from_hex(&value.ops_hash)?,
             total_burn: value.total_burn.parse()?,
             is_sortition: try_convert_i32_to_bool(value.sortition)?,
             sortition_hash: stacks::SortitionHash::from_hex(&value.sortition_hash)?,
             winning_block_txid: stacks::Txid::from_hex(&value.winning_block_txid)?,
-            winning_stacks_block_hash: stacks::BlockHeaderHash::from_hex(&value.winning_stacks_block_hash)?,
+            winning_stacks_block_hash: stacks::BlockHeaderHash::from_hex(
+                &value.winning_stacks_block_hash,
+            )?,
             index_root: stacks::TrieHash::from_hex(&value.index_root)?,
             num_sortitions: value.num_sortitions as u32,
             was_stacks_block_accepted: try_convert_i32_to_bool(value.stacks_block_accepted)?,
             stacks_block_height: value.stacks_block_height as u32,
             arrival_index: value.arrival_index as u32,
             canonical_stacks_tip_height: value.canonical_stacks_tip_height as u32,
-            canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_hex(&value.canonical_stacks_tip_hash)?,
-            canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_hex(&value.canonical_stacks_tip_consensus_hash)?,
+            canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_hex(
+                &value.canonical_stacks_tip_hash,
+            )?,
+            canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_hex(
+                &value.canonical_stacks_tip_consensus_hash,
+            )?,
             is_pox_valid: try_convert_i32_to_bool(value.pox_valid)?,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.parse()?,
-            pox_payouts: value.pox_payouts
+            pox_payouts: value.pox_payouts,
         })
     }
 }
@@ -164,7 +175,7 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
 #[diesel(table_name = ast_rule_heights)]
 pub struct AstRuleHeight {
     pub ast_rule_id: i32,
-    pub block_height: i32
+    pub block_height: i32,
 }
 
 impl From<AstRuleHeight> for clarity::ASTRules {
@@ -172,7 +183,7 @@ impl From<AstRuleHeight> for clarity::ASTRules {
         match value.ast_rule_id {
             0 => clarity::ASTRules::Typical,
             1 => clarity::ASTRules::PrecheckSize,
-            _ => panic!("failed to convert AstRuleHeight to clarity::ASTRules")
+            _ => panic!("failed to convert AstRuleHeight to clarity::ASTRules"),
         }
     }
 }
@@ -183,7 +194,7 @@ impl TryFrom<AstRuleHeight> for crate::types::AstRuleHeight {
     fn try_from(value: AstRuleHeight) -> Result<Self> {
         Ok(Self {
             ast_rule_id: value.ast_rule_id as u32,
-            block_height: value.block_height as u32
+            block_height: value.block_height as u32,
         })
     }
 }

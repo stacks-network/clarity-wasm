@@ -3,10 +3,11 @@
 /// from Stacks libs (excluding `clarity` - see `clarity.rs`) to this file as
 /// re-exports and qualifying all usings within this app with `stacks::`.
 pub use blockstack_lib::{
-    burnchains::{Address, Burnchain, PoxConstants, Txid, BurnchainSigner},
+    burnchains::{Address, Burnchain, BurnchainSigner, PoxConstants, Txid},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
     chainstate::burn::{OpsHash, SortitionHash},
     chainstate::stacks::{
+        address::PoxAddress,
         db::{
             accounts::MinerReward, ChainStateBootData, ChainstateAccountBalance,
             ChainstateAccountLockup, ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx,
@@ -18,10 +19,8 @@ pub use blockstack_lib::{
         index::trie::Trie,
         index::{ClarityMarfTrieId, MarfTrieId, TrieLeaf},
         StacksBlock, StacksBlockHeader, StacksTransaction, TransactionPayload,
-        address::PoxAddress
     },
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
-    vm::costs::ExecutionCost,
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_BURNCHAIN_CONSENSUS_HASH,
@@ -29,10 +28,11 @@ pub use blockstack_lib::{
     },
     types::StacksEpoch,
     util_lib::db::IndexDBConn,
+    vm::costs::ExecutionCost,
 };
 pub use stacks_common::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
-    VRFSeed, TrieHash
+    TrieHash, VRFSeed,
 };
 pub use stacks_common::types::StacksEpochId;
 pub use stx_genesis::*;

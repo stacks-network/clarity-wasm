@@ -1,5 +1,5 @@
-use diesel::prelude::*;
 use color_eyre::Result;
+use diesel::prelude::*;
 
 use crate::db::schema::appdb::*;
 use crate::stacks::Address;
@@ -264,7 +264,7 @@ impl From<&MaturedReward> for stacks::MinerReward {
 #[diesel(table_name = _ast_rule_heights)]
 pub struct AstRuleHeight {
     pub ast_rule_id: i32,
-    pub block_height: i32
+    pub block_height: i32,
 }
 
 impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
@@ -273,7 +273,7 @@ impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
     fn try_from(value: crate::types::AstRuleHeight) -> Result<Self> {
         Ok(Self {
             ast_rule_id: value.ast_rule_id as i32,
-            block_height: value.block_height as i32
+            block_height: value.block_height as i32,
         })
     }
 }
@@ -286,7 +286,7 @@ pub struct Epoch {
     pub end_block_height: i32,
     pub epoch_id: i32,
     pub block_limit: String,
-    pub network_epoch: i32
+    pub network_epoch: i32,
 }
 
 impl TryFrom<crate::types::Epoch> for Epoch {
@@ -298,7 +298,7 @@ impl TryFrom<crate::types::Epoch> for Epoch {
             end_block_height: value.end_block_height as i32,
             epoch_id: value.epoch_id as i32,
             block_limit: serde_json::to_string(&value.block_limit)?,
-            network_epoch: value.network_epoch as i32
+            network_epoch: value.network_epoch as i32,
         })
     }
 }
@@ -324,7 +324,7 @@ pub struct BlockCommit {
     pub sunset_burn: i64,
     pub input: String,
     pub apparent_sender: String,
-    pub burn_parent_modulus: i32
+    pub burn_parent_modulus: i32,
 }
 
 impl TryFrom<crate::types::BlockCommit> for BlockCommit {
@@ -349,7 +349,7 @@ impl TryFrom<crate::types::BlockCommit> for BlockCommit {
             sunset_burn: value.sunset_burn as i64,
             input: serde_json::to_string(&value.input)?,
             apparent_sender: value.apparent_sender.0,
-            burn_parent_modulus: value.burn_parent_modulus as i32
+            burn_parent_modulus: value.burn_parent_modulus as i32,
         })
     }
 }
@@ -381,7 +381,7 @@ pub struct Snapshot {
     pub canonical_stacks_tip_consensus_hash: Vec<u8>,
     pub pox_valid: bool,
     pub accumulated_coinbase_ustx: i64,
-    pub pox_payouts: String
+    pub pox_payouts: String,
 }
 
 impl TryFrom<crate::types::Snapshot> for Snapshot {
@@ -409,10 +409,13 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
             arrival_index: value.arrival_index as i32,
             canonical_stacks_tip_height: value.canonical_stacks_tip_height as i32,
             canonical_stacks_tip_hash: value.canonical_stacks_tip_hash.0.to_vec(),
-            canonical_stacks_tip_consensus_hash: value.canonical_stacks_tip_consensus_hash.0.to_vec(),
+            canonical_stacks_tip_consensus_hash: value
+                .canonical_stacks_tip_consensus_hash
+                .0
+                .to_vec(),
             pox_valid: value.is_pox_valid,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as i64,
-            pox_payouts: value.pox_payouts
+            pox_payouts: value.pox_payouts,
         })
     }
 }

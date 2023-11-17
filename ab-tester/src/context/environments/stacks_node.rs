@@ -4,8 +4,7 @@ use std::cell::RefCell;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, 
-    SqliteConnection
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
@@ -230,9 +229,14 @@ impl StacksNodeEnv {
 
         let results = snapshots::table
             .order_by(snapshots::block_height.asc())
-            .get_results::<crate::db::model::sortition_db::Snapshot>(&mut *state.sortition_db_conn.borrow_mut())?
+            .get_results::<crate::db::model::sortition_db::Snapshot>(
+                &mut *state.sortition_db_conn.borrow_mut(),
+            )?
             .into_iter()
-            .map(|s| s.try_into().expect("failed to convert stacks node snapshot to common type"))
+            .map(|s| {
+                s.try_into()
+                    .expect("failed to convert stacks node snapshot to common type")
+            })
             .collect::<Vec<crate::types::Snapshot>>();
 
         Ok(results)
@@ -245,9 +249,14 @@ impl StacksNodeEnv {
 
         let results = block_commits::table
             .order_by(block_commits::block_height.asc())
-            .get_results::<crate::db::model::sortition_db::BlockCommit>(&mut *state.sortition_db_conn.borrow_mut())?
+            .get_results::<crate::db::model::sortition_db::BlockCommit>(
+                &mut *state.sortition_db_conn.borrow_mut(),
+            )?
             .into_iter()
-            .map(|s| s.try_into().expect("failed to convert stacks node block commit to common type"))
+            .map(|s| {
+                s.try_into()
+                    .expect("failed to convert stacks node block commit to common type")
+            })
             .collect::<Vec<crate::types::BlockCommit>>();
 
         Ok(results)
@@ -260,9 +269,14 @@ impl StacksNodeEnv {
 
         let results = epochs::table
             .order_by(epochs::epoch_id.asc())
-            .get_results::<crate::db::model::sortition_db::Epoch>(&mut *state.sortition_db_conn.borrow_mut())?
+            .get_results::<crate::db::model::sortition_db::Epoch>(
+                &mut *state.sortition_db_conn.borrow_mut(),
+            )?
             .into_iter()
-            .map(|s| s.try_into().expect("failed to convert stacks node epoch to common type"))
+            .map(|s| {
+                s.try_into()
+                    .expect("failed to convert stacks node epoch to common type")
+            })
             .collect::<Vec<crate::types::Epoch>>();
 
         Ok(results)
@@ -275,9 +289,14 @@ impl StacksNodeEnv {
 
         let results = ast_rule_heights::table
             .order_by(ast_rule_heights::ast_rule_id.asc())
-            .get_results::<crate::db::model::sortition_db::AstRuleHeight>(&mut *state.sortition_db_conn.borrow_mut())?
+            .get_results::<crate::db::model::sortition_db::AstRuleHeight>(
+                &mut *state.sortition_db_conn.borrow_mut(),
+            )?
             .into_iter()
-            .map(|s| s.try_into().expect("failed to convert stacks ast rule height to common type"))
+            .map(|s| {
+                s.try_into()
+                    .expect("failed to convert stacks ast rule height to common type")
+            })
             .collect::<Vec<crate::types::AstRuleHeight>>();
 
         Ok(results)

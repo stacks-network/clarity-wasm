@@ -248,11 +248,10 @@ impl RuntimeEnv for InstrumentedEnv {
         info!("successfully opened sortition db");
 
         // Open the burnstate db
-        let burnstate_db: Box<dyn clarity::BurnStateDB> =
-            Box::new(StacksBurnStateDb::new(
-                &paths.sortition_db_path, 
-                boot_data.pox_constants
-            )?);
+        let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
+            &paths.sortition_db_path,
+            boot_data.pox_constants,
+        )?);
 
         // Open the headers db
         let headers_db: Box<dyn clarity::HeadersDB> =

@@ -5,24 +5,20 @@ use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
 
-use crate::{clarity, stacks};
-
 use super::model::sortition_db::{AstRuleHeight, Epoch};
 use super::schema::sortition::*;
+use crate::{clarity, stacks};
 
 pub struct StacksBurnStateDb {
     conn: RefCell<SqliteConnection>,
-    pox_constants: stacks::PoxConstants
+    pox_constants: stacks::PoxConstants,
 }
 
 impl StacksBurnStateDb {
-    pub fn new(
-        sortition_db_path: &str, 
-        pox_constants: stacks::PoxConstants
-    ) -> Result<Self> {
+    pub fn new(sortition_db_path: &str, pox_constants: stacks::PoxConstants) -> Result<Self> {
         Ok(Self {
             conn: RefCell::new(SqliteConnection::establish(sortition_db_path)?),
-            pox_constants
+            pox_constants,
         })
     }
 
@@ -31,7 +27,7 @@ impl StacksBurnStateDb {
     fn get_adjusted_block_height(&self, block_height: u32) -> Option<u32> {
         let first_block_height = self.get_burn_start_height();
         if block_height < first_block_height {
-            return None
+            return None;
         }
         Some(block_height - first_block_height)
     }
@@ -89,15 +85,18 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
     ) -> Option<stacks::BurnchainHeaderHash> {
         snapshots::table
             .filter(
-                snapshots::sortition_id.eq(sortition_id.to_hex())
-                .and(snapshots::block_height.eq(height as i32))
+                snapshots::sortition_id
+                    .eq(sortition_id.to_hex())
+                    .and(snapshots::block_height.eq(height as i32)),
             )
             .select(snapshots::burn_header_hash)
             .get_result(&mut *self.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
-            .map(|hash: String| stacks::BurnchainHeaderHash::from_hex(&hash)
-                .expect("failed to parse burnchain header hash hex"))
+            .map(|hash: String| {
+                stacks::BurnchainHeaderHash::from_hex(&hash)
+                    .expect("failed to parse burnchain header hash hex")
+            })
     }
 
     fn get_sortition_id_from_consensus_hash(
@@ -110,15 +109,17 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
             .get_result(&mut *self.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
-            .map(|hex: String| stacks::SortitionId::from_hex(&hex)
-                .expect("failed to parse sortition id hex"))
+            .map(|hex: String| {
+                stacks::SortitionId::from_hex(&hex).expect("failed to parse sortition id hex")
+            })
     }
 
     fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
         epochs::table
             .filter(
-                epochs::start_block_height.le(height as i32)
-                .and(epochs::end_block_height.gt(height as i32))
+                epochs::start_block_height
+                    .le(height as i32)
+                    .and(epochs::end_block_height.gt(height as i32)),
             )
             .get_result(&mut *self.conn.borrow_mut())
             .optional()

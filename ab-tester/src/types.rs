@@ -2,7 +2,7 @@ use crate::stacks;
 
 pub struct AstRuleHeight {
     pub ast_rule_id: u32,
-    pub block_height: u32
+    pub block_height: u32,
 }
 
 pub struct Epoch {
