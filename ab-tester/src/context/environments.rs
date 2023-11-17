@@ -13,6 +13,7 @@ use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
 use crate::{clarity, stacks};
+use crate::types::*;
 
 pub mod instrumented;
 pub mod network;
@@ -153,11 +154,19 @@ impl ReadableEnv for RuntimeEnvContext {
     fn blocks(&self) -> Result<BlockCursor> {
         self.inner.blocks()
     }
+
+    fn snapshots(&self) -> Result<Vec<Snapshot>> {
+        self.inner.snapshots()
+    }
 }
 
 impl ReadableEnv for RuntimeEnvContextMut {
     fn blocks(&self) -> Result<BlockCursor> {
         self.inner.blocks()
+    }
+
+    fn snapshots(&self) -> Result<Vec<Snapshot>> {
+        self.inner.snapshots()
     }
 }
 
@@ -192,6 +201,7 @@ pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
+    fn snapshots(&self) -> Result<Vec<Snapshot>>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].

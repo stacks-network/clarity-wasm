@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -233,10 +232,8 @@ impl StacksNodeEnv {
                 &mut *state.sortition_db_conn.borrow_mut(),
             )?
             .into_iter()
-            .map(|s| {
-                s.try_into()
-                    .expect("failed to convert stacks node snapshot to common type")
-            })
+            .map(|s| s.try_into()
+                .expect("failed to convert stacks node snapshot to common type"))
             .collect::<Vec<crate::types::Snapshot>>();
 
         Ok(results)
@@ -404,4 +401,9 @@ impl ReadableEnv for StacksNodeEnv {
         let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
         Ok(cursor)
     }
+
+    fn snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
+        self.sortition_snapshots()
+    }
+    
 }

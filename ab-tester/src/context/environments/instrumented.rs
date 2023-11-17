@@ -18,10 +18,10 @@ use crate::context::{
 };
 use crate::db::appdb::AppDb;
 use crate::db::model::app_db as model;
-use crate::db::schema::appdb;
+use crate::db::schema::appdb::{self, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
 use crate::db::stacks_headers_db::StacksHeadersDb;
-use crate::{clarity, ok, stacks};
+use crate::{clarity, ok, stacks, types};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig {
@@ -37,6 +37,7 @@ pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
+    sortition_db_conn: RefCell<SqliteConnection>,
     sortition_db: stacks::SortitionDB,
     burnstate_db: Box<dyn clarity::BurnStateDB>,
     headers_db: Box<dyn clarity::HeadersDB>,
@@ -243,6 +244,7 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
+        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
         let sortition_db = super::open_sortition_db(&paths.sortition_dir, network)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("successfully opened sortition db");
@@ -261,6 +263,7 @@ impl RuntimeEnv for InstrumentedEnv {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
+            sortition_db_conn: RefCell::new(sortition_db_conn),
             sortition_db,
             burnstate_db,
             headers_db,
@@ -279,6 +282,22 @@ impl ReadableEnv for InstrumentedEnv {
         let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
         Ok(cursor)
     }
+
+    fn snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
+        let state = self.get_env_state()?;
+
+        let results = _snapshots::table
+            .order_by(_snapshots::block_height.asc())
+            .get_results::<model::Snapshot>(
+                &mut *state.sortition_db_conn.borrow_mut()
+            )?
+            .into_iter()
+            .map(|s| s.try_into().expect("failed to convert app snapshot to common type"))
+            .collect::<Vec<types::Snapshot>>();
+
+        Ok(results)
+    }
+    
 }
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].

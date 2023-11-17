@@ -3,7 +3,7 @@ use diesel::prelude::*;
 
 use crate::db::schema::appdb::*;
 use crate::stacks::Address;
-use crate::{clarity, stacks};
+use crate::{clarity, stacks, utils};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(table_name = runtime)]
@@ -415,6 +415,51 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
                 .to_vec(),
             pox_valid: value.is_pox_valid,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as i64,
+            pox_payouts: value.pox_payouts,
+        })
+    }
+}
+
+impl TryFrom<Snapshot> for crate::types::Snapshot {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Snapshot) -> Result<Self> {
+        Ok(Self {
+            block_height: value.block_height as u32,
+            burn_header_hash: stacks::BurnchainHeaderHash::from_vec(&value.burn_header_hash)
+                .expect("failed to convert burn header hash bytes to BurnchainHeaderHash"),
+            sortition_id: stacks::SortitionId::from_vec(&value.sortition_id)
+                .expect("failed to convert sortition id bytes to SortitionId"),
+            parent_sortition_id: stacks::SortitionId::from_vec(&value.parent_sortition_id)
+                .expect("failed to convert parent sortition id bytes to SortitionId"),
+            burn_header_timestamp: value.burn_header_timestamp as u64,
+            parent_burn_header_hash: stacks::BurnchainHeaderHash::from_vec(&value.parent_burn_header_hash)
+                .expect("failed to convert parent burn header hash to BurnchainHeaderHash"),
+            consensus_hash: stacks::ConsensusHash::from_vec(&value.consensus_hash)
+                .expect("failed to convert consensus hash bytes to ConsensusHash"),
+            ops_hash: stacks::OpsHash::from_vec(&value.ops_hash)
+                .expect("failed to convert ops hash to OpsHash"),
+            total_burn: value.total_burn as u64,
+            is_sortition: value.sortition,
+            sortition_hash: stacks::SortitionHash::from_vec(&value.sortition_hash)
+                .expect("failed to convert sortition hash bytes to SortitionHash"),
+            winning_block_txid: stacks::Txid::from_vec(&value.winning_block_txid)
+                .expect("failed to convert winning block txid to Txid"),
+            winning_stacks_block_hash: stacks::BlockHeaderHash::from_vec(&value.winning_stacks_block_hash)
+                .expect("failed to convert winning stacks block hash to BlockHeaderHash"),
+            index_root: stacks::TrieHash::from_vec(&value.index_root)
+                .expect("failed to convert index root to TrieHash"),
+            num_sortitions: value.num_sortitions as u32,
+            was_stacks_block_accepted: value.stacks_block_accepted,
+            stacks_block_height: value.stacks_block_height as u32,
+            arrival_index: value.arrival_index as u32,
+            canonical_stacks_tip_height: value.canonical_stacks_tip_height as u32,
+            canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_vec(&value.canonical_stacks_tip_hash)
+                .expect("failed to convert canonical stacks tip hash to BlockHeaderHash"),
+            canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_vec(&value.canonical_stacks_tip_consensus_hash)
+                .expect("failed to convert canonical stacks tip consensus hash to ConsensusHash"),
+            accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as u64,
+            is_pox_valid: value.pox_valid,
             pox_payouts: value.pox_payouts,
         })
     }

@@ -4,4 +4,4 @@ run *args:
     RUST_BACKTRACE=1 RUST_LOG="debug" cargo run -- {{args}}
 
 fmt:
-    cargo fmt --all -- --config group_imports=StdExternalCrate,imports_granularity=Module
+    cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module
