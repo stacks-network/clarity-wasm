@@ -267,6 +267,21 @@ impl StacksNodeEnv {
 
         Ok(results)
     }
+
+    /// Retrieves all ast rule heights from the node's sortition database, ordered by
+    /// ast rule id ascending.
+    fn sortition_ast_rule_heights(&self) -> Result<Vec<crate::types::AstRuleHeight>> {
+        let state = self.get_env_state()?;
+
+        let results = ast_rule_heights::table
+            .order_by(ast_rule_heights::ast_rule_id.asc())
+            .get_results::<crate::db::model::sortition_db::AstRuleHeight>(&mut *state.sortition_db_conn.borrow_mut())?
+            .into_iter()
+            .map(|s| s.try_into().expect("failed to convert stacks ast rule height to common type"))
+            .collect::<Vec<crate::types::AstRuleHeight>>();
+
+        Ok(results)
+    }
 }
 
 /// Implement [RuntimeEnv] for [StacksNodeEnv].

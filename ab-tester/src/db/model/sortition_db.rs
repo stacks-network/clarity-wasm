@@ -176,3 +176,14 @@ impl From<AstRuleHeight> for clarity::ASTRules {
         }
     }
 }
+
+impl TryFrom<AstRuleHeight> for crate::types::AstRuleHeight {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: AstRuleHeight) -> Result<Self> {
+        Ok(Self {
+            ast_rule_id: value.ast_rule_id as u32,
+            block_height: value.block_height as u32
+        })
+    }
+}
