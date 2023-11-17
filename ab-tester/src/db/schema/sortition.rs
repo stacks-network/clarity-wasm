@@ -29,7 +29,7 @@ table! {
         sunset_burn -> Text,
         input -> Text,
         apparent_sender -> Text,
-        burn_parent_modules -> Integer,
+        burn_parent_modulus -> Integer,
     }
 }
 
@@ -44,19 +44,19 @@ table! {
         consensus_hash -> Text,
         ops_hash -> Text,
         total_burn -> Text,
-        sortition -> Bool,
+        sortition -> Integer,
         sortition_hash -> Text,
         winning_block_txid -> Text,
         winning_stacks_block_hash -> Text,
         index_root -> Text,
         num_sortitions -> Integer,
-        stacks_block_accepted -> Bool,
+        stacks_block_accepted -> Integer,
         stacks_block_height -> Integer,
         arrival_index -> Integer,
         canonical_stacks_tip_height -> Integer,
         canonical_stacks_tip_hash -> Text,
         canonical_stacks_tip_consensus_hash -> Text,
-        pox_valid -> Bool,
+        pox_valid -> Integer,
         accumulated_coinbase_ustx -> Text,
         pox_payouts -> Text,
     }

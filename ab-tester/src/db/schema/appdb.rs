@@ -184,3 +184,77 @@ table! {
         parent_index_block_hash -> Binary
     }
 }
+
+// Table which represents the sortition DB's `ast_rule_heights` table.
+table! {
+    _ast_rule_heights (ast_rule_id) {
+        ast_rule_id -> Integer,
+        block_height -> Integer
+    }
+}
+
+// Table which represents the sortition DB's `epochs` table.
+table! {
+    _epochs (start_block_height, epoch_id) {
+        start_block_height -> Integer,
+        end_block_height -> Integer,
+        epoch_id -> Integer,
+        block_limit -> Text,
+        network_epoch -> Integer
+    }
+}
+
+// Table which represents the sortition DB's `block_commits` table. Note that
+// in this table schema we are using optimized column types (i.e. Binary to
+// represent hex instead of Text).
+table! {
+    _block_commits (txid, sortition_id) {
+        txid -> Binary,
+        vtxindex -> Integer,
+        block_height -> Integer,
+        burn_header_hash -> Binary,
+        sortition_id -> Binary,
+        block_header_hash -> Binary,
+        new_seed -> Binary,
+        parent_block_ptr -> Integer,
+        parent_vtxindex -> Integer,
+        key_block_ptr -> Integer,
+        key_vtxindex -> Integer,
+        memo -> Text,
+        commit_outs -> Text,
+        burn_fee -> BigInt,
+        sunset_burn -> BigInt,
+        input -> Text,
+        apparent_sender -> Text,
+        burn_parent_modulus -> Integer
+    }
+}
+
+table! {
+    _snapshots (sortition_id) {
+        block_height -> Integer,
+        burn_header_hash -> Binary,
+        sortition_id -> Binary,
+        parent_sortition_id -> Binary,
+        burn_header_timestamp -> BigInt,
+        parent_burn_header_hash -> Binary,
+        consensus_hash -> Binary,
+        ops_hash -> Binary,
+        total_burn -> BigInt,
+        sortition -> Bool,
+        sortition_hash -> Binary,
+        winning_block_txid -> Binary,
+        winning_stacks_block_hash -> Binary,
+        index_root -> Binary,
+        num_sortitions -> Integer,
+        stacks_block_accepted -> Bool,
+        stacks_block_height -> Integer,
+        arrival_index -> Integer,
+        canonical_stacks_tip_height -> Integer,
+        canonical_stacks_tip_hash -> Binary,
+        canonical_stacks_tip_consensus_hash -> Binary,
+        pox_valid -> Bool,
+        accumulated_coinbase_ustx -> BigInt,
+        pox_payouts -> Text
+    }
+}

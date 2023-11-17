@@ -257,3 +257,210 @@ impl From<&MaturedReward> for stacks::MinerReward {
         }
     }
 }
+
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[diesel(primary_key(ast_rule_id))]
+#[diesel(table_name = _ast_rule_heights)]
+pub struct AstRuleHeight {
+    pub ast_rule_id: i32,
+    pub block_height: i32
+}
+
+impl From<super::sortition_db::AstRuleHeight> for AstRuleHeight {
+    fn from(value: super::sortition_db::AstRuleHeight) -> Self {
+        Self {
+            ast_rule_id: value.ast_rule_id,
+            block_height: value.block_height
+        }
+    }
+}
+
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[diesel(primary_key(start_block_height, epoch_id))]
+#[diesel(table_name = _epochs)]
+pub struct Epoch {
+    pub start_block_height: i32,
+    pub end_block_height: i32,
+    pub epoch_id: i32,
+    pub block_limit: String,
+    pub network_epoch: i32
+}
+
+impl From<super::sortition_db::Epoch> for Epoch {
+    fn from(value: super::sortition_db::Epoch) -> Self {
+        Self {
+            start_block_height: value.start_block_height,
+            end_block_height: value.end_block_height,
+            epoch_id: value.epoch_id,
+            block_limit: value.block_limit,
+            network_epoch: value.network_epoch
+        }
+    }
+}
+
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[diesel(primary_key(txid, sortition_id))]
+#[diesel(table_name = _block_commits)]
+pub struct BlockCommit {
+    pub txid: Vec<u8>,
+    pub vtxindex: i32,
+    pub block_height: i32,
+    pub burn_header_hash: Vec<u8>,
+    pub sortition_id: Vec<u8>,
+    pub block_header_hash: Vec<u8>,
+    pub new_seed: Vec<u8>,
+    pub parent_block_ptr: i32,
+    pub parent_vtxindex: i32,
+    pub key_block_ptr: i32,
+    pub key_vtxindex: i32,
+    pub memo: String,
+    pub commit_outs: String,
+    pub burn_fee: i64,
+    pub sunset_burn: i64,
+    pub input: String,
+    pub apparent_sender: String,
+    pub burn_parent_modulus: i32
+}
+
+impl From<super::sortition_db::BlockCommit> for BlockCommit {
+    fn from(value: super::sortition_db::BlockCommit) -> Self {
+        Self {
+            txid: hex::decode(value.txid)
+                .expect("failed to decode txid from hex"),
+            vtxindex: value.vtxindex,
+            block_height: value.block_height,
+            burn_header_hash: hex::decode(value.burn_header_hash)
+                .expect("failed to decode burn header hash from hex"),
+            sortition_id: hex::decode(value.sortition_id)
+                .expect("failed to decode sortition id from hex"),
+            block_header_hash: hex::decode(value.block_header_hash)
+                .expect("failed to decode block header hash from hex"),
+            new_seed: hex::decode(value.new_seed)
+                .expect("failed to decode new seed from hex"),
+            parent_block_ptr: value.parent_block_ptr,
+            parent_vtxindex: value.parent_vtxindex,
+            key_block_ptr: value.key_block_ptr,
+            key_vtxindex: value.key_vtxindex,
+            memo: value.memo,
+            commit_outs: value.commit_outs,
+            burn_fee: value.burn_fee.parse()
+                .expect("failed to parse burn fee as i64"),
+            sunset_burn: value.sunset_burn.parse()
+                .expect("failed to parse sunset burn as i64"),
+            input: value.input,
+            apparent_sender: value.apparent_sender,
+            burn_parent_modulus: value.burn_parent_modulus
+        }
+    }
+}
+
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[diesel(primary_key(sortition_id))]
+#[diesel(table_name = _snapshots)]
+pub struct Snapshot {
+    pub block_height: i32,
+    pub burn_header_hash: Vec<u8>,
+    pub sortition_id: Vec<u8>,
+    pub parent_sortition_id: Vec<u8>,
+    pub burn_header_timestamp: i64,
+    pub parent_burn_header_hash: Vec<u8>,
+    pub consensus_hash: Vec<u8>,
+    pub ops_hash: Vec<u8>,
+    pub total_burn: i64,
+    pub sortition: bool,
+    pub sortition_hash: Vec<u8>,
+    pub winning_block_txid: Vec<u8>,
+    pub winning_stacks_block_hash: Vec<u8>,
+    pub index_root: Vec<u8>,
+    pub num_sortitions: i32,
+    pub stacks_block_accepted: bool,
+    pub stacks_block_height: i32,
+    pub arrival_index: i32,
+    pub canonical_stacks_tip_height: i32,
+    pub canonical_stacks_tip_hash: Vec<u8>,
+    pub canonical_stacks_tip_consensus_hash: Vec<u8>,
+    pub pox_valid: bool,
+    pub accumulated_coinbase_ustx: i64,
+    pub pox_payouts: String
+}
+
+impl TryFrom<crate::types::Snapshot> for Snapshot {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::Snapshot) -> std::prelude::v1::Result<Self, Self::Error> {
+        Ok(Self {
+            block_height: value.block_height as i32,
+            burn_header_hash: value.burn_header_hash.0.to_vec(),
+            sortition_id: value.sortition_id.0.to_vec(),
+            parent_sortition_id: value.parent_sortition_id.0.to_vec(),
+            burn_header_timestamp: value.burn_header_timestamp as i64,
+            parent_burn_header_hash: value.parent_burn_header_hash.0.to_vec(),
+            consensus_hash: value.consensus_hash.0.to_vec(),
+            ops_hash: value.ops_hash.0.to_vec(),
+            total_burn: value.total_burn as i64,
+            sortition: value.is_sortition,
+            sortition_hash: value.sortition_hash.0.to_vec(),
+            winning_block_txid: value.winning_block_txid.0.to_vec(),
+            winning_stacks_block_hash: value.winning_stacks_block_hash.0.to_vec(),
+            index_root: value.index_root.0.to_vec(),
+            num_sortitions: value.num_sortitions as i32,
+            stacks_block_accepted: value.was_stacks_block_accepted,
+            stacks_block_height: value.stacks_block_height as i32,
+            arrival_index: value.arrival_index as i32,
+            canonical_stacks_tip_height: value.canonical_stacks_tip_height as i32,
+            canonical_stacks_tip_hash: value.canonical_stacks_tip_hash.0.to_vec(),
+            canonical_stacks_tip_consensus_hash: value.canonical_stacks_tip_consensus_hash.0.to_vec(),
+            pox_valid: value.is_pox_valid,
+            accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as i64,
+            pox_payouts: value.pox_payouts
+        })
+    }
+}
+
+impl From<super::sortition_db::Snapshot> for Snapshot {
+    fn from(value: super::sortition_db::Snapshot) -> Self {
+        Self {
+            block_height: value.block_height,
+            burn_header_hash: hex::decode(value.burn_header_hash)
+                .expect("failed to decode burn header hash from hex"),
+            sortition_id: hex::decode(value.sortition_id)
+                .expect("failed to decode sortition id from hex"),
+            parent_sortition_id: hex::decode(value.parent_sortition_id)
+                .expect("failed to decode parent sortition id from hex"),
+            burn_header_timestamp: value.burn_header_timestamp,
+            parent_burn_header_hash: hex::decode(value.parent_burn_header_hash)
+                .expect("failed to decode parent burn header hash from hex"),
+            consensus_hash: hex::decode(value.consensus_hash)
+                .expect("failed to decode consensus_hash from hex"),
+            ops_hash: hex::decode(value.ops_hash)
+                .expect("failed to decode ops hash from hex"),
+            total_burn: value.total_burn.parse()
+                .expect("failed to parse total burn into i64"),
+            sortition: crate::utils::try_convert_i32_to_bool(value.sortition)
+                .expect("failed to convert sortition to bool"),
+            sortition_hash: hex::decode(value.sortition_hash)
+                .expect("failed to decode sortition hash from hex"),
+            winning_block_txid: hex::decode(value.winning_block_txid)
+                .expect("failed to decode winning block txid from hex"),
+            winning_stacks_block_hash: hex::decode(value.winning_stacks_block_hash)
+                .expect("failed to decode winning stacks block hash from hex"),
+            index_root: hex::decode(value.index_root)
+                .expect("failed to decode index root from hex"),
+            num_sortitions: value.num_sortitions,
+            stacks_block_accepted: crate::utils::try_convert_i32_to_bool(value.stacks_block_accepted)
+                .expect("failed to convert stacks block accepted to bool"),
+            stacks_block_height: value.stacks_block_height,
+            arrival_index: value.arrival_index,
+            canonical_stacks_tip_height: value.canonical_stacks_tip_height,
+            canonical_stacks_tip_hash: hex::decode(value.canonical_stacks_tip_hash)
+                .expect("failed to decode canonical stacks tip hash from hex"),
+            canonical_stacks_tip_consensus_hash: hex::decode(value.canonical_stacks_tip_consensus_hash)
+                .expect("failed to decode canonical stacks tip consensus hash from hex"),
+            pox_valid: crate::utils::try_convert_i32_to_bool(value.pox_valid)
+                .expect("failed to convert pox valid to bool"),
+            accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.parse()
+                .expect("failed to convert accumulated coinbase ustx to i64"),
+            pox_payouts: value.pox_payouts
+        }
+    }
+}

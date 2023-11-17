@@ -122,6 +122,10 @@ impl RuntimeEnvContextMut {
         }
     }
 
+    pub fn import_burnstate(&mut self, source: &dyn ReadableEnv) -> Result<()> {
+        todo!()
+    }
+
     pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
         self.inner.block_begin(block)
     }

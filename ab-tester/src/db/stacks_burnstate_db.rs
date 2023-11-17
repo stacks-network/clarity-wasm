@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 
+use clarity::BurnStateDB;
 use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
 
 use crate::{clarity, stacks};
 
-use super::model::sortition::{AstRuleHeight, Epoch};
+use super::model::sortition_db::{AstRuleHeight, Epoch};
 use super::schema::sortition::*;
 
 pub struct StacksBurnStateDb {
@@ -23,6 +24,16 @@ impl StacksBurnStateDb {
             conn: RefCell::new(SqliteConnection::establish(sortition_db_path)?),
             pox_constants
         })
+    }
+
+    /// Gets the difference between `block_height` and the first burnchain
+    /// block height. Returns [None] if the calculated value is negative.
+    fn get_adjusted_block_height(&self, block_height: u32) -> Option<u32> {
+        let first_block_height = self.get_burn_start_height();
+        if block_height < first_block_height {
+            return None
+        }
+        Some(block_height - first_block_height)
     }
 }
 

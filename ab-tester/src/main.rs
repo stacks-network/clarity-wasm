@@ -11,6 +11,8 @@ mod clarity;
 mod db;
 mod runtime;
 mod stacks;
+mod types;
+mod utils;
 
 use std::process::exit;
 

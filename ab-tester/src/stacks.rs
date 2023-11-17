@@ -3,8 +3,9 @@
 /// from Stacks libs (excluding `clarity` - see `clarity.rs`) to this file as
 /// re-exports and qualifying all usings within this app with `stacks::`.
 pub use blockstack_lib::{
-    burnchains::{Address, Burnchain, PoxConstants},
+    burnchains::{Address, Burnchain, PoxConstants, Txid},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
+    chainstate::burn::{OpsHash, SortitionHash},
     chainstate::stacks::{
         db::{
             accounts::MinerReward, ChainStateBootData, ChainstateAccountBalance,
@@ -29,7 +30,7 @@ pub use blockstack_lib::{
 };
 pub use stacks_common::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
-    VRFSeed,
+    VRFSeed, TrieHash
 };
 pub use stacks_common::types::StacksEpochId;
 pub use stx_genesis::*;

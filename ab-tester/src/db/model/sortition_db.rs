@@ -1,10 +1,10 @@
 use diesel::prelude::*;
-use serde;
-use serde::Deserialize;
+use color_eyre::Result;
 
 use crate::db::schema::sortition::*;
 use crate::clarity;
 use crate::stacks;
+use crate::utils::*;
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(primary_key(start_block_height, epoch_id))]
@@ -51,7 +51,7 @@ pub struct BlockCommit {
     pub sunset_burn: String,
     pub input: String,
     pub apparent_sender: String,
-    pub burn_parent_modules: i32,
+    pub burn_parent_modulus: i32,
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -67,21 +67,54 @@ pub struct Snapshot {
     pub consensus_hash: String,
     pub ops_hash: String,
     pub total_burn: String,
-    pub sortition: bool,
+    pub sortition: i32,
     pub sortition_hash: String,
     pub winning_block_txid: String,
     pub winning_stacks_block_hash: String,
     pub index_root: String,
     pub num_sortitions: i32,
-    pub stacks_block_accepted: bool,
+    pub stacks_block_accepted: i32,
     pub stacks_block_height: i32,
     pub arrival_index: i32,
     pub canonical_stacks_tip_height: i32,
     pub canonical_stacks_tip_hash: String,
     pub canonical_stacks_tip_consensus_hash: String,
-    pub pox_valid: bool,
+    pub pox_valid: i32,
     pub accumulated_coinbase_ustx: String,
     pub pox_payouts: String,
+}
+
+impl TryFrom<Snapshot> for crate::types::Snapshot {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Snapshot) -> Result<Self> {
+        Ok(Self {
+            block_height: value.block_height as u32,
+            burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.burn_header_hash)?,
+            sortition_id: stacks::SortitionId::from_hex(&value.sortition_id)?,
+            parent_sortition_id: stacks::SortitionId::from_hex(&value.parent_sortition_id)?,
+            burn_header_timestamp: value.burn_header_timestamp as u64,
+            parent_burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.parent_burn_header_hash)?,
+            consensus_hash: stacks::ConsensusHash::from_hex(&value.consensus_hash)?,
+            ops_hash: stacks::OpsHash::from_hex(&value.ops_hash)?,
+            total_burn: value.total_burn.parse()?,
+            is_sortition: try_convert_i32_to_bool(value.sortition)?,
+            sortition_hash: stacks::SortitionHash::from_hex(&value.sortition_hash)?,
+            winning_block_txid: stacks::Txid::from_hex(&value.winning_block_txid)?,
+            winning_stacks_block_hash: stacks::BlockHeaderHash::from_hex(&value.winning_stacks_block_hash)?,
+            index_root: stacks::TrieHash::from_hex(&value.index_root)?,
+            num_sortitions: value.num_sortitions as u32,
+            was_stacks_block_accepted: try_convert_i32_to_bool(value.stacks_block_accepted)?,
+            stacks_block_height: value.stacks_block_height as u32,
+            arrival_index: value.arrival_index as u32,
+            canonical_stacks_tip_height: value.canonical_stacks_tip_height as u32,
+            canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_hex(&value.canonical_stacks_tip_hash)?,
+            canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_hex(&value.canonical_stacks_tip_consensus_hash)?,
+            is_pox_valid: try_convert_i32_to_bool(value.pox_valid)?,
+            accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.parse()?,
+            pox_payouts: value.pox_payouts
+        })
+    }
 }
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
