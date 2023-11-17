@@ -1,9 +1,11 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, 
+    SqliteConnection
 };
 use log::*;
 
@@ -12,6 +14,7 @@ use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
+use crate::db::schema::sortition::*;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
 
@@ -27,6 +30,7 @@ pub struct StacksNodeEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
+    sortition_db_conn: RefCell<SqliteConnection>,
     sortition_db: stacks::SortitionDB,
 }
 
@@ -219,6 +223,50 @@ impl StacksNodeEnv {
         Ok(())
     }
 
+    /// Retrieves all snapshots from the node's sortition database, ordered by
+    /// block height ascending.
+    fn sortition_snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
+        let state = self.get_env_state()?;
+
+        let results = snapshots::table
+            .order_by(snapshots::block_height.asc())
+            .get_results::<crate::db::model::sortition_db::Snapshot>(&mut *state.sortition_db_conn.borrow_mut())?
+            .into_iter()
+            .map(|s| s.try_into().expect("failed to convert stacks node snapshot to common type"))
+            .collect::<Vec<crate::types::Snapshot>>();
+
+        Ok(results)
+    }
+
+    /// Retrieves all block commits from the node's sortition database, ordered by
+    /// block height ascending.
+    fn sortition_block_commits(&self) -> Result<Vec<crate::types::BlockCommit>> {
+        let state = self.get_env_state()?;
+
+        let results = block_commits::table
+            .order_by(block_commits::block_height.asc())
+            .get_results::<crate::db::model::sortition_db::BlockCommit>(&mut *state.sortition_db_conn.borrow_mut())?
+            .into_iter()
+            .map(|s| s.try_into().expect("failed to convert stacks node block commit to common type"))
+            .collect::<Vec<crate::types::BlockCommit>>();
+
+        Ok(results)
+    }
+
+    /// Retrieves all epochs from the node's sortition database, ordered by
+    /// epoch id ascending.
+    fn sortition_epochs(&self) -> Result<Vec<crate::types::Epoch>> {
+        let state = self.get_env_state()?;
+
+        let results = epochs::table
+            .order_by(epochs::epoch_id.asc())
+            .get_results::<crate::db::model::sortition_db::Epoch>(&mut *state.sortition_db_conn.borrow_mut())?
+            .into_iter()
+            .map(|s| s.try_into().expect("failed to convert stacks node epoch to common type"))
+            .collect::<Vec<crate::types::Epoch>>();
+
+        Ok(results)
+    }
 }
 
 /// Implement [RuntimeEnv] for [StacksNodeEnv].
@@ -293,6 +341,7 @@ impl RuntimeEnv for StacksNodeEnv {
         debug!("[{name}] opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
+        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
         let sortition_db = super::open_sortition_db(&paths.sortition_dir, &network)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("[{name}] successfully opened sortition db");
@@ -302,6 +351,7 @@ impl RuntimeEnv for StacksNodeEnv {
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
             clarity_db_conn,
+            sortition_db_conn: RefCell::new(sortition_db_conn),
             sortition_db,
         };
 

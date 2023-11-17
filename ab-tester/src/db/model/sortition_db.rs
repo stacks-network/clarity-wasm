@@ -1,5 +1,5 @@
 use diesel::prelude::*;
-use color_eyre::Result;
+use color_eyre::{Result, eyre::anyhow};
 
 use crate::db::schema::sortition::*;
 use crate::clarity;
@@ -27,6 +27,21 @@ impl From<Epoch> for clarity::StacksEpoch {
                 .expect("failed to deserialize block limit json"),
             network_epoch: value.network_epoch as u8
         }
+    }
+}
+
+impl TryFrom<Epoch> for crate::types::Epoch {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Epoch) -> Result<Self> {
+        Ok(Self {
+            start_block_height: value.start_block_height as u32,
+            end_block_height: value.end_block_height as u32,
+            epoch_id: (value.epoch_id as u32).try_into()
+                .map_err(|e| anyhow!("{e:?}"))?,
+            block_limit: serde_json::from_str(&value.block_limit)?,
+            network_epoch: value.network_epoch as u32
+        })
     }
 }
 

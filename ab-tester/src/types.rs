@@ -1,5 +1,18 @@
 use crate::stacks;
 
+pub struct AstRuleHeight {
+    pub ast_rule_id: u32,
+    pub block_height: u32
+}
+
+pub struct Epoch {
+    pub start_block_height: u32,
+    pub end_block_height: u32,
+    pub epoch_id: stacks::StacksEpochId,
+    pub block_limit: stacks::ExecutionCost,
+    pub network_epoch: u32,
+}
+
 pub struct Snapshot {
     pub block_height: u32,
     pub burn_header_hash: stacks::BurnchainHeaderHash,

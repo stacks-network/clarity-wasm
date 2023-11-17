@@ -1,4 +1,5 @@
 use diesel::prelude::*;
+use color_eyre::Result;
 
 use crate::db::schema::appdb::*;
 use crate::stacks::Address;
@@ -266,12 +267,14 @@ pub struct AstRuleHeight {
     pub block_height: i32
 }
 
-impl From<super::sortition_db::AstRuleHeight> for AstRuleHeight {
-    fn from(value: super::sortition_db::AstRuleHeight) -> Self {
-        Self {
-            ast_rule_id: value.ast_rule_id,
-            block_height: value.block_height
-        }
+impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::AstRuleHeight) -> Result<Self> {
+        Ok(Self {
+            ast_rule_id: value.ast_rule_id as i32,
+            block_height: value.block_height as i32
+        })
     }
 }
 
@@ -286,15 +289,17 @@ pub struct Epoch {
     pub network_epoch: i32
 }
 
-impl From<super::sortition_db::Epoch> for Epoch {
-    fn from(value: super::sortition_db::Epoch) -> Self {
-        Self {
-            start_block_height: value.start_block_height,
-            end_block_height: value.end_block_height,
-            epoch_id: value.epoch_id,
-            block_limit: value.block_limit,
-            network_epoch: value.network_epoch
-        }
+impl TryFrom<crate::types::Epoch> for Epoch {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::Epoch) -> Result<Self> {
+        Ok(Self {
+            start_block_height: value.start_block_height as i32,
+            end_block_height: value.end_block_height as i32,
+            epoch_id: value.epoch_id as i32,
+            block_limit: serde_json::to_string(&value.block_limit)?,
+            network_epoch: value.network_epoch as i32
+        })
     }
 }
 
@@ -322,35 +327,30 @@ pub struct BlockCommit {
     pub burn_parent_modulus: i32
 }
 
-impl From<super::sortition_db::BlockCommit> for BlockCommit {
-    fn from(value: super::sortition_db::BlockCommit) -> Self {
-        Self {
-            txid: hex::decode(value.txid)
-                .expect("failed to decode txid from hex"),
-            vtxindex: value.vtxindex,
-            block_height: value.block_height,
-            burn_header_hash: hex::decode(value.burn_header_hash)
-                .expect("failed to decode burn header hash from hex"),
-            sortition_id: hex::decode(value.sortition_id)
-                .expect("failed to decode sortition id from hex"),
-            block_header_hash: hex::decode(value.block_header_hash)
-                .expect("failed to decode block header hash from hex"),
-            new_seed: hex::decode(value.new_seed)
-                .expect("failed to decode new seed from hex"),
-            parent_block_ptr: value.parent_block_ptr,
-            parent_vtxindex: value.parent_vtxindex,
-            key_block_ptr: value.key_block_ptr,
-            key_vtxindex: value.key_vtxindex,
+impl TryFrom<crate::types::BlockCommit> for BlockCommit {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::BlockCommit) -> Result<Self> {
+        Ok(Self {
+            txid: value.txid.0.to_vec(),
+            vtxindex: value.vtx_index as i32,
+            block_height: value.block_height as i32,
+            burn_header_hash: value.burn_header_hash.0.to_vec(),
+            sortition_id: value.sortition_id.0.to_vec(),
+            block_header_hash: value.block_header_hash.0.to_vec(),
+            new_seed: value.new_seed.0.to_vec(),
+            parent_block_ptr: value.parent_block_ptr as i32,
+            parent_vtxindex: value.parent_vtx_index as i32,
+            key_block_ptr: value.key_block_ptr as i32,
+            key_vtxindex: value.key_vtx_index as i32,
             memo: value.memo,
-            commit_outs: value.commit_outs,
-            burn_fee: value.burn_fee.parse()
-                .expect("failed to parse burn fee as i64"),
-            sunset_burn: value.sunset_burn.parse()
-                .expect("failed to parse sunset burn as i64"),
-            input: value.input,
-            apparent_sender: value.apparent_sender,
-            burn_parent_modulus: value.burn_parent_modulus
-        }
+            commit_outs: serde_json::to_string(&value.commit_outs)?,
+            burn_fee: value.burn_fee as i64,
+            sunset_burn: value.sunset_burn as i64,
+            input: serde_json::to_string(&value.input)?,
+            apparent_sender: value.apparent_sender.0,
+            burn_parent_modulus: value.burn_parent_modulus as i32
+        })
     }
 }
 

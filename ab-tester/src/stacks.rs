@@ -21,6 +21,7 @@ pub use blockstack_lib::{
         address::PoxAddress
     },
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
+    vm::costs::ExecutionCost,
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
         BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_BURNCHAIN_CONSENSUS_HASH,
