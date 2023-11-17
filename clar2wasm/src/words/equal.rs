@@ -11,7 +11,7 @@ use clarity::vm::{
     ClarityName, SymbolicExpression,
 };
 use walrus::{
-    ir::{BinaryOp, IfElse, UnaryOp},
+    ir::{BinaryOp, Block, IfElse, Loop, UnaryOp},
     InstrSeqBuilder, LocalId, ValType,
 };
 
@@ -222,6 +222,17 @@ fn wasm_equal(
             TypeSignature::TupleType(nth_tuple_ty) => {
                 wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty, nth_tuple_ty)
             }
+            _ => no_type_match(),
+        },
+        TypeSignature::SequenceType(SequenceSubtype::ListType(list_ty)) => match nth_ty {
+            TypeSignature::SequenceType(SequenceSubtype::ListType(nth_list_ty)) => wasm_equal_list(
+                generator,
+                builder,
+                first_op,
+                nth_op,
+                list_ty.get_list_item_type(),
+                nth_list_ty.get_list_item_type(),
+            ),
             _ => no_type_match(),
         },
         _ => Err(GeneratorError::NotImplemented),
@@ -557,6 +568,155 @@ fn wasm_equal_tuple(
         consequent: instr_id,
         alternative: top_else_id,
     });
+
+    Ok(())
+}
+
+fn wasm_equal_list(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    first_op: &[LocalId],
+    nth_op: &[LocalId],
+    list_ty: &TypeSignature,
+    nth_list_ty: &TypeSignature,
+) -> Result<(), GeneratorError> {
+    let [offset_a, len_a] = first_op else {
+        return Err(GeneratorError::InternalError(
+            "List type should have two i32 locals: offset and length".to_string(),
+        ));
+    };
+    let [offset_b, len_b] = nth_op else {
+        return Err(GeneratorError::InternalError(
+            "List type should have two i32 locals: offset and length".to_string(),
+        ));
+    };
+
+    let first_wasm_types = clar2wasm_ty(list_ty);
+    let first_locals: Vec<_> = first_wasm_types
+        .iter()
+        .map(|local_ty| generator.module.locals.add(*local_ty))
+        .collect();
+
+    let nth_locals: Vec<_> = first_wasm_types
+        .iter()
+        .map(|local_ty| generator.module.locals.add(*local_ty))
+        .collect();
+
+    // need offset_delta for both types = clar2wasm_ty(list_ty).len()
+    let offset_delta_a = first_wasm_types.len() as i32;
+    let offset_delta_b = clar2wasm_ty(nth_list_ty).len() as i32;
+
+    // if len_a != len_b { false } else if len_a == 0 { true } else LOOP
+
+    let not_equal_sizes = {
+        let mut instr = builder.dangling_instr_seq(ValType::I32);
+        instr.i32_const(0);
+        instr.id()
+    };
+
+    let empty_lists = {
+        let mut instr = builder.dangling_instr_seq(ValType::I32);
+        instr.i32_const(1);
+        instr.id()
+    };
+
+    let comparison_loop = {
+        let mut block_done = builder.dangling_instr_seq(ValType::I32);
+        let block_done_id = block_done.id();
+
+        let loop_id = {
+            let mut loop_ = block_done.dangling_instr_seq(None);
+            let loop_id = loop_.id();
+
+            // read an element from first list and assign it to locals
+            generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty);
+            assign_first_operand_to_locals(&mut loop_, list_ty, &first_locals)?;
+
+            // same for nth list
+            generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty);
+            assign_to_locals(&mut loop_, list_ty, nth_list_ty, &nth_locals)?;
+
+            // compare both elements
+            wasm_equal(
+                list_ty,
+                nth_list_ty,
+                generator,
+                &mut loop_,
+                &first_locals,
+                &nth_locals,
+            )?;
+
+            // break the loop if the elements are not equal
+            loop_.unop(UnaryOp::I32Eqz).br_if(block_done_id);
+
+            // increment the lists offsets
+            loop_
+                .local_get(*offset_a)
+                .i32_const(offset_delta_a)
+                .binop(BinaryOp::I32Add)
+                .local_set(*offset_a);
+            loop_
+                .local_get(*offset_b)
+                .i32_const(offset_delta_b)
+                .binop(BinaryOp::I32Add)
+                .local_set(*offset_b);
+
+            // loop while we still have elements
+            loop_
+                .local_get(*len_a)
+                .i32_const(offset_delta_a)
+                .binop(BinaryOp::I32Sub)
+                .local_tee(*len_a)
+                .br_if(loop_id);
+
+            loop_id
+        };
+
+        // append the loop to the block
+        block_done.instr(Loop { seq: loop_id });
+        // check if we completed all the comparisons, meaning that `len_a` == 0
+        block_done.local_get(*len_a).unop(UnaryOp::I32Eqz);
+
+        block_done_id
+    };
+
+    let block_comparison_loop = {
+        let mut block = builder.dangling_instr_seq(ValType::I32);
+        block.instr(Block {
+            seq: comparison_loop,
+        });
+        block.id()
+    };
+
+    // if-else when sizes are identical
+    let equal_size_id = {
+        let mut instr = builder.dangling_instr_seq(ValType::I32);
+        // consequent when size is 0; alternative when size > 0
+        instr.local_get(*len_a).unop(UnaryOp::I32Eqz).instr(IfElse {
+            consequent: empty_lists,
+            alternative: block_comparison_loop,
+        });
+        instr.id()
+    };
+
+    // compute effective sizes of both lists
+    builder
+        .local_get(*len_a)
+        .i32_const(offset_delta_a)
+        .binop(BinaryOp::I32DivU);
+    builder
+        .local_get(*len_b)
+        .i32_const(offset_delta_b)
+        .binop(BinaryOp::I32DivU);
+
+    // if-else sizes are equal or not?
+    builder
+        .binop(BinaryOp::I32Eq)
+        // consequent when same sizes, alternative for different sizes
+        .instr(IfElse {
+            consequent: equal_size_id,
+            alternative: not_equal_sizes,
+        });
 
     Ok(())
 }
