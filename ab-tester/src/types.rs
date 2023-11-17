@@ -1,6 +1,4 @@
-use color_eyre::Result;
-
-use crate::{stacks, utils::*};
+use crate::stacks;
 
 pub struct Snapshot {
     pub block_height: u32,
@@ -27,4 +25,25 @@ pub struct Snapshot {
     pub is_pox_valid: bool,
     pub accumulated_coinbase_ustx: u64,
     pub pox_payouts: String,
+}
+
+pub struct BlockCommit {
+    pub txid: stacks::Txid,
+    pub vtx_index: u32,
+    pub block_height: u32,
+    pub burn_header_hash: stacks::BurnchainHeaderHash,
+    pub sortition_id: stacks::SortitionId,
+    pub block_header_hash: stacks::BlockHeaderHash,
+    pub new_seed: stacks::VRFSeed,
+    pub parent_block_ptr: u32,
+    pub parent_vtx_index: u32,
+    pub key_block_ptr: u32,
+    pub key_vtx_index: u32,
+    pub memo: String,
+    pub commit_outs: Vec<stacks::PoxAddress>,
+    pub burn_fee: u64,
+    pub sunset_burn: u64,
+    pub input: (stacks::Txid, u32),
+    pub apparent_sender: stacks::BurnchainSigner,
+    pub burn_parent_modulus: u32,
 }

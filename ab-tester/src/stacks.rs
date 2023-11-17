@@ -3,7 +3,7 @@
 /// from Stacks libs (excluding `clarity` - see `clarity.rs`) to this file as
 /// re-exports and qualifying all usings within this app with `stacks::`.
 pub use blockstack_lib::{
-    burnchains::{Address, Burnchain, PoxConstants, Txid},
+    burnchains::{Address, Burnchain, PoxConstants, Txid, BurnchainSigner},
     chainstate::burn::db::sortdb::{SortitionDB, SortitionDBTxContext},
     chainstate::burn::{OpsHash, SortitionHash},
     chainstate::stacks::{
@@ -18,6 +18,7 @@ pub use blockstack_lib::{
         index::trie::Trie,
         index::{ClarityMarfTrieId, MarfTrieId, TrieLeaf},
         StacksBlock, StacksBlockHeader, StacksTransaction, TransactionPayload,
+        address::PoxAddress
     },
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
     core::{

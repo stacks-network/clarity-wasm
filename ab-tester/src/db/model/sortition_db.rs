@@ -54,6 +54,33 @@ pub struct BlockCommit {
     pub burn_parent_modulus: i32,
 }
 
+impl TryFrom<BlockCommit> for crate::types::BlockCommit {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: BlockCommit) -> Result<Self> {
+        Ok(Self {
+            txid: stacks::Txid::from_hex(&value.txid)?,
+            vtx_index: value.vtxindex as u32,
+            block_height: value.block_height as u32,
+            burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.burn_header_hash)?,
+            sortition_id: stacks::SortitionId::from_hex(&value.sortition_id)?,
+            block_header_hash: stacks::BlockHeaderHash::from_hex(&value.block_header_hash)?,
+            new_seed: stacks::VRFSeed::from_hex(&value.new_seed)?,
+            parent_block_ptr: value.parent_block_ptr as u32,
+            parent_vtx_index: value.parent_vtxindex as u32,
+            key_block_ptr: value.key_block_ptr as u32,
+            key_vtx_index: value.key_vtxindex as u32,
+            memo: value.memo,
+            commit_outs: serde_json::from_str(&value.commit_outs)?,
+            burn_fee: value.burn_fee.parse()?,
+            sunset_burn: value.sunset_burn.parse()?,
+            input: serde_json::from_str(&value.input)?,
+            apparent_sender: stacks::BurnchainSigner(value.apparent_sender),
+            burn_parent_modulus: value.burn_parent_modulus as u32
+        })
+    }
+}
+
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(primary_key(sortition_id))]
 #[diesel(table_name = snapshots)]
