@@ -3962,11 +3962,39 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_to_int_limit,
+    "noop",
+    "test-to-int-limit",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(170141183460469231731687303715884105727));
+    }
+);
+
+test_contract_call!(
+    test_to_int_out_of_boundary,
+    "noop",
+    "test-to-int-out-of-boundary",
+    |result: Result<Value, Error>| {
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
+    }
+);
+
+test_contract_call_response!(
     test_to_uint,
     "noop",
     "test-to-uint",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::UInt(767));
+    }
+);
+
+test_contract_call!(
+    test_to_uint_error,
+    "noop",
+    "test-to-uint-error",
+    |result: Result<Value, Error>| {
+        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );

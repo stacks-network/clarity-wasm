@@ -1,21 +1,11 @@
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{types::Value, ClarityName, SymbolicExpression, SymbolicExpressionType};
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.
 // They only affect the types and not the values.
-
-fn traverse_noop(
-    generator: &mut WasmGenerator,
-    builder: &mut walrus::InstrSeqBuilder,
-    args: &[SymbolicExpression],
-) -> Result<(), GeneratorError> {
-    generator.traverse_args(builder, args)?;
-
-    Ok(())
-}
 
 #[derive(Debug)]
 pub struct ToInt;
@@ -32,15 +22,12 @@ impl Word for ToInt {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if let SymbolicExpressionType::LiteralValue(Value::UInt(val)) = args[0].expr {
-            i128::try_from(val).map_err(|_| {
-                GeneratorError::InternalError(
-                    "Supplied argument is out of convertion range".to_string(),
-                )
-            })?;
-        }
+        generator.traverse_args(builder, args)?;
 
-        traverse_noop(generator, builder, args)
+        let helper_func = generator.func_by_name("stdlib.to-int");
+        builder.call(helper_func);
+
+        Ok(())
     }
 }
 
@@ -59,13 +46,12 @@ impl Word for ToUint {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if let SymbolicExpressionType::LiteralValue(Value::Int(val)) = args[0].expr {
-            u128::try_from(val).map_err(|_| {
-                GeneratorError::InternalError("Error converting a negative argument".to_string())
-            })?;
-        }
+        generator.traverse_args(builder, args)?;
 
-        traverse_noop(generator, builder, args)
+        let helper_func = generator.func_by_name("stdlib.to-uint");
+        builder.call(helper_func);
+
+        Ok(())
     }
 }
 
@@ -84,7 +70,9 @@ impl Word for ContractOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        traverse_noop(generator, builder, args)
+        generator.traverse_args(builder, args)?;
+
+        Ok(())
     }
 }
 
@@ -98,12 +86,25 @@ mod tests {
     };
 
     #[test]
-    #[should_panic(expected = "Supplied argument is out of convertion range")]
-    fn to_int_big() {
+    #[should_panic]
+    fn to_int_out_of_range() {
         assert_eq!(
-            eval("(to-int u340282366920938463463374607431768211455)"),
+            eval("(to-int u170141183460469231731687303715884105728)"),
             Some(Value::Int(42))
         );
+    }
+
+    #[test]
+    fn to_int_max_on_range() {
+        assert_eq!(
+            eval("(to-int u170141183460469231731687303715884105727)"),
+            Some(Value::Int(170141183460469231731687303715884105727))
+        );
+    }
+
+    #[test]
+    fn to_int_zero() {
+        assert_eq!(eval("(to-int u0)"), Some(Value::Int(0)));
     }
 
     #[test]
@@ -112,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error converting a negative argument")]
+    #[should_panic]
     fn to_uint_negative() {
         assert_eq!(eval("(to-uint -31)"), Some(Value::UInt(767)));
     }
@@ -120,6 +121,11 @@ mod tests {
     #[test]
     fn to_uint() {
         assert_eq!(eval("(to-uint 767)"), Some(Value::UInt(767)));
+    }
+
+    #[test]
+    fn to_uint_zero() {
+        assert_eq!(eval("(to-uint 0)"), Some(Value::UInt(0)));
     }
 
     #[test]

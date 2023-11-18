@@ -2355,6 +2355,39 @@
         )
     )
 
+    ;;
+    ;; -- 'to-uint' implementation
+    ;;
+    ;; Should raise a runtime error
+    ;; if the argument is < 0.
+    ;;
+    (func $stdlib.to-uint (param $lo i64) (param $hi i64) (result i64 i64)
+        (if (i64.lt_s (local.get $hi) (i64.const 0))
+            (then (call $runtime-error (i32.const 4)))
+        )
+        (local.get $lo)
+        (local.get $hi)
+    )
+
+    ;;
+    ;; -- 'to-int' implementation
+    ;;
+    ;; Should raise a runtime error
+    ;; if the argument is >= 2^127.
+    ;;
+    (func $stdlib.to-int (param $lo i64) (param $hi i64) (result i64 i64)
+        ;; 9223372036854775808 -> 2^63
+        ;; 2^63 is one more than the maximum positive value
+        ;; that can be represented by a signed 64-bit integer.
+        ;; Thus, if $hi >= 2^63 the argument is >= 2^127,
+        ;; no matter what is present in $lo.
+        (if (i64.ge_u (local.get $hi) (i64.const 9223372036854775808))
+            (then (call $runtime-error (i32.const 4)))
+        )
+        (local.get $lo)
+        (local.get $hi)
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -2413,4 +2446,6 @@
     (export "stdlib.is-version-valid" (func $stdlib.is-version-valid))
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
+    (export "stdlib.to-uint" (func $stdlib.to-uint))
+    (export "stdlib.to-int" (func $stdlib.to-int))
 )
