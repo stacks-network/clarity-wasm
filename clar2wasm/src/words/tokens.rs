@@ -38,7 +38,7 @@ impl Word for DefineFungibleToken {
             builder.i32_const(0).i64_const(0).i64_const(0);
         }
 
-        builder.call(generator.func_by_name("define_ft"));
+        builder.call(generator.func_by_name("stdlib.define_ft"));
         Ok(())
     }
 }
@@ -73,7 +73,7 @@ impl Word for BurnFungibleToken {
         generator.traverse_expr(builder, sender)?;
 
         // Call the host interface function `ft_burn`
-        builder.call(generator.func_by_name("ft_burn"));
+        builder.call(generator.func_by_name("stdlib.ft_burn"));
 
         Ok(())
     }
@@ -111,7 +111,7 @@ impl Word for TransferFungibleToken {
         generator.traverse_expr(builder, recipient)?;
 
         // Call the host interface function `ft_transfer`
-        builder.call(generator.func_by_name("ft_transfer"));
+        builder.call(generator.func_by_name("stdlib.ft_transfer"));
 
         Ok(())
     }
@@ -146,7 +146,7 @@ impl Word for MintFungibleToken {
         generator.traverse_expr(builder, recipient)?;
 
         // Call the host interface function `ft_mint`
-        builder.call(generator.func_by_name("ft_mint"));
+        builder.call(generator.func_by_name("stdlib.ft_mint"));
 
         Ok(())
     }
@@ -174,7 +174,7 @@ impl Word for GetSupplyOfFungibleToken {
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
-        builder.call(generator.func_by_name("ft_get_supply"));
+        builder.call(generator.func_by_name("stdlib.ft_get_supply"));
 
         Ok(())
     }
@@ -208,7 +208,7 @@ impl Word for GetBalanceOfFungibleToken {
         generator.traverse_expr(builder, owner)?;
 
         // Call the host interface function `ft_get_balance`
-        builder.call(generator.func_by_name("ft_get_balance"));
+        builder.call(generator.func_by_name("stdlib.ft_get_balance"));
 
         Ok(())
     }
@@ -246,7 +246,7 @@ impl Word for DefineNonFungibleToken {
             generator
                 .module
                 .funcs
-                .by_name("define_nft")
+                .by_name("stdlib.define_nft")
                 .expect("function not found"),
         );
         Ok(())
@@ -300,7 +300,7 @@ impl Word for BurnNonFungibleToken {
         generator.traverse_expr(builder, sender)?;
 
         // Call the host interface function `nft_burn`
-        builder.call(generator.func_by_name("nft_burn"));
+        builder.call(generator.func_by_name("stdlib.nft_burn"));
 
         Ok(())
     }
@@ -357,7 +357,7 @@ impl Word for TransferNonFungibleToken {
         generator.traverse_expr(builder, recipient)?;
 
         // Call the host interface function `nft_transfer`
-        builder.call(generator.func_by_name("nft_transfer"));
+        builder.call(generator.func_by_name("stdlib.nft_transfer"));
 
         Ok(())
     }
@@ -410,7 +410,7 @@ impl Word for MintNonFungibleToken {
         generator.traverse_expr(builder, recipient)?;
 
         // Call the host interface function `nft_mint`
-        builder.call(generator.func_by_name("nft_mint"));
+        builder.call(generator.func_by_name("stdlib.nft_mint"));
 
         Ok(())
     }
@@ -468,7 +468,7 @@ impl Word for GetOwnerOfNonFungibleToken {
         builder.local_get(return_offset).i32_const(return_size);
 
         // Call the host interface function `nft_get_owner`
-        builder.call(generator.func_by_name("nft_get_owner"));
+        builder.call(generator.func_by_name("stdlib.nft_get_owner"));
 
         Ok(())
     }

@@ -44,7 +44,7 @@ impl Word for GetBlockInfo {
         builder.local_get(return_offset).i32_const(return_size);
 
         // Call the host interface function, `get_block_info`
-        builder.call(generator.func_by_name("get_block_info"));
+        builder.call(generator.func_by_name("stdlib.get_block_info"));
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
@@ -94,7 +94,7 @@ impl Word for GetBurnBlockInfo {
         builder.local_get(return_offset).i32_const(return_size);
 
         // Call the host interface function, `get_burn_block_info`
-        builder.call(generator.func_by_name("get_burn_block_info"));
+        builder.call(generator.func_by_name("stdlib.get_burn_block_info"));
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
@@ -126,13 +126,13 @@ impl Word for AtBlock {
         generator.traverse_expr(builder, block_hash)?;
 
         // Call the host interface function, `enter_at_block`
-        builder.call(generator.func_by_name("enter_at_block"));
+        builder.call(generator.func_by_name("stdlib.enter_at_block"));
 
         // Traverse the inner expression
         generator.traverse_expr(builder, e)?;
 
         // Call the host interface function, `exit_at_block`
-        builder.call(generator.func_by_name("exit_at_block"));
+        builder.call(generator.func_by_name("stdlib.exit_at_block"));
 
         Ok(())
     }

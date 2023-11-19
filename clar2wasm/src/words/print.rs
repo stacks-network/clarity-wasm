@@ -59,7 +59,7 @@ impl Word for Print {
         builder.local_get(offset).local_get(length);
 
         // Call the host interface function, `print`
-        builder.call(generator.func_by_name("print"));
+        builder.call(generator.func_by_name("stdlib.print"));
 
         // Print always returns its input, so read the input value back from
         // the locals.

@@ -24,13 +24,13 @@ impl Word for AsContract {
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
-        builder.call(generator.func_by_name("enter_as_contract"));
+        builder.call(generator.func_by_name("stdlib.enter_as_contract"));
 
         // Traverse the inner expression
         generator.traverse_expr(builder, inner)?;
 
         // Call the host interface function, `exit_as_contract`
-        builder.call(generator.func_by_name("exit_as_contract"));
+        builder.call(generator.func_by_name("stdlib.exit_as_contract"));
 
         Ok(())
     }
@@ -113,7 +113,7 @@ impl Word for ContractCall {
         builder.local_get(return_offset).i32_const(return_size);
 
         // Call the host interface function, `contract_call`
-        builder.call(generator.func_by_name("contract_call"));
+        builder.call(generator.func_by_name("stdlib.contract_call"));
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.

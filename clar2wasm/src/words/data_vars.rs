@@ -67,7 +67,7 @@ impl Word for DefineDataVar {
             generator
                 .module
                 .funcs
-                .by_name("define_variable")
+                .by_name("stdlib.define_variable")
                 .expect("function not found"),
         );
         Ok(())
@@ -123,7 +123,7 @@ impl Word for SetDataVar {
             generator
                 .module
                 .funcs
-                .by_name("set_variable")
+                .by_name("stdlib.set_variable")
                 .expect("function not found"),
         );
 
@@ -178,7 +178,7 @@ impl Word for GetDataVar {
             generator
                 .module
                 .funcs
-                .by_name("get_variable")
+                .by_name("stdlib.get_variable")
                 .expect("function not found"),
         );
 

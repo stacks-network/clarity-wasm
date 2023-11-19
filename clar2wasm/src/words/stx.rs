@@ -26,7 +26,7 @@ impl Word for StxBurn {
 
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
-        builder.call(generator.func_by_name("stx_burn"));
+        builder.call(generator.func_by_name("stdlib.stx_burn"));
 
         Ok(())
     }
@@ -49,7 +49,7 @@ impl Word for StxGetBalance {
     ) -> Result<(), GeneratorError> {
         let owner = args.get_expr(0)?;
         generator.traverse_expr(builder, owner)?;
-        builder.call(generator.func_by_name("stx_get_balance"));
+        builder.call(generator.func_by_name("stdlib.stx_get_balance"));
         Ok(())
     }
 }
@@ -79,7 +79,7 @@ impl Word for StxTransfer {
 
         // placeholder for memo
         builder.i32_const(0).i32_const(0);
-        builder.call(generator.func_by_name("stx_transfer"));
+        builder.call(generator.func_by_name("stdlib.stx_transfer"));
         Ok(())
     }
 }
@@ -109,7 +109,7 @@ impl Word for StxTransferMemo {
         generator.traverse_expr(builder, recipient)?;
         generator.traverse_expr(builder, memo)?;
 
-        builder.call(generator.func_by_name("stx_transfer"));
+        builder.call(generator.func_by_name("stdlib.stx_transfer"));
         Ok(())
     }
 }
@@ -130,7 +130,7 @@ impl Word for StxGetAccount {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         generator.traverse_args(builder, &args[0..1])?;
-        builder.call(generator.func_by_name("stx_account"));
+        builder.call(generator.func_by_name("stdlib.stx_account"));
         Ok(())
     }
 }

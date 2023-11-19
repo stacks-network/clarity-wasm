@@ -60,7 +60,7 @@ impl Word for IsStandard {
         // TODO: It would be nice if this was a global variable that gets set
         //       at compile time, instead of requiring a host-interface call.
         // Check if we are in mainnet (leaves a boolean on the stack)
-        builder.call(generator.func_by_name("is_in_mainnet"));
+        builder.call(generator.func_by_name("stdlib.is_in_mainnet"));
 
         builder.if_else(
             InstrSeqType::new(
