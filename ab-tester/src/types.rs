@@ -1,10 +1,12 @@
 use crate::stacks;
 
+#[derive(Debug, Clone)]
 pub struct AstRuleHeight {
     pub ast_rule_id: u32,
     pub block_height: u32,
 }
 
+#[derive(Debug, Clone)]
 pub struct Epoch {
     pub start_block_height: u32,
     pub end_block_height: u32,
@@ -13,6 +15,7 @@ pub struct Epoch {
     pub network_epoch: u32,
 }
 
+#[derive(Debug, Clone)]
 pub struct Snapshot {
     pub block_height: u32,
     pub burn_header_hash: stacks::BurnchainHeaderHash,
@@ -40,6 +43,7 @@ pub struct Snapshot {
     pub pox_payouts: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockCommit {
     pub txid: stacks::Txid,
     pub vtx_index: u32,

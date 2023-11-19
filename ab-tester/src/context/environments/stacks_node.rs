@@ -12,6 +12,7 @@ use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
+use crate::db::dbcursor::{stream_results, RecordIter, RecordCursor};
 use crate::db::schema::sortition::*;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
@@ -404,6 +405,14 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
         self.sortition_snapshots()
+    }
+
+    fn block_commits(&self) -> Result<RecordIter<crate::types::BlockCommit>> {
+        
+
+        
+
+        todo!()
     }
     
 }

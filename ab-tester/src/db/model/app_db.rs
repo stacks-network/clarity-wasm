@@ -3,7 +3,7 @@ use diesel::prelude::*;
 
 use crate::db::schema::appdb::*;
 use crate::stacks::Address;
-use crate::{clarity, stacks, utils};
+use crate::{clarity, stacks};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(table_name = runtime)]

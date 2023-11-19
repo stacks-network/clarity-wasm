@@ -8,9 +8,10 @@ use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use super::blocks::BlockCursor;
-use super::{Block, BlockTransactionContext, Network, RegularBlockTransactionContext, Runtime};
+use super::{Block, BlockTransactionContext, Network, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
+use crate::db::dbcursor::RecordIter;
 use crate::db::model;
 use crate::{clarity, stacks};
 use crate::types::*;
@@ -158,6 +159,10 @@ impl ReadableEnv for RuntimeEnvContext {
     fn snapshots(&self) -> Result<Vec<Snapshot>> {
         self.inner.snapshots()
     }
+
+    fn block_commits(&self) -> Result<RecordIter<BlockCommit>> {
+        todo!()
+    }
 }
 
 impl ReadableEnv for RuntimeEnvContextMut {
@@ -167,6 +172,10 @@ impl ReadableEnv for RuntimeEnvContextMut {
 
     fn snapshots(&self) -> Result<Vec<Snapshot>> {
         self.inner.snapshots()
+    }
+
+    fn block_commits(&self) -> Result<RecordIter<BlockCommit>> {
+        todo!()
     }
 }
 
@@ -201,7 +210,12 @@ pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
+    
+    /// Retrieves all [Snapshot]s from the burnchain database.
     fn snapshots(&self) -> Result<Vec<Snapshot>>;
+
+    /// Retrieves all [BlockCommit]s from the burnchain databases.
+    fn block_commits(&self) -> Result<RecordIter<BlockCommit>>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
@@ -212,6 +226,9 @@ pub trait WriteableEnv: ReadableEnv {
         &mut self,
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
+
+    fn import_snapshots(&mut self, snapshots: &[Snapshot]) -> Result<()>;
+    fn import_block_commits(&mut self, block_commits: &[BlockCommit]) -> Result<()>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

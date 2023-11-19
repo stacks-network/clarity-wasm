@@ -297,6 +297,10 @@ impl ReadableEnv for InstrumentedEnv {
 
         Ok(results)
     }
+
+    fn block_commits(&self) -> Result<Vec<types::BlockCommit>> {
+        todo!()
+    }
     
 }
 
@@ -395,6 +399,14 @@ impl WriteableEnv for InstrumentedEnv {
             bail!("Cannot commit genesis block as it has already been statically loaded from boot data.")
         }
 
+        todo!()
+    }
+
+    fn import_snapshots(&mut self, snapshots: &[types::Snapshot]) -> Result<()> {
+        todo!()
+    }
+
+    fn import_block_commits(&mut self, block_commits: &[types::BlockCommit]) -> Result<()> {
         todo!()
     }
 }

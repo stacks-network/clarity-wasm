@@ -159,9 +159,11 @@ impl clarity::BurnStateDB for StacksBurnStateDb {
 
     fn get_pox_payout_addrs(
         &self,
-        height: u32,
-        sortition_id: &stacks::SortitionId,
+        _height: u32,
+        _sortition_id: &stacks::SortitionId,
     ) -> Option<(Vec<clarity::TupleData>, u128)> {
+        // This method is a bit involved, so hoping this doesn't need to be
+        // implemented... we'll see :)
         todo!()
     }
 }

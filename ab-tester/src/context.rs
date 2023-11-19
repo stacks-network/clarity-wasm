@@ -95,6 +95,8 @@ impl ComparisonContext {
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
     pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
+        use environments::ReadableEnv;
+
         let baseline_env = self
             .baseline_env
             .as_mut()
@@ -104,6 +106,10 @@ impl ComparisonContext {
 
         for target in self.instrumented_envs.iter_mut() {
             target.open()?;
+
+            let snapshots = baseline_env.snapshots()?;
+            warn!("snapshot count: {}", snapshots.len());
+
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
 
