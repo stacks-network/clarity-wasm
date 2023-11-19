@@ -7,16 +7,16 @@ use diesel::{
     query_dsl::{
         methods::{LimitDsl, OffsetDsl},
         LoadQuery,
-    }, connection::LoadConnection
+    }
 };
-use color_eyre::Result;
+use color_eyre::{Result, eyre::anyhow};
 
 /// Get an object that implements the iterator interface.
 pub fn stream_results<'conn, Record, Model, Query, Conn>(
     query: Query,
     conn: &'conn mut Conn,
     buffer_size_hint: usize,
-) -> impl Iterator<Item = Result<Record>> + 'conn
+) -> impl Iterator<Item = Result<Model>> + 'conn
 where
     Record: 'conn + TryInto<Model>,
     Model: 'conn + Clone,
@@ -36,8 +36,8 @@ where
 
 pub struct RecordIter<T>(Box<dyn Iterator<Item = Result<T>>>);
 
-impl<Record> RecordIter<Record> {
-    pub fn new<'conn, Model, Query, Conn>(
+impl<Model> RecordIter<Model> {
+    pub fn new<'conn, Record, Query, Conn>(
         inner: RecordCursor<'conn, Record, Model, Query, Conn>
     ) -> Self
     where
@@ -121,6 +121,8 @@ where
     }
 }
 
+
+
 impl<'conn, Record, Model, Query, Conn> Iterator for RecordCursor<'conn, Record, Model, Query, Conn>
 where
     Record: 'conn + TryInto<Model>,
@@ -129,12 +131,14 @@ where
     Limit<Offset<Query>>: LoadQuery<'conn, Conn, Record>,
     Model: 'conn + Clone
 {
-    type Item = Result<Record>;
+    type Item = Result<Model>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // if the buffer isn't empty just return an element
-        if let Some(v) = self.buffer.pop_front() { 
-            return Some(Ok(v)) 
+        if let Some(v) = self.buffer.pop_front() {
+            let model: Result<Model> = v.try_into()
+                .map_err(|e| anyhow!("failed to convert record to model"));
+            return Some(model)
         }
 
         // fill the buffer
@@ -153,7 +157,11 @@ where
             self.buffer.push_back(result);
         }
         // return the first record, or None if there are no more records fetched.
-        self.buffer.pop_front().map(Ok)
+        self.buffer.pop_front().map(|v| {
+            let model: Result<Model> = v.try_into()
+                .map_err(|e| anyhow!("failed to convert record to model"));
+            return model
+        })
     }
 }
 
