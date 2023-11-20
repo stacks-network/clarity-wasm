@@ -148,7 +148,7 @@ impl Word for Keccak256 {
             generator
                 .module
                 .funcs
-                .by_name("keccak256")
+                .by_name("stdlib.keccak256")
                 .expect("function not found"),
         );
 
@@ -208,7 +208,7 @@ impl Word for Sha512 {
             generator
                 .module
                 .funcs
-                .by_name("sha512")
+                .by_name("stdlib.sha512")
                 .expect("function not found"),
         );
 
@@ -268,7 +268,7 @@ impl Word for Sha512_256 {
             generator
                 .module
                 .funcs
-                .by_name("sha512_256")
+                .by_name("stdlib.sha512_256")
                 .expect("function not found"),
         );
 

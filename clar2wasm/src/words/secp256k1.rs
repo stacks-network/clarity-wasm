@@ -37,7 +37,7 @@ impl Word for Recover {
             generator
                 .module
                 .funcs
-                .by_name("secp256k1_recover")
+                .by_name("stdlib.secp256k1_recover")
                 .expect("function not found"),
         );
 
@@ -71,7 +71,7 @@ impl Word for Verify {
             generator
                 .module
                 .funcs
-                .by_name("secp256k1_verify")
+                .by_name("stdlib.secp256k1_verify")
                 .expect("function not found"),
         );
 

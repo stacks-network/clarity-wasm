@@ -70,7 +70,7 @@ fn traverse_define_function(
         generator
             .module
             .funcs
-            .by_name("define_function")
+            .by_name("stdlib.define_function")
             .expect("define_function not found"),
     );
 

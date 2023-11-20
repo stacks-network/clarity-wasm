@@ -32,7 +32,7 @@ impl Word for DefineTrait {
             generator
                 .module
                 .funcs
-                .by_name("define_trait")
+                .by_name("stdlib.define_trait")
                 .expect("function not found"),
         );
         Ok(())
@@ -96,7 +96,7 @@ impl Word for ImplTrait {
             generator
                 .module
                 .funcs
-                .by_name("impl_trait")
+                .by_name("stdlib.impl_trait")
                 .expect("function not found"),
         );
         Ok(())

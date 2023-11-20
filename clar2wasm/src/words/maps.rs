@@ -34,7 +34,7 @@ impl Word for MapDefinition {
             generator
                 .module
                 .funcs
-                .by_name("define_map")
+                .by_name("stdlib.define_map")
                 .expect("function not found"),
         );
         Ok(())
@@ -99,7 +99,7 @@ impl Word for MapGet {
         builder.local_get(return_offset).i32_const(return_size);
 
         // Call the host-interface function, `map_get`
-        builder.call(generator.func_by_name("map_get"));
+        builder.call(generator.func_by_name("stdlib.map_get"));
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
@@ -173,7 +173,7 @@ impl Word for MapSet {
         builder.local_get(val_offset).i32_const(val_size);
 
         // Call the host interface function, `map_set`
-        builder.call(generator.func_by_name("map_set"));
+        builder.call(generator.func_by_name("stdlib.map_set"));
 
         Ok(())
     }
@@ -243,7 +243,7 @@ impl Word for MapInsert {
         builder.local_get(val_offset).i32_const(val_size);
 
         // Call the host interface function, `map_insert`
-        builder.call(generator.func_by_name("map_insert"));
+        builder.call(generator.func_by_name("stdlib.map_insert"));
 
         Ok(())
     }
@@ -300,7 +300,7 @@ impl Word for MapDelete {
             generator
                 .module
                 .funcs
-                .by_name("map_delete")
+                .by_name("stdlib.map_delete")
                 .expect("map_delete not found"),
         );
 
