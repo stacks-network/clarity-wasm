@@ -263,8 +263,8 @@ fn wasm_equal_int128(
     }
 
     // Call the function with the operands on the stack.
-    let func = OnceCell::new();
-    builder.call(*func.get_or_init(|| generator.func_by_name("stdlib.is-eq-int")));
+    let func = generator.func_by_name("stdlib.is-eq-int");
+    builder.call(func);
 
     Ok(())
 }
@@ -286,8 +286,8 @@ fn wasm_equal_bytes(
     }
 
     // Call the function with the operands on the stack.
-    let func = OnceCell::new();
-    builder.call(*func.get_or_init(|| generator.func_by_name("stdlib.is-eq-bytes")));
+    let func = generator.func_by_name("stdlib.is-eq-bytes");
+    builder.call(func);
 
     Ok(())
 }
