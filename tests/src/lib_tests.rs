@@ -3172,9 +3172,9 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
-    test_call_optional_some_and_err_unequal,
+    test_call_optional_some_and_none_unequal,
     "equal",
-    "call-optional-some-and-err-unequal",
+    "call-optional-some-and-none-unequal",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));
@@ -3232,9 +3232,9 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
-    test_call_response_some_err_same_value_unequal,
+    test_call_response_ok_err_same_value_unequal,
     "equal",
-    "call-response-some-err-same-value-unequal",
+    "call-response-ok-err-same-value-unequal",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));

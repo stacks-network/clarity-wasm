@@ -110,7 +110,7 @@
     (ok (is-eq (some 0x01) (some 0x02)))
 )
 
-(define-public (call-optional-some-and-err-unequal)
+(define-public (call-optional-some-and-none-unequal)
     (ok (is-eq (some "a value here") none))
 )
 
@@ -134,7 +134,7 @@
     (ok (is-eq (err 0x123456) (err 0xabcdef)))
 )
 
-(define-public (call-response-some-err-same-value-unequal)
+(define-public (call-response-ok-err-same-value-unequal)
     (ok (is-eq (ok 42) (err 42)))
 )
 
