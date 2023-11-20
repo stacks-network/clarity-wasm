@@ -41,7 +41,7 @@ impl Word for IsEq {
             .clone();
 
         // No need to go further if there is only one argument
-        if args.is_empty() {
+        if args.len() == 1 {
             drop_value(builder, &ty);
             builder.i32_const(1); // TRUE
             return Ok(());
