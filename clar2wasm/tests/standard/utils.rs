@@ -1201,7 +1201,7 @@ pub(crate) fn test_buff_comparison(
         .get_func(store.borrow_mut().deref_mut(), func_name)
         .unwrap();
 
-    proptest!(ProptestConfig::with_cases(1000), |(buff_a in buffer(1500, 100), buff_b in buffer(2000, 100))| {
+    proptest!(ProptestConfig::with_cases(500), |(buff_a in buffer(1500, 100), buff_b in buffer(2000, 100))| {
         let expected_result = reference_function(&buff_a, &buff_b) as i32;
 
         let mut result = [Val::I32(0)];
@@ -1209,6 +1209,26 @@ pub(crate) fn test_buff_comparison(
             .write_to_memory(memory, store.borrow_mut().deref_mut())
             .expect("Could not write to memory");
         let (offset_b, length_b) = buff_b
+            .write_to_memory(memory, store.borrow_mut().deref_mut())
+            .expect("Could not write to memory");
+        cmp
+            .call(
+                store.borrow_mut().deref_mut(),
+                &[offset_a.into(), length_a.into(), offset_b.into(), length_b.into()],
+                &mut result,
+            )
+            .unwrap_or_else(|_| panic!("call to {func_name} failed"));
+        prop_assert_eq!(result[0].unwrap_i32(), expected_result);
+    });
+
+    proptest!(ProptestConfig::with_cases(500), |(buff in buffer(1500, 100))| {
+        let expected_result = reference_function(&buff, &buff) as i32;
+
+        let mut result = [Val::I32(0)];
+        let (offset_a, length_a) = buff
+            .write_to_memory(memory, store.borrow_mut().deref_mut())
+            .expect("Could not write to memory");
+        let (offset_b, length_b) = buff
             .write_to_memory(memory, store.borrow_mut().deref_mut())
             .expect("Could not write to memory");
         cmp
