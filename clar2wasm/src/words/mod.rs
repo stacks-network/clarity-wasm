@@ -73,6 +73,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &control_flow::Begin,
     &control_flow::UnwrapErrPanic,
     &control_flow::UnwrapPanic,
+    &conversion::IntToAscii,
     &conversion::StringToInt,
     &conversion::StringToUint,
     &data_vars::DefineDataVar,
