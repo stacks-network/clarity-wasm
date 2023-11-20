@@ -162,7 +162,7 @@ impl ReadableEnv for RuntimeEnvContext {
     }
 
     fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
-        todo!()
+        self.inner.block_commits()
     }
 }
 
@@ -176,7 +176,7 @@ impl ReadableEnv for RuntimeEnvContextMut {
     }
 
     fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
-        todo!()
+        self.inner.block_commits()
     }
 }
 

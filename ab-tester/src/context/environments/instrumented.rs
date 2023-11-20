@@ -245,8 +245,8 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
-        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
         let sortition_db = super::open_sortition_db(&paths.sortition_dir, network)?;
+        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("successfully opened sortition db");
 

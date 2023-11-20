@@ -107,12 +107,21 @@ impl ComparisonContext {
         for target in self.instrumented_envs.iter_mut() {
             target.open()?;
 
+            info!("migrating snapshots from '{}' to '{}'...", baseline_env.name(), target.name());
             let snapshots = baseline_env.snapshots()?;
             for snap in snapshots {
                 let snapshot = snap.map_err(|e| anyhow!("{e}"))?;
-                debug!("snapshot: {snapshot:?}");
+                trace!("snapshot {{block height={}, sortition id={}}}", snapshot.stacks_block_height, snapshot.sortition_id);
             }
-            //warn!("snapshot count: {}", snapshots.len());
+
+            info!("migrating block commits from '{}' to '{}'...", baseline_env.name(), target.name());
+            let block_commits = baseline_env.block_commits()?;
+            for bc in block_commits {
+                let commit = bc.map_err(|e| anyhow!("{e}"))?;
+                trace!("block commit {commit:?}");
+            }
+            
+            info!("finished - proceeding with replay");
 
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }

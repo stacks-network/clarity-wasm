@@ -409,22 +409,22 @@ impl ReadableEnv for StacksNodeEnv {
 
         let result =
             stream_results::<crate::db::model::sortition_db::Snapshot, crate::types::Snapshot, _, _>(
-                snapshots::table, 
+                snapshots::table.order_by(snapshots::block_height.asc()), 
                 state.sortition_db_conn.clone(), 
-                100
+                1000
             );
 
         Ok(Box::new(result))
     }
 
-    fn block_commits<'a>(&'a self) -> BoxedDbIterResult<crate::types::BlockCommit> {
+    fn block_commits(&self) -> BoxedDbIterResult<crate::types::BlockCommit> {
         let state = self.get_env_state()?;
 
         let result = 
             stream_results::<crate::db::model::sortition_db::BlockCommit, crate::types::BlockCommit, _, _>(
                 block_commits::table, 
                 state.sortition_db_conn.clone(), 
-                100
+                1000
             );
 
         Ok(Box::new(result))
