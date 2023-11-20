@@ -165,3 +165,27 @@
 (define-public (call-tuple-recursive-unequal)
     (ok (is-eq {name: "James Bond", creator: {name: "Ian Fleming", date: (some 1953)}} {name: "James Bond", creator: {name: "Ian Fleming", date: none}}))
 )
+
+(define-public (call-list-int-equal)
+    (ok (is-eq (list 1 2 3 4 5) (list 1 2 3 4 5)))
+)
+
+(define-public (call-list-str-equal)
+    (ok (is-eq (list "hello" "world" "goodbye" "mars") (list "hello" "world" "goodbye" "mars")))
+)
+
+(define-public (call-list-unequal-length)
+    (ok (is-eq (list 1 2 3 4 5) (list 1 2 3 4)))
+)
+
+(define-public (call-list-unequal-first-element)
+    (ok (is-eq (list 1 2 3 4 5) (list 0 2 3 4 5)))
+)
+
+(define-public (call-list-unequal-mid-element)
+    (ok (is-eq (list 1 2 3 4 5) (list 1 2 7 4 5)))
+)
+
+(define-public (call-list-unequal-last-element)
+    (ok (is-eq (list 1 2 3 4 5) (list 1 2 3 4 42)))
+)

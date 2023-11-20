@@ -3312,6 +3312,66 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_call_list_int_equal,
+    "equal",
+    "call-list-int-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_str_equal,
+    "equal",
+    "call-list-str-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_unequal_length,
+    "equal",
+    "call-list-unequal-length",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_unequal_first_element,
+    "equal",
+    "call-list-unequal-first-element",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_unequal_mid_element,
+    "equal",
+    "call-list-unequal-mid-element",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_unequal_last_element,
+    "equal",
+    "call-list-unequal-last-element",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_append,
     "sequences",
     "list-append",
