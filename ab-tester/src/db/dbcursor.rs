@@ -1,5 +1,5 @@
 /// Taken in-part from https://github.com/diesel-rs/diesel/issues/1087#issuecomment-517720812
-use std::{collections::VecDeque, convert::TryInto, marker::PhantomData};
+use std::{collections::VecDeque, convert::TryInto, marker::PhantomData, cell::RefCell, rc::Rc};
 
 use diesel::{
     dsl::{Limit, Offset},
@@ -12,17 +12,17 @@ use diesel::{
 use color_eyre::{Result, eyre::anyhow};
 
 /// Get an object that implements the iterator interface.
-pub fn stream_results<'conn, Record, Model, Query, Conn>(
+pub fn stream_results<Record, Model, Query, Conn>(
     query: Query,
-    conn: &'conn mut Conn,
+    conn: Rc<RefCell<Conn>>,
     buffer_size_hint: usize,
-) -> impl Iterator<Item = Result<Model>> + 'conn
+) -> impl Iterator<Item = Result<Model>>
 where
-    Record: 'conn + TryInto<Model>,
-    Model: 'conn + Clone,
-    Query: OffsetDsl + Clone + 'conn,
+    Record: TryInto<Model>,
+    Model: Clone,
+    Query: OffsetDsl + Clone,
     Offset<Query>: LimitDsl,
-    Limit<Offset<Query>>: LoadQuery<'conn, Conn, Record>,
+    Limit<Offset<Query>>: for<'a> LoadQuery<'a, Conn, Record>,
 {
     RecordCursor {
         conn,
@@ -34,36 +34,8 @@ where
     }
 }
 
-pub struct RecordIter<T>(Box<dyn Iterator<Item = Result<T>>>);
-
-impl<Model> RecordIter<Model> {
-    pub fn new<'conn, Record, Query, Conn>(
-        inner: RecordCursor<'conn, Record, Model, Query, Conn>
-    ) -> Self
-    where
-        Record: 'conn + TryInto<Model>,
-        Model: 'conn + Clone,
-        Query: OffsetDsl + Clone,
-        Offset<Query>: LimitDsl,
-        Limit<Offset<Query>>: LoadQuery<'conn, Conn, Record>,
-    {
-        
-        let iter = inner.into_iter();
-        Self(Box::new(iter))
-    }
-}
-
-impl<Record> Iterator for RecordIter<Record> {
-    type Item = Result<Record>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-    
-}
-
-pub struct RecordCursor<'conn, Record, Model, Query, Conn> {
-    conn: &'conn mut Conn,
+pub struct RecordCursor<Record, Model, Query, Conn> {
+    conn: Rc<RefCell<Conn>>,
     query: Query,
     /// The index of the next record to fetch from the server
     cursor: usize,
@@ -72,17 +44,17 @@ pub struct RecordCursor<'conn, Record, Model, Query, Conn> {
     model_type: PhantomData<Model>,
 }
 
-impl<'conn, Record, Model, Query, Conn> RecordCursor<'conn, Record, Model, Query, Conn>
+impl<Record, Model, Query, Conn> RecordCursor<Record, Model, Query, Conn>
 where
-    Record: 'conn + TryInto<Model>,
-    Query: OffsetDsl + Clone + 'conn,
+    Record: TryInto<Model>,
+    Query: OffsetDsl + Clone,
     Offset<Query>: LimitDsl,
-    Limit<Offset<Query>>: LoadQuery<'conn, Conn, Record>,
-    Model: 'conn + Clone
+    Limit<Offset<Query>>: for<'a> LoadQuery<'a, Conn, Record>,
+    Model: Clone
 {
     pub fn new(
         query: Query,
-        conn: &'conn mut Conn,
+        conn: Rc<RefCell<Conn>>,
         buffer_size_hint: usize
     ) -> Self {
         Self {
@@ -109,7 +81,7 @@ where
             .offset(self.cursor.try_into().unwrap())
             .limit(fetch_amt.try_into().unwrap());
         self.cursor += fetch_amt;
-        let results: Vec<Record> = match query.load(self.conn) {
+        let results: Vec<Record> = match query.load(&mut *self.conn.borrow_mut()) {
             Ok(recs) => recs,
             Err(e) => return Some(Err(e.into())),
         };
@@ -123,13 +95,13 @@ where
 
 
 
-impl<'conn, Record, Model, Query, Conn> Iterator for RecordCursor<'conn, Record, Model, Query, Conn>
+impl<Record, Model, Query, Conn> Iterator for RecordCursor<Record, Model, Query, Conn>
 where
-    Record: 'conn + TryInto<Model>,
+    Record: TryInto<Model>,
     Query: OffsetDsl + Clone,
     Offset<Query>: LimitDsl,
-    Limit<Offset<Query>>: LoadQuery<'conn, Conn, Record>,
-    Model: 'conn + Clone
+    Limit<Offset<Query>>: for<'a> LoadQuery<'a, Conn, Record>,
+    Model: Clone
 {
     type Item = Result<Model>;
 
@@ -137,7 +109,7 @@ where
         // if the buffer isn't empty just return an element
         if let Some(v) = self.buffer.pop_front() {
             let model: Result<Model> = v.try_into()
-                .map_err(|e| anyhow!("failed to convert record to model"));
+                .map_err(|_| anyhow!("failed to convert record to model"));
             return Some(model)
         }
 
@@ -149,7 +121,7 @@ where
             .offset(self.cursor.try_into().unwrap())
             .limit(fetch_amt.try_into().unwrap());
         self.cursor += fetch_amt;
-        let results: Vec<Record> = match query.load(self.conn) {
+        let results: Vec<Record> = match query.load(&mut *self.conn.borrow_mut()) {
             Ok(recs) => recs,
             Err(e) => return Some(Err(e.into())),
         };
@@ -159,8 +131,8 @@ where
         // return the first record, or None if there are no more records fetched.
         self.buffer.pop_front().map(|v| {
             let model: Result<Model> = v.try_into()
-                .map_err(|e| anyhow!("failed to convert record to model"));
-            return model
+                .map_err(|_| anyhow!("failed to convert record to model"));
+            model
         })
     }
 }
@@ -172,7 +144,7 @@ fn test() {
     let result = 
         stream_results::<crate::db::model::sortition_db::Snapshot, crate::types::Snapshot, _, _>(
             query, 
-            &mut conn, 
+            Rc::new(RefCell::new(conn)), 
             100
         );
 

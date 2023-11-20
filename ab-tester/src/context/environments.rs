@@ -11,7 +11,6 @@ use super::blocks::BlockCursor;
 use super::{Block, BlockTransactionContext, Network, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
-use crate::db::dbcursor::RecordIter;
 use crate::db::model;
 use crate::{clarity, stacks};
 use crate::types::*;
@@ -160,7 +159,7 @@ impl ReadableEnv for RuntimeEnvContext {
         self.inner.snapshots()
     }
 
-    fn block_commits(&self) -> Result<RecordIter<BlockCommit>> {
+    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>>>> {
         todo!()
     }
 }
@@ -174,7 +173,7 @@ impl ReadableEnv for RuntimeEnvContextMut {
         self.inner.snapshots()
     }
 
-    fn block_commits(&self) -> Result<RecordIter<BlockCommit>> {
+    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>>>> {
         todo!()
     }
 }
@@ -215,7 +214,7 @@ pub trait ReadableEnv: RuntimeEnv {
     fn snapshots(&self) -> Result<Vec<Snapshot>>;
 
     /// Retrieves all [BlockCommit]s from the burnchain databases.
-    fn block_commits(&self) -> Result<RecordIter<BlockCommit>>;
+    fn block_commits<'a>(&'a self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>> + 'a>>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].

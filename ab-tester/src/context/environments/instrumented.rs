@@ -298,7 +298,7 @@ impl ReadableEnv for InstrumentedEnv {
         Ok(results)
     }
 
-    fn block_commits(&self) -> Result<Vec<types::BlockCommit>> {
+    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
         todo!()
     }
     

@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
@@ -12,7 +13,7 @@ use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
-use crate::db::dbcursor::{stream_results, RecordIter, RecordCursor};
+use crate::db::dbcursor::{stream_results, RecordCursor};
 use crate::db::schema::sortition::*;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
@@ -29,7 +30,7 @@ pub struct StacksNodeEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
-    sortition_db_conn: RefCell<SqliteConnection>,
+    sortition_db_conn: Rc<RefCell<SqliteConnection>>,
     sortition_db: stacks::SortitionDB,
 }
 
@@ -383,7 +384,7 @@ impl RuntimeEnv for StacksNodeEnv {
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
             clarity_db_conn,
-            sortition_db_conn: RefCell::new(sortition_db_conn),
+            sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
             sortition_db,
         };
 
@@ -407,12 +408,17 @@ impl ReadableEnv for StacksNodeEnv {
         self.sortition_snapshots()
     }
 
-    fn block_commits(&self) -> Result<RecordIter<crate::types::BlockCommit>> {
-        
+    fn block_commits<'a>(&'a self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>> + 'a>> {
+        let state = self.get_env_state()?;
 
-        
+        let result = 
+            stream_results::<crate::db::model::sortition_db::BlockCommit, crate::types::BlockCommit, _, _>(
+                block_commits::table, 
+                state.sortition_db_conn.clone(), 
+                100
+            );
 
-        todo!()
+        Ok(Box::new(result))
     }
     
 }
