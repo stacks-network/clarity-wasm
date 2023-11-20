@@ -1753,7 +1753,7 @@ fn test_ge_buff() {
 
 #[test]
 fn test_is_eq_bytes() {
-    test_cmp_buff("is-eq-bytes", |a, b| a == b)
+    test_cmp_buff("stdlib.is-eq-bytes", |a, b| a == b)
 }
 
 #[test]

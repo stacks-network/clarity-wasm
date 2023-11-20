@@ -628,5 +628,5 @@ fn prop_ge_buff() {
 
 #[test]
 fn prop_is_eq_bytes() {
-    test_buff_comparison("is-eq-bytes", |a, b| a == b)
+    test_buff_comparison("stdlib.is-eq-bytes", |a, b| a == b)
 }
