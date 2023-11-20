@@ -11,7 +11,7 @@ use clarity::vm::{
     ClarityName, SymbolicExpression,
 };
 use walrus::{
-    ir::{BinaryOp, Block, IfElse, Loop, UnaryOp},
+    ir::{BinaryOp, IfElse, Loop, UnaryOp},
     InstrSeqBuilder, LocalId, ValType,
 };
 
@@ -603,8 +603,10 @@ fn wasm_equal_list(
         .collect();
 
     // need offset_delta for both types = clar2wasm_ty(list_ty).len()
-    let offset_delta_a = first_wasm_types.len() as i32;
-    let offset_delta_b = clar2wasm_ty(nth_list_ty).len() as i32;
+    // those are the result of `generator.read_from_memory`, which is computed
+    // in a block later, hence the declaration here.
+    let offset_delta_a;
+    let offset_delta_b;
 
     // if len_a != len_b { false } else if len_a == 0 { true } else LOOP
 
@@ -621,19 +623,18 @@ fn wasm_equal_list(
     };
 
     let comparison_loop = {
-        let mut block_done = builder.dangling_instr_seq(ValType::I32);
-        let block_done_id = block_done.id();
+        let mut instr = builder.dangling_instr_seq(ValType::I32);
 
         let loop_id = {
-            let mut loop_ = block_done.dangling_instr_seq(None);
+            let mut loop_ = instr.dangling_instr_seq(None);
             let loop_id = loop_.id();
 
             // read an element from first list and assign it to locals
-            generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty);
+            offset_delta_a = generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty);
             assign_first_operand_to_locals(&mut loop_, list_ty, &first_locals)?;
 
             // same for nth list
-            generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty);
+            offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty);
             assign_to_locals(&mut loop_, list_ty, nth_list_ty, &nth_locals)?;
 
             // compare both elements
@@ -646,46 +647,41 @@ fn wasm_equal_list(
                 &nth_locals,
             )?;
 
-            // break the loop if the elements are not equal
-            loop_.unop(UnaryOp::I32Eqz).br_if(block_done_id);
+            // if there is equality, we update the variables and we loop
+            loop_.if_else(
+                None,
+                |then| {
+                    // increment the lists offsets
+                    then.local_get(*offset_a)
+                        .i32_const(offset_delta_a)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*offset_a);
+                    then.local_get(*offset_b)
+                        .i32_const(offset_delta_b)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*offset_b);
 
-            // increment the lists offsets
-            loop_
-                .local_get(*offset_a)
-                .i32_const(offset_delta_a)
-                .binop(BinaryOp::I32Add)
-                .local_set(*offset_a);
-            loop_
-                .local_get(*offset_b)
-                .i32_const(offset_delta_b)
-                .binop(BinaryOp::I32Add)
-                .local_set(*offset_b);
-
-            // loop while we still have elements
-            loop_
-                .local_get(*len_a)
-                .i32_const(offset_delta_a)
-                .binop(BinaryOp::I32Sub)
-                .local_tee(*len_a)
-                .br_if(loop_id);
+                    // loop while we still have elements
+                    then.local_get(*len_a)
+                        .i32_const(offset_delta_a)
+                        .binop(BinaryOp::I32Sub)
+                        .local_tee(*len_a)
+                        .br_if(loop_id);
+                },
+                |_| {},
+            );
 
             loop_id
         };
 
-        // append the loop to the block
-        block_done.instr(Loop { seq: loop_id });
-        // check if we completed all the comparisons, meaning that `len_a` == 0
-        block_done.local_get(*len_a).unop(UnaryOp::I32Eqz);
-
-        block_done_id
-    };
-
-    let block_comparison_loop = {
-        let mut block = builder.dangling_instr_seq(ValType::I32);
-        block.instr(Block {
-            seq: comparison_loop,
-        });
-        block.id()
+        // Now that we have our comparison loop, we add it to the instructions.
+        // After it, we just have to check if the counter `len_a` is at 0, indicating
+        // we looped through all elements and everything is equal
+        instr
+            .instr(Loop { seq: loop_id })
+            .local_get(*len_a)
+            .unop(UnaryOp::I32Eqz);
+        instr.id()
     };
 
     // if-else when sizes are identical
@@ -694,7 +690,7 @@ fn wasm_equal_list(
         // consequent when size is 0; alternative when size > 0
         instr.local_get(*len_a).unop(UnaryOp::I32Eqz).instr(IfElse {
             consequent: empty_lists,
-            alternative: block_comparison_loop,
+            alternative: comparison_loop,
         });
         instr.id()
     };
