@@ -3372,6 +3372,26 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_call_bool_equal,
+    "equal",
+    "call-bool-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_call_bool_unequal,
+    "equal",
+    "call-bool-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_append,
     "sequences",
     "list-append",

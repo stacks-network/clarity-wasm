@@ -189,3 +189,11 @@
 (define-public (call-list-unequal-last-element)
     (ok (is-eq (list 1 2 3 4 5) (list 1 2 3 4 42)))
 )
+
+(define-public (call-bool-equal)
+    (ok (is-eq true true))
+)
+
+(define-public (call-bool-unequal)
+    (ok (is-eq false true))
+)
