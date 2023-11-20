@@ -3967,7 +3967,10 @@ test_contract_call_response!(
     "test-to-int-limit",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(170141183460469231731687303715884105727));
+        assert_eq!(
+            *response.data,
+            Value::Int(170141183460469231731687303715884105727)
+        );
     }
 );
 
