@@ -19,6 +19,8 @@ pub mod instrumented;
 pub mod network;
 pub mod stacks_node;
 
+pub type BoxedDbIterResult<Model> = Result<Box<dyn Iterator<Item = Result<Model>>>>;
+
 /// Helper struct for creating new [RuntimeEnv] instances.
 pub struct RuntimeEnvBuilder {
     app_db: Rc<AppDb>,
@@ -155,11 +157,11 @@ impl ReadableEnv for RuntimeEnvContext {
         self.inner.blocks()
     }
 
-    fn snapshots(&self) -> Result<Vec<Snapshot>> {
+    fn snapshots(&self) -> BoxedDbIterResult<Snapshot> {
         self.inner.snapshots()
     }
 
-    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>>>> {
+    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
         todo!()
     }
 }
@@ -169,11 +171,11 @@ impl ReadableEnv for RuntimeEnvContextMut {
         self.inner.blocks()
     }
 
-    fn snapshots(&self) -> Result<Vec<Snapshot>> {
+    fn snapshots(&self) -> BoxedDbIterResult<Snapshot> {
         self.inner.snapshots()
     }
 
-    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>>>> {
+    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
         todo!()
     }
 }
@@ -211,10 +213,10 @@ pub trait ReadableEnv: RuntimeEnv {
     fn blocks(&self) -> Result<BlockCursor>;
     
     /// Retrieves all [Snapshot]s from the burnchain database.
-    fn snapshots(&self) -> Result<Vec<Snapshot>>;
+    fn snapshots(&self) -> BoxedDbIterResult<Snapshot>;
 
     /// Retrieves all [BlockCommit]s from the burnchain databases.
-    fn block_commits<'a>(&'a self) -> Result<Box<dyn Iterator<Item = Result<BlockCommit>> + 'a>>;
+    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].

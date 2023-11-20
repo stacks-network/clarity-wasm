@@ -8,12 +8,12 @@ use diesel::{
 };
 use log::*;
 
-use super::{ReadableEnv, RuntimeEnv};
+use super::{ReadableEnv, RuntimeEnv, BoxedDbIterResult};
 use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
-use crate::db::dbcursor::{stream_results, RecordCursor};
+use crate::db::dbcursor::stream_results;
 use crate::db::schema::sortition::*;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
@@ -404,11 +404,20 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(cursor)
     }
 
-    fn snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
-        self.sortition_snapshots()
+    fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
+        let state = self.get_env_state()?;
+
+        let result =
+            stream_results::<crate::db::model::sortition_db::Snapshot, crate::types::Snapshot, _, _>(
+                snapshots::table, 
+                state.sortition_db_conn.clone(), 
+                100
+            );
+
+        Ok(Box::new(result))
     }
 
-    fn block_commits<'a>(&'a self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>> + 'a>> {
+    fn block_commits<'a>(&'a self) -> BoxedDbIterResult<crate::types::BlockCommit> {
         let state = self.get_env_state()?;
 
         let result = 

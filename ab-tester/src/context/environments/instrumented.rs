@@ -8,7 +8,7 @@ use diesel::{
 };
 use log::*;
 
-use super::{ReadableEnv, RuntimeEnv, WriteableEnv};
+use super::{ReadableEnv, RuntimeEnv, WriteableEnv, BoxedDbIterResult};
 use crate::context::blocks::BlockHeader;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
@@ -17,6 +17,7 @@ use crate::context::{
     StacksEnvPaths,
 };
 use crate::db::appdb::AppDb;
+use crate::db::dbcursor::stream_results;
 use crate::db::model::app_db as model;
 use crate::db::schema::appdb::{self, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
@@ -37,7 +38,7 @@ pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
-    sortition_db_conn: RefCell<SqliteConnection>,
+    sortition_db_conn: Rc<RefCell<SqliteConnection>>,
     sortition_db: stacks::SortitionDB,
     burnstate_db: Box<dyn clarity::BurnStateDB>,
     headers_db: Box<dyn clarity::HeadersDB>,
@@ -263,7 +264,7 @@ impl RuntimeEnv for InstrumentedEnv {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
-            sortition_db_conn: RefCell::new(sortition_db_conn),
+            sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
             sortition_db,
             burnstate_db,
             headers_db,
@@ -283,19 +284,17 @@ impl ReadableEnv for InstrumentedEnv {
         Ok(cursor)
     }
 
-    fn snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
+    fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
         let state = self.get_env_state()?;
 
-        let results = _snapshots::table
-            .order_by(_snapshots::block_height.asc())
-            .get_results::<model::Snapshot>(
-                &mut *state.sortition_db_conn.borrow_mut()
-            )?
-            .into_iter()
-            .map(|s| s.try_into().expect("failed to convert app snapshot to common type"))
-            .collect::<Vec<types::Snapshot>>();
+        let result =
+            stream_results::<crate::db::model::app_db::Snapshot, crate::types::Snapshot, _, _>(
+                _snapshots::table, 
+                state.sortition_db_conn.clone(), 
+                100
+            );
 
-        Ok(results)
+        Ok(Box::new(result))
     }
 
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {

@@ -108,7 +108,11 @@ impl ComparisonContext {
             target.open()?;
 
             let snapshots = baseline_env.snapshots()?;
-            warn!("snapshot count: {}", snapshots.len());
+            for snap in snapshots {
+                let snapshot = snap.map_err(|e| anyhow!("{e}"))?;
+                debug!("snapshot: {snapshot:?}");
+            }
+            //warn!("snapshot count: {}", snapshots.len());
 
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
