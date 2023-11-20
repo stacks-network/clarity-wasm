@@ -182,6 +182,13 @@ fn wasm_equal(
             builder.unreachable();
             Ok(())
         }
+        TypeSignature::BoolType => {
+            builder
+                .local_get(first_op[0])
+                .local_get(nth_op[0])
+                .binop(BinaryOp::I32Eq);
+            Ok(())
+        }
         // is-eq-int function can be reused to both int and uint types.
         TypeSignature::IntType | TypeSignature::UIntType => {
             if ty == nth_ty {
