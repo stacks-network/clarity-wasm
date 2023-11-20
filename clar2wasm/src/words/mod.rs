@@ -25,6 +25,7 @@ pub mod functions;
 pub mod hashing;
 pub mod logical;
 pub mod maps;
+pub mod noop;
 pub mod options;
 pub mod principal;
 pub mod print;
@@ -96,6 +97,9 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &maps::MapGet,
     &maps::MapInsert,
     &maps::MapSet,
+    &noop::ContractOf,
+    &noop::ToInt,
+    &noop::ToUint,
     &options::IsNone,
     &options::IsSome,
     &principal::Construct,
