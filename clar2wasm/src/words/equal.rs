@@ -1,5 +1,3 @@
-use std::cell::OnceCell;
-
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
