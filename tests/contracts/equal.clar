@@ -110,6 +110,10 @@
     (ok (is-eq (some 0x01) (some 0x02)))
 )
 
+(define-public (call-optional-some-and-err-unequal)
+    (ok (is-eq (some "a value here") none))
+)
+
 (define-public (call-response-ok-equal)
     (ok (is-eq (ok 0) (ok 0)))
 )
@@ -128,6 +132,10 @@
 
 (define-public (call-response-err-unequal)
     (ok (is-eq (err 0x123456) (err 0xabcdef)))
+)
+
+(define-public (call-response-some-err-same-value-unequal)
+    (ok (is-eq (ok 42) (err 42)))
 )
 
 (define-public (call-one-tuple-equal)
@@ -176,6 +184,10 @@
 
 (define-public (call-list-unequal-length)
     (ok (is-eq (list 1 2 3 4 5) (list 1 2 3 4)))
+)
+
+(define-public (call-list-unequal-length-2)
+    (ok (is-eq (list 1 2 3 4) (list 1 2 3 4 5)))
 )
 
 (define-public (call-list-unequal-first-element)

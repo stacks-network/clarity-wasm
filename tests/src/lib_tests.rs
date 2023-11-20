@@ -3172,6 +3172,16 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_call_optional_some_and_err_unequal,
+    "equal",
+    "call-optional-some-and-err-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_call_response_ok_equal,
     "equal",
     "call-response-ok-equal",
@@ -3215,6 +3225,16 @@ test_contract_call_response!(
     test_call_response_err_unequal,
     "equal",
     "call-response-err-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_response_some_err_same_value_unequal,
+    "equal",
+    "call-response-some-err-same-value-unequal",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));
@@ -3335,6 +3355,16 @@ test_contract_call_response!(
     test_call_list_unequal_length,
     "equal",
     "call-list-unequal-length",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_call_list_unequal_length_2,
+    "equal",
+    "call-list-unequal-length-2",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));
