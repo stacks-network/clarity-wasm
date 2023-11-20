@@ -8,7 +8,7 @@ use diesel::{
 };
 use log::*;
 
-use super::{ReadableEnv, RuntimeEnv, BoxedDbIterResult};
+use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv};
 use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
@@ -234,8 +234,10 @@ impl StacksNodeEnv {
                 &mut *state.sortition_db_conn.borrow_mut(),
             )?
             .into_iter()
-            .map(|s| s.try_into()
-                .expect("failed to convert stacks node snapshot to common type"))
+            .map(|s| {
+                s.try_into()
+                    .expect("failed to convert stacks node snapshot to common type")
+            })
             .collect::<Vec<crate::types::Snapshot>>();
 
         Ok(results)
@@ -407,12 +409,16 @@ impl ReadableEnv for StacksNodeEnv {
     fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
         let state = self.get_env_state()?;
 
-        let result =
-            stream_results::<crate::db::model::sortition_db::Snapshot, crate::types::Snapshot, _, _>(
-                snapshots::table.order_by(snapshots::block_height.asc()), 
-                state.sortition_db_conn.clone(), 
-                1000
-            );
+        let result = stream_results::<
+            crate::db::model::sortition_db::Snapshot,
+            crate::types::Snapshot,
+            _,
+            _,
+        >(
+            snapshots::table.order_by(snapshots::block_height.asc()),
+            state.sortition_db_conn.clone(),
+            1000,
+        );
 
         Ok(Box::new(result))
     }
@@ -420,14 +426,13 @@ impl ReadableEnv for StacksNodeEnv {
     fn block_commits(&self) -> BoxedDbIterResult<crate::types::BlockCommit> {
         let state = self.get_env_state()?;
 
-        let result = 
-            stream_results::<crate::db::model::sortition_db::BlockCommit, crate::types::BlockCommit, _, _>(
-                block_commits::table, 
-                state.sortition_db_conn.clone(), 
-                1000
-            );
+        let result = stream_results::<
+            crate::db::model::sortition_db::BlockCommit,
+            crate::types::BlockCommit,
+            _,
+            _,
+        >(block_commits::table, state.sortition_db_conn.clone(), 1000);
 
         Ok(Box::new(result))
     }
-    
 }

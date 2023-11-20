@@ -12,8 +12,8 @@ use super::{Block, BlockTransactionContext, Network, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::{clarity, stacks};
 use crate::types::*;
+use crate::{clarity, stacks};
 
 pub mod instrumented;
 pub mod network;
@@ -211,7 +211,7 @@ pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
-    
+
     /// Retrieves all [Snapshot]s from the burnchain database.
     fn snapshots(&self) -> BoxedDbIterResult<Snapshot>;
 

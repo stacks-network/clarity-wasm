@@ -8,7 +8,7 @@ use diesel::{
 };
 use log::*;
 
-use super::{ReadableEnv, RuntimeEnv, WriteableEnv, BoxedDbIterResult};
+use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, WriteableEnv};
 use crate::context::blocks::BlockHeader;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
@@ -287,12 +287,12 @@ impl ReadableEnv for InstrumentedEnv {
     fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
         let state = self.get_env_state()?;
 
-        let result =
-            stream_results::<crate::db::model::app_db::Snapshot, crate::types::Snapshot, _, _>(
-                _snapshots::table, 
-                state.sortition_db_conn.clone(), 
-                100
-            );
+        let result = stream_results::<
+            crate::db::model::app_db::Snapshot,
+            crate::types::Snapshot,
+            _,
+            _,
+        >(_snapshots::table, state.sortition_db_conn.clone(), 100);
 
         Ok(Box::new(result))
     }
@@ -300,7 +300,6 @@ impl ReadableEnv for InstrumentedEnv {
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
         todo!()
     }
-    
 }
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
