@@ -2447,6 +2447,7 @@
 
     (func $stdlib.int-to-string (param $lo i64) (param $hi i64) (result i32 i32)
         (local $offset i32) (local $len i32)
+        ;; we use $offset and $len as a delta to add/subtract to the final result if the number is negative.
         (local.set $len (local.tee $offset (i64.lt_s (local.get $hi) (i64.const 0))))
         ;; add a '-' if n < 0
         (if (local.get $len)
@@ -2473,6 +2474,7 @@
         )
 
         ;; we adjust offset and length to account for the '-'
+        ;; we save the length to pop it from the stack and so that we can return it in the right order after the offset
         (local.set $len (i32.add (local.get $len)))
         (i32.sub (local.get $offset))
         (local.get $len)
