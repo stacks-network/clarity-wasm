@@ -847,7 +847,15 @@ fn add_externfunc(c: &mut Criterion) {
 
 criterion_group! {
     name = add_comparison;
-    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    config = {
+        if cfg!(feature = "flamegraph") {
+            Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
+        } else if cfg!(feature = "pb") {
+            Criterion::default().with_profiler(PProfProfiler::new(100, Output::Protobuf))
+        } else {
+            Criterion::default()
+        }
+    };
     targets = add, add_externfunc, rust_add, clarity_add
 }
 criterion_main!(add_comparison);

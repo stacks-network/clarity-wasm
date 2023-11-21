@@ -21,6 +21,8 @@ wat = "1.0.74"
 
 [features]
 developer-mode = ["sha2", "chrono", "rusqlite"]
+flamegraph = []
+pb = []
 
 [dev-dependencies]
 wasmtime = "13.0.0"
@@ -29,7 +31,7 @@ proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
 clar2wasm-tests = { path = "../tests" }
 hex = "0.4.3"
-pprof = { version = "0.13", features = ["flamegraph", "criterion", "frame-pointer"] }
+pprof = { version = "0.13", features = ["flamegraph", "protobuf-codec", "criterion", "frame-pointer"] }
 
 [lib]
 path = "src/lib.rs"
