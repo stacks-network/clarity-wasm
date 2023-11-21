@@ -173,3 +173,39 @@ lazy_static! {
 pub fn lookup(name: &str) -> Option<&'static dyn Word> {
     WORDS_BY_NAME.get(name).copied()
 }
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::{
+        functions::{define::DefineFunctions, NativeFunctions},
+        variables::NativeVariables,
+    };
+
+    #[test]
+    fn check_for_duplicates() {
+        use std::collections::HashSet;
+
+        let mut names = HashSet::new();
+
+        for word in super::WORDS {
+            assert!(
+                names.insert(word.name()),
+                "duplicate word: {:?}",
+                word.name()
+            );
+        }
+    }
+
+    #[test]
+    fn check_for_non_reserved_words() {
+        for word in super::WORDS {
+            // Printing each word also gets us coverage on the Debug impl.
+            println!("{:?} => {}", word, word.name());
+            assert!(
+                DefineFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeVariables::lookup_by_name(&word.name()).is_some(),
+            );
+        }
+    }
+}
