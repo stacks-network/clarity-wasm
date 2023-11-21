@@ -106,6 +106,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &principal::Construct,
     &principal::Destruct,
     &principal::IsStandard,
+    &principal::PrincipalOf,
     &print::Print,
     &responses::IsErr,
     &responses::IsOk,

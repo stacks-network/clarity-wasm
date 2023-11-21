@@ -205,6 +205,10 @@
                                                                  (param $pk_offset i32)
                                                                  (param $pk_length i32)
                                                                  (result i32)))
+    (import "clarity" "principal_of" (func $stdlib.principal_of (param $key_offset i32)
+                                                                (param $key_length i32)
+                                                                (param $principal_offset i32)
+                                                                (result i32 i32 i32 i64 i64)))
 
     (import "clarity" "tx_sender" (func $stdlib.tx_sender (param $return_offset i32)
                                                    (param $return_length i32)
