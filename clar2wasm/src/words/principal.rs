@@ -300,7 +300,7 @@ impl Word for PrincipalOf {
             .global_set(generator.stack_pointer);
 
         // Call the host interface function, `principal-of?`
-        builder.call(generator.func_by_name("principal_of"));
+        builder.call(generator.func_by_name("stdlib.principal_of"));
 
         Ok(())
     }

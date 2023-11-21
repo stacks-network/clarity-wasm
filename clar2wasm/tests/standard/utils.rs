@@ -545,6 +545,17 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         )
         .unwrap();
 
+    linker
+        .func_wrap(
+            "clarity",
+            "principal_of",
+            |_key_offset: i32, _key_length: i32, _principal_offset: i32| {
+                println!("secp256k1_verify");
+                Ok((0i32, 0i32, 0i32, 0i64, 0i64))
+            },
+        )
+        .unwrap();
+
     // Create a log function for debugging.
     linker
         .func_wrap("", "log", |param: i64| {
