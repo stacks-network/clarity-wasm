@@ -20,8 +20,8 @@ impl Word for Let {
     ) -> Result<(), GeneratorError> {
         let bindings = args.get_list(0)?;
 
-        // Save the current locals
-        let saved_locals = generator.locals.clone();
+        // Save the current named locals
+        let saved_locals = generator.named_locals.clone();
 
         // Traverse the bindings
         for i in 0..bindings.len() {
@@ -39,15 +39,15 @@ impl Word for Let {
                 .clone();
             let locals = generator.save_to_locals(builder, &ty, true);
 
-            // Add these locals to the map
-            generator.locals.insert(name.to_string(), locals);
+            // Add these named locals to the map
+            generator.named_locals.insert(name.to_string(), locals);
         }
 
         // Traverse the body
         generator.traverse_statement_list(builder, &args[1..])?;
 
-        // Restore the locals
-        generator.locals = saved_locals;
+        // Restore the named locals
+        generator.named_locals = saved_locals;
 
         Ok(())
     }

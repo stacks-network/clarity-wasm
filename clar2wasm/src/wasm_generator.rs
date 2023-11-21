@@ -12,7 +12,7 @@ use clarity::vm::{
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::MemoryId;
 use walrus::{
-    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
+    ir::{BinaryOp, Block, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -40,7 +40,7 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
 
     /// The locals for the current function.
-    pub(crate) locals: HashMap<String, Vec<LocalId>>,
+    pub(crate) named_locals: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
 }
@@ -144,7 +144,7 @@ impl WasmGenerator {
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),
-            locals: HashMap::new(),
+            named_locals: HashMap::new(),
             frame_size: 0,
         }
     }
@@ -368,6 +368,26 @@ impl WasmGenerator {
         self.literal_memory_end += data.len() as u32;
 
         (offset, len)
+    }
+
+    pub(crate) fn block_from_expr(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+    ) -> Result<InstrSeqId, GeneratorError> {
+        let return_type = clar2wasm_ty(
+            self.get_expr_type(expr)
+                .expect("Match results must be typed"),
+        );
+
+        let mut block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &return_type,
+        ));
+        self.traverse_expr(&mut block, expr)?;
+
+        Ok(block.id())
     }
 
     /// Push a new local onto the call stack, adjusting the stack pointer and
@@ -1874,7 +1894,7 @@ impl WasmGenerator {
 
         // Handle parameters and local bindings
         let values = self
-            .locals
+            .named_locals
             .get(atom.as_str())
             .ok_or(GeneratorError::InternalError(format!(
                 "unable to find local for {}",

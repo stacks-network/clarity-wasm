@@ -143,6 +143,10 @@ impl TestEnvironment {
         Ok(return_val)
     }
 
+    pub fn eval(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
+        self.init_contract_with_snippet("snippet", snippet)
+    }
+
     pub fn get_contract_context(&self, contract_name: &str) -> Option<&ContractContext> {
         self.contract_contexts.get(contract_name)
     }
