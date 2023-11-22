@@ -397,7 +397,7 @@ impl Word for Unwrap {
             Some(TypeSignature::ResponseType(inner_types)) => {
                 let (ok_type, err_type) = &**inner_types;
                 // Drop the err value;
-                drop_value(builder, &err_type);
+                drop_value(builder, err_type);
                 ok_type.clone()
             }
             _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
