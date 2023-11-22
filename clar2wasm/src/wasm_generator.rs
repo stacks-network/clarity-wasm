@@ -390,7 +390,7 @@ impl WasmGenerator {
         Ok(block.id())
     }
 
-    /// Pushy a new local onto the call stack, adjusting the stack pointer and
+    /// Push a new local onto the call stack, adjusting the stack pointer and
     /// tracking the current function's frame size accordingly.
     /// - `include_repr` indicates if space should be reserved for the
     ///   representation of the value (e.g. the offset, length for an in-memory
@@ -1600,7 +1600,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("tx_sender")
+                            .by_name("stdlib.tx_sender")
                             .expect("function not found"),
                     );
                     true
