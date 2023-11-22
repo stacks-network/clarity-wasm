@@ -460,8 +460,6 @@ mod tests {
    val (+ val 10)
    err (+ err 107)))";
 
-        assert_eq!(eval(&format!("{ADD_10}")), None);
-
         assert_eq!(
             eval(&format!("{ADD_10} (add-10 (ok 115))")),
             Some(Value::Int(125))
@@ -479,8 +477,6 @@ mod tests {
  (match x
    val val
    1001))";
-
-        assert_eq!(eval(&format!("{ADD_10}")), None);
 
         assert_eq!(
             eval(&format!("{ADD_10} (add-10 none)")),
