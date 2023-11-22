@@ -165,4 +165,31 @@ When executing the compiled Clarity code, it needs to interact with the host - f
 | `var-set` | `set_variable` | - `var_name`: string (offset: i32, length: i32) | - |
 |  |  | - `value`: stack pointer (offset: i32, length: i32) |  |
 
+## Benchmarking
+
+#### Generate a flamegraph
+
+Run the bench command with `--features flamegraph` and `--profile-time <seconds>` flags. 
+
+For example:
+```shell
+cargo bench --bench benchmark --features flamegraph -- --profile-time 10 "add: clarity"
+```
+Output `target/criterion/add_ clarity/profile/flamegraph.svg` preview:
+
+![bench-flamegraph](docs/images/bench-flamegraph-example.png?raw=true)
+
+#### Generate a protobuf and svg graph
+
+Run the bench command with `--features pb` and `--profile-time <seconds>` flags. Then use [`pprof`](https://github.com/google/pprof) to generate a graph.
+
+For example:
+```shell
+cargo bench --bench benchmark --features pb -- --profile-time 10 "add: clarity"
+$GOPATH/bin/pprof -svg "target/criterion/add_ clarity/profile/profile.pb"
+```
+Output `profile001.svg` preview:
+
+![bench-protobuf-graph](docs/images/bench-protobuf-graph-example.png?raw=true)
+
 ## Contribute
