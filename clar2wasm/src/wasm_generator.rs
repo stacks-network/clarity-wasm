@@ -377,7 +377,7 @@ impl WasmGenerator {
     ) -> Result<InstrSeqId, GeneratorError> {
         let return_type = clar2wasm_ty(
             self.get_expr_type(expr)
-                .expect("Match results must be typed"),
+                .expect("Expression results must be typed"),
         );
 
         let mut block = builder.dangling_instr_seq(InstrSeqType::new(

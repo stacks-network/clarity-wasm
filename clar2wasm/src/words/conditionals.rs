@@ -24,7 +24,7 @@ impl Word for If {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let conditional = args.get_expr(0)?;
@@ -57,7 +57,7 @@ impl Word for Match {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let match_on = args.get_expr(0)?;
@@ -72,14 +72,15 @@ impl Word for Match {
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
                 let none_body = args.get_expr(3)?;
-                let some_locals = generator.save_to_locals(builder, &*inner_type, true);
+                let some_locals = generator.save_to_locals(builder, &inner_type, true);
 
                 generator
                     .named_locals
                     .insert(success_binding.as_str().into(), some_locals);
                 let some_block = generator.block_from_expr(builder, success_body)?;
 
-                generator.named_locals = saved_named_locals.clone();
+                // we can restore early, since the none branch does not bind anything
+                generator.named_locals = saved_named_locals;
 
                 let none_block = generator.block_from_expr(builder, none_body)?;
 
@@ -107,13 +108,14 @@ impl Word for Match {
                 // restore named locals
                 generator.named_locals = saved_named_locals.clone();
 
+                // bind err branch local
                 generator
                     .named_locals
                     .insert(err_binding.as_str().into(), err_locals);
 
                 let err_block = generator.block_from_expr(builder, err_body)?;
 
-                // restore again
+                // restore named locals again
                 generator.named_locals = saved_named_locals;
 
                 builder.instr(ir::IfElse {
@@ -485,13 +487,9 @@ mod tests {
             Some(Value::Int(1001))
         );
 
-        // assert_eq!(
-        //     eval(&format!("{ADD_10} (add-10 (some 10))")),
-        //     Some(Value::Int(10))
-        // );
-        // assert_eq!(
-        //     eval(&format!("{ADD_10} (add-10 none)")),
-        //     Some(Value::Int(10))
-        // );
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (some 10))")),
+            Some(Value::Int(10))
+        );
     }
 }
