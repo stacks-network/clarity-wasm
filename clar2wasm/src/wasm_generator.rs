@@ -390,7 +390,7 @@ impl WasmGenerator {
         Ok(block.id())
     }
 
-    /// Push a new local onto the call stack, adjusting the stack pointer and
+    /// Pushy a new local onto the call stack, adjusting the stack pointer and
     /// tracking the current function's frame size accordingly.
     /// - `include_repr` indicates if space should be reserved for the
     ///   representation of the value (e.g. the offset, length for an in-memory
@@ -1600,7 +1600,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.tx_sender")
+                            .by_name("tx_sender")
                             .expect("function not found"),
                     );
                     true
@@ -1622,7 +1622,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.contract_caller")
+                            .by_name("contract_caller")
                             .expect("function not found"),
                     );
                     true
@@ -1644,7 +1644,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.tx_sponsor")
+                            .by_name("tx_sponsor")
                             .expect("function not found"),
                     );
                     true
@@ -1654,7 +1654,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.block_height")
+                            .by_name("block_height")
                             .expect("function not found"),
                     );
                     true
@@ -1664,7 +1664,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.burn_block_height")
+                            .by_name("burn_block_height")
                             .expect("function not found"),
                     );
                     true
@@ -1687,7 +1687,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.stx_liquid_supply")
+                            .by_name("stx_liquid_supply")
                             .expect("function not found"),
                     );
                     true
@@ -1697,7 +1697,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.is_in_regtest")
+                            .by_name("is_in_regtest")
                             .expect("function not found"),
                     );
                     true
@@ -1707,7 +1707,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.is_in_mainnet")
+                            .by_name("is_in_mainnet")
                             .expect("function not found"),
                     );
                     true
@@ -1717,7 +1717,7 @@ impl WasmGenerator {
                     builder.call(
                         self.module
                             .funcs
-                            .by_name("stdlib.chain_id")
+                            .by_name("chain_id")
                             .expect("function not found"),
                     );
                     true
