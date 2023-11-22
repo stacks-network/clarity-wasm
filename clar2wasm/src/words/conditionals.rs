@@ -1,5 +1,6 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt};
+use crate::wasm_generator::ArgumentsExt;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
+
 use clarity::vm::{
     types::{SequenceSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
@@ -23,36 +24,15 @@ impl Word for If {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
 
-        let return_type = clar2wasm_ty(
-            generator
-                .get_expr_type(expr)
-                .expect("If results must be typed"),
-        );
-
-        // create block for true branch
-
-        let mut true_block = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &return_type,
-        ));
-        generator.traverse_expr(&mut true_block, true_branch)?;
-        let id_true = true_block.id();
-
-        let mut false_block = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &return_type,
-        ));
-        generator.traverse_expr(&mut false_block, false_branch)?;
-        let id_false = false_block.id();
+        let id_true = generator.block_from_expr(builder, true_branch)?;
+        let id_false = generator.block_from_expr(builder, false_branch)?;
 
         generator.traverse_expr(builder, conditional)?;
 
@@ -62,6 +42,91 @@ impl Word for If {
         });
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Match;
+
+impl Word for Match {
+    fn name(&self) -> ClarityName {
+        "match".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let match_on = args.get_expr(0)?;
+        let success_binding = args.get_name(1)?;
+        let success_body = args.get_expr(2)?;
+
+        // save the current set of named locals, for later restoration
+        let saved_bindings = generator.bindings.clone();
+
+        generator.traverse_expr(builder, match_on)?;
+
+        match generator.get_expr_type(match_on).cloned() {
+            Some(TypeSignature::OptionalType(inner_type)) => {
+                let none_body = args.get_expr(3)?;
+                let some_locals = generator.save_to_locals(builder, &inner_type, true);
+
+                generator
+                    .bindings
+                    .insert(success_binding.as_str().into(), some_locals);
+                let some_block = generator.block_from_expr(builder, success_body)?;
+
+                // we can restore early, since the none branch does not bind anything
+                generator.bindings = saved_bindings;
+
+                let none_block = generator.block_from_expr(builder, none_body)?;
+
+                builder.instr(ir::IfElse {
+                    consequent: some_block,
+                    alternative: none_block,
+                });
+
+                Ok(())
+            }
+            Some(TypeSignature::ResponseType(inner_types)) => {
+                let (ok_ty, err_ty) = &*inner_types;
+
+                let err_binding = args.get_name(3)?;
+                let err_body = args.get_expr(4)?;
+
+                let err_locals = generator.save_to_locals(builder, err_ty, true);
+                let ok_locals = generator.save_to_locals(builder, ok_ty, true);
+
+                generator
+                    .bindings
+                    .insert(success_binding.as_str().into(), ok_locals);
+                let ok_block = generator.block_from_expr(builder, success_body)?;
+
+                // restore named locals
+                generator.bindings = saved_bindings.clone();
+
+                // bind err branch local
+                generator
+                    .bindings
+                    .insert(err_binding.as_str().into(), err_locals);
+
+                let err_block = generator.block_from_expr(builder, err_body)?;
+
+                // restore named locals again
+                generator.bindings = saved_bindings;
+
+                builder.instr(ir::IfElse {
+                    consequent: ok_block,
+                    alternative: err_block,
+                });
+
+                Ok(())
+            }
+            _ => Err(GeneratorError::TypeError("Invalid type for match".into())),
+        }
     }
 }
 
@@ -384,6 +449,43 @@ mod tests {
                 "#
             ),
             eval("8")
+        );
+    }
+
+    #[test]
+    fn clar_match_a() {
+        const ADD_10: &str = "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   err (+ err 107)))";
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (ok 115))")),
+            Some(Value::Int(125))
+        );
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (err 18))")),
+            Some(Value::Int(125))
+        );
+    }
+
+    #[test]
+    fn clar_match_b() {
+        const ADD_10: &str = "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val
+   1001))";
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 none)")),
+            Some(Value::Int(1001))
+        );
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (some 10))")),
+            Some(Value::Int(10))
         );
     }
 }
