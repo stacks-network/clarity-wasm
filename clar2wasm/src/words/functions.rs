@@ -74,7 +74,7 @@ fn traverse_define_function(
             .expect("define_function not found"),
     );
 
-    let mut named_locals = HashMap::new();
+    let mut bindings = HashMap::new();
 
     // Setup the parameters
     let mut param_locals = Vec::new();
@@ -88,7 +88,7 @@ fn traverse_define_function(
             plocals.push(local);
             params_types.push(ty);
         }
-        named_locals.insert(param.name.to_string(), plocals.clone());
+        bindings.insert(param.name.to_string(), plocals.clone());
     }
 
     let results_types = clar2wasm_ty(&function_type.returns);
@@ -109,7 +109,7 @@ fn traverse_define_function(
 
     // Setup the locals map for this function, saving the top-level map to
     // restore after.
-    let top_level_locals = std::mem::replace(&mut generator.named_locals, named_locals);
+    let top_level_locals = std::mem::replace(&mut generator.bindings, bindings);
 
     let mut block = func_body.dangling_instr_seq(InstrSeqType::new(
         &mut generator.module.types,
@@ -135,7 +135,7 @@ fn traverse_define_function(
         .global_set(generator.stack_pointer);
 
     // Restore the top-level locals map.
-    generator.named_locals = top_level_locals;
+    generator.bindings = top_level_locals;
 
     Ok(func_builder.finish(param_locals, &mut generator.module.funcs))
 }

@@ -40,7 +40,7 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
 
     /// The locals for the current function.
-    pub(crate) named_locals: HashMap<String, Vec<LocalId>>,
+    pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
 }
@@ -144,7 +144,7 @@ impl WasmGenerator {
             stack_pointer: global_id,
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),
-            named_locals: HashMap::new(),
+            bindings: HashMap::new(),
             frame_size: 0,
         }
     }
@@ -1894,7 +1894,7 @@ impl WasmGenerator {
 
         // Handle parameters and local bindings
         let values = self
-            .named_locals
+            .bindings
             .get(atom.as_str())
             .ok_or(GeneratorError::InternalError(format!(
                 "unable to find local for {}",

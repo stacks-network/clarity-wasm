@@ -1,6 +1,6 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt};
+use crate::wasm_generator::ArgumentsExt;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::types::TupleTypeSignature;
+
 use clarity::vm::{
     types::{SequenceSubtype, TypeSignature},
     ClarityName, SymbolicExpression,
@@ -65,7 +65,7 @@ impl Word for Match {
         let success_body = args.get_expr(2)?;
 
         // save the current set of named locals, for later restoration
-        let saved_named_locals = generator.named_locals.clone();
+        let saved_bindings = generator.bindings.clone();
 
         generator.traverse_expr(builder, match_on)?;
 
@@ -75,12 +75,12 @@ impl Word for Match {
                 let some_locals = generator.save_to_locals(builder, &inner_type, true);
 
                 generator
-                    .named_locals
+                    .bindings
                     .insert(success_binding.as_str().into(), some_locals);
                 let some_block = generator.block_from_expr(builder, success_body)?;
 
                 // we can restore early, since the none branch does not bind anything
-                generator.named_locals = saved_named_locals;
+                generator.bindings = saved_bindings;
 
                 let none_block = generator.block_from_expr(builder, none_body)?;
 
@@ -101,22 +101,22 @@ impl Word for Match {
                 let ok_locals = generator.save_to_locals(builder, ok_ty, true);
 
                 generator
-                    .named_locals
+                    .bindings
                     .insert(success_binding.as_str().into(), ok_locals);
                 let ok_block = generator.block_from_expr(builder, success_body)?;
 
                 // restore named locals
-                generator.named_locals = saved_named_locals.clone();
+                generator.bindings = saved_bindings.clone();
 
                 // bind err branch local
                 generator
-                    .named_locals
+                    .bindings
                     .insert(err_binding.as_str().into(), err_locals);
 
                 let err_block = generator.block_from_expr(builder, err_body)?;
 
                 // restore named locals again
-                generator.named_locals = saved_named_locals;
+                generator.bindings = saved_bindings;
 
                 builder.instr(ir::IfElse {
                     consequent: ok_block,

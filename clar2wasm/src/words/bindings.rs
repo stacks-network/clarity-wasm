@@ -21,7 +21,7 @@ impl Word for Let {
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
-        let saved_locals = generator.named_locals.clone();
+        let saved_locals = generator.bindings.clone();
 
         // Traverse the bindings
         for i in 0..bindings.len() {
@@ -40,14 +40,14 @@ impl Word for Let {
             let locals = generator.save_to_locals(builder, &ty, true);
 
             // Add these named locals to the map
-            generator.named_locals.insert(name.to_string(), locals);
+            generator.bindings.insert(name.to_string(), locals);
         }
 
         // Traverse the body
         generator.traverse_statement_list(builder, &args[1..])?;
 
         // Restore the named locals
-        generator.named_locals = saved_locals;
+        generator.bindings = saved_locals;
 
         Ok(())
     }
