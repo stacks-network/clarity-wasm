@@ -6,7 +6,9 @@ use crate::db::schema::sortition::*;
 use crate::utils::*;
 use crate::{clarity, stacks};
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(start_block_height, epoch_id))]
 #[diesel(table_name = epochs)]
 pub struct Epoch {
@@ -48,7 +50,11 @@ impl TryFrom<Epoch> for crate::types::Epoch {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+/// The sortition DB model's [BlockCommit] instance. Model for the table `block_commits`
+/// in the sortition DB's SQL database.
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(txid, sortition_id))]
 #[diesel(table_name = block_commits)]
 pub struct BlockCommit {
@@ -72,6 +78,8 @@ pub struct BlockCommit {
     pub burn_parent_modulus: i32,
 }
 
+/// Convert from the sortition DB model's [BlockCommit] to the DTO type
+/// [crate::types::BlockCommit].
 impl TryFrom<BlockCommit> for crate::types::BlockCommit {
     type Error = color_eyre::eyre::Error;
 
@@ -99,7 +107,38 @@ impl TryFrom<BlockCommit> for crate::types::BlockCommit {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+impl TryFrom<crate::types::BlockCommit> for BlockCommit {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::BlockCommit) -> Result<Self> {
+        Ok(Self {
+            txid: value.txid.to_hex(),
+            vtxindex: value.vtx_index as i32,
+            block_height: value.block_height as i32,
+            burn_header_hash: value.burn_header_hash.to_hex(),
+            sortition_id: value.sortition_id.to_hex(),
+            block_header_hash: value.block_header_hash.to_hex(),
+            new_seed: value.new_seed.to_hex(),
+            parent_block_ptr: value.parent_block_ptr as i32,
+            parent_vtxindex: value.parent_vtx_index as i32,
+            key_block_ptr: value.key_block_ptr as i32,
+            key_vtxindex: value.key_vtx_index as i32,
+            memo: value.memo,
+            commit_outs: serde_json::to_string(&value.commit_outs)?,
+            burn_fee: value.burn_fee.to_string(),
+            sunset_burn: value.sunset_burn.to_string(),
+            input: serde_json::to_string(&value.input)?,
+            apparent_sender: value.apparent_sender.to_string(),
+            burn_parent_modulus: value.burn_parent_modulus as i32,
+        })
+    }
+}
+
+/// The sortition DB model's [Snapshot] instance. Model for table `snapshots` in the
+/// sortition DB's SQL database.
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(sortition_id))]
 #[diesel(table_name = snapshots)]
 pub struct Snapshot {
@@ -129,6 +168,8 @@ pub struct Snapshot {
     pub pox_payouts: String,
 }
 
+/// Convert from the sortition DB model's [Snapshot] to the DTO type
+/// [crate::types::Snapshot].
 impl TryFrom<Snapshot> for crate::types::Snapshot {
     type Error = color_eyre::eyre::Error;
 
@@ -170,7 +211,43 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+/// Convert from the DTO type [crate::types::Snapshot] to the sortition DB
+/// model's [Snapshot].
+impl TryFrom<crate::types::Snapshot> for Snapshot {
+    type Error = color_eyre::eyre::Error;
+    fn try_from(value: crate::types::Snapshot) -> Result<Self> {
+        Ok(Self {
+            block_height: value.block_height as i32,
+            burn_header_hash: value.burn_header_hash.to_hex(),
+            sortition_id: value.sortition_id.to_hex(),
+            parent_sortition_id: value.parent_sortition_id.to_hex(),
+            burn_header_timestamp: value.burn_header_timestamp as i64,
+            parent_burn_header_hash: value.parent_burn_header_hash.to_hex(),
+            consensus_hash: value.consensus_hash.to_hex(),
+            ops_hash: value.ops_hash.to_hex(),
+            total_burn: value.total_burn.to_string(),
+            sortition: value.is_sortition.into(),
+            sortition_hash: value.sortition_hash.to_hex(),
+            winning_block_txid: value.winning_block_txid.to_hex(),
+            winning_stacks_block_hash: value.winning_stacks_block_hash.to_hex(),
+            index_root: value.index_root.to_string(),
+            num_sortitions: value.num_sortitions as i32,
+            stacks_block_accepted: value.was_stacks_block_accepted as i32,
+            stacks_block_height: value.stacks_block_height as i32,
+            arrival_index: value.arrival_index as i32,
+            canonical_stacks_tip_height: value.canonical_stacks_tip_height as i32,
+            canonical_stacks_tip_hash: value.canonical_stacks_tip_hash.to_hex(),
+            canonical_stacks_tip_consensus_hash: value.canonical_stacks_tip_consensus_hash.to_hex(),
+            pox_valid: value.is_pox_valid as i32,
+            accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.to_string(),
+            pox_payouts: value.pox_payouts,
+        })
+    }
+}
+
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(ast_rule_id))]
 #[diesel(table_name = ast_rule_heights)]
 pub struct AstRuleHeight {

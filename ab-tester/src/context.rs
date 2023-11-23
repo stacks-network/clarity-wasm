@@ -112,15 +112,8 @@ impl ComparisonContext {
                 baseline_env.name(),
                 target.name()
             );
-            let snapshots = baseline_env.snapshots()?;
-            for snap in snapshots {
-                let snapshot = snap.map_err(|e| anyhow!("{e}"))?;
-                trace!(
-                    "snapshot {{block height={}, sortition id={}}}",
-                    snapshot.stacks_block_height,
-                    snapshot.sortition_id
-                );
-            }
+
+            target.import_burnstate(baseline_env)?;
 
             info!(
                 "migrating block commits from '{}' to '{}'...",
@@ -283,6 +276,9 @@ struct StacksEnvPaths {
 }
 
 impl StacksEnvPaths {
+    /// Creates a new instance of [StacksEnvPaths] from the provided base
+    /// `working_dir`. This will populate all of the relevent paths needed for
+    /// this application.
     pub fn new(working_dir: &str) -> Self {
         Self {
             working_dir: working_dir.to_string(),
@@ -296,6 +292,7 @@ impl StacksEnvPaths {
         }
     }
 
+    /// Prints information about the paths.
     pub fn print(&self, env_name: &str) {
         info!("[{env_name}] using working dir: {}", self.working_dir);
         debug!("[{env_name}] index db: {}", self.index_db_path);

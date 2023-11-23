@@ -106,7 +106,9 @@ pub struct ContractMap {
     pub name: String,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(consensus_hash, block_hash))]
 #[diesel(table_name = _block_headers)]
 pub struct BlockHeader {
@@ -204,7 +206,9 @@ impl From<super::chainstate_db::BlockHeader> for BlockHeader {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(address, block_hash))]
 #[diesel(table_name = _payments)]
 pub struct Payment {
@@ -228,7 +232,9 @@ impl From<super::chainstate_db::Payment> for Payment {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
 #[diesel(table_name = _matured_rewards)]
 pub struct MaturedReward {
@@ -259,7 +265,9 @@ impl From<&MaturedReward> for stacks::MinerReward {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(ast_rule_id))]
 #[diesel(table_name = _ast_rule_heights)]
 pub struct AstRuleHeight {
@@ -278,7 +286,9 @@ impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(start_block_height, epoch_id))]
 #[diesel(table_name = _epochs)]
 pub struct Epoch {
@@ -303,7 +313,9 @@ impl TryFrom<crate::types::Epoch> for Epoch {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(txid, sortition_id))]
 #[diesel(table_name = _block_commits)]
 pub struct BlockCommit {
@@ -354,7 +366,9 @@ impl TryFrom<crate::types::BlockCommit> for BlockCommit {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(sortition_id))]
 #[diesel(table_name = _snapshots)]
 pub struct Snapshot {

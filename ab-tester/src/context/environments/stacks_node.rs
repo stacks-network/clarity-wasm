@@ -435,4 +435,12 @@ impl ReadableEnv for StacksNodeEnv {
 
         Ok(Box::new(result))
     }
+
+    fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
+        todo!()
+    }
+
+    fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
+        todo!()
+    }
 }

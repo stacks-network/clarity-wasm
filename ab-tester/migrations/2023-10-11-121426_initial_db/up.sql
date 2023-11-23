@@ -181,3 +181,68 @@ CREATE TABLE IF NOT EXISTS _matured_rewards (
 
     PRIMARY KEY (parent_index_block_hash, child_index_block_hash, coinbase)
 );
+
+CREATE TABLE IF NOT EXISTS _ast_rule_heights (
+    ast_rule_id INTEGER PRIMARY KEY,
+    block_height INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS _epochs (
+    start_block_height INTEGER NOT NULL,
+    end_block_height INTEGER NOT NULL,
+    epoch_id INTEGER NOT NULL,
+    block_limit TEXT NOT NULL,
+    network_epoch INTEGER NOT NULL,
+
+    PRIMARY KEY (start_block_height, epoch_id)
+);
+
+CREATE TABLE IF NOT EXISTS _block_commits (
+    txid BINARY NOT NULL,
+    vtxindex INTEGER NOT NULL,
+    block_height INTEGER NOT NULL,
+    burn_header_hash BINARY NOT NULL,
+    sortition_id BINARY NOT NULL,
+    block_header_hash BINARY NOT NULL,
+    new_seed BINARY NOT NULL,
+    parent_block_ptr INTEGER NOT NULL,
+    parent_vtxindex INTEGER NOT NULL,
+    key_block_ptr INTEGER NOT NULL,
+    key_vtxindex INTEGER NOT NULL,
+    memo TEXT NOT NULL,
+    commit_outs TEXT NOT NULL,
+    burn_fee INTEGER NOT NULL,
+    sunset_burn INTEGER NOT NULL,
+    input TEXT NOT NULL,
+    apparent_sender TEXT NOT NULL,
+    burn_parent_modulus INTEGER NOT NULL,
+
+    PRIMARY KEY (txid, sortition_id)
+);
+
+CREATE TABLE IF NOT EXISTS _snapshots (
+    block_height INTEGER NOT NULL,
+    burn_header_hash BINARY NOT NULL,
+    sortition_id BINARY PRIMARY KEY,
+    parent_sortition_id BINARY NOT NULL,
+    burn_header_timestamp INTEGER NOT NULL,
+    parent_burn_header_hash BINARY NOT NULL,
+    consensus_hash BINARY NOT NULL,
+    ops_hash BINARY NOT NULL,
+    total_burn INTEGER NOT NULL,
+    sortition BOOLEAN NOT NULL,
+    sortition_hash BINARY NOT NULL,
+    winning_block_txid BINARY NOT NULL,
+    winning_stacks_block_hash BINARY NOT NULL,
+    index_root BINARY NOT NULL,
+    num_sortitions INTEGER NOT NULL,
+    stacks_block_accepted BOOLEAN NOT NULL,
+    stacks_block_height INTEGER NOT NULL,
+    arrival_index INTEGER NOT NULL,
+    canonical_stacks_tip_height INTEGER NOT NULL,
+    canonical_stacks_tip_hash BINARY NOT NULL,
+    canonical_stacks_tip_consensus_hash BINARY NOT NULL,
+    pox_valid BOOLEAN NOT NULL,
+    accumulated_coinbase_ustx INTEGER NOT NULL,
+    pox_payouts TEXT NOT NULL
+);

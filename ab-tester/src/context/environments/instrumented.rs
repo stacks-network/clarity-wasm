@@ -3,8 +3,12 @@ use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
+use diesel::connection::SimpleConnection;
+use diesel::query_builder::AsQuery;
+use diesel::upsert::excluded;
 use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
+    debug_query, insert_into, upsert, Connection, ExpressionMethods, OptionalExtension, QueryDsl,
+    RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
@@ -19,10 +23,11 @@ use crate::context::{
 use crate::db::appdb::AppDb;
 use crate::db::dbcursor::stream_results;
 use crate::db::model::app_db as model;
+use crate::db::model::sortition_db::*;
 use crate::db::schema::appdb::{self, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
 use crate::db::stacks_headers_db::StacksHeadersDb;
-use crate::{clarity, ok, stacks, types};
+use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig {
@@ -242,7 +247,8 @@ impl RuntimeEnv for InstrumentedEnv {
         info!("[{name}] successfully connected to clarity db");
 
         // Open the sortition db
-        debug!("opening sortition db");
+        debug!("opening sortition dir: {}", &paths.sortition_dir);
+        debug!("sortition db path: {}", &paths.sortition_db_path);
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
         let sortition_db = super::open_sortition_db(&paths.sortition_dir, network)?;
@@ -298,6 +304,14 @@ impl ReadableEnv for InstrumentedEnv {
     }
 
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
+        todo!()
+    }
+
+    fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
+        todo!()
+    }
+
+    fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
         todo!()
     }
 }
@@ -400,11 +414,98 @@ impl WriteableEnv for InstrumentedEnv {
         todo!()
     }
 
-    fn import_snapshots(&mut self, snapshots: &[types::Snapshot]) -> Result<()> {
+    fn import_snapshots(
+        &mut self,
+        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
+    ) -> Result<()> {
+        use crate::db::schema::sortition::snapshots;
+        let state = self.get_env_state()?;
+
+        info!("importing snapshots into '{}'...", self.name());
+        let count: i64 = snapshots::table
+            .count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+        trace!("number of existing snapshots: {count}");
+
+        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
+            for snapshot in snapshots {
+                let snapshot: crate::db::model::sortition_db::Snapshot = snapshot?.try_into()?;
+
+                trace!("inserting snapshot {{sortition_id: {:?}, index_root: {:?}}}", &snapshot.sortition_id, &snapshot.index_root);
+                let insert_stmt = insert_into(snapshots::table)
+                    .values(snapshot)
+                    .on_conflict(snapshots::index_root)
+                    .do_update()
+                    .set(snapshots::index_root.eq(excluded(snapshots::index_root)));
+
+                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+
+                let insert_result = insert_stmt.execute(tx)?;
+
+                if insert_result != 1 {
+                    bail!("expected insert of one snapshot, but got {insert_result} affected rows");
+                }
+            }
+
+            ok!()
+        })?;
+
+        ok!()
+    }
+
+    fn import_block_commits(
+        &mut self,
+        block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
+    ) -> Result<()> {
+        use crate::db::schema::sortition::block_commits;
+        let state = self.get_env_state()?;
+
+        info!("importing block commits into '{}'...", self.name());
+        let count: i64 = block_commits::table
+            .count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+        trace!("number of existing block commits: {count}");
+
+        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
+            for block_commit in block_commits {
+                let block_commit: crate::db::model::sortition_db::BlockCommit = block_commit?.try_into()?;
+
+                trace!("inserting block commit {{txid: {:?}, sortition_id: {:?}", &block_commit.txid, &block_commit.sortition_id);
+                let insert_stmt = insert_into(block_commits::table)
+                    .values(block_commit)
+                    .on_conflict((block_commits::txid, block_commits::sortition_id))
+                    .do_update()
+                    .set((
+                        block_commits::txid.eq(excluded(block_commits::txid)),
+                        block_commits::sortition_id.eq(excluded(block_commits::sortition_id))
+                    ));
+
+                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+
+                let insert_result = insert_stmt.execute(tx)?;
+
+                if insert_result != 1 {
+                    bail!("expected insert of one block commit, but got {insert_result} affected rows");
+                }
+            }
+
+            ok!()
+        })?;
+
+        ok!()
+    }
+
+    fn import_ast_rules(
+        &mut self,
+        ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
+    ) -> Result<()> {
         todo!()
     }
 
-    fn import_block_commits(&mut self, block_commits: &[types::BlockCommit]) -> Result<()> {
+    fn import_epochs(
+        &mut self,
+        ast_rules: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
+    ) -> Result<()> {
         todo!()
     }
 }
