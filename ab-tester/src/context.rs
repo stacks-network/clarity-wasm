@@ -17,7 +17,7 @@ pub mod replay;
 
 pub use blocks::{Block, BlockCursor};
 
-use self::environments::{RuntimeEnv, RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
+use self::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 use self::replay::{ReplayOpts, ReplayResult};
 
 pub struct BaselineBuilder(ComparisonContext);
@@ -95,7 +95,6 @@ impl ComparisonContext {
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
     pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
-        use environments::ReadableEnv;
 
         let baseline_env = self
             .baseline_env

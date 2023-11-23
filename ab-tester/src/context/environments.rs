@@ -86,6 +86,8 @@ impl RuntimeEnvBuilder {
     }
 }
 
+/// Represents a readable runtime environment, such as an existing Stacks node
+/// data dir.
 pub struct RuntimeEnvContext {
     inner: Box<dyn ReadableEnv>,
 }
@@ -98,6 +100,12 @@ impl Deref for RuntimeEnvContext {
     }
 }
 
+impl DerefMut for RuntimeEnvContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.inner
+    }
+}
+
 impl RuntimeEnvContext {
     pub fn new<T: ReadableEnv + 'static>(inner: T) -> Self {
         Self {
@@ -106,46 +114,8 @@ impl RuntimeEnvContext {
     }
 }
 
-impl RuntimeEnv for RuntimeEnvContext {
-    fn name(&self) -> String {
-        self.inner.name()
-    }
-
-    fn is_readonly(&self) -> bool {
-        self.inner.is_readonly()
-    }
-
-    fn is_open(&self) -> bool {
-        self.inner.is_open()
-    }
-
-    fn open(&mut self) -> Result<()> {
-        self.inner.open()
-    }
-}
-
-impl ReadableEnv for RuntimeEnvContext {
-    fn blocks(&self) -> Result<BlockCursor> {
-        self.inner.blocks()
-    }
-
-    fn snapshots(&self) -> BoxedDbIterResult<Snapshot> {
-        self.inner.snapshots()
-    }
-
-    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
-        self.inner.block_commits()
-    }
-
-    fn ast_rules(&self) -> BoxedDbIterResult<AstRuleHeight> {
-        self.inner.ast_rules()
-    }
-
-    fn epochs(&self) -> BoxedDbIterResult<Epoch> {
-        self.inner.epochs()
-    }
-}
-
+/// Represents a mutable/writable environment. Required for target environments
+/// to be opened using this type, which wraps [WriteableEnv].
 pub struct RuntimeEnvContextMut {
     inner: Box<dyn WriteableEnv>,
 }
@@ -171,7 +141,7 @@ impl RuntimeEnvContextMut {
         }
     }
 
-    pub fn import_burnstate(&mut self, source: &dyn ReadableEnv) -> Result<()> {
+    pub fn import_burnstate(&mut self, source: &RuntimeEnvContext) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into '{}'...",
             source.name(),
@@ -209,46 +179,6 @@ impl RuntimeEnvContextMut {
 
     pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
         self.inner.block_begin(block)
-    }
-}
-
-impl RuntimeEnv for RuntimeEnvContextMut {
-    fn name(&self) -> String {
-        self.inner.name()
-    }
-
-    fn is_readonly(&self) -> bool {
-        self.inner.is_readonly()
-    }
-
-    fn is_open(&self) -> bool {
-        self.inner.is_open()
-    }
-
-    fn open(&mut self) -> Result<()> {
-        self.inner.open()
-    }
-}
-
-impl ReadableEnv for RuntimeEnvContextMut {
-    fn blocks(&self) -> Result<BlockCursor> {
-        self.inner.blocks()
-    }
-
-    fn snapshots(&self) -> BoxedDbIterResult<Snapshot> {
-        self.inner.snapshots()
-    }
-
-    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit> {
-        self.inner.block_commits()
-    }
-
-    fn ast_rules(&self) -> BoxedDbIterResult<AstRuleHeight> {
-        self.inner.ast_rules()
-    }
-
-    fn epochs(&self) -> BoxedDbIterResult<Epoch> {
-        self.inner.epochs()
     }
 }
 
@@ -299,25 +229,40 @@ pub trait ReadableEnv: RuntimeEnv {
 
 /// Defines the functionality for a writeable [RuntimeEnv].
 pub trait WriteableEnv: ReadableEnv {
+    /// Begins the [Block] from the source environment in the target environment's
+    /// chainstate.
     fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext>;
 
+    /// Commits the currently open [Block] from the source environment to the
+    /// target environment's chainstate.
     fn block_commit(
         &mut self,
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
 
+    /// Imports burnchain sortition snapshots from a source iterator of 
+    /// [crate::types::Snapshot]s into this environment's sortition database.
     fn import_snapshots(
         &mut self,
         snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
     ) -> Result<()>;
+
+    /// Imports sortition block commits from a source iterator of
+    /// [crate::types::BlockCommit]s into this environment's sortition database.
     fn import_block_commits(
         &mut self,
         block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
     ) -> Result<()>;
+
+    /// Imports AST rules from a source iterator of [crate::types::AstRuleHeight]s
+    /// into this environment's sortition database.
     fn import_ast_rules(
         &mut self,
         ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
     ) -> Result<()>;
+
+    /// Imports epochs from a source iterator of [crate::types::Epoch]s into this
+    /// environment's sortition database.
     fn import_epochs(
         &mut self,
         ast_rules: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,

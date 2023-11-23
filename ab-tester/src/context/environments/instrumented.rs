@@ -440,10 +440,10 @@ impl WriteableEnv for InstrumentedEnv {
 
                 trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
 
-                let insert_result = insert_stmt.execute(tx)?;
+                let affected_rows = insert_stmt.execute(tx)?;
 
-                if insert_result != 1 {
-                    bail!("expected insert of one snapshot, but got {insert_result} affected rows");
+                if affected_rows != 1 {
+                    bail!("expected insert of one snapshot, but got {affected_rows} affected rows");
                 }
             }
 
@@ -482,24 +482,52 @@ impl WriteableEnv for InstrumentedEnv {
 
                 trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
 
-                let insert_result = insert_stmt.execute(tx)?;
+                let affected_rows = insert_stmt.execute(tx)?;
 
-                if insert_result != 1 {
-                    bail!("expected insert of one block commit, but got {insert_result} affected rows");
+                if affected_rows != 1 {
+                    bail!("expected insert of one block commit, but got {affected_rows} affected rows");
                 }
             }
 
             ok!()
-        })?;
-
-        ok!()
+        })
     }
 
     fn import_ast_rules(
         &mut self,
         ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
     ) -> Result<()> {
-        todo!()
+        use crate::db::schema::sortition::ast_rule_heights;
+        let state = self.get_env_state()?;
+
+        info!("importing AST rule heights into '{}'...", self.name());
+        let count: i64 = ast_rule_heights::table
+            .count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+        trace!("number of existing AST rule heights: {count}");
+
+        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
+            for rule in ast_rules {
+                let rule: crate::db::model::sortition_db::AstRuleHeight = rule?.try_into()?;
+
+                trace!("inserting AST rule/height {{ast_rule_id: {}, block_height: {}}}", rule.ast_rule_id, rule.block_height);
+                let insert_stmt = insert_into(ast_rule_heights::table)
+                    .values(rule)
+                    .on_conflict(ast_rule_heights::ast_rule_id)
+                    .do_update()
+                    .set(ast_rule_heights::ast_rule_id.eq(excluded(ast_rule_heights::ast_rule_id)));
+
+                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one AST rule height, but got {affected_rows} affected rows");
+                }
+            }
+
+            ok!()
+        })
     }
 
     fn import_epochs(
