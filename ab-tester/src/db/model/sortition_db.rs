@@ -1,3 +1,5 @@
+/// This file represents the database model for the RDBMS storage of a Stacks
+/// node's Sortition DB (typically located in `burnstate/sortition/marf.sqlite`).
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 use diesel::prelude::*;
@@ -6,6 +8,8 @@ use crate::db::schema::sortition::*;
 use crate::utils::*;
 use crate::{clarity, stacks};
 
+/// The sortition DB model's [Epoch] instance. Model for table `epochs` in the
+/// sortition DB's SQL database.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
@@ -19,6 +23,8 @@ pub struct Epoch {
     pub network_epoch: i32,
 }
 
+/// Convert from the sortition DB model's [Epoch] to a Clarity VM
+/// [clarity::StacksEpoch] instance.
 impl From<Epoch> for clarity::StacksEpoch {
     fn from(value: Epoch) -> Self {
         clarity::StacksEpoch {
@@ -34,6 +40,7 @@ impl From<Epoch> for clarity::StacksEpoch {
     }
 }
 
+/// Convert from the sortition DB model's [Epoch] to the DTO type [crate::types::Epoch].
 impl TryFrom<Epoch> for crate::types::Epoch {
     type Error = color_eyre::eyre::Error;
 
@@ -46,6 +53,22 @@ impl TryFrom<Epoch> for crate::types::Epoch {
                 .map_err(|e| anyhow!("{e:?}"))?,
             block_limit: serde_json::from_str(&value.block_limit)?,
             network_epoch: value.network_epoch as u32,
+        })
+    }
+}
+
+/// Convert from the DTO type [crate::types::Epoch] to the sortition DB model's
+/// [Epoch].
+impl TryFrom<crate::types::Epoch> for Epoch {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::Epoch) -> Result<Self> {
+        Ok(Self {
+            start_block_height: value.start_block_height as i32,
+            end_block_height: value.end_block_height as i32,
+            epoch_id: value.epoch_id as i32,
+            block_limit: serde_json::to_string(&value.block_limit)?,
+            network_epoch: value.network_epoch as i32,
         })
     }
 }
@@ -245,6 +268,8 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
     }
 }
 
+/// The sortition DB model's [AstRuleHeight] instance. Model for table `ast_rule_heights`
+/// in the sortition DB's SQL database.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
@@ -255,6 +280,8 @@ pub struct AstRuleHeight {
     pub block_height: i32,
 }
 
+/// Convert from the sortition DB model's [AstRuleHeight] to the Clarity VM
+/// type [clarity::ASTRules].
 impl From<AstRuleHeight> for clarity::ASTRules {
     fn from(value: AstRuleHeight) -> Self {
         match value.ast_rule_id {
@@ -265,6 +292,8 @@ impl From<AstRuleHeight> for clarity::ASTRules {
     }
 }
 
+/// Convert from the sortition DB model's [AstRuleHeight] to the DTO type
+/// [crate::types::AstRuleHeight].
 impl TryFrom<AstRuleHeight> for crate::types::AstRuleHeight {
     type Error = color_eyre::eyre::Error;
 
@@ -272,6 +301,19 @@ impl TryFrom<AstRuleHeight> for crate::types::AstRuleHeight {
         Ok(Self {
             ast_rule_id: value.ast_rule_id as u32,
             block_height: value.block_height as u32,
+        })
+    }
+}
+
+/// Convert from the DTO type [crate::types::AstRuleHeight] to the sortition
+/// DB model's [AstRuleHeight].
+impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::AstRuleHeight) -> Result<Self> {
+        Ok(Self {
+            ast_rule_id: value.ast_rule_id as i32,
+            block_height: value.block_height as i32,
         })
     }
 }

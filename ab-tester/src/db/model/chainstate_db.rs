@@ -1,3 +1,5 @@
+/// This file contains model types (DTOs) which represent tables in a Stacks
+/// node's chainstate index DB, typically located in `chainstate/vm/index.sqlite`.
 use diesel::prelude::*;
 
 use crate::clarity;

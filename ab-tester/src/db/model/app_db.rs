@@ -1,3 +1,5 @@
+/// This file contains model objects (DTOs) which represent this application's
+/// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
 use diesel::prelude::*;
 

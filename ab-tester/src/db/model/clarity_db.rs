@@ -1,3 +1,5 @@
+/// This file contains model types (DTOs) which represent tables in the RDBMS storage
+/// for a Stacks node's Clarity DB, typically located in `chainstate/vm/clarity/marf.sqlite`.
 use diesel::prelude::*;
 
 use crate::db::schema::clarity_marf::*;
