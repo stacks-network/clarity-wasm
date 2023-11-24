@@ -106,9 +106,14 @@
     (ok (is-eq (some 1) (some 1)))
 )
 
+(define-public (call-optional-none-equal)
+    (ok (is-eq none none))
+)
+
 (define-public (call-optional-unequal)
     (ok (is-eq (some 0x01) (some 0x02)))
 )
+
 
 (define-public (call-optional-some-and-none-unequal)
     (ok (is-eq (some "a value here") none))
