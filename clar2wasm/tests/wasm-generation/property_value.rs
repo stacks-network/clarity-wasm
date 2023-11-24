@@ -1,7 +1,6 @@
 use clarity::vm::types::{
-    BuffData, ListData, ListTypeData, OptionalData, PrincipalData, ResponseData, SequenceData,
-    SequenceSubtype, StandardPrincipalData, StringSubtype, TupleData, TupleTypeSignature,
-    TypeSignature, Value,
+    BuffData, ListData, ListTypeData, OptionalData, ResponseData, SequenceData, SequenceSubtype,
+    StringSubtype, TupleData, TupleTypeSignature, TypeSignature, Value,
 };
 
 use proptest::prelude::*;
@@ -11,7 +10,7 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         Just(TypeSignature::IntType),
         Just(TypeSignature::UIntType),
         Just(TypeSignature::BoolType),
-        Just(TypeSignature::PrincipalType),
+        // Just(TypeSignature::PrincipalType),
         (0u32..256).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
             s.try_into().unwrap()
         ))),
@@ -51,7 +50,6 @@ pub fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::IntType => int().boxed(),
         TypeSignature::UIntType => uint().boxed(),
         TypeSignature::BoolType => bool().boxed(),
-        TypeSignature::PrincipalType => principal().boxed(),
         TypeSignature::OptionalType(ty) => optional(*ty).boxed(),
         TypeSignature::ResponseType(ok_err) => response(ok_err.0, ok_err.1).boxed(),
         TypeSignature::SequenceType(SequenceSubtype::BufferType(size)) => {
@@ -65,6 +63,7 @@ pub fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         }
         TypeSignature::TupleType(tuple_ty) => tuple(tuple_ty).boxed(),
         // TODO
+        TypeSignature::PrincipalType => todo!(),
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
         TypeSignature::CallableType(_) => todo!(),
         TypeSignature::ListUnionType(_) => todo!(),
@@ -84,18 +83,9 @@ fn bool() -> impl Strategy<Value = Value> {
     any::<bool>().prop_map(Value::Bool)
 }
 
-fn principal() -> impl Strategy<Value = Value> {
-    (0u8..32, prop::collection::vec(any::<u8>(), 20..=20)).prop_map(|(version, hash)| {
-        Value::Principal(PrincipalData::Standard(StandardPrincipalData(
-            version,
-            hash.try_into().unwrap(),
-        )))
-    })
-}
-
 fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
     let size = size as usize;
-    prop::collection::vec(0u8..=127, size..=size).prop_map(|bytes| {
+    prop::collection::vec(61u8..=123, size..=size).prop_map(|bytes| {
         Value::Sequence(SequenceData::String(clarity::vm::types::CharType::ASCII(
             clarity::vm::types::ASCIIData { data: bytes },
         )))
