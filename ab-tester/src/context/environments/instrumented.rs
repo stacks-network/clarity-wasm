@@ -3,11 +3,8 @@ use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
-use diesel::connection::SimpleConnection;
-use diesel::query_builder::AsQuery;
-use diesel::upsert::excluded;
 use diesel::{
-    debug_query, insert_into, upsert, Connection, ExpressionMethods, OptionalExtension, QueryDsl,
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl,
     RunQueryDsl, SqliteConnection,
 };
 use log::*;
@@ -21,10 +18,8 @@ use crate::context::{
     StacksEnvPaths,
 };
 use crate::db::appdb::AppDb;
-use crate::db::dbcursor::stream_results;
 use crate::db::model::app_db as model;
-use crate::db::model::sortition_db::*;
-use crate::db::schema::appdb::{self, _snapshots};
+use crate::db::schema::appdb::{self, _block_commits, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
 use crate::db::stacks_headers_db::StacksHeadersDb;
 use crate::{clarity, ok, stacks};
@@ -43,8 +38,8 @@ pub struct InstrumentedEnvState {
     index_db_conn: RefCell<SqliteConnection>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
-    sortition_db_conn: Rc<RefCell<SqliteConnection>>,
-    sortition_db: stacks::SortitionDB,
+    //sortition_db_conn: Rc<RefCell<SqliteConnection>>,
+    //sortition_db: stacks::SortitionDB,
     burnstate_db: Box<dyn clarity::BurnStateDB>,
     headers_db: Box<dyn clarity::HeadersDB>,
 }
@@ -246,16 +241,6 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
-        // Open the sortition db
-        debug!("opening sortition dir: {}", &paths.sortition_dir);
-        debug!("sortition db path: {}", &paths.sortition_db_path);
-        self.callbacks
-            .open_sortition_db_start(self, &paths.sortition_dir);
-        let sortition_db = super::open_sortition_db(&paths.sortition_dir, network)?;
-        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
-        self.callbacks.open_sortition_db_finish(self);
-        info!("successfully opened sortition db");
-
         // Open the burnstate db
         let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
             &paths.sortition_db_path,
@@ -270,8 +255,6 @@ impl RuntimeEnv for InstrumentedEnv {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
-            sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
-            sortition_db,
             burnstate_db,
             headers_db,
         };
@@ -291,20 +274,25 @@ impl ReadableEnv for InstrumentedEnv {
     }
 
     fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
-        let state = self.get_env_state()?;
-
-        let result = stream_results::<
-            crate::db::model::app_db::Snapshot,
-            crate::types::Snapshot,
-            _,
-            _,
-        >(_snapshots::table, state.sortition_db_conn.clone(), 100);
+        let result = self
+            .app_db
+            .stream_results::<crate::db::model::app_db::Snapshot, crate::types::Snapshot, _>(
+                _snapshots::table,
+                100,
+            );
 
         Ok(Box::new(result))
     }
 
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
-        todo!()
+        let result = self
+            .app_db
+            .stream_results::<crate::db::model::app_db::BlockCommit, crate::types::BlockCommit, _>(
+                _block_commits::table,
+                1000,
+            );
+
+        Ok(Box::new(result))
     }
 
     fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
@@ -326,7 +314,16 @@ impl WriteableEnv for InstrumentedEnv {
         let current_block_id: stacks::StacksBlockId;
         let next_block_id: stacks::StacksBlockId;
 
-        warn!("block: {block:?}");
+        debug!("block: {block:?}");
+
+        // Insert this block into the app database.
+        debug!("creating block in app datastore");
+        self.app_db.insert_block(
+            self.id,
+            block.block_height()? as i32,
+            block.block_hash()?.as_bytes(),
+            block.index_block_hash()?,
+        )?;
 
         match block {
             Block::Genesis(inner) => {
@@ -336,8 +333,14 @@ impl WriteableEnv for InstrumentedEnv {
 
                 let state = self.get_env_state_mut()?;
 
-                info!("beginning genesis block");
-                let clarity_tx = state.chainstate.block_begin(
+                info!("beginning genesis block: {}", &inner.header.stacks_block_id()?.to_hex());
+                debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
+                    &inner.header.parent_consensus_hash()?.to_hex(),
+                    &inner.header.parent_block_hash()?.to_hex(),
+                    &inner.header.consensus_hash()?.to_hex(),
+                    &inner.header.stacks_block_hash()?.to_hex()
+                );
+                let clarity_tx = state.chainstate.genesis_block_begin(
                     &*state.burnstate_db,
                     &inner.header.parent_consensus_hash()?,
                     &inner.header.parent_block_hash()?,
@@ -355,18 +358,36 @@ impl WriteableEnv for InstrumentedEnv {
                 current_block_id = inner.header.stacks_block_id()?;
                 // TODO: Fix unwrap
                 next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
+
+                let state = self.get_env_state_mut()?;
+
+                info!("beginning regular block: {}", &inner.header.stacks_block_id()?.to_hex());
+                debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
+                    &inner.header.parent_consensus_hash()?.to_hex(),
+                    &inner.header.parent_block_hash()?.to_hex(),
+                    &inner.header.consensus_hash()?.to_hex(),
+                    &inner.header.stacks_block_hash()?.to_hex()
+                );
+
+                let clarity_tx = state.chainstate.block_begin(
+                    &*state.burnstate_db,
+                    &inner.header.parent_consensus_hash()?,
+                    &inner.header.parent_block_hash()?,
+                    &inner.header.consensus_hash()?,
+                    &inner.header.stacks_block_hash()?,
+                );
+
+                info!("committing regular block");
+                clarity_tx.commit_to_block(
+                    &inner.header.consensus_hash()?,
+                    &inner.header.stacks_block_hash()?,
+                );
             }
         };
 
         info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
 
-        // Insert this block into the app database.
-        self.app_db.insert_block(
-            self.id,
-            block.block_height()? as i32,
-            block.block_hash()?.as_bytes(),
-            block.index_block_hash()?,
-        )?;
+        
 
         let state = self.get_env_state_mut()?;
 
@@ -403,7 +424,7 @@ impl WriteableEnv for InstrumentedEnv {
         &mut self,
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker> {
-        if let BlockTransactionContext::Regular(ctx) = block_tx_ctx {
+        if let BlockTransactionContext::Regular(_ctx) = block_tx_ctx {
             //clarity_tx_conn.commit();
             //let cost_tracker = clarity_block_conn.commit_to_block(&stacks_block_id);
             //chainstate_tx.commit()?;
@@ -418,122 +439,47 @@ impl WriteableEnv for InstrumentedEnv {
         &mut self,
         snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
     ) -> Result<()> {
-        use crate::db::schema::sortition::snapshots;
-        let state = self.get_env_state()?;
-
         info!("importing snapshots into '{}'...", self.name());
-        let count: i64 = snapshots::table
-            .count()
-            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
-        trace!("number of existing snapshots: {count}");
 
-        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
-            for snapshot in snapshots {
-                let snapshot: crate::db::model::sortition_db::Snapshot = snapshot?.try_into()?;
-
-                trace!("inserting snapshot {{sortition_id: {:?}, index_root: {:?}}}", &snapshot.sortition_id, &snapshot.index_root);
-                let insert_stmt = insert_into(snapshots::table)
-                    .values(snapshot)
-                    .on_conflict(snapshots::index_root)
-                    .do_update()
-                    .set(snapshots::index_root.eq(excluded(snapshots::index_root)));
-
-                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
-
-                let affected_rows = insert_stmt.execute(tx)?;
-
-                if affected_rows != 1 {
-                    bail!("expected insert of one snapshot, but got {affected_rows} affected rows");
-                }
-            }
-
-            ok!()
-        })?;
-
-        ok!()
+        // Import the incoming snapshots into the app's instrumented db 
+        self.app_db
+            .batch()
+            .import_snapshots(snapshots)
     }
 
     fn import_block_commits(
         &mut self,
         block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
     ) -> Result<()> {
-        use crate::db::schema::sortition::block_commits;
-        let state = self.get_env_state()?;
-
         info!("importing block commits into '{}'...", self.name());
-        let count: i64 = block_commits::table
-            .count()
-            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
-        trace!("number of existing block commits: {count}");
 
-        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
-            for block_commit in block_commits {
-                let block_commit: crate::db::model::sortition_db::BlockCommit = block_commit?.try_into()?;
-
-                trace!("inserting block commit {{txid: {:?}, sortition_id: {:?}", &block_commit.txid, &block_commit.sortition_id);
-                let insert_stmt = insert_into(block_commits::table)
-                    .values(block_commit)
-                    .on_conflict((block_commits::txid, block_commits::sortition_id))
-                    .do_update()
-                    .set((
-                        block_commits::txid.eq(excluded(block_commits::txid)),
-                        block_commits::sortition_id.eq(excluded(block_commits::sortition_id))
-                    ));
-
-                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
-
-                let affected_rows = insert_stmt.execute(tx)?;
-
-                if affected_rows != 1 {
-                    bail!("expected insert of one block commit, but got {affected_rows} affected rows");
-                }
-            }
-
-            ok!()
-        })
+        // Import the incoming block commits into the app's instrumented db
+        self.app_db
+            .batch()
+            .import_block_commits(block_commits)
     }
 
     fn import_ast_rules(
         &mut self,
         ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
     ) -> Result<()> {
-        use crate::db::schema::sortition::ast_rule_heights;
-        let state = self.get_env_state()?;
-
         info!("importing AST rule heights into '{}'...", self.name());
-        let count: i64 = ast_rule_heights::table
-            .count()
-            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
-        trace!("number of existing AST rule heights: {count}");
-
-        state.sortition_db_conn.borrow_mut().transaction(|tx| -> Result<()> {
-            for rule in ast_rules {
-                let rule: crate::db::model::sortition_db::AstRuleHeight = rule?.try_into()?;
-
-                trace!("inserting AST rule/height {{ast_rule_id: {}, block_height: {}}}", rule.ast_rule_id, rule.block_height);
-                let insert_stmt = insert_into(ast_rule_heights::table)
-                    .values(rule)
-                    .on_conflict(ast_rule_heights::ast_rule_id)
-                    .do_update()
-                    .set(ast_rule_heights::ast_rule_id.eq(excluded(ast_rule_heights::ast_rule_id)));
-
-                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
-
-                let affected_rows = insert_stmt.execute(tx)?;
-
-                if affected_rows != 1 {
-                    bail!("expected insert of one AST rule height, but got {affected_rows} affected rows");
-                }
-            }
-
-            ok!()
-        })
+        
+        // Import the incoming AST rules into the app's instrumented db.
+        self.app_db
+            .batch()
+            .import_ast_rules(ast_rules)
     }
 
     fn import_epochs(
         &mut self,
-        ast_rules: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
+        epochs: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
     ) -> Result<()> {
-        todo!()
+        info!("importing epochs into '{}'...", self.name());
+
+        // Import the incoming epochs into the app's instrumented db.
+        self.app_db
+            .batch()
+            .import_epochs(epochs)
     }
 }

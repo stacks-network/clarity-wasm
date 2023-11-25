@@ -1,15 +1,24 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
+use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
-use color_eyre::eyre::anyhow;
+use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
+use diesel::helper_types::{Limit, Offset};
 use diesel::prelude::*;
-use diesel::{insert_into, OptionalExtension, QueryDsl, SqliteConnection};
+use diesel::query_dsl::methods::{LimitDsl, LoadQuery, OffsetDsl};
+use diesel::upsert::excluded;
+use diesel::{debug_query, insert_into, OptionalExtension, QueryDsl, SqliteConnection};
+use log::*;
 use lz4_flex::compress_prepend_size;
 
+use super::dbcursor::RecordCursor;
 #[allow(unused_imports)]
 use crate::{
     clarity,
     db::{
+        dbcursor,
         model::app_db::{
             Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment,
             MaturedReward, Payment,
@@ -22,10 +31,164 @@ use crate::{
     },
 };
 
+pub struct AppDbBatchContext<'a> {
+    conn: RefMut<'a, SqliteConnection>
+}
+
+impl<'a> AppDbBatchContext<'a> {
+    pub fn new(conn: RefMut<'a, SqliteConnection>) -> Self {
+        Self { conn }
+    }
+
+    pub fn import_snapshots(
+        &mut self, 
+        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for snapshot in snapshots {
+                let snapshot = snapshot?;
+    
+                trace!(
+                    "inserting snapshot {{sortition_id: {:?}, index_root: {:?}}}",
+                    &snapshot.sortition_id,
+                    &snapshot.index_root
+                );
+                let snapshot: super::model::app_db::Snapshot = snapshot.try_into()?;
+    
+                let insert_stmt = insert_into(_snapshots::table)
+                    .values(snapshot)
+                    .on_conflict(_snapshots::index_root)
+                    .do_update()
+                    .set(_snapshots::index_root.eq(excluded(_snapshots::index_root)));
+    
+                trace!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+    
+                let affected_rows = insert_stmt.execute(tx)?;
+    
+                if affected_rows != 1 {
+                    bail!("expected insert of one snapshot, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
+    }
+
+    pub fn import_block_commits(
+        &mut self,
+        block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for block_commit in block_commits {
+                let block_commit = block_commit?;
+
+                trace!("inserting block commit {{txid: {:?}, sortition_id: {:?}", &block_commit.txid, &block_commit.sortition_id);
+                let block_commit: super::model::app_db::BlockCommit = block_commit.try_into()?;
+
+                let insert_stmt = insert_into(_block_commits::table)
+                    .values(block_commit)
+                    .on_conflict((_block_commits::txid, _block_commits::sortition_id))
+                    .do_update()
+                    .set((
+                        _block_commits::txid.eq(excluded(_block_commits::txid)),
+                        _block_commits::sortition_id.eq(excluded(_block_commits::sortition_id)),
+                    ));
+
+                trace!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one block commit, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
+    }
+
+    pub fn import_ast_rules(
+        &mut self,
+        rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for rule in rules {
+                let rule = rule?;
+
+                trace!("inserting AST rule/height {{ast_rule_id: {}, block_height: {}}}", rule.ast_rule_id, rule.block_height);
+                let rule: super::model::app_db::AstRuleHeight = rule.try_into()?;
+
+                let insert_stmt = insert_into(_ast_rule_heights::table)
+                    .values(rule)
+                    .on_conflict(_ast_rule_heights::ast_rule_id)
+                    .do_update()
+                    .set(_ast_rule_heights::ast_rule_id.eq(excluded(_ast_rule_heights::ast_rule_id)));
+
+                trace!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one AST rule height, but got {affected_rows} affected rows");
+                }
+            }
+
+            ok!()
+        })
+    }
+
+    pub fn import_epochs(
+        &mut self,
+        epochs: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for epoch in epochs {
+                let epoch = epoch?;
+
+                trace!("inserting epoch {{epoch_id: {}, start_block: {}, end_block: {}}}", 
+                    epoch.epoch_id, epoch.start_block_height, epoch.end_block_height);
+                let epoch: super::model::app_db::Epoch = epoch.try_into()?;
+
+                let insert_stmt = insert_into(_epochs::table)
+                    .values(epoch)
+                    .on_conflict((_epochs::start_block_height, _epochs::epoch_id))
+                    .do_update()
+                    .set((
+                        _epochs::start_block_height.eq(excluded(_epochs::start_block_height)),
+                        _epochs::epoch_id.eq(excluded(_epochs::epoch_id))
+                    ));
+
+                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one epoch, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
+    }
+}
+
 /// The application database API. Also used to implement instrumented Clarity
 /// stores.
 pub struct AppDb {
-    conn: RefCell<SqliteConnection>,
+    conn: Rc<RefCell<SqliteConnection>>,
 }
 
 impl AppDb {
@@ -33,12 +196,60 @@ impl AppDb {
     /// [diesel::SqliteConnection].
     pub fn new(conn: SqliteConnection) -> Self {
         Self {
-            conn: RefCell::new(conn),
+            conn: Rc::new(RefCell::new(conn)),
         }
     }
 
-    pub fn close(self) -> Result<()> {
-        Ok(())
+    pub fn batch(&self) -> AppDbBatchContext {
+        AppDbBatchContext::new(self.conn.borrow_mut())
+    }
+
+    /// Returns a streaming iterator over the provided query. The `buffer_size_hint`
+    /// specifies the maximum number of records which will be pre-fetched in each page.
+    pub fn stream_results<Record, Model, Query>(
+        &self,
+        query: Query,
+        buffer_size_hint: usize,
+    ) -> impl Iterator<Item = Result<Model>>
+    where
+        Record: TryInto<Model>,
+        Model: Clone,
+        Query: OffsetDsl + Clone,
+        Offset<Query>: LimitDsl,
+        Limit<Offset<Query>>: for<'a> LoadQuery<'a, diesel::SqliteConnection, Record>,
+    {
+        Self::inner_stream_results(query, self.conn.clone(), buffer_size_hint)
+    }
+
+    pub fn stream_snapshots(&self) -> impl Iterator<Item = Result<crate::types::Snapshot>> {
+        Self::inner_stream_results::<super::model::app_db::Snapshot, crate::types::Snapshot, _, _>(
+            _snapshots::table,
+            self.conn.clone(),
+            1000,
+        )
+    }
+
+    /// Get an object that implements the iterator interface.
+    fn inner_stream_results<Record, Model, Query, Conn>(
+        query: Query,
+        conn: Rc<RefCell<Conn>>,
+        buffer_size_hint: usize,
+    ) -> impl Iterator<Item = Result<Model>>
+    where
+        Record: TryInto<Model>,
+        Model: Clone,
+        Query: OffsetDsl + Clone,
+        Offset<Query>: LimitDsl,
+        Limit<Offset<Query>>: for<'a> LoadQuery<'a, Conn, Record>,
+    {
+        RecordCursor {
+            conn,
+            query,
+            cursor: 0,
+            buffer: VecDeque::with_capacity(buffer_size_hint),
+            record_type: PhantomData,
+            model_type: PhantomData,
+        }
     }
 
     /// Retrieves an existing runtime environment by name. Returns [None] if

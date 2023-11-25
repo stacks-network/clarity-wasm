@@ -4,10 +4,8 @@ use log::*;
 
 use super::blocks::BlockHeader;
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
-use super::environments::{ReadableEnv, RuntimeEnvContext, RuntimeEnvContextMut};
-use crate::context::blocks::GenesisBlockInner;
-use crate::context::environments::RuntimeEnv;
-use crate::context::{Block, BlockTransactionContext, RegularBlockTransactionContext};
+use super::environments::{RuntimeEnvContext, RuntimeEnvContextMut};
+use crate::context::{Block, BlockTransactionContext};
 use crate::errors::AppError;
 use crate::{clarity, ok, stacks};
 

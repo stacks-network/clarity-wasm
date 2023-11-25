@@ -1,6 +1,7 @@
 /// This file contains model objects (DTOs) which represent this application's
 /// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
+use color_eyre::eyre::anyhow;
 use diesel::prelude::*;
 
 use crate::db::schema::appdb::*;
@@ -111,9 +112,10 @@ pub struct ContractMap {
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(consensus_hash, block_hash))]
+#[diesel(primary_key(environment_id, consensus_hash, block_hash))]
 #[diesel(table_name = _block_headers)]
 pub struct BlockHeader {
+    pub environment_id: i32,
     pub version: i32,
     /// Converted to/from u64
     pub total_burn: i64,
@@ -162,6 +164,7 @@ pub struct BlockHeader {
 impl From<super::chainstate_db::BlockHeader> for BlockHeader {
     fn from(value: super::chainstate_db::BlockHeader) -> Self {
         Self {
+            environment_id: 0,
             version: value.version,
             total_burn: value
                 .total_burn
@@ -208,12 +211,14 @@ impl From<super::chainstate_db::BlockHeader> for BlockHeader {
     }
 }
 
+/// Represents the `payments` table in a Stacks node's chainstate index db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(address, block_hash))]
+#[diesel(primary_key(environment_id, address, block_hash))]
 #[diesel(table_name = _payments)]
 pub struct Payment {
+    pub environment_id: i32,
     pub address: String,
     pub block_hash: Vec<u8>,
     pub burnchain_commit_burn: i32,
@@ -225,6 +230,7 @@ pub struct Payment {
 impl From<super::chainstate_db::Payment> for Payment {
     fn from(value: super::chainstate_db::Payment) -> Self {
         Payment {
+            environment_id: 0,
             address: value.address,
             block_hash: hex::decode(value.block_hash)
                 .expect("failed to decode block_hash from hex"),
@@ -234,12 +240,14 @@ impl From<super::chainstate_db::Payment> for Payment {
     }
 }
 
+/// Represents the `matured_rewards` table in a Stacks node's chainstate index db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
+#[diesel(primary_key(environment_id, parent_index_block_hash, child_index_block_hash, coinbase))]
 #[diesel(table_name = _matured_rewards)]
 pub struct MaturedReward {
+    pub environment_id: i32,
     pub address: String,
     pub recipient: String,
     pub vtxindex: i32,
@@ -249,6 +257,31 @@ pub struct MaturedReward {
     pub tx_fees_streamed_produced: i32,
     pub child_index_block_hash: Vec<u8>,
     pub parent_index_block_hash: Vec<u8>,
+}
+
+impl From<super::chainstate_db::MaturedReward> for MaturedReward {
+    fn from(value: super::chainstate_db::MaturedReward) -> Self {
+        MaturedReward { 
+            environment_id: 0, 
+            address: value.address, 
+            recipient: value.recipient, 
+            vtxindex: value.vtxindex, 
+            coinbase: value.coinbase.parse()
+                .expect("failed to convert coinbase to i64"), 
+            tx_fees_anchored: value.tx_fees_anchored.parse()
+                .expect("failed to convert tx_fees_anchored to i32"), 
+            tx_fees_streamed_confirmed: value.tx_fees_streamed_confirmed.parse()
+                .expect("failed to convert tx_fees_streamed_confirmed to i32"), 
+            tx_fees_streamed_produced: value.tx_fees_streamed_produced.parse()
+                .expect("failed to convert tx_fees_streamed_produced to i32"), 
+            child_index_block_hash: hex::decode(value.child_index_block_hash)
+                .expect("failed to decode child_index_block_hash from hex")
+                .to_vec(), 
+            parent_index_block_hash: hex::decode(value.parent_index_block_hash)
+                .expect("failed to decode parent_index_block_hash from hex")
+                .to_vec()
+        }
+    }
 }
 
 impl From<&MaturedReward> for stacks::MinerReward {
@@ -267,12 +300,14 @@ impl From<&MaturedReward> for stacks::MinerReward {
     }
 }
 
+/// Represents the `ast_rule_heights` table in a Stacks node's sortition db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(ast_rule_id))]
+#[diesel(primary_key(environment_id, ast_rule_id))]
 #[diesel(table_name = _ast_rule_heights)]
 pub struct AstRuleHeight {
+    pub environment_id: i32,
     pub ast_rule_id: i32,
     pub block_height: i32,
 }
@@ -282,18 +317,21 @@ impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
 
     fn try_from(value: crate::types::AstRuleHeight) -> Result<Self> {
         Ok(Self {
+            environment_id: value.environment_id,
             ast_rule_id: value.ast_rule_id as i32,
             block_height: value.block_height as i32,
         })
     }
 }
 
+/// Represents the `epochs` table in a Stacks node's sortition db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(start_block_height, epoch_id))]
+#[diesel(primary_key(environment_id, start_block_height, epoch_id))]
 #[diesel(table_name = _epochs)]
 pub struct Epoch {
+    pub environment_id: i32,
     pub start_block_height: i32,
     pub end_block_height: i32,
     pub epoch_id: i32,
@@ -306,6 +344,7 @@ impl TryFrom<crate::types::Epoch> for Epoch {
 
     fn try_from(value: crate::types::Epoch) -> Result<Self> {
         Ok(Self {
+            environment_id: value.environment_id,
             start_block_height: value.start_block_height as i32,
             end_block_height: value.end_block_height as i32,
             epoch_id: value.epoch_id as i32,
@@ -315,12 +354,14 @@ impl TryFrom<crate::types::Epoch> for Epoch {
     }
 }
 
+/// Represents the `block_commits` table in a Stacks node's sortition db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(txid, sortition_id))]
+#[diesel(primary_key(environment_id, txid, sortition_id))]
 #[diesel(table_name = _block_commits)]
 pub struct BlockCommit {
+    pub environment_id: i32,
     pub txid: Vec<u8>,
     pub vtxindex: i32,
     pub block_height: i32,
@@ -346,6 +387,7 @@ impl TryFrom<crate::types::BlockCommit> for BlockCommit {
 
     fn try_from(value: crate::types::BlockCommit) -> Result<Self> {
         Ok(Self {
+            environment_id: value.environment_id,
             txid: value.txid.0.to_vec(),
             vtxindex: value.vtx_index as i32,
             block_height: value.block_height as i32,
@@ -368,12 +410,52 @@ impl TryFrom<crate::types::BlockCommit> for BlockCommit {
     }
 }
 
+impl TryFrom<BlockCommit> for crate::types::BlockCommit {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: BlockCommit) -> Result<Self> {
+        Ok(Self {
+            environment_id: value.environment_id,
+            txid: stacks::Txid(value.txid
+                .try_into()
+                .map_err(|e| anyhow!("{:?}", e))?),
+            vtx_index: value.vtxindex as u32,
+            block_height: value.block_height as u32,
+            burn_header_hash: stacks::BurnchainHeaderHash(value.burn_header_hash
+                .try_into()
+                .map_err(|e| anyhow!("{:?}", e))?),
+            sortition_id: stacks::SortitionId(value.sortition_id
+                .try_into()
+                .map_err(|e| anyhow!("{:?}", e))?),
+            block_header_hash: stacks::BlockHeaderHash(value.block_header_hash
+                .try_into()
+                .map_err(|e| anyhow!("{:?}", e))?),
+            new_seed: stacks::VRFSeed(value.new_seed
+                .try_into()
+                .map_err(|e| anyhow!("{:?}", e))?),
+            parent_block_ptr: value.parent_block_ptr as u32,
+            parent_vtx_index: value.parent_vtxindex as u32,
+            key_block_ptr: value.key_block_ptr as u32,
+            key_vtx_index: value.key_vtxindex as u32,
+            memo: value.memo,
+            commit_outs: serde_json::from_str(&value.commit_outs)?,
+            burn_fee: value.burn_fee as u64,
+            sunset_burn: value.sunset_burn as u64,
+            input: serde_json::from_str(&value.input)?,
+            apparent_sender: serde_json::from_str(&value.apparent_sender)?,
+            burn_parent_modulus: value.burn_parent_modulus as u32
+        })
+    }
+}
+
+/// Represents the `snapshots` table in a Stacks node's sortition db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(sortition_id))]
+#[diesel(primary_key(environment_id, sortition_id))]
 #[diesel(table_name = _snapshots)]
 pub struct Snapshot {
+    pub environment_id: i32,
     pub block_height: i32,
     pub burn_header_hash: Vec<u8>,
     pub sortition_id: Vec<u8>,
@@ -405,6 +487,7 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
 
     fn try_from(value: crate::types::Snapshot) -> std::prelude::v1::Result<Self, Self::Error> {
         Ok(Self {
+            environment_id: value.environment_id,
             block_height: value.block_height as i32,
             burn_header_hash: value.burn_header_hash.0.to_vec(),
             sortition_id: value.sortition_id.0.to_vec(),
@@ -441,34 +524,35 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
 
     fn try_from(value: Snapshot) -> Result<Self> {
         Ok(Self {
+            environment_id: value.environment_id,
             block_height: value.block_height as u32,
             burn_header_hash: stacks::BurnchainHeaderHash::from_vec(&value.burn_header_hash)
-                .expect("failed to convert burn header hash bytes to BurnchainHeaderHash"),
+                .ok_or(anyhow!("failed to convert burn header hash bytes to BurnchainHeaderHash"))?,
             sortition_id: stacks::SortitionId::from_vec(&value.sortition_id)
-                .expect("failed to convert sortition id bytes to SortitionId"),
+                .ok_or(anyhow!("failed to convert sortition id bytes to SortitionId"))?,
             parent_sortition_id: stacks::SortitionId::from_vec(&value.parent_sortition_id)
-                .expect("failed to convert parent sortition id bytes to SortitionId"),
+                .ok_or(anyhow!("failed to convert parent sortition id bytes to SortitionId"))?,
             burn_header_timestamp: value.burn_header_timestamp as u64,
             parent_burn_header_hash: stacks::BurnchainHeaderHash::from_vec(
                 &value.parent_burn_header_hash,
             )
-            .expect("failed to convert parent burn header hash to BurnchainHeaderHash"),
+            .ok_or(anyhow!("failed to convert parent burn header hash to BurnchainHeaderHash"))?,
             consensus_hash: stacks::ConsensusHash::from_vec(&value.consensus_hash)
-                .expect("failed to convert consensus hash bytes to ConsensusHash"),
+                .ok_or(anyhow!("failed to convert consensus hash bytes to ConsensusHash"))?,
             ops_hash: stacks::OpsHash::from_vec(&value.ops_hash)
-                .expect("failed to convert ops hash to OpsHash"),
+                .ok_or(anyhow!("failed to convert ops hash to OpsHash"))?,
             total_burn: value.total_burn as u64,
             is_sortition: value.sortition,
             sortition_hash: stacks::SortitionHash::from_vec(&value.sortition_hash)
-                .expect("failed to convert sortition hash bytes to SortitionHash"),
+                .ok_or(anyhow!("failed to convert sortition hash bytes to SortitionHash"))?,
             winning_block_txid: stacks::Txid::from_vec(&value.winning_block_txid)
-                .expect("failed to convert winning block txid to Txid"),
+                .ok_or(anyhow!("failed to convert winning block txid to Txid"))?,
             winning_stacks_block_hash: stacks::BlockHeaderHash::from_vec(
                 &value.winning_stacks_block_hash,
             )
-            .expect("failed to convert winning stacks block hash to BlockHeaderHash"),
+            .ok_or(anyhow!("failed to convert winning stacks block hash to BlockHeaderHash"))?,
             index_root: stacks::TrieHash::from_vec(&value.index_root)
-                .expect("failed to convert index root to TrieHash"),
+                .ok_or(anyhow!("failed to convert index root to TrieHash"))?,
             num_sortitions: value.num_sortitions as u32,
             was_stacks_block_accepted: value.stacks_block_accepted,
             stacks_block_height: value.stacks_block_height as u32,
@@ -477,11 +561,11 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
             canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_vec(
                 &value.canonical_stacks_tip_hash,
             )
-            .expect("failed to convert canonical stacks tip hash to BlockHeaderHash"),
+                .ok_or(anyhow!("failed to convert canonical stacks tip hash to BlockHeaderHash"))?,
             canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_vec(
                 &value.canonical_stacks_tip_consensus_hash,
             )
-            .expect("failed to convert canonical stacks tip consensus hash to ConsensusHash"),
+                .ok_or(anyhow!("failed to convert canonical stacks tip consensus hash to ConsensusHash"))?,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as u64,
             is_pox_valid: value.pox_valid,
             pox_payouts: value.pox_payouts,

@@ -437,10 +437,32 @@ impl ReadableEnv for StacksNodeEnv {
     }
 
     fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
-        todo!()
+        let state = self.get_env_state()?;
+
+        let result = stream_results::<
+            crate::db::model::sortition_db::AstRuleHeight,
+            crate::types::AstRuleHeight,
+            _,
+            _,
+        >(
+            ast_rule_heights::table,
+            state.sortition_db_conn.clone(),
+            100,
+        );
+
+        Ok(Box::new(result))
     }
 
     fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
-        todo!()
+        let state = self.get_env_state()?;
+
+        let result = stream_results::<
+            crate::db::model::sortition_db::Epoch,
+            crate::types::Epoch,
+            _,
+            _,
+        >(epochs::table, state.sortition_db_conn.clone(), 100);
+
+        Ok(Box::new(result))
     }
 }

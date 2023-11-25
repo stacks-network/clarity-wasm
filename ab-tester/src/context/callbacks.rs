@@ -1,4 +1,4 @@
-use super::environments::{RuntimeEnv, RuntimeEnvContextMut, RuntimeEnvContext};
+use super::environments::{RuntimeEnv, RuntimeEnvContext, RuntimeEnvContextMut};
 use super::Network;
 
 #[allow(unused_variables)]
@@ -31,9 +31,21 @@ impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 
 #[allow(unused_variables)]
 pub trait ReplayCallbackHandler {
-    fn replay_start(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut, block_count: usize) {}
+    fn replay_start(
+        &self,
+        source: &RuntimeEnvContext,
+        target: &RuntimeEnvContextMut,
+        block_count: usize,
+    ) {
+    }
     fn replay_finish(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) {}
-    fn replay_block_start(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut, height: u32) {}
+    fn replay_block_start(
+        &self,
+        source: &RuntimeEnvContext,
+        target: &RuntimeEnvContextMut,
+        height: u32,
+    ) {
+    }
     fn replay_block_finish(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) {}
     fn replay_tx_start(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) {}
     fn replay_tx_finish(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) {}

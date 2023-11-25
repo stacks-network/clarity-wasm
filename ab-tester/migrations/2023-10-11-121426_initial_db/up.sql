@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS contract_map_entry (
 );
 
 CREATE TABLE IF NOT EXISTS _block_headers (
+    environment_id INTEGER NOT NULL,
     "version" INTEGER NOT NULL,
     total_burn BIGINT NOT NULL,
     total_work BIGINT NOT NULL,
@@ -156,19 +157,29 @@ CREATE TABLE IF NOT EXISTS _block_headers (
     block_size BIGINT NOT NULL,
     affirmation_weight INTEGER NOT NULL,
 
-    PRIMARY KEY (consensus_hash, block_hash)
+    PRIMARY KEY (environment_id, consensus_hash, block_hash),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _payments (
+    environment_id INTEGER NOT NULL,
     "address" TEXT NOT NULL,
     block_hash BINARY NOT NULL,
     burnchain_commit_burn INTEGER NOT NULL,
     burnchain_sortition_burn INTEGER NOT NULL,
 
-    PRIMARY KEY ("address", block_hash)
+    PRIMARY KEY (environment_id, "address", block_hash),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _matured_rewards (
+    environment_id INTEGER NOT NULL,
     "address" TEXT NOT NULL,
     recipient TEXT NOT NULL,
     vtxindex INTEGER NOT NULL,
@@ -179,25 +190,42 @@ CREATE TABLE IF NOT EXISTS _matured_rewards (
     child_index_block_hash BINARY NOT NULL,
     parent_index_block_hash BINARY NOT NULL,
 
-    PRIMARY KEY (parent_index_block_hash, child_index_block_hash, coinbase)
+    PRIMARY KEY (environment_id, parent_index_block_hash, child_index_block_hash, coinbase),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _ast_rule_heights (
-    ast_rule_id INTEGER PRIMARY KEY,
-    block_height INTEGER NOT NULL
+    environment_id INTEGER NOT NULL,
+    ast_rule_id INTEGER NOT NULL,
+    block_height INTEGER NOT NULL,
+
+    PRIMARY KEY (environment_id, ast_rule_id),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _epochs (
+    environment_id INTEGER NOT NULL,
     start_block_height INTEGER NOT NULL,
     end_block_height INTEGER NOT NULL,
     epoch_id INTEGER NOT NULL,
     block_limit TEXT NOT NULL,
     network_epoch INTEGER NOT NULL,
 
-    PRIMARY KEY (start_block_height, epoch_id)
+    PRIMARY KEY (environment_id, start_block_height, epoch_id),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _block_commits (
+    environment_id INTEGER NOT NULL,
     txid BINARY NOT NULL,
     vtxindex INTEGER NOT NULL,
     block_height INTEGER NOT NULL,
@@ -217,13 +245,18 @@ CREATE TABLE IF NOT EXISTS _block_commits (
     apparent_sender TEXT NOT NULL,
     burn_parent_modulus INTEGER NOT NULL,
 
-    PRIMARY KEY (txid, sortition_id)
+    PRIMARY KEY (environment_id, txid, sortition_id),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );
 
 CREATE TABLE IF NOT EXISTS _snapshots (
+    environment_id INTEGER NOT NULL,
     block_height INTEGER NOT NULL,
     burn_header_hash BINARY NOT NULL,
-    sortition_id BINARY PRIMARY KEY,
+    sortition_id BINARY NOT NULL,
     parent_sortition_id BINARY NOT NULL,
     burn_header_timestamp INTEGER NOT NULL,
     parent_burn_header_hash BINARY NOT NULL,
@@ -234,7 +267,7 @@ CREATE TABLE IF NOT EXISTS _snapshots (
     sortition_hash BINARY NOT NULL,
     winning_block_txid BINARY NOT NULL,
     winning_stacks_block_hash BINARY NOT NULL,
-    index_root BINARY NOT NULL,
+    index_root BINARY UNIQUE NOT NULL,
     num_sortitions INTEGER NOT NULL,
     stacks_block_accepted BOOLEAN NOT NULL,
     stacks_block_height INTEGER NOT NULL,
@@ -244,5 +277,11 @@ CREATE TABLE IF NOT EXISTS _snapshots (
     canonical_stacks_tip_consensus_hash BINARY NOT NULL,
     pox_valid BOOLEAN NOT NULL,
     accumulated_coinbase_ustx INTEGER NOT NULL,
-    pox_payouts TEXT NOT NULL
+    pox_payouts TEXT NOT NULL,
+
+    PRIMARY KEY (environment_id, sortition_id),
+
+    CONSTRAINT fk_environment
+    FOREIGN KEY (environment_id)
+    REFERENCES environment (id)
 );

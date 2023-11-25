@@ -2,12 +2,14 @@ use crate::stacks;
 
 #[derive(Debug, Clone)]
 pub struct AstRuleHeight {
+    pub environment_id: i32,
     pub ast_rule_id: u32,
     pub block_height: u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct Epoch {
+    pub environment_id: i32,
     pub start_block_height: u32,
     pub end_block_height: u32,
     pub epoch_id: stacks::StacksEpochId,
@@ -17,6 +19,7 @@ pub struct Epoch {
 
 #[derive(Debug, Clone)]
 pub struct Snapshot {
+    pub environment_id: i32,
     pub block_height: u32,
     pub burn_header_hash: stacks::BurnchainHeaderHash,
     pub sortition_id: stacks::SortitionId,
@@ -45,6 +48,7 @@ pub struct Snapshot {
 
 #[derive(Debug, Clone)]
 pub struct BlockCommit {
+    pub environment_id: i32,
     pub txid: stacks::Txid,
     pub vtx_index: u32,
     pub block_height: u32,

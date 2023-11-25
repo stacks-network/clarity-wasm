@@ -108,7 +108,8 @@ table! {
 // Note that in this table schema we are using more optimized storage using
 // BigInts and Binary (blob) fields instead of strings/hex strings.
 table! {
-    _block_headers (consensus_hash, block_hash) {
+    _block_headers (environment_id, consensus_hash, block_hash) {
+        environment_id -> Integer,
         version -> Integer,
         // Converted to/from u64.
         total_burn -> BigInt,
@@ -159,7 +160,8 @@ table! {
 // subset of the fields from the actual MARF index as we do not need all of
 // the original fields for replaying transactions.
 table! {
-    _payments (address, block_hash) {
+    _payments (environment_id, address, block_hash) {
+        environment_id -> Integer,
         address -> Text,
         block_hash -> Binary,
         burnchain_commit_burn -> Integer,
@@ -172,7 +174,8 @@ table! {
 // Binary (blob) fields instead of hex strings and Integer/BigInt instead of
 // Text fields.
 table! {
-    _matured_rewards (parent_index_block_hash, child_index_block_hash, coinbase) {
+    _matured_rewards (environment_id, parent_index_block_hash, child_index_block_hash, coinbase) {
+        environment_id -> Integer,
         address -> Text,
         recipient -> Text,
         vtxindex -> Integer,
@@ -187,7 +190,8 @@ table! {
 
 // Table which represents the sortition DB's `ast_rule_heights` table.
 table! {
-    _ast_rule_heights (ast_rule_id) {
+    _ast_rule_heights (environment_id, ast_rule_id) {
+        environment_id -> Integer,
         ast_rule_id -> Integer,
         block_height -> Integer
     }
@@ -195,7 +199,8 @@ table! {
 
 // Table which represents the sortition DB's `epochs` table.
 table! {
-    _epochs (start_block_height, epoch_id) {
+    _epochs (environment_id, start_block_height, epoch_id) {
+        environment_id -> Integer,
         start_block_height -> Integer,
         end_block_height -> Integer,
         epoch_id -> Integer,
@@ -208,7 +213,8 @@ table! {
 // in this table schema we are using optimized column types (i.e. Binary to
 // represent hex instead of Text).
 table! {
-    _block_commits (txid, sortition_id) {
+    _block_commits (environment_id, txid, sortition_id) {
+        environment_id -> Integer,
         txid -> Binary,
         vtxindex -> Integer,
         block_height -> Integer,
@@ -231,7 +237,8 @@ table! {
 }
 
 table! {
-    _snapshots (sortition_id) {
+    _snapshots (environment_id, sortition_id) {
+        environment_id -> Integer,
         block_height -> Integer,
         burn_header_hash -> Binary,
         sortition_id -> Binary,

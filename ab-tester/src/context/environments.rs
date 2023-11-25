@@ -14,7 +14,7 @@ use super::{Block, BlockTransactionContext, Network, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::types::*;
+use crate::{types::*, ok};
 use crate::{clarity, stacks};
 
 pub mod instrumented;
@@ -141,6 +141,10 @@ impl RuntimeEnvContextMut {
         }
     }
 
+    // TODO: Move this to readable env instead, since we want to import burnstate
+    // from source env into the instrumented store. Also add source environment id
+    // so we can keep track of imported burnstate (this doesn't need to be imported
+    // separately into each target environment).
     pub fn import_burnstate(&mut self, source: &RuntimeEnvContext) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into '{}'...",
@@ -174,7 +178,7 @@ impl RuntimeEnvContextMut {
         let src_epochs_iter = source.epochs()?;
         self.inner.import_epochs(src_epochs_iter)?;
 
-        todo!()
+        ok!()
     }
 
     pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
@@ -240,7 +244,7 @@ pub trait WriteableEnv: ReadableEnv {
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
 
-    /// Imports burnchain sortition snapshots from a source iterator of 
+    /// Imports burnchain sortition snapshots from a source iterator of
     /// [crate::types::Snapshot]s into this environment's sortition database.
     fn import_snapshots(
         &mut self,

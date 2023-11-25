@@ -95,11 +95,10 @@ impl ComparisonContext {
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
     pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
-
         let baseline_env = self
             .baseline_env
             .as_mut()
-            .ok_or(anyhow!("baseline environment has need been specified"))?;
+            .ok_or(anyhow!("baseline environment has not been specified"))?;
 
         baseline_env.open()?;
 
@@ -107,23 +106,14 @@ impl ComparisonContext {
             target.open()?;
 
             info!(
-                "migrating snapshots from '{}' to '{}'...",
+                "migrating burnstate from '{}' to '{}'...",
                 baseline_env.name(),
                 target.name()
             );
 
-            target.import_burnstate(baseline_env)?;
-
-            info!(
-                "migrating block commits from '{}' to '{}'...",
-                baseline_env.name(),
-                target.name()
-            );
-            let block_commits = baseline_env.block_commits()?;
-            for bc in block_commits {
-                let commit = bc.map_err(|e| anyhow!("{e}"))?;
-                trace!("block commit {commit:?}");
-            }
+            // This could instead be imported as part of the baseline environment,
+            // having each target env refer to the baseline burnstate.
+            //target.import_burnstate(baseline_env)?;
 
             info!("finished - proceeding with replay");
 

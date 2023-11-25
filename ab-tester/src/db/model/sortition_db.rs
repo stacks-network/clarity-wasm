@@ -46,6 +46,7 @@ impl TryFrom<Epoch> for crate::types::Epoch {
 
     fn try_from(value: Epoch) -> Result<Self> {
         Ok(Self {
+            environment_id: 0,
             start_block_height: value.start_block_height as u32,
             end_block_height: value.end_block_height as u32,
             epoch_id: (value.epoch_id as u32)
@@ -108,6 +109,7 @@ impl TryFrom<BlockCommit> for crate::types::BlockCommit {
 
     fn try_from(value: BlockCommit) -> Result<Self> {
         Ok(Self {
+            environment_id: 0,
             txid: stacks::Txid::from_hex(&value.txid)?,
             vtx_index: value.vtxindex as u32,
             block_height: value.block_height as u32,
@@ -198,6 +200,7 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
 
     fn try_from(value: Snapshot) -> Result<Self> {
         Ok(Self {
+            environment_id: 0,
             block_height: value.block_height as u32,
             burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.burn_header_hash)?,
             sortition_id: stacks::SortitionId::from_hex(&value.sortition_id)?,
@@ -299,6 +302,7 @@ impl TryFrom<AstRuleHeight> for crate::types::AstRuleHeight {
 
     fn try_from(value: AstRuleHeight) -> Result<Self> {
         Ok(Self {
+            environment_id: 0,
             ast_rule_id: value.ast_rule_id as u32,
             block_height: value.block_height as u32,
         })

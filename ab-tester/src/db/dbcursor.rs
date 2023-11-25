@@ -33,13 +33,13 @@ where
 
 /// Represents a pre-fetching cursor for a Diesel query.
 pub struct RecordCursor<Record, Model, Query, Conn> {
-    conn: Rc<RefCell<Conn>>,
-    query: Query,
+    pub conn: Rc<RefCell<Conn>>,
+    pub query: Query,
     /// The index of the next record to fetch from the server
-    cursor: usize,
-    buffer: VecDeque<Record>,
-    record_type: PhantomData<Record>,
-    model_type: PhantomData<Model>,
+    pub cursor: usize,
+    pub buffer: VecDeque<Record>,
+    pub record_type: PhantomData<Record>,
+    pub model_type: PhantomData<Model>,
 }
 
 /// Implementation of [RecordCursor].
