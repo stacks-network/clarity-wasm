@@ -31,4 +31,8 @@ impl RuntimeEnv for NetworkEnv {
     fn open(&mut self) -> Result<()> {
         todo!()
     }
+
+    fn id(&self) -> i32 {
+        todo!()
+    }
 }

@@ -43,7 +43,7 @@ pub struct Snapshot {
     pub canonical_stacks_tip_consensus_hash: stacks::ConsensusHash,
     pub is_pox_valid: bool,
     pub accumulated_coinbase_ustx: u64,
-    pub pox_payouts: String,
+    pub pox_payouts: (Vec<stacks::PoxAddress>, u128),
 }
 
 #[derive(Debug, Clone)]

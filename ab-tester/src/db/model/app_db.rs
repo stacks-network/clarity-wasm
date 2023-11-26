@@ -1,7 +1,7 @@
+use color_eyre::eyre::anyhow;
 /// This file contains model objects (DTOs) which represent this application's
 /// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
-use color_eyre::eyre::anyhow;
 use diesel::prelude::*;
 
 use crate::db::schema::appdb::*;
@@ -244,7 +244,12 @@ impl From<super::chainstate_db::Payment> for Payment {
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
 )]
-#[diesel(primary_key(environment_id, parent_index_block_hash, child_index_block_hash, coinbase))]
+#[diesel(primary_key(
+    environment_id,
+    parent_index_block_hash,
+    child_index_block_hash,
+    coinbase
+))]
 #[diesel(table_name = _matured_rewards)]
 pub struct MaturedReward {
     pub environment_id: i32,
@@ -261,25 +266,33 @@ pub struct MaturedReward {
 
 impl From<super::chainstate_db::MaturedReward> for MaturedReward {
     fn from(value: super::chainstate_db::MaturedReward) -> Self {
-        MaturedReward { 
-            environment_id: 0, 
-            address: value.address, 
-            recipient: value.recipient, 
-            vtxindex: value.vtxindex, 
-            coinbase: value.coinbase.parse()
-                .expect("failed to convert coinbase to i64"), 
-            tx_fees_anchored: value.tx_fees_anchored.parse()
-                .expect("failed to convert tx_fees_anchored to i32"), 
-            tx_fees_streamed_confirmed: value.tx_fees_streamed_confirmed.parse()
-                .expect("failed to convert tx_fees_streamed_confirmed to i32"), 
-            tx_fees_streamed_produced: value.tx_fees_streamed_produced.parse()
-                .expect("failed to convert tx_fees_streamed_produced to i32"), 
+        MaturedReward {
+            environment_id: 0,
+            address: value.address,
+            recipient: value.recipient,
+            vtxindex: value.vtxindex,
+            coinbase: value
+                .coinbase
+                .parse()
+                .expect("failed to convert coinbase to i64"),
+            tx_fees_anchored: value
+                .tx_fees_anchored
+                .parse()
+                .expect("failed to convert tx_fees_anchored to i32"),
+            tx_fees_streamed_confirmed: value
+                .tx_fees_streamed_confirmed
+                .parse()
+                .expect("failed to convert tx_fees_streamed_confirmed to i32"),
+            tx_fees_streamed_produced: value
+                .tx_fees_streamed_produced
+                .parse()
+                .expect("failed to convert tx_fees_streamed_produced to i32"),
             child_index_block_hash: hex::decode(value.child_index_block_hash)
                 .expect("failed to decode child_index_block_hash from hex")
-                .to_vec(), 
+                .to_vec(),
             parent_index_block_hash: hex::decode(value.parent_index_block_hash)
                 .expect("failed to decode parent_index_block_hash from hex")
-                .to_vec()
+                .to_vec(),
         }
     }
 }
@@ -335,7 +348,7 @@ pub struct Epoch {
     pub start_block_height: i32,
     pub end_block_height: i32,
     pub epoch_id: i32,
-    pub block_limit: String,
+    pub block_limit: Vec<u8>,
     pub network_epoch: i32,
 }
 
@@ -348,7 +361,7 @@ impl TryFrom<crate::types::Epoch> for Epoch {
             start_block_height: value.start_block_height as i32,
             end_block_height: value.end_block_height as i32,
             epoch_id: value.epoch_id as i32,
-            block_limit: serde_json::to_string(&value.block_limit)?,
+            block_limit: rmp_serde::encode::to_vec(&value.block_limit)?,
             network_epoch: value.network_epoch as i32,
         })
     }
@@ -374,11 +387,11 @@ pub struct BlockCommit {
     pub key_block_ptr: i32,
     pub key_vtxindex: i32,
     pub memo: String,
-    pub commit_outs: String,
+    pub commit_outs: Vec<u8>,
     pub burn_fee: i64,
     pub sunset_burn: i64,
-    pub input: String,
-    pub apparent_sender: String,
+    pub input: Vec<u8>,
+    pub apparent_sender: Vec<u8>,
     pub burn_parent_modulus: i32,
 }
 
@@ -400,11 +413,11 @@ impl TryFrom<crate::types::BlockCommit> for BlockCommit {
             key_block_ptr: value.key_block_ptr as i32,
             key_vtxindex: value.key_vtx_index as i32,
             memo: value.memo,
-            commit_outs: serde_json::to_string(&value.commit_outs)?,
+            commit_outs: rmp_serde::encode::to_vec(&value.commit_outs)?,
             burn_fee: value.burn_fee as i64,
             sunset_burn: value.sunset_burn as i64,
-            input: serde_json::to_string(&value.input)?,
-            apparent_sender: value.apparent_sender.0,
+            input: rmp_serde::encode::to_vec(&value.input)?,
+            apparent_sender: rmp_serde::encode::to_vec(&value.apparent_sender)?,
             burn_parent_modulus: value.burn_parent_modulus as i32,
         })
     }
@@ -416,34 +429,39 @@ impl TryFrom<BlockCommit> for crate::types::BlockCommit {
     fn try_from(value: BlockCommit) -> Result<Self> {
         Ok(Self {
             environment_id: value.environment_id,
-            txid: stacks::Txid(value.txid
-                .try_into()
-                .map_err(|e| anyhow!("{:?}", e))?),
+            txid: stacks::Txid(value.txid.try_into().map_err(|e| anyhow!("{:?}", e))?),
             vtx_index: value.vtxindex as u32,
             block_height: value.block_height as u32,
-            burn_header_hash: stacks::BurnchainHeaderHash(value.burn_header_hash
-                .try_into()
-                .map_err(|e| anyhow!("{:?}", e))?),
-            sortition_id: stacks::SortitionId(value.sortition_id
-                .try_into()
-                .map_err(|e| anyhow!("{:?}", e))?),
-            block_header_hash: stacks::BlockHeaderHash(value.block_header_hash
-                .try_into()
-                .map_err(|e| anyhow!("{:?}", e))?),
-            new_seed: stacks::VRFSeed(value.new_seed
-                .try_into()
-                .map_err(|e| anyhow!("{:?}", e))?),
+            burn_header_hash: stacks::BurnchainHeaderHash(
+                value
+                    .burn_header_hash
+                    .try_into()
+                    .map_err(|e| anyhow!("{:?}", e))?,
+            ),
+            sortition_id: stacks::SortitionId(
+                value
+                    .sortition_id
+                    .try_into()
+                    .map_err(|e| anyhow!("{:?}", e))?,
+            ),
+            block_header_hash: stacks::BlockHeaderHash(
+                value
+                    .block_header_hash
+                    .try_into()
+                    .map_err(|e| anyhow!("{:?}", e))?,
+            ),
+            new_seed: stacks::VRFSeed(value.new_seed.try_into().map_err(|e| anyhow!("{:?}", e))?),
             parent_block_ptr: value.parent_block_ptr as u32,
             parent_vtx_index: value.parent_vtxindex as u32,
             key_block_ptr: value.key_block_ptr as u32,
             key_vtx_index: value.key_vtxindex as u32,
             memo: value.memo,
-            commit_outs: serde_json::from_str(&value.commit_outs)?,
+            commit_outs: rmp_serde::decode::from_slice(&value.commit_outs)?,
             burn_fee: value.burn_fee as u64,
             sunset_burn: value.sunset_burn as u64,
-            input: serde_json::from_str(&value.input)?,
-            apparent_sender: serde_json::from_str(&value.apparent_sender)?,
-            burn_parent_modulus: value.burn_parent_modulus as u32
+            input: rmp_serde::decode::from_slice(&value.input)?,
+            apparent_sender: rmp_serde::decode::from_slice(&value.apparent_sender)?,
+            burn_parent_modulus: value.burn_parent_modulus as u32,
         })
     }
 }
@@ -479,7 +497,7 @@ pub struct Snapshot {
     pub canonical_stacks_tip_consensus_hash: Vec<u8>,
     pub pox_valid: bool,
     pub accumulated_coinbase_ustx: i64,
-    pub pox_payouts: String,
+    pub pox_payouts: Vec<u8>,
 }
 
 impl TryFrom<crate::types::Snapshot> for Snapshot {
@@ -514,7 +532,7 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
                 .to_vec(),
             pox_valid: value.is_pox_valid,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as i64,
-            pox_payouts: value.pox_payouts,
+            pox_payouts: rmp_serde::encode::to_vec(&value.pox_payouts)?,
         })
     }
 }
@@ -527,30 +545,40 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
             environment_id: value.environment_id,
             block_height: value.block_height as u32,
             burn_header_hash: stacks::BurnchainHeaderHash::from_vec(&value.burn_header_hash)
-                .ok_or(anyhow!("failed to convert burn header hash bytes to BurnchainHeaderHash"))?,
-            sortition_id: stacks::SortitionId::from_vec(&value.sortition_id)
-                .ok_or(anyhow!("failed to convert sortition id bytes to SortitionId"))?,
-            parent_sortition_id: stacks::SortitionId::from_vec(&value.parent_sortition_id)
-                .ok_or(anyhow!("failed to convert parent sortition id bytes to SortitionId"))?,
+                .ok_or(anyhow!(
+                    "failed to convert burn header hash bytes to BurnchainHeaderHash"
+                ))?,
+            sortition_id: stacks::SortitionId::from_vec(&value.sortition_id).ok_or(anyhow!(
+                "failed to convert sortition id bytes to SortitionId"
+            ))?,
+            parent_sortition_id: stacks::SortitionId::from_vec(&value.parent_sortition_id).ok_or(
+                anyhow!("failed to convert parent sortition id bytes to SortitionId"),
+            )?,
             burn_header_timestamp: value.burn_header_timestamp as u64,
             parent_burn_header_hash: stacks::BurnchainHeaderHash::from_vec(
                 &value.parent_burn_header_hash,
             )
-            .ok_or(anyhow!("failed to convert parent burn header hash to BurnchainHeaderHash"))?,
-            consensus_hash: stacks::ConsensusHash::from_vec(&value.consensus_hash)
-                .ok_or(anyhow!("failed to convert consensus hash bytes to ConsensusHash"))?,
+            .ok_or(anyhow!(
+                "failed to convert parent burn header hash to BurnchainHeaderHash"
+            ))?,
+            consensus_hash: stacks::ConsensusHash::from_vec(&value.consensus_hash).ok_or(
+                anyhow!("failed to convert consensus hash bytes to ConsensusHash"),
+            )?,
             ops_hash: stacks::OpsHash::from_vec(&value.ops_hash)
                 .ok_or(anyhow!("failed to convert ops hash to OpsHash"))?,
             total_burn: value.total_burn as u64,
             is_sortition: value.sortition,
-            sortition_hash: stacks::SortitionHash::from_vec(&value.sortition_hash)
-                .ok_or(anyhow!("failed to convert sortition hash bytes to SortitionHash"))?,
+            sortition_hash: stacks::SortitionHash::from_vec(&value.sortition_hash).ok_or(
+                anyhow!("failed to convert sortition hash bytes to SortitionHash"),
+            )?,
             winning_block_txid: stacks::Txid::from_vec(&value.winning_block_txid)
                 .ok_or(anyhow!("failed to convert winning block txid to Txid"))?,
             winning_stacks_block_hash: stacks::BlockHeaderHash::from_vec(
                 &value.winning_stacks_block_hash,
             )
-            .ok_or(anyhow!("failed to convert winning stacks block hash to BlockHeaderHash"))?,
+            .ok_or(anyhow!(
+                "failed to convert winning stacks block hash to BlockHeaderHash"
+            ))?,
             index_root: stacks::TrieHash::from_vec(&value.index_root)
                 .ok_or(anyhow!("failed to convert index root to TrieHash"))?,
             num_sortitions: value.num_sortitions as u32,
@@ -561,14 +589,18 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
             canonical_stacks_tip_hash: stacks::BlockHeaderHash::from_vec(
                 &value.canonical_stacks_tip_hash,
             )
-                .ok_or(anyhow!("failed to convert canonical stacks tip hash to BlockHeaderHash"))?,
+            .ok_or(anyhow!(
+                "failed to convert canonical stacks tip hash to BlockHeaderHash"
+            ))?,
             canonical_stacks_tip_consensus_hash: stacks::ConsensusHash::from_vec(
                 &value.canonical_stacks_tip_consensus_hash,
             )
-                .ok_or(anyhow!("failed to convert canonical stacks tip consensus hash to ConsensusHash"))?,
+            .ok_or(anyhow!(
+                "failed to convert canonical stacks tip consensus hash to ConsensusHash"
+            ))?,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx as u64,
             is_pox_valid: value.pox_valid,
-            pox_payouts: value.pox_payouts,
+            pox_payouts: rmp_serde::decode::from_slice(&value.pox_payouts)?,
         })
     }
 }

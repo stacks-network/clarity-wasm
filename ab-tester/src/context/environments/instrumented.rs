@@ -4,8 +4,7 @@ use std::rc::Rc;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, QueryDsl,
-    RunQueryDsl, SqliteConnection,
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
@@ -263,6 +262,10 @@ impl RuntimeEnv for InstrumentedEnv {
 
         ok!()
     }
+
+    fn id(&self) -> i32 {
+        self.id
+    }
 }
 
 /// Implementation of [ReadableEnv] for [InstrumentedEnv].
@@ -333,7 +336,10 @@ impl WriteableEnv for InstrumentedEnv {
 
                 let state = self.get_env_state_mut()?;
 
-                info!("beginning genesis block: {}", &inner.header.stacks_block_id()?.to_hex());
+                info!(
+                    "beginning genesis block: {}",
+                    &inner.header.stacks_block_id()?.to_hex()
+                );
                 debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
                     &inner.header.parent_consensus_hash()?.to_hex(),
                     &inner.header.parent_block_hash()?.to_hex(),
@@ -361,7 +367,10 @@ impl WriteableEnv for InstrumentedEnv {
 
                 let state = self.get_env_state_mut()?;
 
-                info!("beginning regular block: {}", &inner.header.stacks_block_id()?.to_hex());
+                info!(
+                    "beginning regular block: {}",
+                    &inner.header.stacks_block_id()?.to_hex()
+                );
                 debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
                     &inner.header.parent_consensus_hash()?.to_hex(),
                     &inner.header.parent_block_hash()?.to_hex(),
@@ -386,8 +395,6 @@ impl WriteableEnv for InstrumentedEnv {
         };
 
         info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
-
-        
 
         let state = self.get_env_state_mut()?;
 
@@ -433,53 +440,5 @@ impl WriteableEnv for InstrumentedEnv {
         }
 
         todo!()
-    }
-
-    fn import_snapshots(
-        &mut self,
-        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
-    ) -> Result<()> {
-        info!("importing snapshots into '{}'...", self.name());
-
-        // Import the incoming snapshots into the app's instrumented db 
-        self.app_db
-            .batch()
-            .import_snapshots(snapshots)
-    }
-
-    fn import_block_commits(
-        &mut self,
-        block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
-    ) -> Result<()> {
-        info!("importing block commits into '{}'...", self.name());
-
-        // Import the incoming block commits into the app's instrumented db
-        self.app_db
-            .batch()
-            .import_block_commits(block_commits)
-    }
-
-    fn import_ast_rules(
-        &mut self,
-        ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
-    ) -> Result<()> {
-        info!("importing AST rule heights into '{}'...", self.name());
-        
-        // Import the incoming AST rules into the app's instrumented db.
-        self.app_db
-            .batch()
-            .import_ast_rules(ast_rules)
-    }
-
-    fn import_epochs(
-        &mut self,
-        epochs: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
-    ) -> Result<()> {
-        info!("importing epochs into '{}'...", self.name());
-
-        // Import the incoming epochs into the app's instrumented db.
-        self.app_db
-            .batch()
-            .import_epochs(epochs)
     }
 }

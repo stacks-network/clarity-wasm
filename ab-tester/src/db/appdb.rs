@@ -32,7 +32,7 @@ use crate::{
 };
 
 pub struct AppDbBatchContext<'a> {
-    conn: RefMut<'a, SqliteConnection>
+    conn: RefMut<'a, SqliteConnection>,
 }
 
 impl<'a> AppDbBatchContext<'a> {
@@ -40,35 +40,46 @@ impl<'a> AppDbBatchContext<'a> {
         Self { conn }
     }
 
+    /// Imports snapshots from the provided source iterator into the app's datastore,
+    /// optionally associating the entries with the provided `environment_id`.
     pub fn import_snapshots(
-        &mut self, 
-        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>
+        &mut self,
+        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
+        environment_id: Option<i32>,
     ) -> Result<()> {
         let conn = &mut *self.conn;
 
         conn.transaction(|tx| -> Result<()> {
             for snapshot in snapshots {
                 let snapshot = snapshot?;
-    
+
                 trace!(
                     "inserting snapshot {{sortition_id: {:?}, index_root: {:?}}}",
                     &snapshot.sortition_id,
                     &snapshot.index_root
                 );
-                let snapshot: super::model::app_db::Snapshot = snapshot.try_into()?;
-    
+                let mut snapshot: super::model::app_db::Snapshot = snapshot.try_into()?;
+
+                if let Some(id) = environment_id {
+                    snapshot.environment_id = id;
+                }
+
                 let insert_stmt = insert_into(_snapshots::table)
                     .values(snapshot)
-                    .on_conflict(_snapshots::index_root)
+                    .on_conflict((_snapshots::environment_id, _snapshots::index_root))
                     .do_update()
-                    .set(_snapshots::index_root.eq(excluded(_snapshots::index_root)));
-    
+                    .set((
+                        _snapshots::environment_id.eq(excluded(_snapshots::environment_id)),
+                        _snapshots::index_root.eq(excluded(_snapshots::index_root)),
+                    ));
+
                 trace!(
                     "SQL: {}",
-                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
-    
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
                 let affected_rows = insert_stmt.execute(tx)?;
-    
+
                 if affected_rows != 1 {
                     bail!("expected insert of one snapshot, but got {affected_rows} affected rows");
                 }
@@ -77,9 +88,12 @@ impl<'a> AppDbBatchContext<'a> {
         })
     }
 
+    /// Imports block commits from the provided source iterator into the app's
+    /// datastore, optionally associating each entry with the provided `environment_id`.
     pub fn import_block_commits(
         &mut self,
         block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
+        environment_id: Option<i32>,
     ) -> Result<()> {
         let conn = &mut *self.conn;
 
@@ -88,13 +102,22 @@ impl<'a> AppDbBatchContext<'a> {
                 let block_commit = block_commit?;
 
                 trace!("inserting block commit {{txid: {:?}, sortition_id: {:?}", &block_commit.txid, &block_commit.sortition_id);
-                let block_commit: super::model::app_db::BlockCommit = block_commit.try_into()?;
+                let mut block_commit: super::model::app_db::BlockCommit = block_commit.try_into()?;
+
+                if let Some(id) = environment_id {
+                    block_commit.environment_id = id;
+                }
 
                 let insert_stmt = insert_into(_block_commits::table)
                     .values(block_commit)
-                    .on_conflict((_block_commits::txid, _block_commits::sortition_id))
+                    .on_conflict((
+                        _block_commits::environment_id,
+                        _block_commits::txid,
+                        _block_commits::sortition_id
+                    ))
                     .do_update()
                     .set((
+                        _block_commits::environment_id.eq(excluded(_block_commits::environment_id)),
                         _block_commits::txid.eq(excluded(_block_commits::txid)),
                         _block_commits::sortition_id.eq(excluded(_block_commits::sortition_id)),
                     ));
@@ -114,9 +137,12 @@ impl<'a> AppDbBatchContext<'a> {
         })
     }
 
+    /// Imports AST rules from the provided source iterator into the app's datastore,
+    /// optionally associating each entry with the provided `environment_id`.
     pub fn import_ast_rules(
         &mut self,
         rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
+        environment_id: Option<i32>,
     ) -> Result<()> {
         let conn = &mut *self.conn;
 
@@ -125,13 +151,23 @@ impl<'a> AppDbBatchContext<'a> {
                 let rule = rule?;
 
                 trace!("inserting AST rule/height {{ast_rule_id: {}, block_height: {}}}", rule.ast_rule_id, rule.block_height);
-                let rule: super::model::app_db::AstRuleHeight = rule.try_into()?;
+                let mut rule: super::model::app_db::AstRuleHeight = rule.try_into()?;
+
+                if let Some(id) = environment_id {
+                    rule.environment_id = id;
+                }
 
                 let insert_stmt = insert_into(_ast_rule_heights::table)
                     .values(rule)
-                    .on_conflict(_ast_rule_heights::ast_rule_id)
+                    .on_conflict((
+                        _ast_rule_heights::environment_id,
+                        _ast_rule_heights::ast_rule_id
+                    ))
                     .do_update()
-                    .set(_ast_rule_heights::ast_rule_id.eq(excluded(_ast_rule_heights::ast_rule_id)));
+                    .set((
+                        _ast_rule_heights::environment_id.eq(excluded(_ast_rule_heights::environment_id)),
+                        _ast_rule_heights::ast_rule_id.eq(excluded(_ast_rule_heights::ast_rule_id))
+                    ));
 
                 trace!(
                     "SQL: {}",
@@ -149,9 +185,12 @@ impl<'a> AppDbBatchContext<'a> {
         })
     }
 
+    /// Import epochs from the provided source iterator into the app's datastore,
+    /// optionally associating each entry with the provided `environment_id`.
     pub fn import_epochs(
         &mut self,
         epochs: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
+        environment_id: Option<i32>,
     ) -> Result<()> {
         let conn = &mut *self.conn;
 
@@ -159,20 +198,36 @@ impl<'a> AppDbBatchContext<'a> {
             for epoch in epochs {
                 let epoch = epoch?;
 
-                trace!("inserting epoch {{epoch_id: {}, start_block: {}, end_block: {}}}", 
-                    epoch.epoch_id, epoch.start_block_height, epoch.end_block_height);
-                let epoch: super::model::app_db::Epoch = epoch.try_into()?;
+                trace!(
+                    "inserting epoch {{epoch_id: {}, start_block: {}, end_block: {}}}",
+                    epoch.epoch_id,
+                    epoch.start_block_height,
+                    epoch.end_block_height
+                );
+                let mut epoch: super::model::app_db::Epoch = epoch.try_into()?;
+
+                if let Some(id) = environment_id {
+                    epoch.environment_id = id;
+                }
 
                 let insert_stmt = insert_into(_epochs::table)
                     .values(epoch)
-                    .on_conflict((_epochs::start_block_height, _epochs::epoch_id))
+                    .on_conflict((
+                        _epochs::environment_id,
+                        _epochs::start_block_height,
+                        _epochs::epoch_id,
+                    ))
                     .do_update()
                     .set((
+                        _epochs::environment_id.eq(excluded(_epochs::environment_id)),
                         _epochs::start_block_height.eq(excluded(_epochs::start_block_height)),
-                        _epochs::epoch_id.eq(excluded(_epochs::epoch_id))
+                        _epochs::epoch_id.eq(excluded(_epochs::epoch_id)),
                     ));
 
-                trace!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt));
+                trace!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
 
                 let affected_rows = insert_stmt.execute(tx)?;
 
@@ -185,8 +240,9 @@ impl<'a> AppDbBatchContext<'a> {
     }
 }
 
-/// The application database API. Also used to implement instrumented Clarity
-/// stores.
+/// The application database API. The [AppDb] stores application state, and is
+/// also used to provide instrumented datastores for Clarity and Chainstate
+/// operations on a per-environment basis.
 pub struct AppDb {
     conn: Rc<RefCell<SqliteConnection>>,
 }

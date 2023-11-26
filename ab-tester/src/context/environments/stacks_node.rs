@@ -395,6 +395,10 @@ impl RuntimeEnv for StacksNodeEnv {
         self.callbacks.env_open_finish(self);
         ok!()
     }
+
+    fn id(&self) -> i32 {
+        self.id
+    }
 }
 
 /// Implementation of [ReadableEnv] for [StacksNodeEnv].

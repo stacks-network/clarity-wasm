@@ -14,8 +14,8 @@ use super::{Block, BlockTransactionContext, Network, Runtime};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::{types::*, ok};
-use crate::{clarity, stacks};
+use crate::types::*;
+use crate::{clarity, ok, stacks};
 
 pub mod instrumented;
 pub mod network;
@@ -112,6 +112,10 @@ impl RuntimeEnvContext {
             inner: Box::new(inner),
         }
     }
+
+    pub fn id(&self) -> i32 {
+        self.inner.id()
+    }
 }
 
 /// Represents a mutable/writable environment. Required for target environments
@@ -141,46 +145,6 @@ impl RuntimeEnvContextMut {
         }
     }
 
-    // TODO: Move this to readable env instead, since we want to import burnstate
-    // from source env into the instrumented store. Also add source environment id
-    // so we can keep track of imported burnstate (this doesn't need to be imported
-    // separately into each target environment).
-    pub fn import_burnstate(&mut self, source: &RuntimeEnvContext) -> Result<()> {
-        debug!(
-            "importing snapshots from '{}' into '{}'...",
-            source.name(),
-            self.inner.name()
-        );
-        let src_snapshots_iter = source.snapshots()?;
-        self.inner.import_snapshots(src_snapshots_iter)?;
-
-        debug!(
-            "importing block commits from '{}' into '{}'...",
-            source.name(),
-            self.inner.name()
-        );
-        let src_block_commits_iter = source.block_commits()?;
-        self.inner.import_block_commits(src_block_commits_iter)?;
-
-        debug!(
-            "importing AST rules from '{}' into '{}'...",
-            source.name(),
-            self.inner.name()
-        );
-        let src_ast_rules_iter = source.ast_rules()?;
-        self.inner.import_ast_rules(src_ast_rules_iter)?;
-
-        debug!(
-            "importing epochs from '{}' into '{}'...",
-            source.name(),
-            self.inner.name()
-        );
-        let src_epochs_iter = source.epochs()?;
-        self.inner.import_epochs(src_epochs_iter)?;
-
-        ok!()
-    }
-
     pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
         self.inner.block_begin(block)
     }
@@ -188,6 +152,8 @@ impl RuntimeEnvContextMut {
 
 /// Defines the basic functionality for a [RuntimeEnv] implementation.
 pub trait RuntimeEnv {
+    /// Gets the system-assigned id for this environment.
+    fn id(&self) -> i32;
     /// Gets the user-provided name of this environment.
     fn name(&self) -> String;
     /// Gets whether or not this environment is read-only. Note that some environment
@@ -243,34 +209,6 @@ pub trait WriteableEnv: ReadableEnv {
         &mut self,
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
-
-    /// Imports burnchain sortition snapshots from a source iterator of
-    /// [crate::types::Snapshot]s into this environment's sortition database.
-    fn import_snapshots(
-        &mut self,
-        snapshots: Box<dyn Iterator<Item = Result<crate::types::Snapshot>>>,
-    ) -> Result<()>;
-
-    /// Imports sortition block commits from a source iterator of
-    /// [crate::types::BlockCommit]s into this environment's sortition database.
-    fn import_block_commits(
-        &mut self,
-        block_commits: Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>,
-    ) -> Result<()>;
-
-    /// Imports AST rules from a source iterator of [crate::types::AstRuleHeight]s
-    /// into this environment's sortition database.
-    fn import_ast_rules(
-        &mut self,
-        ast_rules: Box<dyn Iterator<Item = Result<crate::types::AstRuleHeight>>>,
-    ) -> Result<()>;
-
-    /// Imports epochs from a source iterator of [crate::types::Epoch]s into this
-    /// environment's sortition database.
-    fn import_epochs(
-        &mut self,
-        ast_rules: Box<dyn Iterator<Item = Result<crate::types::Epoch>>>,
-    ) -> Result<()>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

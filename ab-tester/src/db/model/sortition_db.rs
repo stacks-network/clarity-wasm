@@ -232,7 +232,7 @@ impl TryFrom<Snapshot> for crate::types::Snapshot {
             )?,
             is_pox_valid: try_convert_i32_to_bool(value.pox_valid)?,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.parse()?,
-            pox_payouts: value.pox_payouts,
+            pox_payouts: serde_json::from_str(&value.pox_payouts)?,
         })
     }
 }
@@ -266,7 +266,7 @@ impl TryFrom<crate::types::Snapshot> for Snapshot {
             canonical_stacks_tip_consensus_hash: value.canonical_stacks_tip_consensus_hash.to_hex(),
             pox_valid: value.is_pox_valid as i32,
             accumulated_coinbase_ustx: value.accumulated_coinbase_ustx.to_string(),
-            pox_payouts: value.pox_payouts,
+            pox_payouts: serde_json::to_string(&value.pox_payouts)?,
         })
     }
 }

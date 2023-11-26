@@ -204,7 +204,7 @@ table! {
         start_block_height -> Integer,
         end_block_height -> Integer,
         epoch_id -> Integer,
-        block_limit -> Text,
+        block_limit -> Binary,
         network_epoch -> Integer
     }
 }
@@ -227,11 +227,11 @@ table! {
         key_block_ptr -> Integer,
         key_vtxindex -> Integer,
         memo -> Text,
-        commit_outs -> Text,
+        commit_outs -> Binary,
         burn_fee -> BigInt,
         sunset_burn -> BigInt,
-        input -> Text,
-        apparent_sender -> Text,
+        input -> Binary,
+        apparent_sender -> Binary,
         burn_parent_modulus -> Integer
     }
 }
@@ -262,6 +262,6 @@ table! {
         canonical_stacks_tip_consensus_hash -> Binary,
         pox_valid -> Bool,
         accumulated_coinbase_ustx -> BigInt,
-        pox_payouts -> Text
+        pox_payouts -> Binary
     }
 }

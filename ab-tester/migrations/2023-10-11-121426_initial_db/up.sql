@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS _snapshots (
     sortition_hash BINARY NOT NULL,
     winning_block_txid BINARY NOT NULL,
     winning_stacks_block_hash BINARY NOT NULL,
-    index_root BINARY UNIQUE NOT NULL,
+    index_root BINARY NOT NULL,
     num_sortitions INTEGER NOT NULL,
     stacks_block_accepted BOOLEAN NOT NULL,
     stacks_block_height INTEGER NOT NULL,
@@ -277,9 +277,11 @@ CREATE TABLE IF NOT EXISTS _snapshots (
     canonical_stacks_tip_consensus_hash BINARY NOT NULL,
     pox_valid BOOLEAN NOT NULL,
     accumulated_coinbase_ustx INTEGER NOT NULL,
-    pox_payouts TEXT NOT NULL,
+    pox_payouts BINARY NOT NULL,
 
     PRIMARY KEY (environment_id, sortition_id),
+
+    UNIQUE (environment_id, index_root),
 
     CONSTRAINT fk_environment
     FOREIGN KEY (environment_id)

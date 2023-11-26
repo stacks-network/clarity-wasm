@@ -6,7 +6,7 @@ use log::*;
 
 use crate::context::replay::ChainStateReplayer;
 use crate::db::appdb::AppDb;
-use crate::{clarity, stacks};
+use crate::{clarity, ok, stacks};
 
 pub mod blocks;
 mod boot_data;
@@ -95,12 +95,16 @@ impl ComparisonContext {
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
     pub fn replay(&mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
-        let baseline_env = self
-            .baseline_env
+        let mut baseline_env_taken = self.baseline_env.take();
+        let baseline_env = baseline_env_taken
             .as_mut()
-            .ok_or(anyhow!("baseline environment has not been specified"))?;
+            .ok_or(anyhow!("baseline environment not specified"))?;
 
+        // Open all necessary databases/datastores for the source environment.
         baseline_env.open()?;
+
+        // Import burnstate data into the app's datastore.
+        self.import_burnstate(baseline_env)?;
 
         for target in self.instrumented_envs.iter_mut() {
             target.open()?;
@@ -111,16 +115,54 @@ impl ComparisonContext {
                 target.name()
             );
 
-            // This could instead be imported as part of the baseline environment,
-            // having each target env refer to the baseline burnstate.
-            //target.import_burnstate(baseline_env)?;
-
             info!("finished - proceeding with replay");
 
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
 
         todo!()
+    }
+
+    /// Imports burnstate + sortition data from the provided [RuntimeEnvContext]
+    /// into the app's datastore.
+    fn import_burnstate(&self, source: &RuntimeEnvContext) -> Result<()> {
+        debug!(
+            "importing snapshots from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_snapshots_iter = source.snapshots()?;
+        self.app_db
+            .batch()
+            .import_snapshots(src_snapshots_iter, Some(source.id()))?;
+
+        debug!(
+            "importing block commits from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_block_commits_iter = source.block_commits()?;
+        self.app_db
+            .batch()
+            .import_block_commits(src_block_commits_iter, Some(source.id()))?;
+
+        debug!(
+            "importing AST rules from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_ast_rules_iter = source.ast_rules()?;
+        self.app_db
+            .batch()
+            .import_ast_rules(src_ast_rules_iter, Some(source.id()))?;
+
+        debug!(
+            "importing epochs from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_epochs_iter = source.epochs()?;
+        self.app_db
+            .batch()
+            .import_epochs(src_epochs_iter, Some(source.id()))?;
+
+        ok!()
     }
 }
 
