@@ -232,12 +232,9 @@ impl clarity::HeadersDB for AppDbHeadersWrapper {
 
         let rewards = _matured_rewards::table
             .filter(
-                _matured_rewards::parent_index_block_hash
-                    .eq(parent_id_bhh)
-                    .and(
-                        _matured_rewards::child_index_block_hash
-                            .eq(child_id_bhh.as_bytes().to_vec()),
-                    ),
+                _matured_rewards::environment_id.eq(self.environment_id)
+                .and(_matured_rewards::parent_index_block_hash.eq(parent_id_bhh))
+                .and(_matured_rewards::child_index_block_hash.eq(child_id_bhh.as_bytes().to_vec())),
             )
             .get_results::<MaturedReward>(&mut *self.app_db.conn.borrow_mut())
             .expect("failed to find matured rewards for parent+child block combination")

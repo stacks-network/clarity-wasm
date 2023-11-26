@@ -1,4 +1,4 @@
-use color_eyre::eyre::anyhow;
+use color_eyre::eyre::{anyhow, bail};
 /// This file contains model objects (DTOs) which represent this application's
 /// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
@@ -337,6 +337,20 @@ impl TryFrom<crate::types::AstRuleHeight> for AstRuleHeight {
     }
 }
 
+/// Convert from the sortition DB model's [AstRuleHeight] to the Clarity VM
+/// type [clarity::ASTRules].
+impl TryFrom<AstRuleHeight> for clarity::ASTRules {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: AstRuleHeight) -> Result<Self> {
+        match value.ast_rule_id {
+            0 => Ok(clarity::ASTRules::Typical),
+            1 => Ok(clarity::ASTRules::PrecheckSize),
+            _ => bail!("failed to convert AstRuleHeight to clarity::ASTRules"),
+        }
+    }
+}
+
 /// Represents the `epochs` table in a Stacks node's sortition db.
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
@@ -363,6 +377,22 @@ impl TryFrom<crate::types::Epoch> for Epoch {
             epoch_id: value.epoch_id as i32,
             block_limit: rmp_serde::encode::to_vec(&value.block_limit)?,
             network_epoch: value.network_epoch as i32,
+        })
+    }
+}
+
+impl TryFrom<Epoch> for clarity::StacksEpoch {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Epoch) -> Result<Self> {
+        Ok(Self {
+            start_height: value.start_block_height as u64,
+            end_height: value.end_block_height as u64,
+            epoch_id: (value.epoch_id as u32)
+                .try_into()
+                .map_err(|e| anyhow!("failed to convert epoch id from database to a StacksEpochId: {e}"))?,
+            block_limit: rmp_serde::decode::from_slice(&value.block_limit)?,
+            network_epoch: value.network_epoch as u8,
         })
     }
 }

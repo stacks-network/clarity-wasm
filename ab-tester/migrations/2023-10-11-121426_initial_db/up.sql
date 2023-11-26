@@ -164,6 +164,9 @@ CREATE TABLE IF NOT EXISTS _block_headers (
     REFERENCES environment (id)
 );
 
+CREATE INDEX IF NOT EXISTS ix__block_headers_index_block_hash 
+    ON _block_headers (environment_id, index_block_hash);
+
 CREATE TABLE IF NOT EXISTS _payments (
     environment_id INTEGER NOT NULL,
     "address" TEXT NOT NULL,
@@ -177,6 +180,9 @@ CREATE TABLE IF NOT EXISTS _payments (
     FOREIGN KEY (environment_id)
     REFERENCES environment (id)
 );
+
+CREATE INDEX IF NOT EXISTS ix__payments_block_hash 
+    ON _payments (environment_id, block_hash);
 
 CREATE TABLE IF NOT EXISTS _matured_rewards (
     environment_id INTEGER NOT NULL,
@@ -196,6 +202,13 @@ CREATE TABLE IF NOT EXISTS _matured_rewards (
     FOREIGN KEY (environment_id)
     REFERENCES environment (id)
 );
+
+CREATE INDEX IF NOT EXISTS ix__matured_rewards_parent_child_index_block_hash 
+    ON _payments (
+        environment_id,
+        parent_index_block_hash,
+        child_index_block_hash
+    );
 
 CREATE TABLE IF NOT EXISTS _ast_rule_heights (
     environment_id INTEGER NOT NULL,
@@ -287,3 +300,8 @@ CREATE TABLE IF NOT EXISTS _snapshots (
     FOREIGN KEY (environment_id)
     REFERENCES environment (id)
 );
+
+CREATE INDEX IF NOT EXISTS ix__snapshots_block_height 
+    ON _snapshots (environment_id, block_height ASC);
+CREATE INDEX IF NOT EXISTS ix__snapshots_consensus_hash 
+    ON _snapshots (environment_id, consensus_hash);
