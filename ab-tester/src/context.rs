@@ -102,11 +102,8 @@ impl ComparisonContext {
         // Open all necessary databases/datastores for the source environment.
         baseline_env.open()?;
 
-        // Import burnstate data from the source environment into the app's datastore.
-        //self.import_burnstate(baseline_env)?;
-
         let environments = self.instrumented_envs.iter_mut();
-        for mut target in environments {
+        for target in environments {
             target.open()?;
 
             info!(
@@ -115,61 +112,16 @@ impl ComparisonContext {
                 target.name()
             );
 
-            //self.import_burnstate(&baseline_env, target)?;
+            // Import source burnstate into target environment. This is done due to
+            // burnstate being expected to be present during contract evaluation.
             target.import_burnstate(baseline_env.as_readable_env())?;
-
             info!("finished - proceeding with replay");
 
+            // Replay from source into target.
             ChainStateReplayer::replay(baseline_env, target, opts)?;
         }
 
         todo!()
-    }
-
-    /// Imports burnstate + sortition data from the provided [RuntimeEnvContext]
-    /// into the app's datastore.
-    fn import_burnstate(
-        &self,
-        source: &RuntimeEnvContext,
-        target: &RuntimeEnvContextMut,
-    ) -> Result<()> {
-        debug!(
-            "importing snapshots from '{}' into app datastore...",
-            source.name(),
-        );
-        let src_snapshots_iter = source.snapshots()?;
-        self.app_db
-            .batch()
-            .import_snapshots(src_snapshots_iter, Some(source.id()))?;
-
-        debug!(
-            "importing block commits from '{}' into app datastore...",
-            source.name(),
-        );
-        let src_block_commits_iter = source.block_commits()?;
-        self.app_db
-            .batch()
-            .import_block_commits(src_block_commits_iter, Some(source.id()))?;
-
-        debug!(
-            "importing AST rules from '{}' into app datastore...",
-            source.name(),
-        );
-        let src_ast_rules_iter = source.ast_rules()?;
-        self.app_db
-            .batch()
-            .import_ast_rules(src_ast_rules_iter, Some(source.id()))?;
-
-        debug!(
-            "importing epochs from '{}' into app datastore...",
-            source.name(),
-        );
-        let src_epochs_iter = source.epochs()?;
-        self.app_db
-            .batch()
-            .import_epochs(src_epochs_iter, Some(source.id()))?;
-
-        ok!()
     }
 }
 
