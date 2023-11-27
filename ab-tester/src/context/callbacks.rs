@@ -1,5 +1,5 @@
-use crate::environments::{RuntimeEnv, RuntimeEnvContext, RuntimeEnvContextMut};
 use super::Network;
+use crate::environments::{RuntimeEnv, RuntimeEnvContext, RuntimeEnvContextMut};
 
 #[allow(unused_variables)]
 pub trait RuntimeEnvCallbackHandler {

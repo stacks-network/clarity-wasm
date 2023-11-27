@@ -5,9 +5,9 @@ use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl};
 
+use super::super::model::*;
+use super::super::schema::*;
 use super::AppDb;
-use crate::db::model::app_db::*;
-use crate::db::schema::appdb::*;
 use crate::{clarity, stacks};
 
 pub trait AsBurnStateDb {

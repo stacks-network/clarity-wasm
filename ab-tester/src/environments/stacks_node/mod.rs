@@ -5,6 +5,9 @@ use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
+use db::schema::sortition::*;
+use db::stacks_burnstate_db::StacksBurnStateDb;
+use db::stacks_headers_db::StacksHeadersDb;
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -18,9 +21,6 @@ use crate::context::{BlockCursor, Network, StacksEnvPaths};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
 use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::dbcursor::stream_results;
-use db::schema::sortition::*;
-use db::stacks_burnstate_db::StacksBurnStateDb;
-use db::stacks_headers_db::StacksHeadersDb;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
 
@@ -367,12 +367,7 @@ impl ReadableEnv for StacksNodeEnv {
     fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
         let state = self.get_env_state()?;
 
-        let result = stream_results::<
-            db::model::sortition::Snapshot,
-            crate::types::Snapshot,
-            _,
-            _,
-        >(
+        let result = stream_results::<db::model::sortition::Snapshot, crate::types::Snapshot, _, _>(
             snapshots::table.order_by(snapshots::block_height.asc()),
             state.sortition_db_conn.clone(),
             1000,
@@ -414,12 +409,11 @@ impl ReadableEnv for StacksNodeEnv {
     fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
         let state = self.get_env_state()?;
 
-        let result = stream_results::<
-            db::model::sortition::Epoch,
-            crate::types::Epoch,
-            _,
-            _,
-        >(epochs::table, state.sortition_db_conn.clone(), 100);
+        let result = stream_results::<db::model::sortition::Epoch, crate::types::Epoch, _, _>(
+            epochs::table,
+            state.sortition_db_conn.clone(),
+            100,
+        );
 
         Ok(Box::new(result))
     }

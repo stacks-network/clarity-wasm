@@ -9,16 +9,15 @@ use std::rc::Rc;
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 
-use crate::context::{Runtime, Network, Block, BlockTransactionContext, BlockCursor};
+use self::instrumented::InstrumentedEnv;
+use self::network::NetworkEnv;
+use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
+use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
 use crate::db::appdb::AppDb;
 use crate::db::model;
 use crate::types::*;
 use crate::{clarity, stacks};
-
-use self::instrumented::InstrumentedEnv;
-use self::network::NetworkEnv;
-use self::stacks_node::StacksNodeEnv;
 
 pub type BoxedDbIterResult<Model> = Result<Box<dyn Iterator<Item = Result<Model>>>>;
 
@@ -37,7 +36,7 @@ impl RuntimeEnvBuilder {
         name: &str,
         runtime: &Runtime,
         path: &str,
-    ) -> Result<model::app_db::Environment> {
+    ) -> Result<super::db::model::Environment> {
         self.app_db
             .get_env(name)?
             .or_else(|| {

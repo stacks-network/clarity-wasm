@@ -15,8 +15,8 @@ pub mod replay;
 
 pub use blocks::{Block, BlockCursor};
 
-use crate::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 use self::replay::{ReplayOpts, ReplayResult};
+use crate::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 
 pub struct BaselineBuilder(ComparisonContext);
 

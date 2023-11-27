@@ -9,11 +9,11 @@ mod errors;
 mod macros;
 mod clarity;
 mod db;
+mod environments;
 mod runtime;
 mod stacks;
 mod types;
 mod utils;
-mod environments;
 
 use std::process::exit;
 

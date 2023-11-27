@@ -18,16 +18,13 @@ use log::*;
 use lz4_flex::compress_prepend_size;
 
 use super::dbcursor::RecordCursor;
+use super::model::{
+    Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment, Payment,
+};
+use super::schema::*;
 #[allow(unused_imports)]
 use crate::{
     clarity,
-    db::{
-        model::app_db::{
-            Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment,
-            Payment,
-        },
-        schema::appdb::*,
-    },
     stacks::{
         self,
         Address, // This import will give warnings but is needed for its impl fn's.
@@ -64,7 +61,7 @@ impl<'a> AppDbBatchContext<'a> {
                     &snapshot.sortition_id,
                     &snapshot.index_root
                 );
-                let mut snapshot: super::model::app_db::Snapshot = snapshot.try_into()?;
+                let mut snapshot: super::model::Snapshot = snapshot.try_into()?;
 
                 if let Some(id) = environment_id {
                     snapshot.environment_id = id;
@@ -110,7 +107,7 @@ impl<'a> AppDbBatchContext<'a> {
                 let block_commit = block_commit?;
 
                 trace!("inserting block commit {{txid: {:?}, sortition_id: {:?}", &block_commit.txid, &block_commit.sortition_id);
-                let mut block_commit: super::model::app_db::BlockCommit = block_commit.try_into()?;
+                let mut block_commit: super::model::BlockCommit = block_commit.try_into()?;
 
                 if let Some(id) = environment_id {
                     block_commit.environment_id = id;
@@ -161,7 +158,7 @@ impl<'a> AppDbBatchContext<'a> {
                 let rule = rule?;
 
                 trace!("inserting AST rule/height {{ast_rule_id: {}, block_height: {}}}", rule.ast_rule_id, rule.block_height);
-                let mut rule: super::model::app_db::AstRuleHeight = rule.try_into()?;
+                let mut rule: super::model::AstRuleHeight = rule.try_into()?;
 
                 if let Some(id) = environment_id {
                     rule.environment_id = id;
@@ -216,7 +213,7 @@ impl<'a> AppDbBatchContext<'a> {
                     epoch.start_block_height,
                     epoch.end_block_height
                 );
-                let mut epoch: super::model::app_db::Epoch = epoch.try_into()?;
+                let mut epoch: super::model::Epoch = epoch.try_into()?;
 
                 if let Some(id) = environment_id {
                     epoch.environment_id = id;
@@ -290,7 +287,7 @@ impl AppDb {
     }
 
     pub fn stream_snapshots(&self) -> impl Iterator<Item = Result<crate::types::Snapshot>> {
-        Self::inner_stream_results::<super::model::app_db::Snapshot, crate::types::Snapshot, _, _>(
+        Self::inner_stream_results::<super::model::Snapshot, crate::types::Snapshot, _, _>(
             _snapshots::table,
             self.conn.clone(),
             1000,

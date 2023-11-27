@@ -2,8 +2,8 @@
 /// node's chainstate index DB, typically located in `chainstate/vm/index.sqlite`.
 use diesel::prelude::*;
 
-use crate::clarity;
 use super::super::schema::chainstate::*;
+use crate::clarity;
 use crate::stacks::{self, Address};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]

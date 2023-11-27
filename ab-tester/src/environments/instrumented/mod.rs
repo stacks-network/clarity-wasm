@@ -19,8 +19,8 @@ use crate::context::{
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::appdb::AppDb;
-use crate::db::model::app_db as model;
-use crate::db::schema::appdb::{self, _block_commits, _snapshots};
+use crate::db::model;
+use crate::db::schema::{self, _block_commits, _snapshots};
 use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
@@ -122,8 +122,8 @@ impl InstrumentedEnv {
 
         // Retrieve the tip.
         self.callbacks.get_chain_tip_start(self);
-        let tip = appdb::_block_headers::table
-            .order_by(appdb::_block_headers::block_height.desc())
+        let tip = schema::_block_headers::table
+            .order_by(schema::_block_headers::block_height.desc())
             .limit(1)
             .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())?;
         // TODO: Handle when there is no tip (chain uninitialized).
@@ -138,8 +138,8 @@ impl InstrumentedEnv {
         // Walk backwards from tip to genesis, following the canonical fork. We
         // do this so that we don't follow orphaned blocks/forks.
         while let Some(block) = current_block {
-            let block_parent = appdb::_block_headers::table
-                .filter(appdb::_block_headers::index_block_hash.eq(&block.parent_block_id))
+            let block_parent = schema::_block_headers::table
+                .filter(schema::_block_headers::index_block_hash.eq(&block.parent_block_id))
                 .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())
                 .optional()?;
 
@@ -298,10 +298,7 @@ impl ReadableEnv for InstrumentedEnv {
     fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
         let result = self
             .app_db
-            .stream_results::<crate::db::model::app_db::Snapshot, crate::types::Snapshot, _>(
-                _snapshots::table,
-                100,
-            );
+            .stream_results::<model::Snapshot, crate::types::Snapshot, _>(_snapshots::table, 100);
 
         Ok(Box::new(result))
     }
@@ -309,7 +306,7 @@ impl ReadableEnv for InstrumentedEnv {
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
         let result = self
             .app_db
-            .stream_results::<crate::db::model::app_db::BlockCommit, crate::types::BlockCommit, _>(
+            .stream_results::<model::BlockCommit, crate::types::BlockCommit, _>(
                 _block_commits::table,
                 1000,
             );

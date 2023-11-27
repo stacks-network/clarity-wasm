@@ -5,9 +5,9 @@ use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::QueryDsl;
 
+use super::super::model::{BlockHeader, MaturedReward, Payment};
+use super::super::schema::*;
 use super::AppDb;
-use crate::db::model::app_db::{BlockHeader, MaturedReward, Payment};
-use crate::db::schema::appdb::*;
 use crate::{clarity, stacks};
 
 pub trait AsHeadersDb {
