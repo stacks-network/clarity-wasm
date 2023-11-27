@@ -1,3 +1,7 @@
+mod instrumented;
+mod network;
+mod stacks_node;
+
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -5,20 +9,16 @@ use std::rc::Rc;
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 
-use self::instrumented::InstrumentedEnv;
-use self::network::NetworkEnv;
-use self::stacks_node::StacksNodeEnv;
-use super::blocks::BlockCursor;
-use super::{Block, BlockTransactionContext, Network, Runtime};
+use crate::context::{Runtime, Network, Block, BlockTransactionContext, BlockCursor};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::db::appdb::AppDb;
 use crate::db::model;
 use crate::types::*;
-use crate::{clarity, ok, stacks};
+use crate::{clarity, stacks};
 
-pub mod instrumented;
-pub mod network;
-pub mod stacks_node;
+use self::instrumented::InstrumentedEnv;
+use self::network::NetworkEnv;
+use self::stacks_node::StacksNodeEnv;
 
 pub type BoxedDbIterResult<Model> = Result<Box<dyn Iterator<Item = Result<Model>>>>;
 

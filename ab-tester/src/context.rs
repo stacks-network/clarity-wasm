@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -10,15 +9,14 @@ use crate::db::appdb::AppDb;
 use crate::{clarity, ok, stacks};
 
 pub mod blocks;
-mod boot_data;
+pub mod boot_data;
 pub mod callbacks;
-pub mod environments;
-mod marf;
+pub mod marf;
 pub mod replay;
 
 pub use blocks::{Block, BlockCursor};
 
-use self::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
+use crate::environments::{RuntimeEnvBuilder, RuntimeEnvContext, RuntimeEnvContextMut};
 use self::replay::{ReplayOpts, ReplayResult};
 
 pub struct BaselineBuilder(ComparisonContext);
@@ -181,9 +179,9 @@ pub enum BlockTransactionContext<'a, 'b> {
 }
 
 pub struct RegularBlockTransactionContext<'b, 'a: 'b> {
-    stacks_block_id: stacks::StacksBlockId,
-    clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
-    clarity_tx_conn: Option<stacks::ClarityTransactionConnection<'a, 'b>>,
+    pub stacks_block_id: stacks::StacksBlockId,
+    pub clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
+    pub clarity_tx_conn: Option<stacks::ClarityTransactionConnection<'a, 'b>>,
 }
 
 impl<'a, 'b> RegularBlockTransactionContext<'a, 'b> {
@@ -304,15 +302,15 @@ impl Network {
 /// Helper struct to carry all of the different paths involved in chainstate
 /// and sortition.
 #[derive(Debug, Clone)]
-struct StacksEnvPaths {
-    working_dir: String,
+pub struct StacksEnvPaths {
+    pub working_dir: String,
 
-    index_db_path: String,
-    sortition_dir: String,
-    sortition_db_path: String,
-    blocks_dir: String,
-    chainstate_dir: String,
-    clarity_db_path: String,
+    pub index_db_path: String,
+    pub sortition_dir: String,
+    pub sortition_db_path: String,
+    pub blocks_dir: String,
+    pub chainstate_dir: String,
+    pub clarity_db_path: String,
 }
 
 impl StacksEnvPaths {
