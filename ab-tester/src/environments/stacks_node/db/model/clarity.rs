@@ -2,7 +2,7 @@
 /// for a Stacks node's Clarity DB, typically located in `chainstate/vm/clarity/marf.sqlite`.
 use diesel::prelude::*;
 
-use crate::db::schema::clarity_marf::*;
+use super::super::schema::clarity::*;
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
 #[diesel(primary_key(key))]

@@ -1,6 +1,15 @@
 use crate::stacks;
 
 #[derive(Debug, Clone)]
+pub struct Payment {
+    pub environment_id: i32,
+    pub address: stacks::StacksAddress,
+    pub block_hash: stacks::BlockHeaderHash,
+    pub burnchain_commit_burn: u32,
+    pub burnchain_sortition_burn: u32,
+}
+
+#[derive(Debug, Clone)]
 pub struct AstRuleHeight {
     pub environment_id: i32,
     pub ast_rule_id: u32,

@@ -5,8 +5,8 @@ use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
 
-use super::model::chainstate_db::{BlockHeader, MaturedReward, Payment};
-use super::schema::chainstate_marf::*;
+use super::model::chainstate::{BlockHeader, MaturedReward, Payment};
+use super::schema::chainstate::*;
 use crate::{clarity, stacks};
 
 pub struct StacksHeadersDb {

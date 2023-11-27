@@ -4,7 +4,7 @@ use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 use diesel::prelude::*;
 
-use crate::db::schema::sortition::*;
+use super::super::schema::sortition::*;
 use crate::utils::*;
 use crate::{clarity, stacks};
 

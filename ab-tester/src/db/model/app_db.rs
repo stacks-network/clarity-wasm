@@ -159,6 +159,7 @@ pub struct BlockHeader {
     pub affirmation_weight: i32,
 }
 
+/*
 /// Implement `From` for the `chainstate_db`'s model to keep the app code
 /// a little cleaner when importing from a Stacks node's db.
 impl From<super::chainstate_db::BlockHeader> for BlockHeader {
@@ -209,7 +210,7 @@ impl From<super::chainstate_db::BlockHeader> for BlockHeader {
             affirmation_weight: value.affirmation_weight,
         }
     }
-}
+}*/
 
 /// Represents the `payments` table in a Stacks node's chainstate index db.
 #[derive(
@@ -223,21 +224,6 @@ pub struct Payment {
     pub block_hash: Vec<u8>,
     pub burnchain_commit_burn: i32,
     pub burnchain_sortition_burn: i32,
-}
-
-/// Implement `From` for the `chainstate_db`'s model to keep the app code
-/// a little cleaner when importing from a Stacks node's db.
-impl From<super::chainstate_db::Payment> for Payment {
-    fn from(value: super::chainstate_db::Payment) -> Self {
-        Payment {
-            environment_id: 0,
-            address: value.address,
-            block_hash: hex::decode(value.block_hash)
-                .expect("failed to decode block_hash from hex"),
-            burnchain_commit_burn: value.burnchain_commit_burn,
-            burnchain_sortition_burn: value.burnchain_sortition_burn,
-        }
-    }
 }
 
 /// Represents the `matured_rewards` table in a Stacks node's chainstate index db.
@@ -264,6 +250,7 @@ pub struct MaturedReward {
     pub parent_index_block_hash: Vec<u8>,
 }
 
+/*
 impl From<super::chainstate_db::MaturedReward> for MaturedReward {
     fn from(value: super::chainstate_db::MaturedReward) -> Self {
         MaturedReward {
@@ -296,6 +283,7 @@ impl From<super::chainstate_db::MaturedReward> for MaturedReward {
         }
     }
 }
+*/
 
 impl From<&MaturedReward> for stacks::MinerReward {
     fn from(val: &MaturedReward) -> Self {

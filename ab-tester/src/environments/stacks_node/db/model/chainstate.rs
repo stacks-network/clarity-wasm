@@ -3,7 +3,7 @@
 use diesel::prelude::*;
 
 use crate::clarity;
-use crate::db::schema::chainstate_marf::*;
+use super::super::schema::chainstate::*;
 use crate::stacks::{self, Address};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]

@@ -21,8 +21,6 @@ use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::appdb::AppDb;
 use crate::db::model::app_db as model;
 use crate::db::schema::appdb::{self, _block_commits, _snapshots};
-use crate::db::stacks_burnstate_db::StacksBurnStateDb;
-use crate::db::stacks_headers_db::StacksHeadersDb;
 use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].

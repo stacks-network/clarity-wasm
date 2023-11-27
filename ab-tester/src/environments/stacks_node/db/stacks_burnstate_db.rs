@@ -5,7 +5,7 @@ use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
 
-use super::model::sortition_db::{AstRuleHeight, Epoch};
+use super::model::sortition::{AstRuleHeight, Epoch};
 use super::schema::sortition::*;
 use crate::{clarity, stacks};
 

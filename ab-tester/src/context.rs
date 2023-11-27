@@ -6,12 +6,11 @@ use log::*;
 
 use crate::context::replay::ChainStateReplayer;
 use crate::db::appdb::AppDb;
-use crate::{clarity, ok, stacks};
+use crate::{clarity, stacks};
 
 pub mod blocks;
 pub mod boot_data;
 pub mod callbacks;
-pub mod marf;
 pub mod replay;
 
 pub use blocks::{Block, BlockCursor};

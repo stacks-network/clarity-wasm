@@ -2,7 +2,6 @@ use color_eyre::Result;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection};
 use log::*;
 
-use crate::db::{model, schema};
 use crate::{clarity, stacks};
 
 struct MarfWalker {}
@@ -24,9 +23,9 @@ impl MarfWalker {
         }
 
         for leaf in leaves {
-            let value = schema::clarity_marf::data_table::table
-                .filter(schema::clarity_marf::data_table::key.eq(leaf.data.to_string()))
-                .first::<model::clarity_db::DataEntry>(clarity_db_conn)
+            let value = super::schema::clarity::data_table::table
+                .filter(super::schema::clarity::data_table::key.eq(leaf.data.to_string()))
+                .first::<super::model::clarity::DataEntry>(clarity_db_conn)
                 .optional()?;
 
             if let Some(value_unwrapped) = value {

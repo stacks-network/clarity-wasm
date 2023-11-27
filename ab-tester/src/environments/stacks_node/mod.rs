@@ -1,3 +1,5 @@
+pub mod db;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -16,9 +18,9 @@ use crate::context::{BlockCursor, Network, StacksEnvPaths};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
 use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::dbcursor::stream_results;
-use crate::db::schema::sortition::*;
-use crate::db::stacks_burnstate_db::StacksBurnStateDb;
-use crate::db::stacks_headers_db::StacksHeadersDb;
+use db::schema::sortition::*;
+use db::stacks_burnstate_db::StacksBurnStateDb;
+use db::stacks_headers_db::StacksHeadersDb;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
 
@@ -101,10 +103,10 @@ impl StacksNodeEnv {
 
         // Retrieve the tip.
         self.callbacks.get_chain_tip_start(self);
-        let tip = schema::chainstate_marf::block_headers::table
-            .order_by(schema::chainstate_marf::block_headers::block_height.desc())
+        let tip = db::schema::chainstate::block_headers::table
+            .order_by(db::schema::chainstate::block_headers::block_height.desc())
             .limit(1)
-            .get_result::<model::chainstate_db::BlockHeader>(
+            .get_result::<db::model::chainstate::BlockHeader>(
                 &mut *state.index_db_conn.borrow_mut(),
             )?;
         // TODO: Handle when there is no tip (chain uninitialized).
@@ -120,12 +122,12 @@ impl StacksNodeEnv {
         // do this so that we don't follow orphaned blocks/forks.
         self.callbacks.load_block_headers_start(self);
         while let Some(block) = current_block {
-            let block_parent = schema::chainstate_marf::block_headers::table
+            let block_parent = db::schema::chainstate::block_headers::table
                 .filter(
-                    schema::chainstate_marf::block_headers::index_block_hash
+                    db::schema::chainstate::block_headers::index_block_hash
                         .eq(&block.parent_block_id),
                 )
-                .get_result::<model::chainstate_db::BlockHeader>(
+                .get_result::<db::model::chainstate::BlockHeader>(
                     &mut *state.index_db_conn.borrow_mut(),
                 )
                 .optional()?;
@@ -276,8 +278,8 @@ impl RuntimeEnv for StacksNodeEnv {
         // `db_config` table which indicates version, network and chain id. Retrieve
         // this information and use it for setting up our readers.
         self.callbacks.load_db_config_start(self);
-        let db_config = schema::chainstate_marf::db_config::table
-            .first::<model::chainstate_db::DbConfig>(&mut index_db_conn)?;
+        let db_config = db::schema::chainstate::db_config::table
+            .first::<db::model::chainstate::DbConfig>(&mut index_db_conn)?;
         self.callbacks.load_db_config_finish(self);
 
         // Convert the db config to a Network variant incl. chain id.
@@ -366,7 +368,7 @@ impl ReadableEnv for StacksNodeEnv {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
-            crate::db::model::sortition_db::Snapshot,
+            db::model::sortition::Snapshot,
             crate::types::Snapshot,
             _,
             _,
@@ -383,7 +385,7 @@ impl ReadableEnv for StacksNodeEnv {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
-            crate::db::model::sortition_db::BlockCommit,
+            db::model::sortition::BlockCommit,
             crate::types::BlockCommit,
             _,
             _,
@@ -396,7 +398,7 @@ impl ReadableEnv for StacksNodeEnv {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
-            crate::db::model::sortition_db::AstRuleHeight,
+            db::model::sortition::AstRuleHeight,
             crate::types::AstRuleHeight,
             _,
             _,
@@ -413,7 +415,7 @@ impl ReadableEnv for StacksNodeEnv {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
-            crate::db::model::sortition_db::Epoch,
+            db::model::sortition::Epoch,
             crate::types::Epoch,
             _,
             _,
