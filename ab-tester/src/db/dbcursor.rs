@@ -15,6 +15,7 @@ pub fn stream_results<Record, Model, Query, Conn>(
     buffer_size_hint: usize,
 ) -> impl Iterator<Item = Result<Model>>
 where
+    <Record as TryInto<Model>>::Error: std::fmt::Debug,
     Record: TryInto<Model>,
     Model: Clone,
     Query: OffsetDsl + Clone,
@@ -91,6 +92,7 @@ where
 /// Iterator implementation for [RecordCursor].
 impl<Record, Model, Query, Conn> Iterator for RecordCursor<Record, Model, Query, Conn>
 where
+    <Record as TryInto<Model>>::Error: std::fmt::Debug,
     Record: TryInto<Model>,
     Query: OffsetDsl + Clone,
     Offset<Query>: LimitDsl,
@@ -127,7 +129,7 @@ where
         self.buffer.pop_front().map(|v| {
             let model: Result<Model> = v
                 .try_into()
-                .map_err(|_| anyhow!("failed to convert record to model"));
+                .map_err(|e| anyhow!("failed to convert record to model: {e:?}"));
             model
         })
     }

@@ -333,6 +333,7 @@ impl AppDb {
         buffer_size_hint: usize,
     ) -> impl Iterator<Item = Result<Model>>
     where
+        <Record as TryInto<Model>>::Error: std::fmt::Debug,
         Model: Clone + TryFrom<Record>,
         Query: OffsetDsl + Clone,
         Offset<Query>: LimitDsl,
@@ -356,6 +357,7 @@ impl AppDb {
         buffer_size_hint: usize,
     ) -> impl Iterator<Item = Result<Model>>
     where
+        <Record as TryInto<Model>>::Error: std::fmt::Debug,
         Model: Clone + TryFrom<Record>,
         Query: OffsetDsl + Clone,
         Offset<Query>: LimitDsl,
