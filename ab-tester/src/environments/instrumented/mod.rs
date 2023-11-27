@@ -13,14 +13,13 @@ use crate::context::blocks::BlockHeader;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{
-    Block, BlockCursor, BlockTransactionContext, Network, RegularBlockTransactionContext, Runtime,
-    StacksEnvPaths,
+    Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths,
 };
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::db::schema::{self, _block_commits, _snapshots};
+use crate::db::schema::{self, _block_commits, _block_headers, _snapshots};
 use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
@@ -321,11 +320,15 @@ impl ReadableEnv for InstrumentedEnv {
     fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
         todo!()
     }
+
+    fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
+        todo!()
+    }
 }
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
 impl WriteableEnv for InstrumentedEnv {
-    fn block_begin(&mut self, block: &crate::context::Block) -> Result<BlockTransactionContext> {
+    fn block_begin(&mut self, block: &crate::context::Block) -> Result<()> {
         if self.is_readonly() {
             bail!("[{}] environment is read-only.", self.name);
         }
@@ -362,13 +365,15 @@ impl WriteableEnv for InstrumentedEnv {
                     &inner.header.consensus_hash()?.to_hex(),
                     &inner.header.stacks_block_hash()?.to_hex()
                 );
-                let clarity_tx = state.chainstate.genesis_block_begin(
+                let mut clarity_tx = state.chainstate.genesis_block_begin(
                     &*state.burnstate_db,
                     &inner.header.parent_consensus_hash()?,
                     &inner.header.parent_block_hash()?,
                     &inner.header.consensus_hash()?,
                     &inner.header.stacks_block_hash()?,
                 );
+
+                clarity_tx.seal();
 
                 info!("committing genesis block");
                 clarity_tx.commit_to_block(
@@ -408,35 +413,7 @@ impl WriteableEnv for InstrumentedEnv {
             }
         };
 
-        info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
-
-        // We cannot process genesis as it was already processed as a part of chainstate
-        // initialization. Log that we reached it and skip processing.
-        //if let Block::Genesis(_) = block {
-        //info!("genesis block cannot be processed as it was statically initialized; moving on");
-        //return Ok(BlockTransactionContext::Genesis);
-        //}
-
-        // Get an instance to the BurnStateDB (SortitionDB's `index_conn` implements this trait).
-
-        // Start a new chainstate transaction on the index. This starts a new storage
-        // transaction for the 'blocks' directory.
-
-        debug!("beginning clarity block");
-        let clarity_block_conn = state.chainstate.clarity_state.begin_block(
-            &current_block_id,
-            &next_block_id,
-            &*state.headers_db,
-            &*state.burnstate_db,
-        );
-
-        Ok(BlockTransactionContext::Regular(
-            RegularBlockTransactionContext {
-                stacks_block_id: current_block_id,
-                clarity_block_conn,
-                clarity_tx_conn: None,
-            },
-        ))
+        ok!()
     }
 
     fn block_commit(
@@ -454,10 +431,26 @@ impl WriteableEnv for InstrumentedEnv {
         todo!()
     }
 
+    fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()> {
+        debug!(
+            "importing block headers from '{}' into '{}'...",
+            source.name(),
+            self.name()
+        );
+        let src_block_headers_iter = source.block_headers()?;
+        warn!("hi");
+        self.app_db
+            .batch()
+            .import_block_headers(src_block_headers_iter, Some(self.id()))?;
+
+        ok!()
+    }
+
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()> {
         debug!(
-            "importing snapshots from '{}' into app datastore...",
+            "importing snapshots from '{}' into '{}'...",
             source.name(),
+            self.name()
         );
         let src_snapshots_iter = source.snapshots()?;
         self.app_db
@@ -465,8 +458,9 @@ impl WriteableEnv for InstrumentedEnv {
             .import_snapshots(src_snapshots_iter, Some(self.id()))?;
 
         debug!(
-            "importing block commits from '{}' into app datastore...",
+            "importing block commits from '{}' into '{}'...",
             source.name(),
+            self.name()
         );
         let src_block_commits_iter = source.block_commits()?;
         self.app_db
@@ -474,8 +468,9 @@ impl WriteableEnv for InstrumentedEnv {
             .import_block_commits(src_block_commits_iter, Some(self.id()))?;
 
         debug!(
-            "importing AST rules from '{}' into app datastore...",
+            "importing AST rules from '{}' into '{}'...",
             source.name(),
+            self.name()
         );
         let src_ast_rules_iter = source.ast_rules()?;
         self.app_db
@@ -483,8 +478,9 @@ impl WriteableEnv for InstrumentedEnv {
             .import_ast_rules(src_ast_rules_iter, Some(self.id()))?;
 
         debug!(
-            "importing epochs from '{}' into app datastore...",
+            "importing epochs from '{}' into '{}'...",
             source.name(),
+            self.name()
         );
         let src_epochs_iter = source.epochs()?;
         self.app_db

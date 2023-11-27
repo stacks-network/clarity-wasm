@@ -3,6 +3,7 @@ use color_eyre::eyre::{anyhow, bail};
 /// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
 use diesel::prelude::*;
+use log::warn;
 
 use super::schema::*;
 use crate::stacks::Address;
@@ -159,58 +160,38 @@ pub struct BlockHeader {
     pub affirmation_weight: i32,
 }
 
-/*
-/// Implement `From` for the `chainstate_db`'s model to keep the app code
-/// a little cleaner when importing from a Stacks node's db.
-impl From<super::chainstate_db::BlockHeader> for BlockHeader {
-    fn from(value: super::chainstate_db::BlockHeader) -> Self {
-        Self {
-            environment_id: 0,
-            version: value.version,
-            total_burn: value
-                .total_burn
-                .parse()
-                .expect("failed to parse total_burn as u64"),
-            total_work: value
-                .total_work
-                .parse()
-                .expect("failed to parse total_work as u64"),
-            proof: hex::decode(value.proof).expect("failed to decode proof from hex"),
-            parent_block: hex::decode(value.parent_block)
-                .expect("failed to decode parent_block from hex"),
-            parent_microblock: hex::decode(value.parent_microblock)
-                .expect("failed to decode parent_microblock from hex"),
-            parent_microblock_sequence: value.parent_microblock_sequence,
-            tx_merkle_root: hex::decode(value.tx_merkle_root)
-                .expect("failed to decode tx_merkle_root from hex"),
-            state_index_root: hex::decode(value.state_index_root)
-                .expect("failed to decode state_index_root from hex"),
-            microblock_pubkey_hash: hex::decode(value.microblock_pubkey_hash)
-                .expect("failed to decode microblock_pubkey_hash from hex"),
-            block_hash: hex::decode(value.block_hash)
-                .expect("failed to decode block_hash from hex"),
-            index_block_hash: hex::decode(value.index_block_hash)
-                .expect("failed to decode index_block_hash from hex"),
-            block_height: value.block_height,
-            index_root: hex::decode(value.index_root)
-                .expect("failed to decode index_root from hex"),
-            consensus_hash: hex::decode(value.consensus_hash)
-                .expect("failed to decode consensus_hash from hex"),
-            burn_header_hash: hex::decode(value.burn_header_hash)
-                .expect("failed to decode burn_header_hash from hex"),
-            burn_header_height: value.burn_header_height,
-            burn_header_timestamp: value.burn_header_timestamp,
-            parent_block_id: hex::decode(value.parent_block_id)
-                .expect("failed to decode parent_block_id from hex"),
-            cost: value.cost.parse().expect("failed to parse cost as u64"),
-            block_size: value
-                .block_size
-                .parse()
-                .expect("failed to parse block_size as u64"),
-            affirmation_weight: value.affirmation_weight,
-        }
+impl TryFrom<crate::types::BlockHeader> for BlockHeader {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::BlockHeader) -> Result<Self> {
+        warn!("value: {value:?}");
+        Ok(Self {
+            environment_id: value.environment_id,
+            version: value.version as i32,
+            total_burn: value.total_burn as i64,
+            total_work: value.total_work as i64,
+            proof: value.proof.to_bytes().to_vec(),
+            parent_block: value.parent_block.0.to_vec(),
+            parent_microblock: value.parent_microblock.0.to_vec(),
+            parent_microblock_sequence: value.parent_microblock_sequence as i32,
+            tx_merkle_root: value.tx_merkle_root.0.to_vec(),
+            state_index_root: value.state_index_root.0.to_vec(),
+            microblock_pubkey_hash: value.microblock_pubkey_hash.0.to_vec(),
+            block_hash: value.block_hash.0.to_vec(),
+            index_block_hash: value.index_block_hash.0.to_vec(),
+            block_height: value.block_height as i32,
+            index_root: value.index_root.0.to_vec(),
+            consensus_hash: value.consensus_hash.0.to_vec(),
+            burn_header_hash: value.burn_header_hash.0.to_vec(),
+            burn_header_height: value.burn_header_height as i32,
+            burn_header_timestamp: value.burn_header_timestamp as i64,
+            parent_block_id: value.parent_block_id.0.to_vec(),
+            cost: value.cost as i64,
+            block_size: value.block_size as i64,
+            affirmation_weight: value.affirmation_weight as i32,
+        })
     }
-}*/
+}
 
 /// Represents the `payments` table in a Stacks node's chainstate index db.
 #[derive(
@@ -249,41 +230,6 @@ pub struct MaturedReward {
     pub child_index_block_hash: Vec<u8>,
     pub parent_index_block_hash: Vec<u8>,
 }
-
-/*
-impl From<super::chainstate_db::MaturedReward> for MaturedReward {
-    fn from(value: super::chainstate_db::MaturedReward) -> Self {
-        MaturedReward {
-            environment_id: 0,
-            address: value.address,
-            recipient: value.recipient,
-            vtxindex: value.vtxindex,
-            coinbase: value
-                .coinbase
-                .parse()
-                .expect("failed to convert coinbase to i64"),
-            tx_fees_anchored: value
-                .tx_fees_anchored
-                .parse()
-                .expect("failed to convert tx_fees_anchored to i32"),
-            tx_fees_streamed_confirmed: value
-                .tx_fees_streamed_confirmed
-                .parse()
-                .expect("failed to convert tx_fees_streamed_confirmed to i32"),
-            tx_fees_streamed_produced: value
-                .tx_fees_streamed_produced
-                .parse()
-                .expect("failed to convert tx_fees_streamed_produced to i32"),
-            child_index_block_hash: hex::decode(value.child_index_block_hash)
-                .expect("failed to decode child_index_block_hash from hex")
-                .to_vec(),
-            parent_index_block_hash: hex::decode(value.parent_index_block_hash)
-                .expect("failed to decode parent_index_block_hash from hex")
-                .to_vec(),
-        }
-    }
-}
-*/
 
 impl From<&MaturedReward> for stacks::MinerReward {
     fn from(val: &MaturedReward) -> Self {

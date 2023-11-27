@@ -128,10 +128,6 @@ impl ChainStateReplayer {
 
                 info!("beginning genesis block in target");
                 let ctx = target.block_begin(&block)?;
-
-                if let BlockTransactionContext::Genesis = ctx {
-                    warn!("got here!")
-                }
             }
 
             opts.callbacks.replay_block_finish(source, target);
@@ -154,14 +150,10 @@ impl ChainStateReplayer {
         let block_id = header.stacks_block_id()?;
 
         // Begin a new block in `target`.
-        let block_ctx = target.block_begin(block)?;
+        target.block_begin(block)?;
 
-        let mut block_ctx = if let BlockTransactionContext::Regular(ctx) = block_ctx {
-            ctx
-        } else {
-            bail!("could not begin transaction")
-        };
-
+        todo!("replay_block_into");
+        /*
         for tx in stacks_block.txs.iter() {
             info!("processing tx: {}", tx.txid());
 
@@ -201,7 +193,7 @@ impl ChainStateReplayer {
 
                     ok!()
                 })?;
-        }
+        }*/
 
         ok!()
     }

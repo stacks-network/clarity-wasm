@@ -15,7 +15,6 @@ use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
 use crate::db::appdb::AppDb;
-use crate::db::model;
 use crate::types::*;
 use crate::{clarity, stacks};
 
@@ -147,7 +146,7 @@ impl RuntimeEnvContextMut {
         }
     }
 
-    pub fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext> {
+    pub fn block_begin(&mut self, block: &Block) -> Result<()> {
         self.inner.block_begin(block)
     }
 }
@@ -197,13 +196,15 @@ pub trait ReadableEnv: RuntimeEnv {
 
     /// Retrieves all [Epoch]s from the burnchain sortition datastore.
     fn epochs(&self) -> BoxedDbIterResult<Epoch>;
+
+    fn block_headers(&self) -> BoxedDbIterResult<BlockHeader>;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
 pub trait WriteableEnv: ReadableEnv {
     /// Begins the [Block] from the source environment in the target environment's
     /// chainstate.
-    fn block_begin(&mut self, block: &Block) -> Result<BlockTransactionContext>;
+    fn block_begin(&mut self, block: &Block) -> Result<()>;
 
     /// Commits the currently open [Block] from the source environment to the
     /// target environment's chainstate.
@@ -213,6 +214,7 @@ pub trait WriteableEnv: ReadableEnv {
     ) -> Result<clarity::LimitedCostTracker>;
 
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;
+    fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

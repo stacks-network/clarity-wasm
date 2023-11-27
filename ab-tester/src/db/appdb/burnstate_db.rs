@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::rc::Rc;
 
 use color_eyre::Result;

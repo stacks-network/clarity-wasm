@@ -1,3 +1,5 @@
+use color_eyre::eyre::anyhow;
+use color_eyre::Result;
 /// This file contains model types (DTOs) which represent tables in a Stacks
 /// node's chainstate index DB, typically located in `chainstate/vm/index.sqlite`.
 use diesel::prelude::*;
@@ -113,6 +115,39 @@ pub struct BlockHeader {
     /// Converted to/from u64.
     pub block_size: String,
     pub affirmation_weight: i32,
+}
+
+impl TryFrom<BlockHeader> for crate::types::BlockHeader {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: BlockHeader) -> Result<Self> {
+        Ok(Self {
+            environment_id: 0,
+            version: value.version as u32,
+            total_burn: value.total_burn.parse()?,
+            total_work: value.total_work.parse()?,
+            proof: stacks::VRFProof::from_hex(&value.proof)
+                .ok_or(anyhow!("failed to convert proof hex to VRFProof"))?,
+            parent_block: stacks::BlockHeaderHash::from_hex(&value.parent_block)?,
+            parent_microblock: stacks::BlockHeaderHash::from_hex(&value.parent_microblock)?,
+            parent_microblock_sequence: value.parent_microblock_sequence as u32,
+            tx_merkle_root: stacks::Sha512Trunc256Sum::from_hex(&value.tx_merkle_root)?,
+            state_index_root: stacks::TrieHash::from_hex(&value.state_index_root)?,
+            microblock_pubkey_hash: stacks::Hash160::from_hex(&value.microblock_pubkey_hash)?,
+            block_hash: stacks::BlockHeaderHash::from_hex(&value.block_hash)?,
+            index_block_hash: stacks::StacksBlockId::from_hex(&value.index_block_hash)?,
+            block_height: value.block_height as u32,
+            index_root: stacks::TrieHash::from_hex(&value.index_root)?,
+            consensus_hash: stacks::ConsensusHash::from_hex(&value.consensus_hash)?,
+            burn_header_hash: stacks::BurnchainHeaderHash::from_hex(&value.burn_header_hash)?,
+            burn_header_height: value.burn_header_height as u32,
+            burn_header_timestamp: value.burn_header_timestamp as u64,
+            parent_block_id: stacks::StacksBlockId::from_hex(&value.parent_block_id)?,
+            cost: value.cost.parse()?,
+            block_size: value.block_size.parse()?,
+            affirmation_weight: value.affirmation_weight as u64,
+        })
+    }
 }
 
 impl BlockHeader {

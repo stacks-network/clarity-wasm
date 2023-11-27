@@ -27,7 +27,7 @@ where
         cursor: 0,
         buffer: VecDeque::with_capacity(buffer_size_hint),
         record_type: PhantomData,
-        model_type: PhantomData::default(),
+        model_type: PhantomData,
     }
 }
 

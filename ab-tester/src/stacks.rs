@@ -27,7 +27,7 @@ pub use blockstack_lib::{
         FIRST_STACKS_BLOCK_HASH, FIRST_STACKS_BLOCK_ID, STACKS_EPOCHS_MAINNET,
     },
     types::StacksEpoch,
-    util::hash::Sha512Trunc256Sum,
+    util::hash::{Hash160, Sha512Trunc256Sum},
     util_lib::db::IndexDBConn,
     vm::costs::ExecutionCost,
 };
@@ -36,4 +36,5 @@ pub use stacks_common::types::chainstate::{
     TrieHash, VRFSeed,
 };
 pub use stacks_common::types::StacksEpochId;
+pub use stacks_common::util::vrf::VRFProof;
 pub use stx_genesis::*;

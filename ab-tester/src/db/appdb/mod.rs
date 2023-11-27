@@ -25,6 +25,7 @@ use super::schema::*;
 #[allow(unused_imports)]
 use crate::{
     clarity,
+    db::appdb,
     stacks::{
         self,
         Address, // This import will give warnings but is needed for its impl fn's.
@@ -39,6 +40,61 @@ pub struct AppDbBatchContext<'a> {
 impl<'a> AppDbBatchContext<'a> {
     pub fn new(conn: RefMut<'a, SqliteConnection>) -> Self {
         Self { conn }
+    }
+
+    pub fn import_block_headers(
+        &mut self,
+        headers: Box<dyn Iterator<Item = Result<crate::types::BlockHeader>>>,
+        environment_id: Option<i32>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for header in headers {
+                warn!("hi2");
+                let header = header
+                    .map_err(|e| error!("{:?}", e))
+                    .expect("failed to load header");
+
+                trace!(
+                    "inserting block header {{hash: {:?}, height: {:?}}}",
+                    &header.block_hash,
+                    &header.block_height
+                );
+                let mut header: super::model::BlockHeader = header.try_into()?;
+
+                if let Some(id) = environment_id {
+                    header.environment_id = id;
+                }
+
+                let insert_stmt = insert_into(_block_headers::table)
+                    .values(header)
+                    .on_conflict((
+                        //environment_id, consensus_hash, block_hash
+                        _block_headers::environment_id,
+                        _block_headers::consensus_hash,
+                        _block_headers::block_hash
+                    ))
+                    .do_update()
+                    .set((
+                        _block_headers::environment_id.eq(excluded(_block_headers::environment_id)),
+                        _block_headers::consensus_hash.eq(excluded(_block_headers::consensus_hash)),
+                        _block_headers::block_hash.eq(excluded(_block_headers::block_hash))
+                    ));
+
+                trace!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one block header, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
     }
 
     /// Imports snapshots from the provided source iterator into the app's datastore,
@@ -277,8 +333,7 @@ impl AppDb {
         buffer_size_hint: usize,
     ) -> impl Iterator<Item = Result<Model>>
     where
-        Record: TryInto<Model>,
-        Model: Clone,
+        Model: Clone + TryFrom<Record>,
         Query: OffsetDsl + Clone,
         Offset<Query>: LimitDsl,
         Limit<Offset<Query>>: for<'a> LoadQuery<'a, diesel::SqliteConnection, Record>,
@@ -301,8 +356,7 @@ impl AppDb {
         buffer_size_hint: usize,
     ) -> impl Iterator<Item = Result<Model>>
     where
-        Record: TryInto<Model>,
-        Model: Clone,
+        Model: Clone + TryFrom<Record>,
         Query: OffsetDsl + Clone,
         Offset<Query>: LimitDsl,
         Limit<Offset<Query>>: for<'a> LoadQuery<'a, Conn, Record>,

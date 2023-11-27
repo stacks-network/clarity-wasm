@@ -13,15 +13,15 @@ use diesel::{
 };
 use log::*;
 
+use self::db::schema::chainstate::block_headers;
 use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv};
 use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
-use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
+use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::dbcursor::stream_results;
-use crate::db::{model, schema};
 use crate::{ok, stacks};
 
 /// Holds initialization config for a [StacksNodeEnv].
@@ -33,7 +33,7 @@ pub struct StacksNodeEnvConfig {
 /// Holds state for a [StacksNodeEnv].
 pub struct StacksNodeEnvState {
     network: Network,
-    index_db_conn: RefCell<SqliteConnection>,
+    index_db_conn: Rc<RefCell<SqliteConnection>>,
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
     sortition_db_conn: Rc<RefCell<SqliteConnection>>,
@@ -319,7 +319,10 @@ impl RuntimeEnv for StacksNodeEnv {
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
         let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
-        let sortition_db = super::open_sortition_db(&paths.sortition_dir, &network)?;
+        // Attempt to open the sortition DB using the Stacks node code to make use
+        // of its validation. We won't actually use this value though, we will
+        // read directly using SQLite.
+        let _ = super::open_sortition_db(&paths.sortition_dir, &network)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("[{name}] successfully opened sortition db");
 
@@ -335,7 +338,7 @@ impl RuntimeEnv for StacksNodeEnv {
 
         let state = StacksNodeEnvState {
             network,
-            index_db_conn: RefCell::new(index_db_conn),
+            index_db_conn: Rc::new(RefCell::new(index_db_conn)),
             chainstate,
             clarity_db_conn,
             sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
@@ -414,6 +417,19 @@ impl ReadableEnv for StacksNodeEnv {
             state.sortition_db_conn.clone(),
             100,
         );
+
+        Ok(Box::new(result))
+    }
+
+    fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
+        let state = self.get_env_state()?;
+
+        let result = stream_results::<
+            db::model::chainstate::BlockHeader,
+            crate::types::BlockHeader,
+            _,
+            _,
+        >(block_headers::table, state.index_db_conn.clone(), 1000);
 
         Ok(Box::new(result))
     }

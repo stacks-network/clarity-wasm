@@ -10,6 +10,50 @@ pub struct Payment {
 }
 
 #[derive(Debug, Clone)]
+pub struct BlockHeader {
+    pub environment_id: i32,
+    pub version: u32,
+    pub total_burn: u64,
+    pub total_work: u64,
+    pub proof: stacks::VRFProof,
+    /// Hash of parent Stacks block.
+    pub parent_block: stacks::BlockHeaderHash,
+    pub parent_microblock: stacks::BlockHeaderHash,
+    pub parent_microblock_sequence: u32,
+    pub tx_merkle_root: stacks::Sha512Trunc256Sum,
+    pub state_index_root: stacks::TrieHash,
+    pub microblock_pubkey_hash: stacks::Hash160,
+    /// Note: this is *not* unique, since two burn chain forks can commit
+    /// to the same Stacks block.
+    pub block_hash: stacks::BlockHeaderHash,
+    /// Note: this is the hash of the block hash and consensus hash of the
+    /// burn block that selected it, and is guaranteed to be globally unique
+    /// (across all Stacks forks and across all PoX forks).
+    /// index_block_hash is the block hash fed into the MARF index.
+    pub index_block_hash: stacks::StacksBlockId,
+    pub block_height: u32,
+    /// Root hash of the internal, not-conensus-critical MARF that allows
+    /// us to track chainstate/fork metadata.
+    pub index_root: stacks::TrieHash,
+    /// All consensus hashes are guaranteed to be unique.
+    pub consensus_hash: stacks::ConsensusHash,
+    /// Burn header hash corresponding to the consensus hash (NOT guaranteed
+    /// to be unique, since we can have 2+ blocks per burn block if there's
+    /// a PoX fork).
+    pub burn_header_hash: stacks::BurnchainHeaderHash,
+    /// Height of the burnchain block header that generated this consensus hash.
+    pub burn_header_height: u32,
+    /// Timestamp from the burnchain block header that generated this consensus hash.
+    pub burn_header_timestamp: u64,
+    /// NOTE: this is the parent index_block_hash.
+    pub parent_block_id: stacks::StacksBlockId,
+    pub cost: u64,
+    /// Converted to/from u64.
+    pub block_size: u64,
+    pub affirmation_weight: u64,
+}
+
+#[derive(Debug, Clone)]
 pub struct AstRuleHeight {
     pub environment_id: i32,
     pub ast_rule_id: u32,

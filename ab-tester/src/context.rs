@@ -106,15 +106,22 @@ impl ComparisonContext {
             target.open()?;
 
             info!(
-                "migrating burnstate from '{}' to '{}'...",
+                "migrating burnstate from '{}' into '{}'...",
                 baseline_env.name(),
                 target.name()
             );
-
             // Import source burnstate into target environment. This is done due to
             // burnstate being expected to be present during contract evaluation.
-            target.import_burnstate(baseline_env.as_readable_env())?;
-            info!("finished - proceeding with replay");
+            //target.import_burnstate(baseline_env.as_readable_env())?;
+            info!("finished");
+
+            info!(
+                "migrating chainstate from '{}' into '{}'...",
+                baseline_env.name(),
+                target.name()
+            );
+            target.import_chainstate(baseline_env.as_readable_env())?;
+            info!("finished");
 
             // Replay from source into target.
             ChainStateReplayer::replay(baseline_env, target, opts)?;
