@@ -14,7 +14,7 @@ use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
-use crate::db::appdb::headers_db::{AsHeadersDb, AppDbHeadersWrapper};
+use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::dbcursor::stream_results;
 use crate::db::schema::sortition::*;
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
@@ -339,7 +339,7 @@ impl RuntimeEnv for StacksNodeEnv {
             sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
             //sortition_db,
             headers_db,
-            burnstate_db
+            burnstate_db,
         };
 
         self.env_state = Some(state);

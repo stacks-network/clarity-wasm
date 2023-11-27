@@ -1,20 +1,14 @@
 use std::rc::Rc;
 
-use color_eyre::Result;
 use color_eyre::eyre::anyhow;
+use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::QueryDsl;
 
-use crate::{
-    clarity,
-    db::{
-        model::app_db::{BlockHeader, MaturedReward, Payment},
-        schema::appdb::*,
-    },
-    stacks,
-};
-
 use super::AppDb;
+use crate::db::model::app_db::{BlockHeader, MaturedReward, Payment};
+use crate::db::schema::appdb::*;
+use crate::{clarity, stacks};
 
 pub trait AsHeadersDb {
     fn as_headers_db(&self) -> Result<&dyn clarity::HeadersDB>;
@@ -22,7 +16,7 @@ pub trait AsHeadersDb {
 
 pub struct AppDbHeadersWrapper {
     environment_id: i32,
-    app_db: Rc<AppDb>
+    app_db: Rc<AppDb>,
 }
 
 impl AsHeadersDb for AppDbHeadersWrapper {
@@ -35,7 +29,7 @@ impl AppDbHeadersWrapper {
     pub fn new(environment_id: i32, app_db: Rc<AppDb>) -> Self {
         Self {
             environment_id,
-            app_db
+            app_db,
         }
     }
 
@@ -48,8 +42,9 @@ impl AppDbHeadersWrapper {
     ) -> Result<Option<BlockHeader>> {
         let result = _block_headers::table
             .filter(
-                _block_headers::environment_id.eq(self.environment_id)
-                .and(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec()))
+                _block_headers::environment_id
+                    .eq(self.environment_id)
+                    .and(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec())),
             )
             .first::<BlockHeader>(&mut *self.app_db.conn.borrow_mut())
             .optional()
@@ -67,8 +62,9 @@ impl AppDbHeadersWrapper {
     ) -> Result<Option<Payment>> {
         let result = _payments::table
             .filter(
-                _payments::environment_id.eq(self.environment_id)
-                .and(_payments::block_hash.eq(id_bhh.as_bytes().to_vec()))
+                _payments::environment_id
+                    .eq(self.environment_id)
+                    .and(_payments::block_hash.eq(id_bhh.as_bytes().to_vec())),
             )
             .first::<Payment>(&mut *self.app_db.conn.borrow_mut())
             .optional()
@@ -232,9 +228,13 @@ impl clarity::HeadersDB for AppDbHeadersWrapper {
 
         let rewards = _matured_rewards::table
             .filter(
-                _matured_rewards::environment_id.eq(self.environment_id)
-                .and(_matured_rewards::parent_index_block_hash.eq(parent_id_bhh))
-                .and(_matured_rewards::child_index_block_hash.eq(child_id_bhh.as_bytes().to_vec())),
+                _matured_rewards::environment_id
+                    .eq(self.environment_id)
+                    .and(_matured_rewards::parent_index_block_hash.eq(parent_id_bhh))
+                    .and(
+                        _matured_rewards::child_index_block_hash
+                            .eq(child_id_bhh.as_bytes().to_vec()),
+                    ),
             )
             .get_results::<MaturedReward>(&mut *self.app_db.conn.borrow_mut())
             .expect("failed to find matured rewards for parent+child block combination")

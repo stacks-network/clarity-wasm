@@ -27,6 +27,7 @@ pub use blockstack_lib::{
         FIRST_STACKS_BLOCK_HASH, FIRST_STACKS_BLOCK_ID, STACKS_EPOCHS_MAINNET,
     },
     types::StacksEpoch,
+    util::hash::Sha512Trunc256Sum,
     util_lib::db::IndexDBConn,
     vm::costs::ExecutionCost,
 };

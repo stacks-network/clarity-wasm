@@ -1,5 +1,6 @@
-pub mod headers_db;
 pub mod burnstate_db;
+pub mod clarity_store;
+pub mod headers_db;
 
 use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
@@ -533,5 +534,3 @@ impl AppDb {
         Ok(result)
     }
 }
-
-

@@ -1,5 +1,4 @@
 pub mod appdb;
-pub mod datastore;
 pub mod dbcursor;
 pub mod model;
 pub mod schema;

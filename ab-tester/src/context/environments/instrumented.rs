@@ -16,9 +16,9 @@ use crate::context::{
     Block, BlockCursor, BlockTransactionContext, Network, RegularBlockTransactionContext, Runtime,
     StacksEnvPaths,
 };
+use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
+use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
 use crate::db::appdb::AppDb;
-use crate::db::appdb::burnstate_db::{AsBurnStateDb, AppDbBurnStateWrapper};
-use crate::db::appdb::headers_db::{AsHeadersDb, AppDbHeadersWrapper};
 use crate::db::model::app_db as model;
 use crate::db::schema::appdb::{self, _block_commits, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
@@ -256,14 +256,10 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
-        let burnstate_db = AppDbBurnStateWrapper::new(
-            self.id, 
-            self.app_db.clone(), 
-            boot_data.pox_constants);
+        let burnstate_db =
+            AppDbBurnStateWrapper::new(self.id, self.app_db.clone(), boot_data.pox_constants);
 
-        let headers_db = AppDbHeadersWrapper::new(
-            self.id, 
-            self.app_db.clone());
+        let headers_db = AppDbHeadersWrapper::new(self.id, self.app_db.clone());
 
         // Open the burnstate db
         /*let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
@@ -354,7 +350,7 @@ impl WriteableEnv for InstrumentedEnv {
         )?;
 
         let state = self.get_env_state_mut()?;
-            
+
         match block {
             Block::Genesis(inner) => {
                 current_block_id = inner.header.stacks_block_id()?;
@@ -419,7 +415,6 @@ impl WriteableEnv for InstrumentedEnv {
 
         info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
 
-
         // We cannot process genesis as it was already processed as a part of chainstate
         // initialization. Log that we reached it and skip processing.
         //if let Block::Genesis(_) = block {
@@ -464,10 +459,7 @@ impl WriteableEnv for InstrumentedEnv {
         todo!()
     }
 
-    fn import_burnstate(
-        &self,
-        source: &dyn ReadableEnv
-    ) -> Result<()> {
+    fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into app datastore...",
             source.name(),

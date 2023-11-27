@@ -388,9 +388,9 @@ impl TryFrom<Epoch> for clarity::StacksEpoch {
         Ok(Self {
             start_height: value.start_block_height as u64,
             end_height: value.end_block_height as u64,
-            epoch_id: (value.epoch_id as u32)
-                .try_into()
-                .map_err(|e| anyhow!("failed to convert epoch id from database to a StacksEpochId: {e}"))?,
+            epoch_id: (value.epoch_id as u32).try_into().map_err(|e| {
+                anyhow!("failed to convert epoch id from database to a StacksEpochId: {e}")
+            })?,
             block_limit: rmp_serde::decode::from_slice(&value.block_limit)?,
             network_epoch: value.network_epoch as u8,
         })

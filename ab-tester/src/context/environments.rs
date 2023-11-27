@@ -213,10 +213,7 @@ pub trait WriteableEnv: ReadableEnv {
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
 
-    fn import_burnstate(
-        &self,
-        source: &dyn ReadableEnv
-    ) -> Result<()>;
+    fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

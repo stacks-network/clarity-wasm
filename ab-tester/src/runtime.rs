@@ -1,4 +1,6 @@
-use blockstack_lib::chainstate::stacks::db::StacksChainState;
+// Obsolete, just keeping this around for reference in-case of
+
+/*use blockstack_lib::chainstate::stacks::db::StacksChainState;
 use blockstack_lib::core::BLOCK_LIMIT_MAINNET_205;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::ast::{self, ASTRules};
@@ -15,7 +17,6 @@ use stacks_common::types::StacksEpochId;
 
 use crate::config::Config;
 use crate::db::appdb::AppDb;
-use crate::db::datastore::DataStore;
 use crate::db::model::app_db::ContractExecution;
 
 pub fn analyze_contract(
@@ -162,3 +163,4 @@ fn exec<'a>(
 
     todo!()
 }
+*/

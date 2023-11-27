@@ -130,7 +130,11 @@ impl ComparisonContext {
 
     /// Imports burnstate + sortition data from the provided [RuntimeEnvContext]
     /// into the app's datastore.
-    fn import_burnstate(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) -> Result<()> {
+    fn import_burnstate(
+        &self,
+        source: &RuntimeEnvContext,
+        target: &RuntimeEnvContextMut,
+    ) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into app datastore...",
             source.name(),
