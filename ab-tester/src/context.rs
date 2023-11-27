@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -103,10 +104,11 @@ impl ComparisonContext {
         // Open all necessary databases/datastores for the source environment.
         baseline_env.open()?;
 
-        // Import burnstate data into the app's datastore.
-        self.import_burnstate(baseline_env)?;
+        // Import burnstate data from the source environment into the app's datastore.
+        //self.import_burnstate(baseline_env)?;
 
-        for target in self.instrumented_envs.iter_mut() {
+        let environments = self.instrumented_envs.iter_mut();
+        for mut target in environments {
             target.open()?;
 
             info!(
@@ -114,6 +116,9 @@ impl ComparisonContext {
                 baseline_env.name(),
                 target.name()
             );
+
+            //self.import_burnstate(&baseline_env, target)?;
+            target.import_burnstate(baseline_env.as_readable_env())?;
 
             info!("finished - proceeding with replay");
 
@@ -125,7 +130,7 @@ impl ComparisonContext {
 
     /// Imports burnstate + sortition data from the provided [RuntimeEnvContext]
     /// into the app's datastore.
-    fn import_burnstate(&self, source: &RuntimeEnvContext) -> Result<()> {
+    fn import_burnstate(&self, source: &RuntimeEnvContext, target: &RuntimeEnvContextMut) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into app datastore...",
             source.name(),

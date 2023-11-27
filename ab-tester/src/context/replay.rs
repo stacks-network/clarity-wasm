@@ -111,9 +111,9 @@ impl ChainStateReplayer {
 
             if let Some(stacks_block) = stacks_block {
                 info!(
-                    "processing block #{} ({})",
+                    "processing REGULAR block #{} ({})",
                     header.block_height(),
-                    &hex::encode(&header.index_block_hash)
+                    hex::encode(&header.index_block_hash)
                 );
 
                 // Now we have ensured that we are not in genesis and that the
@@ -123,7 +123,7 @@ impl ChainStateReplayer {
                 info!(
                     "processing GENESIS block #{} ({})",
                     header.block_height(),
-                    &hex::encode(&header.index_block_hash)
+                    hex::encode(&header.index_block_hash)
                 );
 
                 info!("beginning genesis block in target");

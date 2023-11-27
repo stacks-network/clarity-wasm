@@ -17,6 +17,8 @@ use crate::context::{
     StacksEnvPaths,
 };
 use crate::db::appdb::AppDb;
+use crate::db::appdb::burnstate_db::{AsBurnStateDb, AppDbBurnStateWrapper};
+use crate::db::appdb::headers_db::{AsHeadersDb, AppDbHeadersWrapper};
 use crate::db::model::app_db as model;
 use crate::db::schema::appdb::{self, _block_commits, _snapshots};
 use crate::db::stacks_burnstate_db::StacksBurnStateDb;
@@ -178,6 +180,20 @@ impl InstrumentedEnv {
     }
 }
 
+impl AsHeadersDb for InstrumentedEnv {
+    fn as_headers_db(&self) -> Result<&dyn clarity::HeadersDB> {
+        let state = self.get_env_state()?;
+        Ok(&*state.headers_db)
+    }
+}
+
+impl AsBurnStateDb for InstrumentedEnv {
+    fn as_burnstate_db(&self) -> Result<&dyn clarity::BurnStateDB> {
+        let state = self.get_env_state()?;
+        Ok(&*state.burnstate_db)
+    }
+}
+
 /// Implementation of [RuntimeEnv] for [InstrumentedEnv].
 impl RuntimeEnv for InstrumentedEnv {
     fn name(&self) -> String {
@@ -240,22 +256,31 @@ impl RuntimeEnv for InstrumentedEnv {
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
+        let burnstate_db = AppDbBurnStateWrapper::new(
+            self.id, 
+            self.app_db.clone(), 
+            boot_data.pox_constants);
+
+        let headers_db = AppDbHeadersWrapper::new(
+            self.id, 
+            self.app_db.clone());
+
         // Open the burnstate db
-        let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
+        /*let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
             &paths.sortition_db_path,
             boot_data.pox_constants,
         )?);
 
         // Open the headers db
         let headers_db: Box<dyn clarity::HeadersDB> =
-            Box::new(StacksHeadersDb::new(&paths.index_db_path)?);
+            Box::new(StacksHeadersDb::new(&paths.index_db_path)?);*/
 
         let state = InstrumentedEnvState {
             chainstate,
             index_db_conn: RefCell::new(index_db_conn),
             clarity_db_conn,
-            burnstate_db,
-            headers_db,
+            burnstate_db: Box::new(burnstate_db),
+            headers_db: Box::new(headers_db),
         };
 
         self.env_state = Some(state);
@@ -328,13 +353,13 @@ impl WriteableEnv for InstrumentedEnv {
             block.index_block_hash()?,
         )?;
 
+        let state = self.get_env_state_mut()?;
+            
         match block {
             Block::Genesis(inner) => {
                 current_block_id = inner.header.stacks_block_id()?;
                 // TODO: Fix unwrap
                 next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
-
-                let state = self.get_env_state_mut()?;
 
                 info!(
                     "beginning genesis block: {}",
@@ -365,8 +390,6 @@ impl WriteableEnv for InstrumentedEnv {
                 // TODO: Fix unwrap
                 next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
 
-                let state = self.get_env_state_mut()?;
-
                 info!(
                     "beginning regular block: {}",
                     &inner.header.stacks_block_id()?.to_hex()
@@ -396,7 +419,6 @@ impl WriteableEnv for InstrumentedEnv {
 
         info!("current_block_id: {current_block_id}, next_block_id: {next_block_id}");
 
-        let state = self.get_env_state_mut()?;
 
         // We cannot process genesis as it was already processed as a part of chainstate
         // initialization. Log that we reached it and skip processing.
@@ -440,5 +462,48 @@ impl WriteableEnv for InstrumentedEnv {
         }
 
         todo!()
+    }
+
+    fn import_burnstate(
+        &self,
+        source: &dyn ReadableEnv
+    ) -> Result<()> {
+        debug!(
+            "importing snapshots from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_snapshots_iter = source.snapshots()?;
+        self.app_db
+            .batch()
+            .import_snapshots(src_snapshots_iter, Some(self.id()))?;
+
+        debug!(
+            "importing block commits from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_block_commits_iter = source.block_commits()?;
+        self.app_db
+            .batch()
+            .import_block_commits(src_block_commits_iter, Some(self.id()))?;
+
+        debug!(
+            "importing AST rules from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_ast_rules_iter = source.ast_rules()?;
+        self.app_db
+            .batch()
+            .import_ast_rules(src_ast_rules_iter, Some(self.id()))?;
+
+        debug!(
+            "importing epochs from '{}' into app datastore...",
+            source.name(),
+        );
+        let src_epochs_iter = source.epochs()?;
+        self.app_db
+            .batch()
+            .import_epochs(src_epochs_iter, Some(self.id()))?;
+
+        ok!()
     }
 }

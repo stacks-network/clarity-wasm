@@ -17,7 +17,7 @@ use crate::{
 use super::AppDb;
 
 pub trait AsHeadersDb {
-    fn as_headers_db(&self) -> &dyn clarity::HeadersDB;
+    fn as_headers_db(&self) -> Result<&dyn clarity::HeadersDB>;
 }
 
 pub struct AppDbHeadersWrapper {
@@ -26,8 +26,8 @@ pub struct AppDbHeadersWrapper {
 }
 
 impl AsHeadersDb for AppDbHeadersWrapper {
-    fn as_headers_db(&self) -> &dyn clarity::HeadersDB {
-        self as &dyn clarity::HeadersDB
+    fn as_headers_db(&self) -> Result<&dyn clarity::HeadersDB> {
+        Ok(self as &dyn clarity::HeadersDB)
     }
 }
 

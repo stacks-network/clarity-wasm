@@ -13,8 +13,12 @@ use crate::clarity::{self, ClarityConnection};
 use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
+use crate::db::appdb::burnstate_db::AsBurnStateDb;
+use crate::db::appdb::headers_db::{AsHeadersDb, AppDbHeadersWrapper};
 use crate::db::dbcursor::stream_results;
 use crate::db::schema::sortition::*;
+use crate::db::stacks_burnstate_db::StacksBurnStateDb;
+use crate::db::stacks_headers_db::StacksHeadersDb;
 use crate::db::{model, schema};
 use crate::{ok, stacks};
 
@@ -31,7 +35,9 @@ pub struct StacksNodeEnvState {
     chainstate: stacks::StacksChainState,
     clarity_db_conn: SqliteConnection,
     sortition_db_conn: Rc<RefCell<SqliteConnection>>,
-    sortition_db: stacks::SortitionDB,
+    //sortition_db: stacks::SortitionDB,
+    headers_db: Box<dyn clarity::HeadersDB>,
+    burnstate_db: Box<dyn clarity::BurnStateDB>,
 }
 
 /// This environment type is read-only and reads directly from a Stacks node's
@@ -222,85 +228,19 @@ impl StacksNodeEnv {
 
         Ok(())
     }
+}
 
-    /// Retrieves all snapshots from the node's sortition database, ordered by
-    /// block height ascending.
-    fn sortition_snapshots(&self) -> Result<Vec<crate::types::Snapshot>> {
+impl AsHeadersDb for StacksNodeEnv {
+    fn as_headers_db(&self) -> Result<&dyn clarity::HeadersDB> {
         let state = self.get_env_state()?;
-
-        let results = snapshots::table
-            .order_by(snapshots::block_height.asc())
-            .get_results::<crate::db::model::sortition_db::Snapshot>(
-                &mut *state.sortition_db_conn.borrow_mut(),
-            )?
-            .into_iter()
-            .map(|s| {
-                s.try_into()
-                    .expect("failed to convert stacks node snapshot to common type")
-            })
-            .collect::<Vec<crate::types::Snapshot>>();
-
-        Ok(results)
+        Ok(&*state.headers_db)
     }
+}
 
-    /// Retrieves all block commits from the node's sortition database, ordered by
-    /// block height ascending.
-    fn sortition_block_commits(&self) -> Result<Vec<crate::types::BlockCommit>> {
+impl AsBurnStateDb for StacksNodeEnv {
+    fn as_burnstate_db(&self) -> Result<&dyn clarity::BurnStateDB> {
         let state = self.get_env_state()?;
-
-        let results = block_commits::table
-            .order_by(block_commits::block_height.asc())
-            .get_results::<crate::db::model::sortition_db::BlockCommit>(
-                &mut *state.sortition_db_conn.borrow_mut(),
-            )?
-            .into_iter()
-            .map(|s| {
-                s.try_into()
-                    .expect("failed to convert stacks node block commit to common type")
-            })
-            .collect::<Vec<crate::types::BlockCommit>>();
-
-        Ok(results)
-    }
-
-    /// Retrieves all epochs from the node's sortition database, ordered by
-    /// epoch id ascending.
-    fn sortition_epochs(&self) -> Result<Vec<crate::types::Epoch>> {
-        let state = self.get_env_state()?;
-
-        let results = epochs::table
-            .order_by(epochs::epoch_id.asc())
-            .get_results::<crate::db::model::sortition_db::Epoch>(
-                &mut *state.sortition_db_conn.borrow_mut(),
-            )?
-            .into_iter()
-            .map(|s| {
-                s.try_into()
-                    .expect("failed to convert stacks node epoch to common type")
-            })
-            .collect::<Vec<crate::types::Epoch>>();
-
-        Ok(results)
-    }
-
-    /// Retrieves all ast rule heights from the node's sortition database, ordered by
-    /// ast rule id ascending.
-    fn sortition_ast_rule_heights(&self) -> Result<Vec<crate::types::AstRuleHeight>> {
-        let state = self.get_env_state()?;
-
-        let results = ast_rule_heights::table
-            .order_by(ast_rule_heights::ast_rule_id.asc())
-            .get_results::<crate::db::model::sortition_db::AstRuleHeight>(
-                &mut *state.sortition_db_conn.borrow_mut(),
-            )?
-            .into_iter()
-            .map(|s| {
-                s.try_into()
-                    .expect("failed to convert stacks ast rule height to common type")
-            })
-            .collect::<Vec<crate::types::AstRuleHeight>>();
-
-        Ok(results)
+        Ok(&*state.burnstate_db)
     }
 }
 
@@ -381,13 +321,25 @@ impl RuntimeEnv for StacksNodeEnv {
         self.callbacks.open_sortition_db_finish(self);
         info!("[{name}] successfully opened sortition db");
 
+        // Open the burnstate db
+        let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
+            &paths.sortition_db_path,
+            stacks::PoxConstants::mainnet_default(),
+        )?);
+
+        // Open the headers db
+        let headers_db: Box<dyn clarity::HeadersDB> =
+            Box::new(StacksHeadersDb::new(&paths.index_db_path)?);
+
         let state = StacksNodeEnvState {
             network,
             index_db_conn: RefCell::new(index_db_conn),
             chainstate,
             clarity_db_conn,
             sortition_db_conn: Rc::new(RefCell::new(sortition_db_conn)),
-            sortition_db,
+            //sortition_db,
+            headers_db,
+            burnstate_db
         };
 
         self.env_state = Some(state);

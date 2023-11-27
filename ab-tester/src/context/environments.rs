@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
-use log::*;
 
 use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
@@ -116,6 +115,10 @@ impl RuntimeEnvContext {
     pub fn id(&self) -> i32 {
         self.inner.id()
     }
+
+    pub fn as_readable_env(&self) -> &dyn ReadableEnv {
+        &*self.inner
+    }
 }
 
 /// Represents a mutable/writable environment. Required for target environments
@@ -209,6 +212,11 @@ pub trait WriteableEnv: ReadableEnv {
         &mut self,
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
+
+    fn import_burnstate(
+        &self,
+        source: &dyn ReadableEnv
+    ) -> Result<()>;
 }
 
 /// Opens the sortition DB baseed on the provided network.

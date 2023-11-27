@@ -1,5 +1,7 @@
+use std::ops::Deref;
 use std::rc::Rc;
 
+use color_eyre::Result;
 use diesel::prelude::*;
 use diesel::{OptionalExtension, QueryDsl};
 
@@ -7,7 +9,7 @@ use crate::{clarity, stacks, db::schema::appdb::*, db::model::app_db::*};
 use super::AppDb;
 
 pub trait AsBurnStateDb {
-    fn as_burnstate_db(&self) -> &dyn clarity::BurnStateDB;
+    fn as_burnstate_db(&self) -> Result<&dyn clarity::BurnStateDB>;
 }
 
 pub struct AppDbBurnStateWrapper {
@@ -17,8 +19,16 @@ pub struct AppDbBurnStateWrapper {
 }
 
 impl AsBurnStateDb for AppDbBurnStateWrapper {
-    fn as_burnstate_db(&self) -> &dyn clarity::BurnStateDB {
-        self as &dyn clarity::BurnStateDB
+    fn as_burnstate_db(&self) -> Result<&dyn clarity::BurnStateDB> {
+        Ok(self as &dyn clarity::BurnStateDB)
+    }
+}
+
+impl Deref for AppDbBurnStateWrapper {
+    type Target = &'static dyn clarity::BurnStateDB;
+
+    fn deref(&self) -> &Self::Target {
+        self as &&dyn clarity::BurnStateDB
     }
 }
 

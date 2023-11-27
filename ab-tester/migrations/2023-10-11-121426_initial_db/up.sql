@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS _matured_rewards (
 );
 
 CREATE INDEX IF NOT EXISTS ix__matured_rewards_parent_child_index_block_hash 
-    ON _payments (
+    ON _matured_rewards (
         environment_id,
         parent_index_block_hash,
         child_index_block_hash
