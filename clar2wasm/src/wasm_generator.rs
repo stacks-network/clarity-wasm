@@ -1916,12 +1916,26 @@ impl WasmGenerator {
         name: &ClarityName,
         _args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        // Call prelude
+        // Save the frame pointer in a local variable.
+        let frame_pointer = self.module.locals.add(ValType::I32);
+        builder
+            .global_get(self.stack_pointer)
+            .local_set(frame_pointer);
+
         builder.call(
             self.module
                 .funcs
                 .by_name(name.as_str())
                 .unwrap_or_else(|| panic!("function not found: {name}")),
         );
+
+        // Function postlude
+        // Restore the initial stack pointer.
+        builder
+            .local_get(frame_pointer)
+            .global_set(self.stack_pointer);
+
         Ok(())
     }
 

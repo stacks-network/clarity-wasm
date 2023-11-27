@@ -4,7 +4,7 @@ use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGene
 use clarity::vm::{representations::Span, types::FunctionType, ClarityName, SymbolicExpression};
 use walrus::{
     ir::{Block, InstrSeqType},
-    FunctionBuilder, FunctionId, InstrSeqBuilder, ValType,
+    FunctionBuilder, FunctionId, InstrSeqBuilder,
 };
 
 use super::Word;
@@ -100,13 +100,6 @@ fn traverse_define_function(
     func_builder.name(name.as_str().to_string());
     let mut func_body = func_builder.func_body();
 
-    // Function prelude
-    // Save the frame pointer in a local variable.
-    let frame_pointer = generator.module.locals.add(ValType::I32);
-    func_body
-        .global_get(generator.stack_pointer)
-        .local_set(frame_pointer);
-
     // Setup the locals map for this function, saving the top-level map to
     // restore after.
     let top_level_locals = std::mem::replace(&mut generator.bindings, bindings);
@@ -127,12 +120,6 @@ fn traverse_define_function(
 
     // Insert the function body block into the function
     func_body.instr(Block { seq: block_id });
-
-    // Function postlude
-    // Restore the initial stack pointer.
-    func_body
-        .local_get(frame_pointer)
-        .global_set(generator.stack_pointer);
 
     // Restore the top-level locals map.
     generator.bindings = top_level_locals;
