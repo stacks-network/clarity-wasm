@@ -12,7 +12,7 @@ use clarity::vm::{
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::MemoryId;
 use walrus::{
-    ir::{BinaryOp, Block, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
+    ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
@@ -1084,10 +1084,8 @@ impl WasmGenerator {
         list_ty: &ListTypeData,
     ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
-        // Create a local for the write pointer.
         let write_ptr = self.module.locals.add(ValType::I32);
         let read_ptr = self.module.locals.add(ValType::I32);
-        let end_read_ptr = self.module.locals.add(ValType::I32);
         let bytes_length = self.module.locals.add(ValType::I32);
 
         // Write the type prefix to memory
@@ -1102,105 +1100,108 @@ impl WasmGenerator {
 
         // Save the length of the list to a local
         builder.local_set(bytes_length);
-
-        // Push the write pointer onto the stack, to prepare for
-        // serializing the length.
-        builder
-            .local_get(offset_local)
-            .i32_const(offset as i32 + 1)
-            .binop(BinaryOp::I32Add)
-            .local_tee(write_ptr);
-
-        // Compute the length of the list in elements. The length on
-        // the top of the stack is in bytes, so divide by the size of
-        // the element.
-        let element_ty = list_ty.get_list_item_type();
-        let element_size = get_type_size(element_ty);
-        builder
-            .local_get(bytes_length)
-            .i32_const(element_size)
-            .binop(BinaryOp::I32DivU);
-
-        // Write the length of the list to memory (big-endian)
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.store-i32-be")
-                .expect("store-i32-be not found"),
-        );
-
-        // Adjust the write pointer by 4
-        builder
-            .local_get(write_ptr)
-            .i32_const(4)
-            .binop(BinaryOp::I32Add)
-            .local_set(write_ptr);
-
-        // Save the offset of the list (still at the top of the stack)
         builder.local_set(read_ptr);
 
-        // Compute the pointer to the end of the list
+        // if bytes_length is zero, we can simply add 0_i32 to the serialized buffer,
+        // otherwise, we'll loop through elements and serialize them one by one.
+
+        let size_zero_id = {
+            let mut size_zero = builder.dangling_instr_seq(ValType::I32);
+
+            size_zero.local_get(offset_local).i32_const(0).store(
+                memory,
+                StoreKind::I32 { atomic: false },
+                MemArg {
+                    align: 1,
+                    offset: offset + 1,
+                },
+            );
+
+            size_zero.i32_const(5);
+            size_zero.id()
+        };
+
+        let size_non_zero_id = {
+            let mut size_non_zero = builder.dangling_instr_seq(ValType::I32);
+
+            let element_ty = list_ty.get_list_item_type();
+            let element_size = get_type_size(element_ty);
+
+            // set write pointer
+            size_non_zero
+                .local_get(offset_local)
+                .i32_const(offset as i32 + 1)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+
+            // compute size of list and store it as big-endian i32
+            size_non_zero
+                .local_get(bytes_length)
+                .i32_const(element_size)
+                .binop(BinaryOp::I32DivU);
+            size_non_zero.call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.store-i32-be")
+                    .expect("store-i32-be not found"),
+            );
+
+            // Adjust the write pointer
+            size_non_zero
+                .local_get(write_ptr)
+                .i32_const(4)
+                .binop(BinaryOp::I32Add)
+                .local_set(write_ptr);
+
+            // Loop through elements and serialize
+            let loop_id = {
+                let mut loop_ = size_non_zero.dangling_instr_seq(None);
+                let loop_id = loop_.id();
+
+                self.read_from_memory(&mut loop_, read_ptr, 0, element_ty);
+
+                self.serialize_to_memory(&mut loop_, write_ptr, 0, element_ty)?;
+
+                // Adjust pointers (for write_ptr, adjustment is on the stack)
+                loop_
+                    .local_get(write_ptr)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(write_ptr);
+                loop_
+                    .local_get(read_ptr)
+                    .i32_const(element_size)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(read_ptr);
+
+                // we loop while there are bytes to read in the list
+                loop_
+                    .local_get(bytes_length)
+                    .i32_const(element_size)
+                    .binop(BinaryOp::I32Sub)
+                    .local_tee(bytes_length)
+                    .br_if(loop_id);
+
+                loop_id
+            };
+
+            size_non_zero.instr(Loop { seq: loop_id });
+
+            // Push the amount written to the data stack
+            size_non_zero
+                .local_get(write_ptr)
+                .local_get(offset_local)
+                .binop(BinaryOp::I32Sub);
+
+            size_non_zero.id()
+        };
+
         builder
-            .local_get(read_ptr)
             .local_get(bytes_length)
-            .binop(BinaryOp::I32Add)
-            .local_set(end_read_ptr);
-
-        // Loop over the list, serializing each element to memory.
-        // Wrap the loop inside of a block so that we can put the check
-        // at the top of the loop, allowing us to skip the loop body
-        // in the case where the loop is empty
-        let loop_wrap_block =
-            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
-        let loop_wrap_block_id = loop_wrap_block.id();
-
-        let mut loop_block =
-            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
-        let loop_block_id = loop_block.id();
-
-        loop_block
-            .local_get(read_ptr)
-            .local_get(end_read_ptr)
-            .binop(BinaryOp::I32GeU)
-            .br_if(loop_wrap_block_id);
-
-        // Load the element at the read pointer to the top of the stack
-        self.read_from_memory(&mut loop_block, read_ptr, 0, element_ty);
-
-        // Increment the read pointer by the size read
-        loop_block
-            .local_get(read_ptr)
-            .i32_const(element_size)
-            .binop(BinaryOp::I32Add)
-            .local_set(read_ptr);
-
-        // Serialize the element to memory
-        self.serialize_to_memory(&mut loop_block, write_ptr, 0, element_ty)?;
-
-        // Increment the write pointer by the size written (which is on
-        // the top of the stack)
-        loop_block
-            .local_get(write_ptr)
-            .binop(BinaryOp::I32Add)
-            .local_set(write_ptr);
-
-        // Loop back to the top.
-        loop_block.br(loop_block_id);
-
-        // Add the loop block to the loop wrap block
-        let mut loop_wrap_block = builder.instr_seq(loop_wrap_block_id);
-        loop_wrap_block.instr(Loop { seq: loop_block_id });
-
-        // Add the loop wrap block to the main block
-        builder.instr(Block {
-            seq: loop_wrap_block_id,
-        });
-
-        // Push the amount written to the data stack
-        builder
-            .local_get(write_ptr)
-            .local_get(offset_local)
-            .binop(BinaryOp::I32Sub);
+            .unop(walrus::ir::UnaryOp::I32Eqz)
+            .instr(IfElse {
+                consequent: size_zero_id,
+                alternative: size_non_zero_id,
+            });
 
         Ok(())
     }
