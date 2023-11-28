@@ -20,6 +20,8 @@ impl Word for ToConsensusBuf {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        generator.traverse_args(builder, args)?;
+
         let ty = generator
             .get_expr_type(args.get_expr(0)?)
             .expect("to-consensus-buff? value exprission must be typed")
@@ -31,8 +33,6 @@ impl Word for ToConsensusBuf {
         builder
             .global_get(generator.stack_pointer)
             .local_set(offset);
-
-        generator.traverse_args(builder, args)?;
 
         generator.serialize_to_memory(builder, offset, 0, &ty)?;
 
