@@ -1067,14 +1067,14 @@ impl WasmGenerator {
         Ok(())
     }
 
-    /// Serialize an `optional` to memory using consensus serialization. Leaves
+    /// Serialize a `list` to memory using consensus serialization. Leaves
     /// the length of the data written on the top of the data stack. See
     /// SIP-005 for details.
     /// Representation:
-    ///   None:
-    ///    | 0x09 |
-    ///   Some:
-    ///    | 0x0a | serialized value |
+    ///    | 0x0b | number of elements: 4-bytes (big-endian)
+    ///         | serialized representation of element 0
+    ///         | serialized representation of element 1
+    ///         | ...
     fn serialize_list(
         &mut self,
         builder: &mut InstrSeqBuilder,
