@@ -13,6 +13,7 @@ pub mod blockinfo;
 pub mod buff_to_integer;
 pub mod comparison;
 pub mod conditionals;
+pub mod consensus_buff;
 pub mod constants;
 pub mod contract;
 pub mod control_flow;
@@ -68,6 +69,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::If,
     &conditionals::Match,
     &conditionals::Or,
+    &consensus_buff::ToConsensusBuf,
     &constants::DefineConstant,
     &contract::AsContract,
     &contract::ContractCall,
