@@ -412,7 +412,8 @@ impl Word for Unwrap {
             &throw_type,
         ));
         generator.traverse_expr(&mut throw_branch, throw)?;
-        throw_branch.return_();
+
+        generator.return_early(&mut throw_branch)?;
 
         let throw_branch_id = throw_branch.id();
 
