@@ -1,13 +1,11 @@
 use clarity::{
-    address::{
-        C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
-        C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
-    },
     vm::{
         clarity_wasm::STANDARD_PRINCIPAL_BYTES,
         types::{signatures::ASCII_40, TypeSignature, BUFF_1, BUFF_20},
         ClarityName, SymbolicExpression,
     },
+    C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
+    C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
 use walrus::{
     ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg},

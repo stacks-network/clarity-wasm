@@ -22,6 +22,7 @@ use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::types::TupleData;
 use clarity::vm::StacksEpoch;
 use clarity::vm::Value;
+use rusqlite::Connection;
 use sha2::{Digest, Sha512_256};
 use std::collections::HashMap;
 
@@ -301,7 +302,7 @@ impl ClarityBackingStore for Datastore {
     }
 
     #[cfg(not(feature = "wasm"))]
-    fn get_side_store(&mut self) -> &::clarity::rusqlite::Connection {
+    fn get_side_store(&mut self) -> &Connection {
         panic!("Datastore cannot get_side_store")
     }
 }
@@ -465,6 +466,14 @@ impl BurnStateDB for BurnDatastore {
 
     /// Returns the height of the burnchain when the Stacks chain started running.
     fn get_burn_start_height(&self) -> u32 {
+        0
+    }
+
+    fn get_v3_unlock_height(&self) -> u32 {
+        0
+    }
+
+    fn get_pox_4_activation_height(&self) -> u32 {
         0
     }
 

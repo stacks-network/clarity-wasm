@@ -310,7 +310,7 @@ mod tests {
                     TupleData::from_data(vec![
                         (
                             "addrs".into(),
-                            Value::list_from(vec![TupleData::from_data(vec![
+                            Value::cons_list_unsanitized(vec![TupleData::from_data(vec![
                                 (
                                     "hashbytes".into(),
                                     Value::buff_from([0; 32].to_vec()).unwrap()
