@@ -67,7 +67,7 @@ fn wasm_fold_add_square(c: &mut Criterion) {
 
         let mut call_stack = CallStack::new();
 
-        let list = Value::list_from((1..=8192).map(Value::Int).collect())
+        let list = Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument");
 
         let result = call_function(
@@ -183,7 +183,7 @@ fn interp_fold_add_square(c: &mut Criterion) {
             None,
         );
 
-        let list = Value::list_from((1..=8192).map(Value::Int).collect())
+        let list = Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument");
 
         // Run once outside of benchmark to test the result
