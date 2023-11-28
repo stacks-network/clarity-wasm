@@ -1,4 +1,5 @@
-use std::{cell::RefCell, ops::DerefMut};
+use std::cell::RefCell;
+use std::ops::DerefMut;
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use clarity::util::hash::{Hash160, Sha256Sum};

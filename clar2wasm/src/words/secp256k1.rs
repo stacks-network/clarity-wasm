@@ -1,8 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Recover;

@@ -1,2 +1,3 @@
 [alias]
 clar2wasm-install = "install --path . --locked --force"
+fmt-stacks = "fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module"

@@ -1,22 +1,18 @@
+use clarity::vm::clarity_wasm::STANDARD_PRINCIPAL_BYTES;
+use clarity::vm::types::signatures::ASCII_40;
+use clarity::vm::types::{TypeSignature, BUFF_1, BUFF_20};
+use clarity::vm::{ClarityName, SymbolicExpression};
 use clarity::{
-    vm::{
-        clarity_wasm::STANDARD_PRINCIPAL_BYTES,
-        types::{signatures::ASCII_40, TypeSignature, BUFF_1, BUFF_20},
-        ClarityName, SymbolicExpression,
-    },
     C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
     C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
-use walrus::{
-    ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg},
-    LocalId, ValType,
-};
+use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
+use walrus::{LocalId, ValType};
 
+use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct IsStandard;
@@ -306,13 +302,9 @@ impl Word for PrincipalOf {
 
 #[cfg(test)]
 mod tests {
-    use clarity::{
-        types::StacksEpochId,
-        vm::{
-            types::{PrincipalData, TupleData},
-            ClarityVersion, Value,
-        },
-    };
+    use clarity::types::StacksEpochId;
+    use clarity::vm::types::{PrincipalData, TupleData};
+    use clarity::vm::{ClarityVersion, Value};
 
     use crate::tools::{evaluate, TestEnvironment};
 

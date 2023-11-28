@@ -1,12 +1,12 @@
 extern crate lazy_static;
 
+use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
+use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
 use clarity::vm::diagnostic::Diagnostic;
-use clarity::{
-    types::StacksEpochId,
-    vm::{ast::build_ast_with_diagnostics, types::QualifiedContractIdentifier, ClarityVersion},
-};
+use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::ClarityVersion;
 use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 

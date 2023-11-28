@@ -1,11 +1,12 @@
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ir::InstrSeqType;
+
+use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
-use walrus::ir::InstrSeqType;
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct DefaultTo;

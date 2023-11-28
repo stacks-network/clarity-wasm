@@ -1,10 +1,9 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{
-    types::PrincipalData, ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
-};
+use clarity::vm::types::PrincipalData;
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ValType;
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct AsContract;

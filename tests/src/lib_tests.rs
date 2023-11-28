@@ -1,27 +1,23 @@
+use std::collections::HashMap;
+
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
-use clarity::vm::types::TupleData;
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        callables::DefineType,
-        clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, EventBatch, GlobalContext},
-        contracts::Contract,
-        costs::LimitedCostTracker,
-        database::{ClarityDatabase, MemoryBackingStore},
-        errors::{Error, WasmError},
-        events::StacksTransactionEvent,
-        types::{
-            PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
-            TypeSignature,
-        },
-        ClarityVersion, ContractContext, Value,
-    },
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::callables::DefineType;
+use clarity::vm::clarity_wasm::{call_function, initialize_contract};
+use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
+use clarity::vm::contracts::Contract;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::events::StacksTransactionEvent;
+use clarity::vm::types::{
+    PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
+    TypeSignature,
 };
+use clarity::vm::{ClarityVersion, ContractContext, Value};
 use hex::FromHex;
-use std::collections::HashMap;
 
 /// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:

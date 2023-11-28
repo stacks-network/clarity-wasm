@@ -1,9 +1,10 @@
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
+
+use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct ClaritySome;

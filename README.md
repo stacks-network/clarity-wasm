@@ -193,3 +193,11 @@ Output `profile001.svg` preview:
 ![bench-protobuf-graph](docs/images/bench-protobuf-graph-example.png?raw=true)
 
 ## Contribute
+
+### Formatting
+
+To standardize the formatting of the code, we use rustfmt. To format your changes using the standard options, run:
+
+```sh
+cargo +nightly fmt-stacks
+```
