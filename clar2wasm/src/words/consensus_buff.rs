@@ -27,17 +27,20 @@ impl Word for ToConsensusBuf {
             .expect("to-consensus-buff? value exprission must be typed")
             .clone();
 
+        // Save the offset (current stack pointer) into a local.
+        // This is where we will serialize the value to.
         let offset = generator.module.locals.add(walrus::ValType::I32);
         let length = generator.module.locals.add(walrus::ValType::I32);
-
         builder
             .global_get(generator.stack_pointer)
             .local_set(offset);
 
+        // Write the serialized value to the top of the call stack
         generator.serialize_to_memory(builder, offset, 0, &ty)?;
 
         builder.local_set(length);
 
+        // Check if the serialized value size < MAX_VALUE_SIZE
         builder
             .local_get(length)
             .i32_const(MAX_VALUE_SIZE as i32)
