@@ -68,3 +68,158 @@ impl Word for ToConsensusBuf {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::{
+        types::{BuffData, SequenceData},
+        Value,
+    };
+    use hex::FromHex as _;
+
+    use crate::tools::evaluate;
+
+    #[test]
+    fn to_consensus_buff_int() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? 42)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("000000000000000000000000000000002a").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_uint() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? u42)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("010000000000000000000000000000002a").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_bool() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? true)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("03").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? false)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("04").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_optional() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? none)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("09").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? (some 42))"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("0a000000000000000000000000000000002a").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_response() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? (ok 42))"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("07000000000000000000000000000000002a").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? (err u123))"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("08010000000000000000000000000000007b").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_tuple() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? {foo: 123, bar: u789})"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("0c0000000203626172010000000000000000000000000000031503666f6f000000000000000000000000000000007b").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_string_ascii() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? "Hello, World!")"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("0d0000000d48656c6c6f2c20576f726c6421").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_buffer() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? 0x12345678)"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("020000000412345678").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn to_consensus_buff_list() {
+        assert_eq!(
+            evaluate(r#"(to-consensus-buff? (list 1 2 3 4))"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("0b000000040000000000000000000000000000000001000000000000000000000000000000000200000000000000000000000000000000030000000000000000000000000000000004").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+}
