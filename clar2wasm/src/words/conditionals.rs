@@ -1,5 +1,6 @@
-use crate::wasm_generator::ArgumentsExt;
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
+use crate::wasm_generator::{
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 
 use clarity::vm::{
     types::{SequenceSubtype, TypeSignature},
@@ -369,6 +370,76 @@ impl Word for Or {
     }
 }
 
+#[derive(Debug)]
+pub struct Unwrap;
+
+impl Word for Unwrap {
+    fn name(&self) -> ClarityName {
+        "unwrap!".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let input = args.get_expr(0)?;
+        let throw = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+
+        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+
+        let inner_type = match generator.get_expr_type(input) {
+            Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
+            Some(TypeSignature::ResponseType(inner_types)) => {
+                let (ok_type, err_type) = &**inner_types;
+                // Drop the err value;
+                drop_value(builder, err_type);
+                ok_type.clone()
+            }
+            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
+        };
+
+        // stack [ discriminant some_val ]
+        let some_locals = generator.save_to_locals(builder, &inner_type, true);
+
+        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &throw_type,
+        ));
+        generator.traverse_expr(&mut throw_branch, throw)?;
+
+        generator.return_early(&mut throw_branch)?;
+
+        let throw_branch_id = throw_branch.id();
+
+        // stack [ discriminant ]
+
+        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &clar2wasm_ty(&inner_type),
+        ));
+
+        // in unwrap we restore the value from the locals
+        for local in some_locals {
+            unwrap_branch.local_get(local);
+        }
+
+        let unwrap_branch_id = unwrap_branch.id();
+
+        builder.instr(ir::IfElse {
+            consequent: unwrap_branch_id,
+            alternative: throw_branch_id,
+        });
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tools::evaluate as eval;
@@ -486,6 +557,40 @@ mod tests {
         assert_eq!(
             eval(&format!("{ADD_10} (add-10 (some 10))")),
             Some(Value::Int(10))
+        );
+    }
+
+    #[test]
+    fn clar_unwrap_a() {
+        const FN: &str = "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x 23) 10))";
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper none)")),
+            Some(Value::Int(23))
+        );
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (some 10))")),
+            Some(Value::Int(20))
+        );
+    }
+
+    #[test]
+    fn clar_unwrap_b() {
+        const FN: &str = "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap! x 23) 10))";
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (err 9999))")),
+            Some(Value::Int(23))
+        );
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (ok 10))")),
+            Some(Value::Int(20))
         );
     }
 }

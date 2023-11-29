@@ -1,3 +1,4 @@
+use crate::words;
 use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
 use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::types::{ListTypeData, TupleTypeSignature};
@@ -5,9 +6,12 @@ use clarity::vm::{
     analysis::ContractAnalysis,
     clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
     diagnostic::DiagnosableError,
-    types::{CharType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
+    types::{
+        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+        TypeSignature,
+    },
     variables::NativeVariables,
-    ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
+    ClarityName, SymbolicExpression, SymbolicExpressionType,
 };
 use std::{borrow::BorrowMut, collections::HashMap};
 use walrus::MemoryId;
@@ -16,8 +20,6 @@ use walrus::{
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
     ValType,
 };
-
-use crate::words;
 
 /// First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 648;
@@ -38,6 +40,8 @@ pub struct WasmGenerator {
     pub(crate) literal_memory_offet: HashMap<String, u32>,
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
+    /// The current function body block, used for early exit
+    early_return_block_id: Option<InstrSeqId>,
 
     /// The locals for the current function.
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
@@ -50,6 +54,12 @@ pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
     TypeError(String),
+}
+
+pub enum FunctionKind {
+    Public,
+    Private,
+    ReadOnly,
 }
 
 impl DiagnosableError for GeneratorError {
@@ -145,6 +155,7 @@ impl WasmGenerator {
             literal_memory_offet: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
+            early_return_block_id: None,
             frame_size: 0,
         }
     }
@@ -194,7 +205,6 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
         match &expr.expr {
-            SymbolicExpressionType::AtomValue(value) => self.visit_atom_value(builder, expr, value),
             SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
             SymbolicExpressionType::List(exprs) => self.traverse_list(builder, expr, exprs),
             SymbolicExpressionType::LiteralValue(value) => {
@@ -227,15 +237,135 @@ impl WasmGenerator {
             }
             _ => todo!(),
         }
-        self.visit_list(builder, expr, list)
+        Ok(())
     }
 
-    fn visit_list(
+    pub fn traverse_define_function(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _list: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
+        body: &SymbolicExpression,
+        kind: FunctionKind,
+    ) -> Result<FunctionId, GeneratorError> {
+        let opt_function_type = match kind {
+            FunctionKind::ReadOnly => {
+                builder.i32_const(0);
+                self.contract_analysis
+                    .get_read_only_function_type(name.as_str())
+            }
+            FunctionKind::Public => {
+                builder.i32_const(1);
+                self.contract_analysis
+                    .get_public_function_type(name.as_str())
+            }
+            FunctionKind::Private => {
+                builder.i32_const(2);
+                self.contract_analysis.get_private_function(name.as_str())
+            }
+        };
+        let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
+            fixed.clone()
+        } else {
+            return Err(GeneratorError::InternalError(match opt_function_type {
+                Some(_) => "expected fixed function type".to_string(),
+                None => format!("unable to find function type for {}", name.as_str()),
+            }));
+        };
+
+        // Call the host interface to save this function
+        // Arguments are kind (already pushed) and name (offset, length)
+        let (id_offset, id_length) = self.add_string_literal(name);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Call the host interface function, `define_function`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.define_function")
+                .expect("define_function not found"),
+        );
+
+        let mut bindings = HashMap::new();
+
+        // Setup the parameters
+        let mut param_locals = Vec::new();
+        let mut params_types = Vec::new();
+        for param in function_type.args.iter() {
+            let param_types = clar2wasm_ty(&param.signature);
+            let mut plocals = Vec::with_capacity(param_types.len());
+            for ty in param_types {
+                let local = self.module.locals.add(ty);
+                param_locals.push(local);
+                plocals.push(local);
+                params_types.push(ty);
+            }
+            bindings.insert(param.name.to_string(), plocals.clone());
+        }
+
+        let results_types = clar2wasm_ty(&function_type.returns);
+        let mut func_builder = FunctionBuilder::new(
+            &mut self.module.types,
+            params_types.as_slice(),
+            results_types.as_slice(),
+        );
+        func_builder.name(name.as_str().to_string());
+        let mut func_body = func_builder.func_body();
+
+        // Function prelude
+        // Save the frame pointer in a local variable.
+        let frame_pointer = self.module.locals.add(ValType::I32);
+        func_body
+            .global_get(self.stack_pointer)
+            .local_set(frame_pointer);
+
+        // Setup the locals map for this function, saving the top-level map to
+        // restore after.
+        let top_level_locals = std::mem::replace(&mut self.bindings, bindings);
+
+        let mut block = func_body.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            results_types.as_slice(),
+        ));
+        let block_id = block.id();
+
+        self.early_return_block_id = Some(block_id);
+
+        // Traverse the body of the function
+        self.traverse_expr(&mut block, body)?;
+
+        // TODO: We need to ensure that all exits from the function go through
+        // the postlude. Maybe put the body in a block, and then have any exits
+        // from the block go to the postlude with a `br` instruction?
+
+        // Insert the function body block into the function
+        func_body.instr(walrus::ir::Block { seq: block_id });
+
+        // Function postlude
+        // Restore the initial stack pointer.
+        func_body
+            .local_get(frame_pointer)
+            .global_set(self.stack_pointer);
+
+        // Restore the top-level locals map.
+        self.bindings = top_level_locals;
+
+        Ok(func_builder.finish(param_locals, &mut self.module.funcs))
+    }
+
+    pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+        let early_return = self
+            .early_return_block_id
+            .ok_or(GeneratorError::InternalError(
+                "No return block avaliable".into(),
+            ))?;
+
+        builder.instr(walrus::ir::Br {
+            block: early_return,
+        });
+
         Ok(())
     }
 
@@ -246,15 +376,6 @@ impl WasmGenerator {
             .as_ref()
             .expect("type-checker must be called before Wasm generation")
             .get_type(expr)
-    }
-
-    fn visit_atom_value(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _value: &Value,
-    ) -> Result<(), GeneratorError> {
-        Ok(())
     }
 
     /// Adds a new string literal into the memory, and returns the offset and length.
