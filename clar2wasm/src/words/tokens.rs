@@ -1,7 +1,8 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineFungibleToken;

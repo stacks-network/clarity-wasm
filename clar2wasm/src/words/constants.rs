@@ -1,11 +1,9 @@
-use crate::wasm_generator::ArgumentsExt;
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{
-    clarity_wasm::get_type_in_memory_size, ClarityName, SymbolicExpression, SymbolicExpressionType,
-};
+use clarity::vm::clarity_wasm::get_type_in_memory_size;
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ValType;
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineConstant;

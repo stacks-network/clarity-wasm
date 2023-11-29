@@ -1,10 +1,8 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{
-    types::{SequenceSubtype, TypeSignature, BUFF_32, BUFF_64},
-    ClarityName, SymbolicExpression,
-};
+use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32, BUFF_64};
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
     name: &'static str,

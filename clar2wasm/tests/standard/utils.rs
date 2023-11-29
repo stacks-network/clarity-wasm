@@ -1,10 +1,10 @@
+use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
+
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::ToHex;
 use proptest::prelude::*;
-use std::ops::Deref;
-use std::{cell::RefCell, ops::DerefMut};
-use wasmtime::Val;
-use wasmtime::{Caller, Engine, Instance, Linker, Module, Store};
+use wasmtime::{Caller, Engine, Instance, Linker, Module, Store, Val};
 
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.

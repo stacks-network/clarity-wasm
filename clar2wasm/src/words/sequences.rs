@@ -1,19 +1,14 @@
-use clarity::vm::{
-    clarity_wasm::get_type_size,
-    types::{SequenceSubtype, StringSubtype, TypeSignature},
-    ClarityName, SymbolicExpression,
-};
-use walrus::{
-    ir::{BinaryOp, InstrSeqType, UnaryOp},
-    ValType,
-};
+use clarity::vm::clarity_wasm::get_type_size;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ir::{BinaryOp, InstrSeqType, UnaryOp};
+use walrus::ValType;
 
+use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct ListCons;

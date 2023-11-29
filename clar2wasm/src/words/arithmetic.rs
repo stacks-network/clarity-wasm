@@ -1,7 +1,8 @@
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Wrapper function for multi-value typed functions, such as +, - etc
 pub fn traverse_typed_multi_value(

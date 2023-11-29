@@ -1,10 +1,8 @@
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{
-    types::{SequenceSubtype, StringSubtype, TypeSignature},
-    ClarityName, SymbolicExpression,
-};
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
     name: &str,

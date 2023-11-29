@@ -1,7 +1,7 @@
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Not;

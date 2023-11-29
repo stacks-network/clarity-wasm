@@ -1,17 +1,12 @@
+use clarity::vm::types::{SequenceSubtype, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ir::{self, InstrSeqType};
+use walrus::ValType;
+
+use super::Word;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-
-use clarity::vm::{
-    types::{SequenceSubtype, TypeSignature},
-    ClarityName, SymbolicExpression,
-};
-use walrus::{
-    ir::{self, InstrSeqType},
-    ValType,
-};
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct If;
@@ -442,8 +437,9 @@ impl Word for Unwrap {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::evaluate as eval;
     use clarity::vm::Value;
+
+    use crate::tools::evaluate as eval;
 
     #[test]
     fn trivial() {

@@ -1,9 +1,8 @@
 use clarity::vm::types::MAX_VALUE_SIZE;
 use walrus::ir::InstrSeqType;
 
-use crate::wasm_generator::ArgumentsExt;
-
 use super::Word;
+use crate::wasm_generator::ArgumentsExt;
 
 #[derive(Debug)]
 pub struct ToConsensusBuf;
@@ -74,10 +73,8 @@ impl Word for ToConsensusBuf {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{BuffData, SequenceData},
-        Value,
-    };
+    use clarity::vm::types::{BuffData, SequenceData};
+    use clarity::vm::Value;
     use hex::FromHex as _;
 
     use crate::tools::evaluate;

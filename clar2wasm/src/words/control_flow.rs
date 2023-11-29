@@ -1,8 +1,9 @@
-use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{InstrSeqType, UnaryOp};
 
 use super::Word;
+use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 /// `Trap` should match the values used in the standard library and is used to
 /// indicate the reason for a runtime error from the Clarity code.

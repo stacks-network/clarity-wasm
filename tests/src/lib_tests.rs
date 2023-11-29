@@ -1,27 +1,23 @@
+use std::collections::HashMap;
+
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
-use clarity::vm::types::TupleData;
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        callables::DefineType,
-        clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, EventBatch, GlobalContext},
-        contracts::Contract,
-        costs::LimitedCostTracker,
-        database::{ClarityDatabase, MemoryBackingStore},
-        errors::{Error, WasmError},
-        events::StacksTransactionEvent,
-        types::{
-            PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
-            TypeSignature,
-        },
-        ClarityVersion, ContractContext, Value,
-    },
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::callables::DefineType;
+use clarity::vm::clarity_wasm::{call_function, initialize_contract};
+use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
+use clarity::vm::contracts::Contract;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::events::StacksTransactionEvent;
+use clarity::vm::types::{
+    PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
+    TypeSignature,
 };
+use clarity::vm::{ClarityVersion, ContractContext, Value};
 use hex::FromHex;
-use std::collections::HashMap;
 
 /// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:
@@ -777,7 +773,7 @@ test_contract_call_response!(
     "fold-bench",
     "fold-add-square",
     &[
-        Value::list_from((1..=8192).map(Value::Int).collect())
+        Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument"),
         Value::Int(1)
     ],
@@ -2299,7 +2295,8 @@ test_contract_call_response_events!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     },
     |event_batches: &Vec<EventBatch>| {
@@ -2314,7 +2311,8 @@ test_contract_call_response_events!(
             assert_eq!(label, "print");
             assert_eq!(
                 event.value,
-                Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                    .unwrap()
             );
         } else {
             panic!("Unexpected event received from Wasm function call.");
@@ -2330,7 +2328,7 @@ test_contract_call_response_events!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::Principal(
                     PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
                 ),
@@ -2354,7 +2352,7 @@ test_contract_call_response_events!(
             assert_eq!(label, "print");
             assert_eq!(
                 event.value,
-                Value::list_from(vec![
+                Value::cons_list_unsanitized(vec![
                     Value::Principal(
                         PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
                     ),
@@ -2377,7 +2375,10 @@ test_contract_call_response_events!(
     "print-list-empty",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::list_from(vec![]).unwrap());
+        assert_eq!(
+            *response.data,
+            Value::cons_list_unsanitized(vec![]).unwrap()
+        );
     },
     |event_batches: &Vec<EventBatch>| {
         assert_eq!(event_batches.len(), 1);
@@ -2389,7 +2390,7 @@ test_contract_call_response_events!(
                 &QualifiedContractIdentifier::local("print").unwrap()
             );
             assert_eq!(label, "print");
-            assert_eq!(event.value, Value::list_from(vec![]).unwrap());
+            assert_eq!(event.value, Value::cons_list_unsanitized(vec![]).unwrap());
         } else {
             panic!("Unexpected event received from Wasm function call.");
         }
@@ -3429,7 +3430,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     }
 );
@@ -3442,7 +3444,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap(),
                 Value::string_ascii_from_bytes("world".to_string().into_bytes()).unwrap(),
                 Value::string_ascii_from_bytes("!".to_string().into_bytes()).unwrap(),
@@ -3460,7 +3462,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Bool(true)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Bool(true)]).unwrap()
         );
     }
 );
@@ -3473,7 +3475,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![Value::Int(1), Value::Int(2)]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2)]).unwrap())
+                .unwrap()
         );
     }
 );
@@ -3496,7 +3499,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap()
         );
     }
 );
@@ -3536,7 +3539,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::Int(1),
                 Value::Int(2),
                 Value::Int(3),
@@ -3754,7 +3757,8 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(
-                Value::list_from(vec![Value::Int(1), Value::Int(4), Value::Int(3)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(4), Value::Int(3)])
+                    .unwrap()
             )
             .unwrap()
         );
@@ -3843,7 +3847,8 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(
-                Value::list_from(vec![Value::Int(2), Value::Int(3), Value::Int(4)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
+                    .unwrap()
             )
             .unwrap()
         );
@@ -3914,7 +3919,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap()
         );
     }
 );
@@ -4336,7 +4341,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     }
 );

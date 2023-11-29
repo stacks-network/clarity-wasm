@@ -1,10 +1,10 @@
+use std::collections::HashMap;
+
+use clarity::vm::{ClarityName, SymbolicExpression};
+use lazy_static::lazy_static;
 use walrus::InstrSeqBuilder;
 
 use crate::{GeneratorError, WasmGenerator};
-use clarity::vm::{ClarityName, SymbolicExpression};
-
-use lazy_static::lazy_static;
-use std::collections::HashMap;
 
 pub mod arithmetic;
 pub mod bindings;
@@ -180,10 +180,9 @@ pub fn lookup(name: &str) -> Option<&'static dyn Word> {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        functions::{define::DefineFunctions, NativeFunctions},
-        variables::NativeVariables,
-    };
+    use clarity::vm::functions::define::DefineFunctions;
+    use clarity::vm::functions::NativeFunctions;
+    use clarity::vm::variables::NativeVariables;
 
     #[test]
     fn check_for_duplicates() {

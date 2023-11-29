@@ -1,19 +1,13 @@
+use clarity::vm::types::signatures::CallableSubtype;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ir::{BinaryOp, IfElse, Loop, UnaryOp};
+use walrus::{InstrSeqBuilder, LocalId, ValType};
+
+use super::Word;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-use clarity::vm::{
-    types::{
-        signatures::CallableSubtype, SequenceSubtype, StringSubtype, TupleTypeSignature,
-        TypeSignature,
-    },
-    ClarityName, SymbolicExpression,
-};
-use walrus::{
-    ir::{BinaryOp, IfElse, Loop, UnaryOp},
-    InstrSeqBuilder, LocalId, ValType,
-};
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct IsEq;

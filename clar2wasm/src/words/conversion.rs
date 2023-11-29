@@ -1,8 +1,7 @@
 use clarity::vm::types::TypeSignature;
 
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
-
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError};
 
 #[derive(Debug)]
 pub struct StringToInt;
@@ -93,10 +92,8 @@ impl Word for IntToAscii {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{ASCIIData, CharType, SequenceData},
-        Value,
-    };
+    use clarity::vm::types::{ASCIIData, CharType, SequenceData};
+    use clarity::vm::Value;
 
     use crate::tools::evaluate;
 

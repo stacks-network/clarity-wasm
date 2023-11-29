@@ -1,7 +1,8 @@
-use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
-use clarity::vm::{representations::Span, ClarityName, SymbolicExpression};
+use clarity::vm::representations::Span;
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
 
 #[derive(Clone)]
 pub struct TypedVar<'a> {

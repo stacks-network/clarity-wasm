@@ -1,25 +1,26 @@
-use crate::words;
-use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
+use clarity::vm::analysis::ContractAnalysis;
+use clarity::vm::clarity_wasm::{
+    get_type_in_memory_size, get_type_size, is_in_memory_type, PRINCIPAL_BYTES,
+    STANDARD_PRINCIPAL_BYTES,
+};
+use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::serialization::TypePrefix;
-use clarity::vm::types::{ListTypeData, TupleTypeSignature};
-use clarity::vm::{
-    analysis::ContractAnalysis,
-    clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
-    diagnostic::DiagnosableError,
-    types::{
-        CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
-        TypeSignature,
-    },
-    variables::NativeVariables,
-    ClarityName, SymbolicExpression, SymbolicExpressionType,
+use clarity::vm::types::{
+    CharType, FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
+    StringSubtype, TupleTypeSignature, TypeSignature,
 };
-use std::{borrow::BorrowMut, collections::HashMap};
-use walrus::MemoryId;
+use clarity::vm::variables::NativeVariables;
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
+use walrus::ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind};
 use walrus::{
-    ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
-    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
-    ValType,
+    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId,
+    MemoryId, Module, ValType,
 };
+
+use crate::words;
 
 /// First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 648;

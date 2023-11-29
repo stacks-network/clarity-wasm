@@ -1,8 +1,9 @@
-use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
 use super::Word;
+use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_optional(
     generator: &mut WasmGenerator,

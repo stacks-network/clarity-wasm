@@ -1,21 +1,19 @@
+use std::borrow::BorrowMut;
+
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        analysis::{run_analysis, AnalysisDatabase},
-        ast::build_ast_with_diagnostics,
-        contexts::GlobalContext,
-        costs::LimitedCostTracker,
-        database::{ClarityDatabase, MemoryBackingStore},
-        eval_all,
-        types::{QualifiedContractIdentifier, StandardPrincipalData},
-        CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
-    },
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
+use clarity::vm::ast::build_ast_with_diagnostics;
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::{
+    eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
-use std::borrow::BorrowMut;
 use wasmtime::{
     AsContextMut, Caller, Config, Engine, Extern, ExternRef, Func, Instance, Linker, Module, Store,
     Val,

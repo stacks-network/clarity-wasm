@@ -3,23 +3,21 @@
 //! in production. The `tools` module is only available when the
 //! `developer-mode` feature is enabled.
 
+use std::collections::HashMap;
+
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::clarity_wasm::initialize_contract;
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::contracts::Contract;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::ClarityDatabase;
+use clarity::vm::errors::Error;
+use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::{ClarityVersion, ContractContext, Value};
+
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clarity::vm::errors::Error;
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        clarity_wasm::initialize_contract,
-        contexts::GlobalContext,
-        contracts::Contract,
-        costs::LimitedCostTracker,
-        database::ClarityDatabase,
-        types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData},
-        ClarityVersion, ContractContext, Value,
-    },
-};
-use std::collections::HashMap;
 
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
