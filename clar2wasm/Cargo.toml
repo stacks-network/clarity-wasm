@@ -25,7 +25,7 @@ flamegraph = []
 pb = []
 
 [dev-dependencies]
-wasmtime = "13.0.0"
+wasmtime = "15.0.0"
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
