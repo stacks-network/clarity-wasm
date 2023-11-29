@@ -1,3 +1,6 @@
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::clarity_wasm::{
     get_type_in_memory_size, get_type_size, is_in_memory_type, PRINCIPAL_BYTES,
@@ -13,8 +16,8 @@ use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind};
 use walrus::{
-    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
-    ValType,
+    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId,
+    MemoryId, Module, ValType,
 };
 
 use crate::words;
