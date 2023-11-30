@@ -5,3 +5,6 @@ run *args:
 
 fmt:
     cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module
+
+check:
+    cargo clippy -- --no-deps

@@ -9,17 +9,18 @@ use diesel::{
 use log::*;
 
 use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, WriteableEnv};
-use crate::context::blocks::BlockHeader;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{
     Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths,
 };
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
-use crate::db::appdb::headers_db::{AppDbHeadersWrapper, AsHeadersDb};
+use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::db::schema::{self, _block_commits, _block_headers, _snapshots};
+use crate::db::schema::{self, _block_commits, _snapshots};
+use crate::environments::stacks_node::db::stacks_headers_db::StacksHeadersDb;
+use crate::types::BlockHeader;
 use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
@@ -142,23 +143,7 @@ impl InstrumentedEnv {
                 .get_result::<model::BlockHeader>(&mut *state.index_db_conn.borrow_mut())
                 .optional()?;
 
-            if let Some(parent) = &block_parent {
-                headers.push(BlockHeader::new(
-                    block.block_height as u32,
-                    hex::decode(block.index_block_hash)?,
-                    hex::decode(block.parent_block_id)?,
-                    hex::decode(block.consensus_hash)?,
-                    hex::decode(&parent.consensus_hash)?,
-                ));
-            } else {
-                headers.push(BlockHeader::new(
-                    block.block_height as u32,
-                    hex::decode(block.index_block_hash)?,
-                    hex::decode(block.parent_block_id)?,
-                    hex::decode(block.consensus_hash)?,
-                    vec![0_u8; 20],
-                ));
-            }
+            headers.push(block.try_into()?);
             self.callbacks.load_block_headers_iter(self, headers.len());
 
             current_block = block_parent;
@@ -256,17 +241,19 @@ impl RuntimeEnv for InstrumentedEnv {
         let burnstate_db =
             AppDbBurnStateWrapper::new(self.id, self.app_db.clone(), boot_data.pox_constants);
 
-        let headers_db = AppDbHeadersWrapper::new(self.id, self.app_db.clone());
+        //let headers_db = AppDbHeadersWrapper::new(self.id, self.app_db.clone());
+        
 
         // Open the burnstate db
-        /*let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
+        /*
+        let burnstate_db = StacksBurnStateDb::new(
             &paths.sortition_db_path,
             boot_data.pox_constants,
-        )?);
+        )?;
+        */
 
         // Open the headers db
-        let headers_db: Box<dyn clarity::HeadersDB> =
-            Box::new(StacksHeadersDb::new(&paths.index_db_path)?);*/
+        let headers_db = StacksHeadersDb::new(&paths.index_db_path)?;
 
         let state = InstrumentedEnvState {
             chainstate,
@@ -333,9 +320,6 @@ impl WriteableEnv for InstrumentedEnv {
             bail!("[{}] environment is read-only.", self.name);
         }
 
-        let current_block_id: stacks::StacksBlockId;
-        let next_block_id: stacks::StacksBlockId;
-
         debug!("block: {block:?}");
 
         // Insert this block into the app database.
@@ -351,64 +335,70 @@ impl WriteableEnv for InstrumentedEnv {
 
         match block {
             Block::Genesis(inner) => {
-                current_block_id = inner.header.stacks_block_id()?;
-                // TODO: Fix unwrap
-                next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
-
-                info!(
+                /*info!(
                     "beginning genesis block: {}",
-                    &inner.header.stacks_block_id()?.to_hex()
+                    &inner.header.index_block_hash.to_hex()
                 );
+                let parent_consensus_hash = &stacks::BURNCHAIN_BOOT_CONSENSUS_HASH;
+                let parent_block_hash = &stacks::BOOT_BLOCK_HASH;
+                let new_consensus_hash = &stacks::FIRST_BURNCHAIN_CONSENSUS_HASH;
+                let new_block_hash = &stacks::FIRST_STACKS_BLOCK_HASH;
+
                 debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
-                    &inner.header.parent_consensus_hash()?.to_hex(),
-                    &inner.header.parent_block_hash()?.to_hex(),
-                    &inner.header.consensus_hash()?.to_hex(),
-                    &inner.header.stacks_block_hash()?.to_hex()
+                    parent_consensus_hash.to_hex(),
+                    parent_block_hash.to_hex(),
+                    new_consensus_hash.to_hex(),
+                    new_block_hash.to_hex()
                 );
                 let mut clarity_tx = state.chainstate.genesis_block_begin(
                     &*state.burnstate_db,
-                    &inner.header.parent_consensus_hash()?,
-                    &inner.header.parent_block_hash()?,
-                    &inner.header.consensus_hash()?,
-                    &inner.header.stacks_block_hash()?,
+                    parent_consensus_hash,
+                    parent_block_hash,
+                    new_consensus_hash,
+                    new_block_hash,
                 );
 
                 clarity_tx.seal();
 
                 info!("committing genesis block");
                 clarity_tx.commit_to_block(
-                    &inner.header.consensus_hash()?,
-                    &inner.header.stacks_block_hash()?,
-                );
+                    new_consensus_hash,
+                    new_block_hash,
+                );*/
+                info!("Reached GENESIS block which has already been processed - continuing...");
             }
             Block::Regular(inner) => {
-                current_block_id = inner.header.stacks_block_id()?;
-                // TODO: Fix unwrap
-                next_block_id = inner.next_header.as_ref().unwrap().stacks_block_id()?;
-
                 info!(
                     "beginning regular block: {}",
-                    &inner.header.stacks_block_id()?.to_hex()
+                    &inner.header.index_block_hash.to_hex()
                 );
+
+                let parent_consensus_hash = &inner.parent_header.consensus_hash;
+                let parent_block_hash = &inner.parent_header.block_hash;
+                let new_consensus_hash = &inner.header.consensus_hash;
+                let new_block_hash = &inner.header.block_hash;
+
                 debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
-                    &inner.header.parent_consensus_hash()?.to_hex(),
-                    &inner.header.parent_block_hash()?.to_hex(),
-                    &inner.header.consensus_hash()?.to_hex(),
-                    &inner.header.stacks_block_hash()?.to_hex()
+                    parent_consensus_hash.to_hex(),
+                    parent_block_hash.to_hex(),
+                    new_consensus_hash.to_hex(),
+                    new_block_hash.to_hex()
                 );
 
                 let clarity_tx = state.chainstate.block_begin(
                     &*state.burnstate_db,
-                    &inner.header.parent_consensus_hash()?,
-                    &inner.header.parent_block_hash()?,
-                    &inner.header.consensus_hash()?,
-                    &inner.header.stacks_block_hash()?,
+                    parent_consensus_hash,
+                    parent_block_hash,
+                    new_consensus_hash,
+                    new_block_hash,
                 );
+
+                // Transaction processing here
 
                 info!("committing regular block");
                 clarity_tx.commit_to_block(
-                    &inner.header.consensus_hash()?,
-                    &inner.header.stacks_block_hash()?,
+                    new_consensus_hash,
+                    new_block_hash,
                 );
             }
         };
@@ -431,6 +421,7 @@ impl WriteableEnv for InstrumentedEnv {
         todo!()
     }
 
+    /// Imports chainstate from the provided source environment into this environment.
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()> {
         debug!(
             "importing block headers from '{}' into '{}'...",
@@ -438,14 +429,15 @@ impl WriteableEnv for InstrumentedEnv {
             self.name()
         );
         let src_block_headers_iter = source.block_headers()?;
-        warn!("hi");
-        self.app_db
-            .batch()
+
+        let mut headers_db = StacksHeadersDb::new(&self.env_config.paths.index_db_path)?;
+        headers_db
             .import_block_headers(src_block_headers_iter, Some(self.id()))?;
 
         ok!()
     }
 
+    /// Imports burnstate from the provided source environment into this environment.
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()> {
         debug!(
             "importing snapshots from '{}' into '{}'...",

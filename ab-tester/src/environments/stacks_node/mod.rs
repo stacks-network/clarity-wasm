@@ -16,12 +16,12 @@ use log::*;
 use self::db::schema::chainstate::block_headers;
 use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv};
 use crate::clarity::{self, ClarityConnection};
-use crate::context::blocks::BlockHeader;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network, StacksEnvPaths};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::dbcursor::stream_results;
+use crate::types::BlockHeader;
 use crate::{ok, stacks};
 
 /// Holds initialization config for a [StacksNodeEnv].
@@ -132,23 +132,7 @@ impl StacksNodeEnv {
                 )
                 .optional()?;
 
-            if let Some(parent) = &block_parent {
-                headers.push(BlockHeader::new(
-                    block.block_height(),
-                    hex::decode(block.index_block_hash)?,
-                    hex::decode(block.parent_block_id)?,
-                    hex::decode(block.consensus_hash)?,
-                    hex::decode(&parent.consensus_hash)?,
-                ));
-            } else {
-                headers.push(BlockHeader::new(
-                    block.block_height(),
-                    hex::decode(block.index_block_hash)?,
-                    hex::decode(block.parent_block_id)?,
-                    hex::decode(block.consensus_hash)?,
-                    vec![0_u8; 20],
-                ));
-            }
+            headers.push(block.try_into()?);
             self.callbacks.load_block_headers_iter(self, headers.len());
 
             current_block = block_parent;

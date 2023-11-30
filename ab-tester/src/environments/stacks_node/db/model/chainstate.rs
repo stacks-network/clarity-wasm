@@ -8,7 +8,7 @@ use super::super::schema::chainstate::*;
 use crate::clarity;
 use crate::stacks::{self, Address};
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
 #[diesel(primary_key(version))]
 #[diesel(table_name = db_config)]
 pub struct DbConfig {
@@ -17,7 +17,7 @@ pub struct DbConfig {
     pub chain_id: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
 #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
 #[diesel(table_name = matured_rewards)]
 pub struct MaturedReward {
@@ -60,7 +60,7 @@ impl From<&MaturedReward> for stacks::MinerReward {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
 #[diesel(primary_key(address, block_hash))]
 #[diesel(table_name = payments)]
 pub struct Payment {
@@ -70,7 +70,7 @@ pub struct Payment {
     pub burnchain_sortition_burn: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
+#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
 #[diesel(primary_key(consensus_hash, block_hash))]
 #[diesel(table_name = block_headers)]
 pub struct BlockHeader {
@@ -143,9 +143,40 @@ impl TryFrom<BlockHeader> for crate::types::BlockHeader {
             burn_header_height: value.burn_header_height as u32,
             burn_header_timestamp: value.burn_header_timestamp as u64,
             parent_block_id: stacks::StacksBlockId::from_hex(&value.parent_block_id)?,
-            cost: value.cost.parse()?,
+            cost: serde_json::from_str(&value.cost)?,
             block_size: value.block_size.parse()?,
             affirmation_weight: value.affirmation_weight as u64,
+        })
+    }
+}
+
+impl TryFrom<crate::types::BlockHeader> for BlockHeader {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::BlockHeader) -> Result<Self> {
+        Ok(Self {
+            version: value.version as i32,
+            total_burn: value.total_burn.to_string(),
+            total_work: value.total_work.to_string(),
+            proof: value.proof.to_hex(),
+            parent_block: value.parent_block.to_hex(),
+            parent_microblock: value.parent_microblock.to_hex(),
+            parent_microblock_sequence: value.parent_microblock_sequence as i32,
+            tx_merkle_root: value.tx_merkle_root.to_hex(),
+            state_index_root: value.state_index_root.to_hex(),
+            microblock_pubkey_hash: value.microblock_pubkey_hash.to_hex(),
+            block_hash: value.block_hash.to_hex(),
+            index_block_hash: value.index_block_hash.to_hex(),
+            block_height: value.block_height as i32,
+            index_root: value.index_root.to_hex(),
+            consensus_hash: value.consensus_hash.to_hex(),
+            burn_header_hash: value.burn_header_hash.to_hex(),
+            burn_header_height: value.burn_header_height as i32,
+            burn_header_timestamp: value.burn_header_timestamp as i64,
+            parent_block_id: value.parent_block_id.to_hex(),
+            cost: serde_json::to_string(&value.cost)?,
+            block_size: value.block_size.to_string(),
+            affirmation_weight: value.affirmation_weight as i32
         })
     }
 }

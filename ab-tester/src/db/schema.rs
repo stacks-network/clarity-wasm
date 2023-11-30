@@ -147,7 +147,7 @@ table! {
         burn_header_timestamp -> BigInt,
         // NOTE: this is the parent index_block_hash.
         parent_block_id -> Binary,
-        cost -> BigInt,
+        cost -> Binary,
         // Converted to/from u64.
         block_size -> BigInt,
         affirmation_weight -> Integer,

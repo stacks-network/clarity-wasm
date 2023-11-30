@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS _block_headers (
     burn_header_height INTEGER NOT NULL,
     burn_header_timestamp BIGINT NOT NULL,
     parent_block_id BINARY NOT NULL,
-    cost BIGINT NOT NULL,
+    cost BINARY NOT NULL,
     block_size BIGINT NOT NULL,
     affirmation_weight INTEGER NOT NULL,
 

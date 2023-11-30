@@ -51,7 +51,6 @@ impl<'a> AppDbBatchContext<'a> {
 
         conn.transaction(|tx| -> Result<()> {
             for header in headers {
-                warn!("hi2");
                 let header = header
                     .map_err(|e| error!("{:?}", e))
                     .expect("failed to load header");
@@ -82,7 +81,7 @@ impl<'a> AppDbBatchContext<'a> {
                         _block_headers::block_hash.eq(excluded(_block_headers::block_hash))
                     ));
 
-                trace!(
+                trace_sql!(
                     "SQL: {}",
                     debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
                 );
@@ -112,7 +111,7 @@ impl<'a> AppDbBatchContext<'a> {
             for snapshot in snapshots {
                 let snapshot = snapshot?;
 
-                trace!(
+                trace_sql!(
                     "inserting snapshot {{sortition_id: {:?}, index_root: {:?}}}",
                     &snapshot.sortition_id,
                     &snapshot.index_root
@@ -132,7 +131,7 @@ impl<'a> AppDbBatchContext<'a> {
                         _snapshots::index_root.eq(excluded(_snapshots::index_root)),
                     ));
 
-                trace!(
+                trace_sql!(
                     "SQL: {}",
                     debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
                 );
@@ -183,7 +182,7 @@ impl<'a> AppDbBatchContext<'a> {
                         _block_commits::sortition_id.eq(excluded(_block_commits::sortition_id)),
                     ));
 
-                trace!(
+                trace_sql!(
                     "SQL: {}",
                     debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
                 );
@@ -232,7 +231,7 @@ impl<'a> AppDbBatchContext<'a> {
                         _ast_rule_heights::ast_rule_id.eq(excluded(_ast_rule_heights::ast_rule_id))
                     ));
 
-                trace!(
+                trace_sql!(
                     "SQL: {}",
                     debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
                 );
@@ -289,7 +288,7 @@ impl<'a> AppDbBatchContext<'a> {
                         _epochs::epoch_id.eq(excluded(_epochs::epoch_id)),
                     ));
 
-                trace!(
+                trace_sql!(
                     "SQL: {}",
                     debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
                 );
@@ -376,8 +375,15 @@ impl AppDb {
     /// Retrieves an existing runtime environment by name. Returns [None] if
     /// the environment was not found.
     pub fn get_env(&self, name: &str) -> Result<Option<Environment>> {
-        let result = environment::table
-            .filter(environment::name.like(name))
+        let query = environment::table
+            .filter(environment::name.like(name));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first(&mut *self.conn.borrow_mut())
             .optional()?;
 
@@ -387,8 +393,15 @@ impl AppDb {
     /// Retrieves a list over all [Environment]s existing in the local application
     /// database.
     pub fn list_envs(&self) -> Result<Vec<Environment>> {
-        let results = environment::table
-            .order_by(environment::id.asc())
+        let query = environment::table
+            .order_by(environment::id.asc());
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let results = query
             .get_results::<Environment>(&mut *self.conn.borrow_mut())?;
 
         Ok(results)
@@ -400,9 +413,16 @@ impl AppDb {
         &self,
         contract_identifier: &clarity::QualifiedContractIdentifier,
     ) -> Result<Option<i32>> {
-        let result = contract::table
+        let query = contract::table
             .filter(contract::qualified_contract_id.eq(contract_identifier.to_string()))
-            .select(contract::id)
+            .select(contract::id);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first::<i32>(&mut *self.conn.borrow_mut())
             .optional()?;
 
@@ -411,13 +431,19 @@ impl AppDb {
 
     /// Retrieves the internal id of a data-var for the specified contract.
     pub fn get_var_id(&self, contract_id: i32, key: &str) -> Result<Option<i32>> {
-        let result = contract_var::table
+        let query = contract_var::table
             .filter(
-                contract_var::key
-                    .eq(key)
+                contract_var::key.eq(key)
                     .and(contract_var::contract_id.eq(contract_id)),
             )
-            .select(contract_var::id)
+            .select(contract_var::id);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first::<i32>(&mut *self.conn.borrow_mut())
             .optional()?;
 
@@ -434,12 +460,19 @@ impl AppDb {
         contract_var_id: i32,
         value: &[u8],
     ) -> Result<ContractVarInstance> {
-        let result = insert_into(contract_var_instance::table)
+        let query = insert_into(contract_var_instance::table)
             .values((
                 contract_var_instance::columns::contract_execution_id.eq(contract_execution_id),
                 contract_var_instance::columns::contract_var_id.eq(contract_var_id),
                 contract_var_instance::columns::value.eq(value),
-            ))
+            ));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .get_result::<ContractVarInstance>(&mut *self.conn.borrow_mut())
             .unwrap();
 
@@ -456,12 +489,19 @@ impl AppDb {
         transaction_id: &[u8],
         contract_id: i32,
     ) -> Result<ContractExecution> {
-        let result = insert_into(contract_execution::table)
+        let query = insert_into(contract_execution::table)
             .values((
                 contract_execution::contract_id.eq(contract_id),
                 contract_execution::block_id.eq(block_id),
                 contract_execution::transaction_id.eq(transaction_id),
-            ))
+            ));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .get_result::<ContractExecution>(&mut *self.conn.borrow_mut())
             .unwrap();
 
@@ -476,10 +516,17 @@ impl AppDb {
             .expect("sql query execution failed")
             .expect("failed to find contract var");
 
-        let result = contract_var_instance::table
+        let query = contract_var_instance::table
             .filter(contract_var_instance::contract_var_id.eq(contract_var_id))
             .select(contract_var_instance::value)
-            .order_by(contract_var_instance::id.desc())
+            .order_by(contract_var_instance::id.desc());
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first(&mut *self.conn.borrow_mut())
             .optional()?;
 
@@ -493,13 +540,20 @@ impl AppDb {
         hash: &[u8],
         marf_trie_root_hash: &[u8],
     ) -> Result<Block> {
-        let result = insert_into(block::table)
+        let query = insert_into(block::table)
             .values((
                 block::height.eq(height),
                 block::index_hash.eq(hash),
                 block::environment_id.eq(environment_id),
                 block::marf_trie_root_hash.eq(marf_trie_root_hash),
-            ))
+            ));
+        
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+        
+        let result = query
             .get_result::<Block>(&mut *self.conn.borrow_mut())
             .unwrap();
 
@@ -515,12 +569,19 @@ impl AppDb {
         name: &str,
         path: &str,
     ) -> Result<Environment> {
-        let result = insert_into(environment::table)
+        let query = insert_into(environment::table)
             .values((
                 environment::runtime_id.eq(runtime_id),
                 environment::name.eq(name),
                 environment::path.eq(path),
-            ))
+            ));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .get_result::<Environment>(&mut *self.conn.borrow_mut())
             .unwrap();
 
@@ -537,7 +598,7 @@ impl AppDb {
     ) -> Result<Contract> {
         let compressed_source = compress_prepend_size(source.as_bytes());
 
-        let result = insert_into(contract::table)
+        let query = insert_into(contract::table)
             .values((
                 contract::qualified_contract_id.eq(contract_id.to_string()),
                 contract::block_id.eq(block_id),
@@ -548,7 +609,14 @@ impl AppDb {
             .set((
                 contract::block_id.eq(block_id),
                 contract::source.eq(&compressed_source),
-            ))
+            ));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .get_result::<Contract>(&mut *self.conn.borrow_mut())
             .unwrap();
 
@@ -562,8 +630,15 @@ impl AppDb {
         &self,
         id_bhh: &stacks::StacksBlockId,
     ) -> Result<Option<BlockHeader>> {
-        let result = _block_headers::table
-            .filter(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec()))
+        let query = _block_headers::table
+            .filter(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec()));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first::<BlockHeader>(&mut *self.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;
@@ -578,8 +653,15 @@ impl AppDb {
         &self,
         id_bhh: &stacks::StacksBlockId,
     ) -> Result<Option<Payment>> {
-        let result = _payments::table
-            .filter(_payments::block_hash.eq(id_bhh.as_bytes().to_vec()))
+        let query = _payments::table
+            .filter(_payments::block_hash.eq(id_bhh.as_bytes().to_vec()));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first::<Payment>(&mut *self.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;

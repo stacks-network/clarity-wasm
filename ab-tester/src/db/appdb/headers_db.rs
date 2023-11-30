@@ -2,8 +2,10 @@ use std::rc::Rc;
 
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
+use diesel::debug_query;
 use diesel::prelude::*;
 use diesel::QueryDsl;
+use log::trace;
 
 use super::super::model::{BlockHeader, MaturedReward, Payment};
 use super::super::schema::*;
@@ -40,12 +42,19 @@ impl AppDbHeadersWrapper {
         &self,
         id_bhh: &stacks::StacksBlockId,
     ) -> Result<Option<BlockHeader>> {
-        let result = _block_headers::table
+        let query = _block_headers::table
             .filter(
                 _block_headers::environment_id
                     .eq(self.environment_id)
                     .and(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec())),
-            )
+            );
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+        
+        let result = query
             .first::<BlockHeader>(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;
@@ -60,12 +69,19 @@ impl AppDbHeadersWrapper {
         &self,
         id_bhh: &stacks::StacksBlockId,
     ) -> Result<Option<Payment>> {
-        let result = _payments::table
+        let query = _payments::table
             .filter(
                 _payments::environment_id
                     .eq(self.environment_id)
                     .and(_payments::block_hash.eq(id_bhh.as_bytes().to_vec())),
-            )
+            );
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let result = query
             .first::<Payment>(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .map_err(|e| anyhow!("sql query execution failed: {e:?}"))?;
@@ -226,7 +242,7 @@ impl clarity::HeadersDB for AppDbHeadersWrapper {
             .map(|header| header.parent_block_id)
             .expect("failed to find parent block header for child block");
 
-        let rewards = _matured_rewards::table
+        let rewards_query = _matured_rewards::table
             .filter(
                 _matured_rewards::environment_id
                     .eq(self.environment_id)
@@ -235,7 +251,14 @@ impl clarity::HeadersDB for AppDbHeadersWrapper {
                         _matured_rewards::child_index_block_hash
                             .eq(child_id_bhh.as_bytes().to_vec()),
                     ),
-            )
+            );
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&rewards_query)
+        );
+
+        let rewards = rewards_query
             .get_results::<MaturedReward>(&mut *self.app_db.conn.borrow_mut())
             .expect("failed to find matured rewards for parent+child block combination")
             .iter()

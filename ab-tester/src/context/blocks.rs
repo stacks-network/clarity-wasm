@@ -1,119 +1,17 @@
 use std::fmt::Debug;
 
-use blockstack_lib::chainstate::stacks::db::StacksChainState;
-use blockstack_lib::chainstate::stacks::StacksBlock;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use log::*;
-use stacks_common::types::chainstate::{BlockHeaderHash, ConsensusHash, StacksBlockId};
 
 use crate::stacks;
-
-#[derive(Clone)]
-pub struct BlockHeader {
-    consensus_hash: Vec<u8>,
-    parent_consensus_hash: Vec<u8>,
-    height: u32,
-    pub index_block_hash: Vec<u8>,
-    parent_block_id: Vec<u8>,
-}
-
-impl Debug for BlockHeader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BlockHeader")
-            .field("height", &self.height)
-            .field(
-                "index_block_hash (block id)",
-                &hex::encode(&self.index_block_hash),
-            )
-            .field(
-                "parent_block_id (parent index block hash)",
-                &hex::encode(&self.parent_block_id),
-            )
-            .field("consensus_hash", &hex::encode(&self.consensus_hash))
-            .field(
-                "parent_consensus_hash",
-                &hex::encode(&self.parent_consensus_hash),
-            )
-            .finish()
-    }
-}
-
-impl BlockHeader {
-    pub fn new(
-        height: u32,
-        index_hash: Vec<u8>,
-        parent_block_id: Vec<u8>,
-        consensus_hash: Vec<u8>,
-        parent_consensus_hash: Vec<u8>,
-    ) -> Self {
-        Self {
-            height,
-            index_block_hash: index_hash,
-            parent_block_id,
-            consensus_hash,
-            parent_consensus_hash,
-        }
-    }
-
-    pub fn block_height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn stacks_block_id(&self) -> Result<StacksBlockId> {
-        let hash: [u8; 32] = self.index_block_hash.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert index block hash into stacks block id: {e:?}")
-        })?;
-
-        Ok(StacksBlockId(hash))
-    }
-
-    pub fn stacks_block_hash(&self) -> Result<BlockHeaderHash> {
-        let hash: [u8; 32] = self.index_block_hash.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert index block hash into block header hash: {e:?}")
-        })?;
-
-        Ok(BlockHeaderHash(hash))
-    }
-
-    pub fn parent_stacks_block_id(&self) -> Result<StacksBlockId> {
-        let hash: [u8; 32] = self.parent_block_id.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert parent block id into stacks block id: {e:?}")
-        })?;
-
-        Ok(StacksBlockId(hash))
-    }
-
-    pub fn parent_consensus_hash(&self) -> Result<ConsensusHash> {
-        let hash: [u8; 20] = self.parent_consensus_hash.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert parent consensus hash bytes into a ConsensusHash: {e:?}")
-        })?;
-
-        Ok(ConsensusHash(hash))
-    }
-
-    pub fn consensus_hash(&self) -> Result<ConsensusHash> {
-        let hash: [u8; 20] = self.consensus_hash.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert consensus hash bytes into a ConsensusHash: {e:?}")
-        })?;
-
-        Ok(ConsensusHash(hash))
-    }
-
-    pub fn parent_block_hash(&self) -> Result<BlockHeaderHash> {
-        let hash: [u8; 32] = self.parent_block_id.clone().try_into().map_err(|e| {
-            anyhow!("failed to convert parent block id into block header hash: {e:?}")
-        })?;
-
-        Ok(BlockHeaderHash(hash))
-    }
-}
+use crate::types::*;
 
 /// Provides a cursor for navigating and iterating through [Block]s.
 pub struct BlockCursor {
     height: usize,
     blocks_dir: String,
-    headers: Vec<BlockHeader>,
+    headers: Vec<crate::types::BlockHeader>,
 }
 
 /// Manually implement [std::fmt::Debug] for [BlockCursor] since some fields
@@ -226,28 +124,33 @@ impl BlockCursor {
         // we can do this here because we know that we're using a canonical chain
         // with no forks. In the "real world" we would need to account for the
         // possibility of multiple children - one for each fork.
-        let next_block_header = if let Some(next) = self.headers.get(height + 1) {
-            Some(next.clone())
-        } else {
-            None
-        };
+        let next_block_header = self.headers
+            .get(height + 1).cloned();
 
         if height == 0 {
             debug!("returning genesis");
             return Ok(Some(Block::new_genesis(header.clone(), next_block_header)));
         }
 
+        let parent_block_header = &self.headers[height - 1];
+
         // Get the block's path in chainstate.
-        let block_id = header.stacks_block_id()?;
+        let block_id = header.index_block_hash;
         debug!("block_id: {block_id:?}");
-        let block_path = StacksChainState::get_index_block_path(&self.blocks_dir, &block_id)?;
+        let block_path = stacks::StacksChainState::get_index_block_path(
+            &self.blocks_dir, 
+            &block_id)?;
         debug!("block_path: {block_path:?}");
         // Load the block from chainstate.
         debug!("loading block with id {block_id} and path '{block_path}'");
-        let stacks_block = StacksChainState::consensus_load(&block_path)?;
+        let stacks_block = stacks::StacksChainState::consensus_load(&block_path)?;
         trace!("block loaded: {stacks_block:?}");
 
-        let block = Block::new(header, stacks_block, next_block_header);
+        let block = Block::new_regular(
+            header, 
+            stacks_block, 
+            next_block_header, 
+            parent_block_header.clone());
 
         Ok(Some(block))
     }
@@ -275,17 +178,19 @@ impl IntoIterator for BlockCursor {
     }
 }
 
-/// Representation of a Stacks block.
+/// Representation of a Stacks block. Note that Box is used here to keep the
+/// size of the enum on the stack in-check.
 #[derive(Debug)]
 pub enum Block {
-    Genesis(GenesisBlockInner),
-    Regular(RegularBlockInner),
+    Genesis(Box<GenesisBlockInner>),
+    Regular(Box<RegularBlockInner>),
 }
 
 #[derive(Debug)]
 pub struct RegularBlockInner {
     pub header: BlockHeader,
     pub stacks_block: stacks::StacksBlock,
+    pub parent_header: BlockHeader,
     pub next_header: Option<BlockHeader>,
 }
 
@@ -300,33 +205,35 @@ pub struct GenesisBlockInner {
 #[allow(dead_code)]
 impl Block {
     /// Creates a new Regular block variant, i.e. not Boot or Genesis.
-    pub fn new(
+    pub fn new_regular(
         header: BlockHeader,
-        stacks_block: StacksBlock,
+        stacks_block: stacks::StacksBlock,
         next_header: Option<BlockHeader>,
+        parent_header: BlockHeader
     ) -> Self {
-        Block::Regular(RegularBlockInner {
+        Block::Regular(Box::new(RegularBlockInner {
             header,
             stacks_block,
             next_header,
-        })
+            parent_header
+        }))
     }
 
     /// Creates a new Genesis block variant. Genesis does not have a
     /// [stacks::StacksBlock] representation, so this function accepts only
     /// a [BlockHeader] to represent the block.
     pub fn new_genesis(header: BlockHeader, next_header: Option<BlockHeader>) -> Self {
-        Block::Genesis(GenesisBlockInner {
+        Block::Genesis(Box::new(GenesisBlockInner {
             header,
             next_header,
-        })
+        }))
     }
 
     /// Gets the height for this block.
     pub fn block_height(&self) -> Result<u32> {
         let height = match self {
             Block::Genesis(_) => 0,
-            Block::Regular(inner) => inner.header.block_height(),
+            Block::Regular(inner) => inner.header.block_height,
         };
 
         Ok(height)
@@ -348,7 +255,7 @@ impl Block {
     /// will return an error if you attempt to call it on the boot block. The
     /// genesis block statically returns the [stacks::FIRST_STACKS_BLOCK_HASH]
     /// constant.
-    pub fn block_hash(&self) -> Result<BlockHeaderHash> {
+    pub fn block_hash(&self) -> Result<stacks::BlockHeaderHash> {
         let hash = match self {
             Block::Genesis(_) => stacks::FIRST_STACKS_BLOCK_HASH,
             Block::Regular(inner) => inner.stacks_block.block_hash(),
@@ -362,15 +269,15 @@ impl Block {
     /// will return an error if you attempt to call it on either of them.
     pub fn index_block_hash(&self) -> Result<&[u8]> {
         match self {
-            Block::Genesis(inner) => Ok(&inner.header.index_block_hash),
-            Block::Regular(inner) => Ok(&inner.header.index_block_hash),
+            Block::Genesis(inner) => Ok(inner.header.index_block_hash.as_bytes()),
+            Block::Regular(inner) => Ok(inner.header.index_block_hash.as_bytes()),
         }
     }
 
     /// Retrieves this block's index block hash, i.e. the MARF index hash, as
     /// a [stacks::StacksBlockId].
-    pub fn stacks_block_id(&self) -> Result<StacksBlockId> {
-        let id = StacksBlockId::from_bytes(self.index_block_hash()?)
+    pub fn stacks_block_id(&self) -> Result<stacks::StacksBlockId> {
+        let id = stacks::StacksBlockId::from_bytes(self.index_block_hash()?)
             .ok_or_else(|| anyhow!("failed to convert index block hash to stacks block id"))?;
 
         Ok(id)

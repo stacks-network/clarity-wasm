@@ -31,6 +31,15 @@ pub struct Cli {
         global = true
     )]
     pub config: PathBuf,
+
+    #[arg(
+        long = "sql-trace", 
+        short = None,
+        default_value = None,
+        help = "Enable SQL query tracing",
+        global = true
+    )]
+    pub sql_trace: bool
 }
 
 impl Cli {

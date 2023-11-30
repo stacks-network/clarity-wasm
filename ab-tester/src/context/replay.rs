@@ -1,13 +1,13 @@
-use color_eyre::eyre::{bail, ensure};
+use color_eyre::eyre::ensure;
 use color_eyre::Result;
 use log::*;
 
-use super::blocks::BlockHeader;
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
-use crate::context::{Block, BlockTransactionContext};
+use crate::context::Block;
 use crate::environments::{RuntimeEnvContext, RuntimeEnvContextMut};
 use crate::errors::AppError;
-use crate::{clarity, ok, stacks};
+use crate::types::BlockHeader;
+use crate::{ok, stacks};
 
 /// Options for replaying an environment's chain into another environment.
 pub struct ReplayOpts {
@@ -99,7 +99,7 @@ impl ChainStateReplayer {
 
             // Ensure that we've reached the specified block-height before beginning
             // processing.
-            if header.block_height() < opts.from_height.unwrap_or(0) {
+            if header.block_height < opts.from_height.unwrap_or(0) {
                 continue;
             }
 
@@ -107,13 +107,13 @@ impl ChainStateReplayer {
             opts.assert_max_processed_block_count(processed_block_count)?;
 
             // Ensure that we haven't reached the specified max block-height for processing.
-            opts.assert_block_height_under_max_height(header.block_height())?;
+            opts.assert_block_height_under_max_height(header.block_height)?;
 
             if let Some(stacks_block) = stacks_block {
                 info!(
                     "processing REGULAR block #{} ({})",
-                    header.block_height(),
-                    hex::encode(&header.index_block_hash)
+                    header.block_height,
+                    hex::encode(header.index_block_hash)
                 );
 
                 // Now we have ensured that we are not in genesis and that the
@@ -122,12 +122,12 @@ impl ChainStateReplayer {
             } else {
                 info!(
                     "processing GENESIS block #{} ({})",
-                    header.block_height(),
-                    hex::encode(&header.index_block_hash)
+                    header.block_height,
+                    hex::encode(header.index_block_hash)
                 );
 
                 info!("beginning genesis block in target");
-                let ctx = target.block_begin(&block)?;
+                target.block_begin(&block)?;
             }
 
             opts.callbacks.replay_block_finish(source, target);
@@ -147,7 +147,7 @@ impl ChainStateReplayer {
         stacks_block: &stacks::StacksBlock,
         target: &mut RuntimeEnvContextMut,
     ) -> Result<()> {
-        let block_id = header.stacks_block_id()?;
+        let block_id = header.index_block_hash;
 
         // Begin a new block in `target`.
         target.block_begin(block)?;

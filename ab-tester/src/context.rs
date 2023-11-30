@@ -112,7 +112,7 @@ impl ComparisonContext {
             );
             // Import source burnstate into target environment. This is done due to
             // burnstate being expected to be present during contract evaluation.
-            //target.import_burnstate(baseline_env.as_readable_env())?;
+            target.import_burnstate(baseline_env.as_readable_env())?;
             info!("finished");
 
             info!(
@@ -122,6 +122,8 @@ impl ComparisonContext {
             );
             target.import_chainstate(baseline_env.as_readable_env())?;
             info!("finished");
+
+            // TODO: Backup environment
 
             // Replay from source into target.
             ChainStateReplayer::replay(baseline_env, target, opts)?;

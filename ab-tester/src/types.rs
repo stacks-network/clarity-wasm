@@ -10,6 +10,12 @@ pub struct Payment {
 }
 
 #[derive(Debug, Clone)]
+pub struct BlockAndParentBlockHeaders {
+    current: BlockHeader,
+    parent: BlockHeader
+}
+
+#[derive(Debug, Clone)]
 pub struct BlockHeader {
     pub environment_id: i32,
     pub version: u32,
@@ -47,7 +53,7 @@ pub struct BlockHeader {
     pub burn_header_timestamp: u64,
     /// NOTE: this is the parent index_block_hash.
     pub parent_block_id: stacks::StacksBlockId,
-    pub cost: u64,
+    pub cost: stacks::ExecutionCost,
     /// Converted to/from u64.
     pub block_size: u64,
     pub affirmation_weight: u64,

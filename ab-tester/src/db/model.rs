@@ -154,17 +154,60 @@ pub struct BlockHeader {
     pub burn_header_timestamp: i64,
     /// NOTE: this is the parent index_block_hash.
     pub parent_block_id: Vec<u8>,
-    pub cost: i64,
+    pub cost: Vec<u8>,
     /// Converted to/from u64.
     pub block_size: i64,
     pub affirmation_weight: i32,
+}
+
+impl TryFrom<BlockHeader> for crate::types::BlockHeader {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: BlockHeader) -> Result<Self> {
+        Ok(Self {
+            environment_id: value.environment_id,
+            version: value.version as u32,
+            total_burn: value.total_burn as u64,
+            total_work: value.total_work as u64,
+            proof: stacks::VRFProof::from_bytes(&value.proof)
+                .ok_or(anyhow!("failed to convert proof into VRFProof"))?,
+            parent_block: stacks::BlockHeaderHash::from_bytes(&value.parent_block)
+                .ok_or(anyhow!("failed to convert parent_block into BlockHeaderHash"))?,
+            parent_microblock: stacks::BlockHeaderHash::from_bytes(&value.parent_microblock)
+                .ok_or(anyhow!("failed to convert parent_microblock into BlockHeaderHash"))?,
+            parent_microblock_sequence: value.parent_microblock_sequence as u32,
+            tx_merkle_root: stacks::Sha512Trunc256Sum::from_bytes(&value.tx_merkle_root)
+                .ok_or(anyhow!("failed to convert tx_merkle_root into Sha512Trunc256Sum"))?,
+            state_index_root: stacks::TrieHash::from_bytes(&value.state_index_root)
+                .ok_or(anyhow!("failed to convert state_index_root into TrieHash"))?,
+            microblock_pubkey_hash: stacks::Hash160::from_bytes(&value.microblock_pubkey_hash)
+                .ok_or(anyhow!("failed to convert microblock_pubkey_hash into Hash160"))?,
+            block_hash: stacks::BlockHeaderHash::from_bytes(&value.block_hash)
+                .ok_or(anyhow!("failed to convert block_hash into BlockHeaderHash"))?,
+            index_block_hash: stacks::StacksBlockId::from_bytes(&value.index_block_hash)
+                .ok_or(anyhow!("failed to convert index_block_hash into StacksBlockId"))?,
+            block_height: value.block_height as u32,
+            index_root: stacks::TrieHash::from_bytes(&value.index_root)
+                .ok_or(anyhow!("failed to convert index_root into TrieHash"))?,
+            consensus_hash: stacks::ConsensusHash::from_bytes(&value.consensus_hash)
+                .ok_or(anyhow!("failed to convert consensus_hash into ConsensusHash"))?,
+            burn_header_hash: stacks::BurnchainHeaderHash::from_bytes(&value.burn_header_hash)
+                .ok_or(anyhow!("failed to convert burn_header_hash into BurnchainHeaderHash"))?,
+            burn_header_height: value.burn_header_height as u32,
+            burn_header_timestamp: value.burn_header_timestamp as u64,
+            parent_block_id: stacks::StacksBlockId::from_bytes(&value.parent_block_id)
+                .ok_or(anyhow!("failed to convert parent_block_id into StacksBlockId"))?,
+            cost: rmp_serde::decode::from_slice(&value.cost)?,
+            block_size: value.block_size as u64,
+            affirmation_weight: value.affirmation_weight as u64
+        })
+    }
 }
 
 impl TryFrom<crate::types::BlockHeader> for BlockHeader {
     type Error = color_eyre::eyre::Error;
 
     fn try_from(value: crate::types::BlockHeader) -> Result<Self> {
-        warn!("value: {value:?}");
         Ok(Self {
             environment_id: value.environment_id,
             version: value.version as i32,
@@ -186,7 +229,7 @@ impl TryFrom<crate::types::BlockHeader> for BlockHeader {
             burn_header_height: value.burn_header_height as i32,
             burn_header_timestamp: value.burn_header_timestamp as i64,
             parent_block_id: value.parent_block_id.0.to_vec(),
-            cost: value.cost as i64,
+            cost: rmp_serde::to_vec(&value.cost)?,
             block_size: value.block_size as i64,
             affirmation_weight: value.affirmation_weight as i32,
         })

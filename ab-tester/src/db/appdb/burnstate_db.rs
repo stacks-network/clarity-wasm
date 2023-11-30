@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use color_eyre::Result;
-use diesel::prelude::*;
+use diesel::{prelude::*, debug_query};
 use diesel::{OptionalExtension, QueryDsl};
 
 use super::super::model::*;
@@ -53,13 +53,20 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     }
 
     fn get_burn_block_height(&self, sortition_id: &stacks::SortitionId) -> Option<u32> {
-        _snapshots::table
+        let query = _snapshots::table
             .filter(
                 _snapshots::environment_id
                     .eq(self.environment_id)
                     .and(_snapshots::sortition_id.eq(sortition_id.0.to_vec())),
             )
-            .select(_snapshots::block_height)
+            .select(_snapshots::block_height);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        query
             .get_result(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
@@ -67,10 +74,17 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     }
 
     fn get_burn_start_height(&self) -> u32 {
-        let first_height: i32 = _snapshots::table
+        let query = _snapshots::table
             .filter(_snapshots::environment_id.eq(self.environment_id))
             .order_by(_snapshots::block_height.asc())
-            .select(_snapshots::block_height)
+            .select(_snapshots::block_height);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        let first_height: i32 = query
             .get_result(&mut *self.app_db.conn.borrow_mut())
             .expect("failed to execute database query");
 
@@ -94,14 +108,21 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
         height: u32,
         sortition_id: &stacks::SortitionId,
     ) -> Option<stacks::BurnchainHeaderHash> {
-        _snapshots::table
+        let query = _snapshots::table
             .filter(
                 _snapshots::environment_id
                     .eq(self.environment_id)
                     .and(_snapshots::sortition_id.eq(sortition_id.0.to_vec()))
                     .and(_snapshots::block_height.eq(height as i32)),
             )
-            .select(_snapshots::burn_header_hash)
+            .select(_snapshots::burn_header_hash);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        query
             .get_result(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
@@ -117,13 +138,19 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
         &self,
         consensus_hash: &stacks::ConsensusHash,
     ) -> Option<stacks::SortitionId> {
-        _snapshots::table
+        let query = _snapshots::table
             .filter(
-                _snapshots::environment_id
-                    .eq(self.environment_id)
-                    .and(_snapshots::consensus_hash.eq(&consensus_hash.0.to_vec())),
+                _snapshots::environment_id.eq(self.environment_id)
+                    .and(_snapshots::consensus_hash.eq(consensus_hash.0.to_vec())),
             )
-            .select(_snapshots::sortition_id)
+            .select(_snapshots::sortition_id);
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        query
             .get_result(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
@@ -137,12 +164,19 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     }
 
     fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
-        _epochs::table
+        let query = _epochs::table
             .filter(
-                _epochs::start_block_height
-                    .le(height as i32)
+                _epochs::environment_id.eq(self.environment_id)
+                    .and(_epochs::start_block_height.le(height as i32))
                     .and(_epochs::end_block_height.gt(height as i32)),
-            )
+            );
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        );
+
+        query
             .get_result(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .expect("failed to execute database query")
@@ -157,8 +191,18 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
         &self,
         epoch_id: &stacks::StacksEpochId,
     ) -> Option<clarity::StacksEpoch> {
-        let epoch = _epochs::table
-            .filter(_epochs::epoch_id.eq(*epoch_id as i32))
+        let epoch_query = _epochs::table
+            .filter(
+                _epochs::environment_id.eq(self.environment_id)
+                    .and(_epochs::epoch_id.eq(*epoch_id as i32))
+            );
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&epoch_query)
+        );
+
+        let epoch = epoch_query
             .get_result::<Epoch>(&mut *self.app_db.conn.borrow_mut())
             .optional()
             .expect("failed to query database");
@@ -170,7 +214,15 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     }
 
     fn get_ast_rules(&self, height: u32) -> clarity::ASTRules {
-        let rules = _ast_rule_heights::table
+        let rules_query = _ast_rule_heights::table
+            .filter(_ast_rule_heights::environment_id.eq(self.environment_id));
+
+        trace_sql!(
+            "SQL: {}",
+            debug_query::<diesel::sqlite::Sqlite, _>(&rules_query)
+        );
+
+        let rules = rules_query
             .get_results::<AstRuleHeight>(&mut *self.app_db.conn.borrow_mut())
             .expect("failed to query database");
 

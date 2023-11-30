@@ -112,6 +112,10 @@ fn configure_logging(cli: &Cli) {
         .filter_level(cli.verbosity.log_level_filter())
         .init();
 
+    if cli.sql_trace {
+        std::env::set_var("sql_trace", "1");
+    }
+
     if let Some(level) = cli.verbosity.log_level() {
         match level {
             Level::Trace => {

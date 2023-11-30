@@ -1,9 +1,11 @@
 use std::cell::RefCell;
 
-use color_eyre::eyre::anyhow;
+use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
-use diesel::prelude::*;
+use diesel::upsert::excluded;
+use diesel::{prelude::*, insert_into, debug_query};
 use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
+use log::*;
 
 use super::model::chainstate::{BlockHeader, MaturedReward, Payment};
 use super::schema::chainstate::*;
@@ -17,6 +19,53 @@ impl StacksHeadersDb {
     pub fn new(index_db_path: &str) -> Result<Self> {
         Ok(Self {
             conn: RefCell::new(SqliteConnection::establish(index_db_path)?),
+        })
+    }
+
+    pub fn import_block_headers(
+        &mut self,
+        headers: Box<dyn Iterator<Item = Result<crate::types::BlockHeader>>>,
+        environment_id: Option<i32>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn.borrow_mut();
+
+        conn.transaction(|tx| -> Result<()> {
+            for header in headers {
+                let header = header
+                    .map_err(|e| error!("{:?}", e))
+                    .expect("failed to load header");
+
+                trace!(
+                    "inserting block header {{hash: {:?}, height: {:?}}}",
+                    &header.block_hash,
+                    &header.block_height
+                );
+                let header: super::model::chainstate::BlockHeader = header.try_into()?;
+
+                let insert_stmt = insert_into(block_headers::table)
+                    .values(header)
+                    .on_conflict((
+                        block_headers::consensus_hash,
+                        block_headers::block_hash
+                    ))
+                    .do_update()
+                    .set((
+                        block_headers::consensus_hash.eq(excluded(block_headers::consensus_hash)),
+                        block_headers::block_hash.eq(excluded(block_headers::block_hash))
+                    ));
+
+                trace_sql!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one block header, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
         })
     }
 
