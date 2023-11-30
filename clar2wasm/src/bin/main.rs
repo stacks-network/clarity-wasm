@@ -58,6 +58,7 @@ fn main() {
     .unwrap_or_else(|err| match err {
         CompileError::Generic {
             diagnostics,
+            ast: _,
             cost_tracker: _,
         } => {
             for diagnostic in diagnostics.iter() {
