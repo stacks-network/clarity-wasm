@@ -56,12 +56,12 @@ impl Word for UnwrapPanic {
         generator.traverse_expr(builder, input)?;
         // There must be either an `optional` or a `response` on the top of the
         // stack. Both use an i32 indicator, where 0 means `none` or `err`. In
-        // both cases, if this indicator is a 0, then we need to early exit.
+        // both cases, if this indicator is a 0, then we need to panic.
 
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .expect("try input expression must be typed")
+            .expect("'unwrap-err' input expression must be typed")
             .clone();
 
         match &input_ty {
@@ -163,8 +163,138 @@ impl Word for UnwrapErrPanic {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
-        let throws = args.get_expr(1)?;
         generator.traverse_expr(builder, input)?;
-        generator.traverse_expr(builder, throws)
+        // The input must be a `response` type. It uses an i32 indicator, where
+        // 0 means `err`. If this indicator is a 1, then we need to panic.
+
+        // Get the type of the input expression
+        let input_ty = generator
+            .get_expr_type(input)
+            .expect("'unwrap-err-panic' input expression must be typed")
+            .clone();
+
+        match &input_ty {
+            TypeSignature::ResponseType(inner_types) => {
+                // Ex. `(unwrap-err-panic (err 1))`, where the value type is
+                // `(response uint uint)`, the stack will look like:
+                // 1 -- err value
+                // 0 -- ok value
+                // 0 -- indicator
+                // We need to get to the indicator, so we can save the err
+                // value in a local, then drop the ok value, since this is not
+                // needed. After that, we can check the indicator. If it's a 1,
+                // we need to trigger a runtime error. If it's a 0, we just
+                // push the err value back onto the stack and continue
+                // execution.
+
+                let (ok_ty, err_ty) = &**inner_types;
+
+                // Save the err value in locals
+                let err_val_locals = generator.save_to_locals(builder, err_ty, true);
+
+                // Drop the err value
+                drop_value(builder, ok_ty);
+
+                // If the indicator is 0, throw a runtime error
+                builder.unop(UnaryOp::I32Eqz).if_else(
+                    InstrSeqType::new(&mut generator.module.types, &[], &[]),
+                    |_| {},
+                    |else_| {
+                        else_.i32_const(Trap::Panic as i32).call(
+                            generator
+                                .module
+                                .funcs
+                                .by_name("runtime-error")
+                                .expect("runtime_error not found"),
+                        );
+                    },
+                );
+
+                // Otherwise, push the value back onto the stack
+                for val_local in err_val_locals {
+                    builder.local_get(val_local);
+                }
+
+                Ok(())
+            }
+            _ => Err(GeneratorError::NotImplemented),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::errors::{Error, WasmError};
+    use clarity::vm::Value;
+
+    use crate::tools::{evaluate, TestEnvironment};
+
+    #[test]
+    fn test_unwrap_panic_some() {
+        assert_eq!(evaluate("(unwrap-panic (some u1))",), Some(Value::UInt(1)));
+    }
+
+    #[test]
+    fn test_unwrap_panic_none() {
+        let mut env = TestEnvironment::default();
+        let err = env
+            .init_contract_with_snippet(
+                "callee",
+                r#"
+(define-private (unwrap-opt (x (optional uint)))
+    (unwrap-panic x)
+)
+(unwrap-opt none)
+        "#,
+            )
+            .expect_err("should panic");
+        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+    }
+
+    #[test]
+    fn test_unwrap_panic_ok() {
+        assert_eq!(evaluate("(unwrap-panic (ok u2))",), Some(Value::UInt(2)));
+    }
+
+    #[test]
+    fn test_unwrap_panic_err() {
+        let mut env = TestEnvironment::default();
+        let err = env
+            .init_contract_with_snippet(
+                "callee",
+                r#"
+(define-private (unwrap-opt (x (response uint uint)))
+    (unwrap-panic x)
+)
+(unwrap-opt (err u42))
+        "#,
+            )
+            .expect_err("should panic");
+        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+    }
+
+    #[test]
+    fn test_unwrap_err_panic_err() {
+        assert_eq!(
+            evaluate("(unwrap-err-panic (err u1))",),
+            Some(Value::UInt(1))
+        );
+    }
+
+    #[test]
+    fn test_unwrap_err_panic_ok() {
+        let mut env = TestEnvironment::default();
+        let err = env
+            .init_contract_with_snippet(
+                "callee",
+                r#"
+(define-private (unwrap-opt (x (response uint uint)))
+    (unwrap-err-panic x)
+)
+(unwrap-opt (ok u42))
+        "#,
+            )
+            .expect_err("should panic");
+        matches!(err, Error::Wasm(WasmError::Runtime(_)));
     }
 }
