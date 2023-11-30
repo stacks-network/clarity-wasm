@@ -1,7 +1,8 @@
+use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{BinaryOp, IfElse, Loop, UnaryOp};
+use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::Word;
@@ -83,6 +84,179 @@ impl Word for IsEq {
             // Do an "and" operation with the result from the previous function call.
             builder.binop(BinaryOp::I32And);
         }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum IndexOf {
+    Original,
+    Alias,
+}
+
+impl Word for IndexOf {
+    fn name(&self) -> ClarityName {
+        match self {
+            IndexOf::Original => "index-of".into(),
+            IndexOf::Alias => "index-of?".into(),
+        }
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Traverse the sequence, leaving its offset and size on the stack.
+        let seq = args.get_expr(0)?;
+        generator.traverse_expr(builder, seq)?;
+        // STACK: [offset, size]
+
+        // Drop the sequence size from the stack.
+        builder.drop();
+        // STACK: [offset]
+
+        // Move the sequence offset from the stack to a local variable.
+        let offset = generator.module.locals.add(ValType::I32);
+        builder.local_set(offset);
+        // STACK: []
+
+        // Get the type of the sequence.
+        let seq_ty = match generator
+            .get_expr_type(seq)
+            .expect("sequence must be typed")
+        {
+            TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                ));
+            }
+        };
+
+        // Get sequence size (quantity of items in the sequence)
+        // and sequence elements type.
+        let (seq_size, elem_ty) = match &seq_ty {
+            SequenceSubtype::ListType(list_type) => {
+                (list_type.get_max_len(), list_type.get_list_item_type())
+            }
+            // TODO implement check for other sequence types
+            _ => unimplemented!("Unsupported sequence type"),
+        };
+
+        // TODO return when size = 0
+
+        // Store the end of the sequence into a local.
+        let elem_size = get_type_size(elem_ty);
+        let end_offset = generator.module.locals.add(ValType::I32);
+        builder
+            .local_get(offset)
+            .i32_const(seq_size as i32 * elem_size)
+            .binop(BinaryOp::I32Add)
+            .local_set(end_offset);
+
+        // Traverse the item, leaving it on top of the stack.
+        let item = args.get_expr(1)?;
+        generator.traverse_expr(builder, item)?;
+        // STACK: [item]
+
+        // Get the type of the item expression
+        let item_ty = generator
+            .get_expr_type(item)
+            .expect("index_of item expression must be typed")
+            .clone();
+
+        // Store the item into a local.
+        let item_locals = generator.save_to_locals(builder, &item_ty, true);
+        // STACK: []
+
+        // Create and store an index into a local.
+        let index = generator.module.locals.add(ValType::I32);
+        builder.i32_const(0);
+        // STACK: [0]
+        builder.local_set(index);
+        // STACK: []
+
+        // Code block label to be used in the loop.
+        let block_id = builder.id();
+
+        // Loop through the sequence.
+        let loop_body_ty = InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32, ValType::I64, ValType::I64],
+        );
+        builder.loop_(loop_body_ty, |loop_| {
+            // Loop label.
+            let loop_id = loop_.id();
+
+            // Load an element from the sequence, at offset position,
+            // and push it onto the top of the stack.
+            let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
+            // STACK: [element]
+
+            // Store the current sequence element into a local.
+            let elem_locals = generator.save_to_locals(loop_, elem_ty, true);
+            // STACK: []
+
+            // Check item and element equality.
+            // And push the result of the comparison onto the top of the stack.
+            let _res = wasm_equal(
+                &item_ty,
+                elem_ty,
+                generator,
+                loop_,
+                &item_locals,
+                &elem_locals,
+            );
+            // STACK: [wasm_equal_result]
+
+            // Store the result into a local.
+            let result = generator.module.locals.add(ValType::I32);
+            loop_.local_tee(result);
+            // STACK: [wasm_equal_result]
+
+            // Build the stack to be returned.
+            loop_
+                .i32_const(1)
+                .binop(BinaryOp::I32Eq)
+                // STACK: [(0 | 1)]
+                .local_get(index)
+                .unop(UnaryOp::I64ExtendUI32)
+                .i64_const(0);
+            // STACK: [(0 | 1), index_lo, index_hi]
+
+            // Break loop if the result of the comparison is true.
+            loop_
+                .local_get(result)
+                .i32_const(1)
+                .binop(BinaryOp::I32Eq)
+                .br_if(block_id);
+
+            // Increment index by 1.
+            loop_
+                .local_get(index)
+                .i32_const(1)
+                .binop(BinaryOp::I32Add)
+                .local_set(index);
+
+            // Increment the sequence offset by the size of the element,
+            // leaving the incremented offset onto the top of the stack.
+            loop_
+                .local_get(offset)
+                .i32_const(elem_size)
+                .binop(BinaryOp::I32Add)
+                .local_tee(offset); // current offset
+
+            // Loop if not in the end of the sequence.
+            loop_
+                .local_get(end_offset)
+                .binop(BinaryOp::I32LtU)
+                .br_if(loop_id);
+        });
 
         Ok(())
     }
@@ -714,4 +888,56 @@ fn wasm_equal_list(
         });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate as eval;
+    use clarity::vm::{types::OptionalData, Value};
+
+    #[test]
+    fn index_of_elem_not_in_list() {
+        assert_eq!(
+            eval("(index-of? (list 1 2 3 4 5 6 7) 9)"),
+            Some(Value::Optional(OptionalData { data: None }))
+        );
+    }
+
+    #[test]
+    fn index_of_first_elem() {
+        assert_eq!(
+            eval("(index-of? (list 1 2 3 4 5 6 7) 1)"),
+            Some(Value::Optional(OptionalData {
+                data: Some(Box::new(Value::UInt(0)))
+            }))
+        );
+    }
+
+    #[test]
+    fn index_of_elem() {
+        assert_eq!(
+            eval("(index-of? (list 1 2 3 4 5 6 7) 3)"),
+            Some(Value::Optional(OptionalData {
+                data: Some(Box::new(Value::UInt(2)))
+            }))
+        );
+    }
+
+    #[test]
+    fn index_of_last_elem() {
+        assert_eq!(
+            eval("(index-of? (list 1 2 3 4 5 6 7) 7)"),
+            Some(Value::Optional(OptionalData {
+                data: Some(Box::new(Value::UInt(6)))
+            }))
+        );
+    }
+
+    #[test]
+    fn index_of_called_by_v1_alias() {
+        assert_eq!(
+            eval("(index-of (list 1 2 3 4 5 6 7) 100)"),
+            Some(Value::Optional(OptionalData { data: None }))
+        );
+    }
 }
