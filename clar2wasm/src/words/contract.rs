@@ -401,4 +401,43 @@ mod tests {
             .unwrap()
         );
     }
+
+    #[test]
+    fn err_rollback() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an error
+        let res = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee set-err -42)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::err_uint(1));
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet(
+                "check-value",
+                "(contract-call? .contract-callee get-val)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+    }
 }
