@@ -2042,7 +2042,9 @@ impl WasmGenerator {
             self.module
                 .funcs
                 .by_name(name.as_str())
-                .unwrap_or_else(|| panic!("function not found: {name}")),
+                .ok_or(GeneratorError::TypeError(format!(
+                    "function not found: {name}"
+                )))?,
         );
         Ok(())
     }
