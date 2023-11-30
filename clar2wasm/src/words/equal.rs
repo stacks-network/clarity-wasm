@@ -892,8 +892,10 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::types::OptionalData;
+    use clarity::vm::Value;
+
     use crate::tools::evaluate as eval;
-    use clarity::vm::{types::OptionalData, Value};
 
     #[test]
     fn index_of_elem_not_in_list() {
