@@ -2,12 +2,12 @@ extern crate lazy_static;
 
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
-use clarity::vm::ast::build_ast_with_diagnostics;
+use clarity::vm::ast::{build_ast_with_diagnostics, ContractAST};
 use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
 use clarity::vm::diagnostic::Diagnostic;
 use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::ClarityVersion;
-use walrus::Module;
+pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
 pub mod wasm_generator;
@@ -30,6 +30,7 @@ pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
 
 #[derive(Debug)]
 pub struct CompileResult {
+    pub ast: ContractAST,
     pub diagnostics: Vec<Diagnostic>,
     pub module: Module,
     pub contract_analysis: ContractAnalysis,
@@ -38,6 +39,7 @@ pub struct CompileResult {
 #[derive(Debug)]
 pub enum CompileError {
     Generic {
+        ast: ContractAST,
         diagnostics: Vec<Diagnostic>,
         cost_tracker: Box<LimitedCostTracker>,
     },
@@ -62,6 +64,7 @@ pub fn compile(
 
     if !success {
         return Err(CompileError::Generic {
+            ast,
             diagnostics,
             cost_tracker: Box::new(cost_tracker),
         });
@@ -81,6 +84,7 @@ pub fn compile(
         Err((e, cost_track)) => {
             diagnostics.push(Diagnostic::err(&e.err));
             return Err(CompileError::Generic {
+                ast,
                 diagnostics,
                 cost_tracker: Box::new(cost_track),
             });
@@ -90,6 +94,7 @@ pub fn compile(
     let generator = WasmGenerator::new(contract_analysis.clone());
     match generator.generate() {
         Ok(module) => Ok(CompileResult {
+            ast,
             diagnostics,
             module,
             contract_analysis,
@@ -97,6 +102,7 @@ pub fn compile(
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
             Err(CompileError::Generic {
+                ast,
                 diagnostics,
                 cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
             })
