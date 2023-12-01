@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -8,6 +8,7 @@ use color_eyre::Result;
 use log::*;
 
 use crate::config::Config;
+use crate::context::replay::ChainStateReplayer;
 use crate::db::appdb::AppDb;
 use crate::utils::append_to_path;
 use crate::{clarity, ok, stacks};
@@ -19,6 +20,7 @@ pub mod replay;
 
 pub use blocks::{Block, BlockCursor};
 
+use self::callbacks::ReplayCallbackHandler;
 use self::replay::{ReplayOpts, ReplayResult};
 use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv};
 
@@ -125,7 +127,7 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(mut self, opts: &'ctx ReplayOpts) -> Result<ReplayResult> {
+    pub fn replay<C: ReplayCallbackHandler>(mut self, opts: &ReplayOpts<C>) -> Result<ReplayResult> {
         let mut baseline_env_taken = self.baseline_env.take();
         let baseline_env = baseline_env_taken
             .as_mut()
@@ -166,7 +168,7 @@ impl<'ctx> ComparisonContext<'ctx> {
             Self::snapshot_environment(&**target)?;
 
             // Replay from source into target.
-            //ChainStateReplayer::replay(&baseline_env.into(), &target.into(), opts)?;
+            ChainStateReplayer::replay(&**baseline_env, &mut **target, opts)?;
         }
 
         todo!()

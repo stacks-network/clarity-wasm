@@ -10,37 +10,43 @@ use crate::types::BlockHeader;
 use crate::{ok, stacks};
 
 /// Options for replaying an environment's chain into another environment.
-pub struct ReplayOpts {
+pub struct ReplayOpts<C>
+where
+    C: ReplayCallbackHandler,
+{
     pub from_height: Option<u32>,
     pub to_height: Option<u32>,
     pub max_blocks: Option<u32>,
-    pub callbacks: Box<dyn ReplayCallbackHandler>,
+    pub callbacks: C,
     pub working_dir: String,
 }
 
-impl Default for ReplayOpts {
+impl<C> Default for ReplayOpts<C>
+where
+    C: ReplayCallbackHandler + Default
+{
     fn default() -> Self {
         Self {
             from_height: Default::default(),
             to_height: Default::default(),
             max_blocks: Default::default(),
-            callbacks: Box::<DefaultReplayCallbacks>::default(),
+            callbacks: C::default(),
             working_dir: Default::default(),
         }
     }
 }
 
 /// Validation/assertion helper methods for [ReplayOpts].
-impl<'a> ReplayOpts {
+impl<'a, C: ReplayCallbackHandler> ReplayOpts<C> {
     pub fn with_working_dir(&'a mut self, working_dir: &str) -> &mut Self {
         self.working_dir = working_dir.to_string();
         self
     }
     pub fn with_callbacks(
         &'a mut self,
-        callbacks: impl ReplayCallbackHandler + 'static,
+        callbacks: C
     ) -> &mut Self {
-        self.callbacks = Box::new(callbacks);
+        self.callbacks = callbacks;
         self
     }
 
@@ -81,10 +87,10 @@ impl<'a> ReplayOpts {
 pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
-    pub fn replay<'a, Source: ReadableEnv, Target: WriteableEnv>(
-        source: &'a Source,
-        target: &'a mut Target,
-        opts: &'a ReplayOpts,
+    pub fn replay<'a, C: ReplayCallbackHandler>(
+        source: &'a dyn ReadableEnv,
+        target: &'a mut dyn WriteableEnv,
+        opts: &'a ReplayOpts<C>,
     ) -> Result<()> {
         info!(
             "aggregating contract calls starting at block height {}...",
@@ -95,12 +101,12 @@ impl ChainStateReplayer {
 
         let blocks = source.blocks()?;
         opts.callbacks
-            .replay_start(source, target.as_readable_env(), blocks.len());
+            .replay_start(source, target, blocks.len());
 
         for block in source.blocks()?.into_iter() {
             opts.callbacks.replay_block_start(
                 source,
-                target.as_readable_env(),
+                target,
                 block.block_height()?,
             );
 
@@ -149,19 +155,19 @@ impl ChainStateReplayer {
             }
 
             opts.callbacks
-                .replay_block_finish(source, target.as_readable_env());
+                .replay_block_finish(source, target);
             processed_block_count += 1;
         }
 
         opts.callbacks
-            .replay_finish(source, target.as_readable_env());
+            .replay_finish(source, target);
         info!("blocks processed: {processed_block_count}");
 
         ok!()
     }
 
     /// Replays the specified block into `target`.
-    fn replay_block_into<Target: WriteableEnv>(
+    fn replay_block_into<Target: WriteableEnv + ?Sized>(
         header: &BlockHeader,
         block: &Block,
         stacks_block: &stacks::StacksBlock,

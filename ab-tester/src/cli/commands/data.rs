@@ -6,6 +6,7 @@ use diesel::{Connection, SqliteConnection};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::cli::DataArgs;
+use crate::context::callbacks::DefaultReplayCallbacks;
 use crate::context::replay::ReplayOpts;
 use crate::context::{ComparisonContext, Network, Runtime};
 use crate::db::appdb::AppDb;
@@ -26,7 +27,7 @@ pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<
             .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
     );
 
-    let mut replay_opts: ReplayOpts = data_args.into();
+    let mut replay_opts: ReplayOpts<DefaultReplayCallbacks> = data_args.into();
     replay_opts.with_working_dir(&config.app.working_dir);
 
     let ctx = ComparisonContext::new(&config, app_db.clone())
