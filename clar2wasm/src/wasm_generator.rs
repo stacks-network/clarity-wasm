@@ -232,8 +232,7 @@ impl WasmGenerator {
                 if let Some(word) = words::lookup(function_name) {
                     word.traverse(self, builder, expr, args)?;
                 } else {
-                    self.traverse_args(builder, args)?;
-                    self.visit_call_user_defined(builder, expr, function_name, args)?;
+                    self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
             }
             _ => todo!(),
@@ -2031,13 +2030,59 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_call_user_defined(
+    fn traverse_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         name: &ClarityName,
-        _args: &[SymbolicExpression],
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        self.traverse_args(builder, args)?;
+        // If this is a private function, we can just call it directly, but if
+        // it is a public or read-only function, then we need to go through the
+        // host-interface, to handle roll backs.
+        let mut public = false;
+        let mut readonly = false;
+
+        if self
+            .contract_analysis
+            .get_public_function_type(name.as_str())
+            .is_some()
+        {
+            public = true;
+
+            // Call the host interface function, `begin_public_call`
+            builder.call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.begin_public_call")
+                    .expect("function not found"),
+            );
+        } else if self
+            .contract_analysis
+            .get_read_only_function_type(name.as_str())
+            .is_some()
+        {
+            readonly = true;
+
+            // Call the host interface function, `begin_readonly_call`
+            builder.call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.begin_read_only_call")
+                    .expect("function not found"),
+            );
+        } else if self
+            .contract_analysis
+            .get_private_function(name.as_str())
+            .is_none()
+        {
+            return Err(GeneratorError::TypeError(format!(
+                "function not found: {name}",
+                name = name.as_str()
+            )));
+        }
+
         builder.call(
             self.module
                 .funcs
@@ -2046,6 +2091,54 @@ impl WasmGenerator {
                     "function not found: {name}"
                 )))?,
         );
+
+        if public {
+            // Save the result to a local
+            let res_ty = self
+                .get_expr_type(expr)
+                .expect("function result must be typed")
+                .clone();
+            let result_locals = self.save_to_locals(builder, &res_ty, true);
+
+            // If the result is an `ok`, then we can commit the call, and if it
+            // is an `err`, then we roll it back. `result_locals[0]` is the
+            // response indicator (all public functions return a response).
+            builder.local_get(result_locals[0]).if_else(
+                InstrSeqType::new(&mut self.module.types, &[], &[]),
+                |then| {
+                    // Call the host interface function, `commit_call`
+                    then.call(
+                        self.module
+                            .funcs
+                            .by_name("stdlib.commit_call")
+                            .expect("function not found"),
+                    );
+                },
+                |else_| {
+                    // Call the host interface function, `roll_back_call`
+                    else_.call(
+                        self.module
+                            .funcs
+                            .by_name("stdlib.roll_back_call")
+                            .expect("function not found"),
+                    );
+                },
+            );
+
+            // Restore the result to the top of the stack.
+            for local in &result_locals {
+                builder.local_get(*local);
+            }
+        } else if readonly {
+            // Call the host interface function, `end_readonly_call`
+            builder.call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.roll_back_call")
+                    .expect("function not found"),
+            );
+        }
+
         Ok(())
     }
 
