@@ -1,6 +1,7 @@
 pub mod db;
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -26,7 +27,7 @@ use crate::{ok, stacks};
 
 /// Holds initialization config for a [StacksNodeEnv].
 pub struct StacksNodeEnvConfig {
-    node_dir: String,
+    node_dir: PathBuf,
     paths: StacksEnvPaths,
 }
 
@@ -59,19 +60,19 @@ impl StacksNodeEnv {
     /// Creates a new [StacksNodeEnv] instance from the specified node directory.
     /// The node directory should be working directory of the node, i.e.
     /// `/stacks-node/mainnet/` or `/stacks-node/testnet`.
-    pub fn new(id: i32, name: String, node_dir: String) -> Result<Self> {
+    pub fn new(id: i32, name: String, node_dir: PathBuf) -> Self {
         // Determine our paths.
-        let paths = StacksEnvPaths::new(&node_dir);
+        let paths = StacksEnvPaths::new(node_dir.clone());
 
         let env_config = StacksNodeEnvConfig { paths, node_dir };
 
-        Ok(Self {
+        Self {
             id,
             name,
             env_config,
             env_state: None,
             callbacks: Box::<DefaultEnvCallbacks>::default(),
-        })
+        }
     }
 
     /// Attempts to retrieve the [StacksNodeEnvState] for this environment. Will
@@ -248,13 +249,14 @@ impl RuntimeEnv for StacksNodeEnv {
         let paths = &self.env_config.paths;
         let name = &self.name;
 
-        self.callbacks.env_open_start(self, name);
+        self.callbacks.env_open_start(self, &self.env_config.node_dir);
         paths.print(name);
 
         debug!("[{name}] loading index db...");
         self.callbacks
             .open_index_db_start(self, &paths.index_db_path);
-        let mut index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
+        let mut index_db_conn = SqliteConnection::establish(
+            &paths.index_db_path.display().to_string())?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
@@ -285,7 +287,7 @@ impl RuntimeEnv for StacksNodeEnv {
         let (chainstate, _) = stacks::StacksChainState::open(
             network.is_mainnet(),
             network.chain_id(),
-            &paths.chainstate_dir,
+            &paths.chainstate_dir.display().to_string(),
             Some(marf_opts),
         )?;
         self.callbacks.open_chainstate_finish(self);
@@ -294,7 +296,8 @@ impl RuntimeEnv for StacksNodeEnv {
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, &paths.clarity_db_path);
-        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
+        let clarity_db_conn = SqliteConnection::establish(
+            &paths.clarity_db_path.display().to_string())?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
@@ -302,17 +305,18 @@ impl RuntimeEnv for StacksNodeEnv {
         debug!("[{name}] opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
-        let sortition_db_conn = SqliteConnection::establish(&paths.sortition_db_path)?;
+        let sortition_db_conn = SqliteConnection::establish(
+            &paths.sortition_db_path.display().to_string())?;
         // Attempt to open the sortition DB using the Stacks node code to make use
         // of its validation. We won't actually use this value though, we will
         // read directly using SQLite.
-        let _ = super::open_sortition_db(&paths.sortition_dir, &network)?;
+        let _ = super::open_sortition_db(&paths.sortition_dir.display().to_string(), &network)?;
         self.callbacks.open_sortition_db_finish(self);
         info!("[{name}] successfully opened sortition db");
 
         // Open the burnstate db
         let burnstate_db: Box<dyn clarity::BurnStateDB> = Box::new(StacksBurnStateDb::new(
-            &paths.sortition_db_path,
+            &paths.sortition_db_path.display().to_string(),
             stacks::PoxConstants::mainnet_default(),
         )?);
 
@@ -363,6 +367,14 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(Box::new(result))
     }
 
+    fn snapshot_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = snapshots::table.count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
     fn block_commits(&self) -> BoxedDbIterResult<crate::types::BlockCommit> {
         let state = self.get_env_state()?;
 
@@ -374,6 +386,14 @@ impl ReadableEnv for StacksNodeEnv {
         >(block_commits::table, state.sortition_db_conn.clone(), 1000);
 
         Ok(Box::new(result))
+    }
+
+    fn block_commit_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = block_commits::table.count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
     }
 
     fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
@@ -393,6 +413,14 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(Box::new(result))
     }
 
+    fn ast_rule_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = ast_rule_heights::table.count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
     fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
         let state = self.get_env_state()?;
 
@@ -403,6 +431,14 @@ impl ReadableEnv for StacksNodeEnv {
         );
 
         Ok(Box::new(result))
+    }
+
+    fn epoch_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = epochs::table.count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
     }
 
     fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
@@ -416,5 +452,17 @@ impl ReadableEnv for StacksNodeEnv {
         >(block_headers::table, state.index_db_conn.clone(), 1000);
 
         Ok(Box::new(result))
+    }
+
+    fn block_header_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = block_headers::table.count()
+            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
+    fn paths(&self) -> StacksEnvPaths {
+        self.env_config.paths.clone()
     }
 }

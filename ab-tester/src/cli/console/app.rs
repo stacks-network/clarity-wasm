@@ -232,7 +232,7 @@ pub struct AppState<'data> {
     _lifetime: PhantomData<&'data ()>,
     pub running: bool,
 
-    baseline_block_cursor: Option<&'data BlockCursor>,
+    baseline_block_cursor: Option<&'data BlockCursor<'data>>,
 }
 
 impl<'data> AppState<'data> {

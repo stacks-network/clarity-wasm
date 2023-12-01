@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::path::Path;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
@@ -8,15 +9,15 @@ use crate::stacks;
 use crate::types::*;
 
 /// Provides a cursor for navigating and iterating through [Block]s.
-pub struct BlockCursor {
+pub struct BlockCursor<'env> {
     height: usize,
-    blocks_dir: String,
+    blocks_dir: &'env Path,
     headers: Vec<crate::types::BlockHeader>,
 }
 
 /// Manually implement [std::fmt::Debug] for [BlockCursor] since some fields
 /// don't implement [std::fmt::Debug].
-impl std::fmt::Debug for BlockCursor {
+impl std::fmt::Debug for BlockCursor<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BlockCursor")
             .field("pos", &self.height)
@@ -28,12 +29,12 @@ impl std::fmt::Debug for BlockCursor {
 
 /// Implementation of [BlockCursor].
 #[allow(dead_code)]
-impl BlockCursor {
+impl<'env> BlockCursor<'env> {
     /// Instantiates a new instance of [BlockCursor] using the provided `blocks_dir`
     /// and [BlockHeader]s.
-    pub fn new(blocks_dir: &str, headers: Vec<BlockHeader>) -> Self {
+    pub fn new(blocks_dir: &'env Path, headers: Vec<BlockHeader>) -> Self {
         Self {
-            blocks_dir: blocks_dir.to_string(),
+            blocks_dir,
             height: 0,
             headers,
         }
@@ -138,7 +139,7 @@ impl BlockCursor {
         let block_id = header.index_block_hash;
         debug!("block_id: {block_id:?}");
         let block_path = stacks::StacksChainState::get_index_block_path(
-            &self.blocks_dir, 
+            &self.blocks_dir.display().to_string(), 
             &block_id)?;
         debug!("block_path: {block_path:?}");
         // Load the block from chainstate.
@@ -158,9 +159,9 @@ impl BlockCursor {
 
 /// Provides an [Iterator] over blocks.
 #[derive(Debug)]
-pub struct BlockIntoIter(BlockCursor);
+pub struct BlockIntoIter<'env>(BlockCursor<'env>);
 
-impl Iterator for BlockIntoIter {
+impl Iterator for BlockIntoIter<'_> {
     type Item = Block;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -168,10 +169,10 @@ impl Iterator for BlockIntoIter {
     }
 }
 
-impl IntoIterator for BlockCursor {
+impl<'env> IntoIterator for BlockCursor<'env> {
     type Item = Block;
 
-    type IntoIter = BlockIntoIter;
+    type IntoIter = BlockIntoIter<'env>;
 
     fn into_iter(self) -> Self::IntoIter {
         BlockIntoIter(self)

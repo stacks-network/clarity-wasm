@@ -221,7 +221,8 @@ impl From<DataArgs> for ReplayOpts {
             from_height: Some(value.from_height),
             to_height: value.to_height,
             max_blocks: value.max_block_count,
-            callbacks: Box::<DefaultReplayCallbacks>::default(),
+            callbacks: Box::new(DefaultReplayCallbacks::default()),
+            working_dir: Default::default()
         }
     }
 }

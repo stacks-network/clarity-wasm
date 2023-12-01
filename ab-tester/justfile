@@ -7,4 +7,4 @@ fmt:
     cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module
 
 check:
-    cargo clippy -- --no-deps
+    cargo clippy --manifest-path=./Cargo.toml --no-deps --all-features --all-targets -- -D warnings

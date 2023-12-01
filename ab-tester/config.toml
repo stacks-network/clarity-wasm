@@ -1,5 +1,6 @@
 [app]
 db_path = "/home/cylwit/clarity-ab/appdb.sqlite"
+working_dir = "/home/cylwit/clarity-ab/"
 
 [baseline]
 # ;; Configure chainstate for the baseline

@@ -372,6 +372,42 @@ impl AppDb {
         }
     }
 
+    pub fn snapshot_count(&self, environment_id: i32) -> Result<usize> {
+        let result = _snapshots::table
+            .filter(_snapshots::environment_id.eq(environment_id))
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
+    pub fn block_commit_count(&self, environment_id: i32) -> Result<usize> {
+        let result = _block_commits::table
+            .filter(_block_commits::environment_id.eq(environment_id))
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
+    pub fn ast_rule_count(&self, environment_id: i32) -> Result<usize> {
+        let result = _ast_rule_heights::table
+            .filter(_ast_rule_heights::environment_id.eq(environment_id))
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
+    pub fn epoch_count(&self, environment_id: i32) -> Result<usize> {
+        let result = _epochs::table
+            .filter(_epochs::environment_id.eq(environment_id))
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
     /// Retrieves an existing runtime environment by name. Returns [None] if
     /// the environment was not found.
     pub fn get_env(&self, name: &str) -> Result<Option<Environment>> {

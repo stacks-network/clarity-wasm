@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::path::Path;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
@@ -16,9 +17,9 @@ pub struct StacksHeadersDb {
 }
 
 impl StacksHeadersDb {
-    pub fn new(index_db_path: &str) -> Result<Self> {
+    pub fn new(index_db_path: &Path) -> Result<Self> {
         Ok(Self {
-            conn: RefCell::new(SqliteConnection::establish(index_db_path)?),
+            conn: RefCell::new(SqliteConnection::establish(&index_db_path.display().to_string())?),
         })
     }
 

@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     // Execute the given command with args.
     let _ = match cli.command {
         Commands::Tui(args) => commands::console::exec(&config, args).await,
-        Commands::Data(args) => commands::data::exec(&config, args).await,
+        Commands::Data(args) => commands::data::exec(config.clone(), args).await,
         Commands::Env(args) => commands::env::exec(&config, args).await,
     }
     .map_err(|err| match err.downcast_ref() {

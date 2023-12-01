@@ -4,6 +4,7 @@ mod stacks_node;
 
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use color_eyre::eyre::anyhow;
@@ -13,7 +14,7 @@ use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
-use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
+use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths};
 use crate::db::appdb::AppDb;
 use crate::types::*;
 use crate::{clarity, stacks};
@@ -49,9 +50,13 @@ impl RuntimeEnvBuilder {
     /// Creates and returns a new [StacksNodeEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn stacks_node(&self, name: String, node_dir: String) -> Result<StacksNodeEnv> {
-        let env = self.get_or_create_env(&name, &Runtime::None, &node_dir)?;
-        StacksNodeEnv::new(env.id, name, node_dir)
+    pub fn stacks_node(&self, name: String, node_dir: PathBuf) -> Result<StacksNodeEnv> {
+        let env = self.get_or_create_env(
+            &name, 
+            &Runtime::None, 
+            node_dir.to_str().ok_or(anyhow!("failed to convert node dir to path"))?
+        )?;
+        Ok(StacksNodeEnv::new(env.id, name, node_dir))
     }
 
     /// Creates and returns a new [InstrumentedEnv] with the provided configuration.
@@ -65,14 +70,14 @@ impl RuntimeEnvBuilder {
         working_dir: String,
     ) -> Result<InstrumentedEnv> {
         let env = self.get_or_create_env(&name, &runtime, &working_dir)?;
-        InstrumentedEnv::new(
+        Ok(InstrumentedEnv::new(
             env.id,
             name,
             Rc::clone(&self.app_db),
-            working_dir,
+            working_dir.into(),
             runtime,
             network,
-        )
+        ))
     }
 
     /// Creates and returns a new [NetworkEnv] with the provided configuration.
@@ -118,29 +123,28 @@ impl RuntimeEnvContext {
         &*self.inner
     }
 }
-
 /// Represents a mutable/writable environment. Required for target environments
 /// to be opened using this type, which wraps [WriteableEnv].
-pub struct RuntimeEnvContextMut {
-    inner: Box<dyn WriteableEnv>,
+pub struct RuntimeEnvContextMut<T: WriteableEnv + ReadableEnv + RuntimeEnv> {
+    inner: Box<T>,
 }
 
-impl Deref for RuntimeEnvContextMut {
-    type Target = dyn WriteableEnv;
+impl<T: WriteableEnv> Deref for RuntimeEnvContextMut<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &*self.inner as &dyn WriteableEnv
+        &*self.inner as &T
     }
 }
 
-impl DerefMut for RuntimeEnvContextMut {
+impl<T: WriteableEnv> DerefMut for RuntimeEnvContextMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.inner as &mut dyn WriteableEnv
+        &mut *self.inner as &mut T
     }
 }
 
-impl RuntimeEnvContextMut {
-    pub fn new<T: WriteableEnv + 'static>(inner: T) -> Self {
+impl<T: WriteableEnv> RuntimeEnvContextMut<T> {
+    pub fn new(inner: T) -> Self {
         Self {
             inner: Box::new(inner),
         }
@@ -185,19 +189,30 @@ pub trait ReadableEnv: RuntimeEnv {
     /// environment.
     fn blocks(&self) -> Result<BlockCursor>;
 
+    // TODO: Move environment data export methods to their own trait.
+
     /// Retrieves all [Snapshot]s from the burnchain sortition datastore.
     fn snapshots(&self) -> BoxedDbIterResult<Snapshot>;
+    fn snapshot_count(&self) -> Result<usize>;
 
     /// Retrieves all [BlockCommit]s from the burnchain sortition datastore.
     fn block_commits(&self) -> BoxedDbIterResult<BlockCommit>;
+    fn block_commit_count(&self) -> Result<usize>;
 
     /// Retrieves all [AstRuleHeight]s from the burnchain sortition datastore.
     fn ast_rules(&self) -> BoxedDbIterResult<AstRuleHeight>;
+    fn ast_rule_count(&self) -> Result<usize>;
 
     /// Retrieves all [Epoch]s from the burnchain sortition datastore.
     fn epochs(&self) -> BoxedDbIterResult<Epoch>;
+    fn epoch_count(&self) -> Result<usize>;
 
+    /// Retrieves all [BlockHeader]s from the chainstate index.
     fn block_headers(&self) -> BoxedDbIterResult<BlockHeader>;
+    fn block_header_count(&self) -> Result<usize>;
+
+    /// Retrieves the paths used by this [RuntimeEnv].
+    fn paths(&self) -> StacksEnvPaths;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
@@ -213,8 +228,13 @@ pub trait WriteableEnv: ReadableEnv {
         block_tx_ctx: BlockTransactionContext,
     ) -> Result<clarity::LimitedCostTracker>;
 
+    // TODO: Move environment data import methods to their own trait.
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()>;
+
+    fn as_readable_env(&self) -> &dyn ReadableEnv where Self: Sized {
+        self as &dyn ReadableEnv
+    }
 }
 
 /// Opens the sortition DB baseed on the provided network.

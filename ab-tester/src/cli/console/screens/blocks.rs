@@ -11,7 +11,7 @@ use crate::context::BlockCursor;
 
 pub struct BlocksScreen<'a> {
     blocks: Vec<Block>,
-    _block_cursor: Option<&'a mut BlockCursor>,
+    _block_cursor: Option<&'a mut BlockCursor<'a>>,
     _state: TableState,
 }
 

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use crate::context::{ComparisonContext, Network, Runtime};
 use crate::db::appdb::AppDb;
 use crate::ok;
 
-pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result<()> {
+pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = Rc::new(AppDb::new(app_db_conn));
 
@@ -26,12 +27,24 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
             .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
     );
 
-    let replay_opts: ReplayOpts = data_args.into();
+    //let mut replay_opts: ReplayOpts = data_args.into();
+    //replay_opts.with_working_dir(&config.app.working_dir);
 
-    let _compare_ctx = ComparisonContext::new(app_db.clone())
-        .using_baseline(|from| from.stacks_node("baseline", &config.baseline.chainstate_path))?
-        .instrument_into(|into| {
-            into.instrumented(
+    let mut compare_ctx = ComparisonContext::new(
+        &config, 
+        app_db.clone()
+    );
+
+    /*let result = compare_ctx
+        .using_baseline(|from| from
+            .stacks_node(
+                "baseline", 
+                "hello".into())
+        )?;*/
+
+    /*let result = compare_ctx
+        .instrument_into(|into| into
+            .instrumented(
                 "interpreter_replay",
                 Runtime::Interpreter,
                 Network::Mainnet(1),
@@ -43,8 +56,38 @@ pub async fn exec(config: &crate::config::Config, data_args: DataArgs) -> Result
                 Network::Mainnet(1),
                 "/home/cylwit/clarity-ab/wasm",
             )
-        })?
+        )?;
+
+    let result = compare_ctx
         .replay(&replay_opts)?;
 
+    result.do_nothing();*/
+    //compare_ctx.finish();
+
     ok!()
+}
+
+fn mre(config: crate::config::Config) -> Result<()> {
+    let appdb = Rc::new(AppDb::new(SqliteConnection::establish("some_connection_str")?));
+
+    let mut ctx = ComparisonContext::new(&config, appdb.clone());
+
+    ctx = ctx.using_baseline(|from| from.stacks_node("my stacks node", "/tmp/some/path".into()))?;
+
+    ctx = ctx.instrument_into(|into| into
+        .instrumented(
+            "interp-replay", 
+            Runtime::Interpreter, 
+            Network::Mainnet(1), 
+            "/tmp/some/path")?
+        .instrumented(
+            "interp-wasm",
+            Runtime::Wasm, 
+            Network::Mainnet(1), 
+            "/tmp/some/path")
+    )?;
+
+    ctx = ctx.finish();
+
+    Ok(())
 }

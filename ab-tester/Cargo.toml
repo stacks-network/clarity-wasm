@@ -40,6 +40,7 @@ indicatif = { version = "0.17.7", features = ["futures", "tokio", "improved_unic
 serde_json = "1.0.108"
 rmp = "0.8.12"
 rmp-serde = "1.1.2"
+zstd = "0.13.0"
 
 [profile.dev.package.backtrace]
 opt-level = 3

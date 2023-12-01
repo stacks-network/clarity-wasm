@@ -22,10 +22,6 @@ impl Config {
             Err(err) => bail!("Unable to load data from `{}`: {}", path, err),
         }
     }
-
-    pub fn environments(&self) -> &[Environment] {
-        &self.environment
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,6 +33,7 @@ pub struct Baseline {
 #[derive(Debug, Clone, Deserialize)]
 pub struct App {
     pub db_path: String,
+    pub working_dir: String,
     pub console_theme: Option<String>,
 }
 

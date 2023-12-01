@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -25,7 +26,7 @@ use crate::{clarity, ok, stacks};
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig {
-    working_dir: String,
+    working_dir: PathBuf,
     readonly: bool,
     paths: StacksEnvPaths,
     runtime: Runtime,
@@ -62,11 +63,11 @@ impl InstrumentedEnv {
         id: i32,
         name: String,
         app_db: Rc<AppDb>,
-        working_dir: String,
+        working_dir: PathBuf,
         runtime: Runtime,
         network: Network,
-    ) -> Result<Self> {
-        let paths = StacksEnvPaths::new(&working_dir);
+    ) -> Self {
+        let paths = StacksEnvPaths::new(working_dir.clone());
 
         let env_config = InstrumentedEnvConfig {
             working_dir,
@@ -76,14 +77,14 @@ impl InstrumentedEnv {
             network,
         };
 
-        Ok(Self {
+        Self {
             id,
             name,
             app_db,
             env_config,
             env_state: None,
             callbacks: Box::<DefaultEnvCallbacks>::default(),
-        })
+        }
     }
 
     fn readonly(&mut self, readonly: bool) {
@@ -196,7 +197,7 @@ impl RuntimeEnv for InstrumentedEnv {
         let network = &self.env_config.network;
 
         info!("[{name}] opening environment...");
-        self.callbacks.env_open_start(self, name);
+        self.callbacks.env_open_start(self, &self.env_config.working_dir);
         paths.print(name);
 
         // Setup our options for the Marf.
@@ -216,7 +217,7 @@ impl RuntimeEnv for InstrumentedEnv {
         let (chainstate, _) = stacks::StacksChainState::open_and_exec(
             network.is_mainnet(),
             1,
-            &paths.chainstate_dir,
+            &paths.chainstate_dir.display().to_string(),
             Some(&mut boot_data),
             Some(marf_opts.clone()),
         )?;
@@ -226,7 +227,7 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("[{name}] loading index db...");
         self.callbacks
             .open_index_db_start(self, &paths.index_db_path);
-        let index_db_conn = SqliteConnection::establish(&paths.index_db_path)?;
+        let index_db_conn = SqliteConnection::establish(&paths.index_db_path.display().to_string())?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
@@ -234,7 +235,7 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, &paths.clarity_db_path);
-        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path)?;
+        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path.display().to_string())?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
@@ -289,6 +290,10 @@ impl ReadableEnv for InstrumentedEnv {
         Ok(Box::new(result))
     }
 
+    fn snapshot_count(&self) -> Result<usize> {
+        self.app_db.snapshot_count(self.id)
+    }
+
     fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
         let result = self
             .app_db
@@ -300,16 +305,36 @@ impl ReadableEnv for InstrumentedEnv {
         Ok(Box::new(result))
     }
 
+    fn block_commit_count(&self) -> Result<usize> {
+        self.app_db.block_commit_count(self.id)
+    }
+
     fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
         todo!()
+    }
+
+    fn ast_rule_count(&self) -> Result<usize> {
+        self.app_db.ast_rule_count(self.id)
     }
 
     fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
         todo!()
     }
 
+    fn epoch_count(&self) -> Result<usize> {
+        self.app_db.epoch_count(self.id)
+    }
+
     fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
         todo!()
+    }
+
+    fn block_header_count(&self) -> Result<usize> {
+        todo!()
+    }
+
+    fn paths(&self) -> StacksEnvPaths {
+        self.env_config.paths.clone()
     }
 }
 
@@ -335,37 +360,9 @@ impl WriteableEnv for InstrumentedEnv {
 
         match block {
             Block::Genesis(inner) => {
-                /*info!(
-                    "beginning genesis block: {}",
-                    &inner.header.index_block_hash.to_hex()
-                );
-                let parent_consensus_hash = &stacks::BURNCHAIN_BOOT_CONSENSUS_HASH;
-                let parent_block_hash = &stacks::BOOT_BLOCK_HASH;
-                let new_consensus_hash = &stacks::FIRST_BURNCHAIN_CONSENSUS_HASH;
-                let new_block_hash = &stacks::FIRST_STACKS_BLOCK_HASH;
-
-                debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
-                    parent_consensus_hash.to_hex(),
-                    parent_block_hash.to_hex(),
-                    new_consensus_hash.to_hex(),
-                    new_block_hash.to_hex()
-                );
-                let mut clarity_tx = state.chainstate.genesis_block_begin(
-                    &*state.burnstate_db,
-                    parent_consensus_hash,
-                    parent_block_hash,
-                    new_consensus_hash,
-                    new_block_hash,
-                );
-
-                clarity_tx.seal();
-
-                info!("committing genesis block");
-                clarity_tx.commit_to_block(
-                    new_consensus_hash,
-                    new_block_hash,
-                );*/
-                info!("Reached GENESIS block which has already been processed - continuing...");
+                info!("Reached GENESIS block: {}", 
+                    &inner.header.index_block_hash.to_hex());
+                info!("Genesis block has already been processed as a part of boot init - continuing...");
             }
             Block::Regular(inner) => {
                 info!(

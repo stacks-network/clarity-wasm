@@ -4,7 +4,7 @@ use log::*;
 
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
 use crate::context::Block;
-use crate::environments::{RuntimeEnvContext, RuntimeEnvContextMut};
+use crate::environments::{WriteableEnv, ReadableEnv};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
 use crate::{ok, stacks};
@@ -15,6 +15,7 @@ pub struct ReplayOpts {
     pub to_height: Option<u32>,
     pub max_blocks: Option<u32>,
     pub callbacks: Box<dyn ReplayCallbackHandler>,
+    pub working_dir: String
 }
 
 impl Default for ReplayOpts {
@@ -23,15 +24,25 @@ impl Default for ReplayOpts {
             from_height: Default::default(),
             to_height: Default::default(),
             max_blocks: Default::default(),
-            callbacks: Box::<DefaultReplayCallbacks>::default(),
+            callbacks: Box::new(DefaultReplayCallbacks::default()),
+            working_dir: Default::default(),
         }
     }
 }
 
 /// Validation/assertion helper methods for [ReplayOpts].
-impl ReplayOpts {
-    pub fn with_callbacks(&mut self, callbacks: Box<dyn ReplayCallbackHandler>) {
-        self.callbacks = callbacks;
+impl<'a> ReplayOpts {
+    pub fn with_working_dir(&'a mut self, working_dir: &str) -> &mut Self {
+        self.working_dir = working_dir.to_string();
+        self
+    }
+    pub fn with_callbacks(&'a mut self, callbacks: impl ReplayCallbackHandler + 'static) -> &mut Self {
+        self.callbacks = Box::new(callbacks);
+        self
+    }
+
+    pub fn build(self) -> Self {
+        self
     }
 
     /// Asserts that the current `processeed_block_count` hasn't exceedeed the
@@ -67,9 +78,9 @@ impl ReplayOpts {
 pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
-    pub fn replay<'a>(
-        source: &'a RuntimeEnvContext,
-        target: &'a mut RuntimeEnvContextMut,
+    pub fn replay<'a, Source: ReadableEnv, Target: WriteableEnv>(
+        source: &'a Source,
+        target: &'a mut Target,
         opts: &'a ReplayOpts,
     ) -> Result<()> {
         info!(
@@ -80,11 +91,11 @@ impl ChainStateReplayer {
         let mut processed_block_count = 0;
 
         let blocks = source.blocks()?;
-        opts.callbacks.replay_start(source, target, blocks.len());
+        opts.callbacks.replay_start(source, target.as_readable_env(), blocks.len());
 
         for block in source.blocks()?.into_iter() {
             opts.callbacks
-                .replay_block_start(source, target, block.block_height()?);
+                .replay_block_start(source, target.as_readable_env(), block.block_height()?);
 
             let (header, stacks_block) = match &block {
                 Block::Genesis(inner) => {
@@ -130,22 +141,22 @@ impl ChainStateReplayer {
                 target.block_begin(&block)?;
             }
 
-            opts.callbacks.replay_block_finish(source, target);
+            opts.callbacks.replay_block_finish(source, target.as_readable_env());
             processed_block_count += 1;
         }
 
-        opts.callbacks.replay_finish(source, target);
+        opts.callbacks.replay_finish(source, target.as_readable_env());
         info!("blocks processed: {processed_block_count}");
 
         ok!()
     }
 
     /// Replays the specified block into `target`.
-    fn replay_block_into(
+    fn replay_block_into<Target: WriteableEnv>(
         header: &BlockHeader,
         block: &Block,
         stacks_block: &stacks::StacksBlock,
-        target: &mut RuntimeEnvContextMut,
+        target: &mut Target,
     ) -> Result<()> {
         let block_id = header.index_block_hash;
 
@@ -200,3 +211,7 @@ impl ChainStateReplayer {
 }
 
 pub struct ReplayResult {}
+
+impl ReplayResult {
+    pub fn do_nothing(&self) {}
+}
