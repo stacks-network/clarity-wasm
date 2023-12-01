@@ -904,7 +904,7 @@ mod tests {
     use clarity::vm::types::OptionalData;
     use clarity::vm::Value;
 
-    use crate::tools::evaluate as eval;
+    use crate::tools::{evaluate as eval, TestEnvironment};
 
     #[test]
     fn index_of_elem_not_in_list() {
@@ -949,6 +949,26 @@ mod tests {
         assert_eq!(
             eval("(index-of (list 1 2 3 4 5 6 7) 100)"),
             Some(Value::Optional(OptionalData { data: None }))
+        );
+    }
+
+    #[test]
+    fn index_of() {
+        let mut env = TestEnvironment::default();
+        let val = env.init_contract_with_snippet(
+            "index_of",
+            r#"
+(define-private (find-it? (needle int) (haystack (list 10 int)))
+  (index-of? haystack needle))
+(define-public (check (needle int) (haystack (list 10 int)))
+  (ok (find-it? needle haystack)))
+(check 6 (list 1 2 3))
+"#,
+        );
+
+        assert_eq!(
+            val.unwrap(),
+            Some(Value::okay(Value::Optional(OptionalData { data: None })).unwrap())
         );
     }
 }
