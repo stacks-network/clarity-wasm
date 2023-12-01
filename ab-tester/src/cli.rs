@@ -39,7 +39,7 @@ pub struct Cli {
         help = "Enable SQL query tracing",
         global = true
     )]
-    pub sql_trace: bool
+    pub sql_trace: bool,
 }
 
 impl Cli {
@@ -221,8 +221,8 @@ impl From<DataArgs> for ReplayOpts {
             from_height: Some(value.from_height),
             to_height: value.to_height,
             max_blocks: value.max_block_count,
-            callbacks: Box::new(DefaultReplayCallbacks::default()),
-            working_dir: Default::default()
+            callbacks: Box::<DefaultReplayCallbacks>::default(),
+            working_dir: Default::default(),
         }
     }
 }

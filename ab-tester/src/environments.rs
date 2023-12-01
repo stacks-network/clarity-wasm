@@ -14,7 +14,9 @@ use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
-use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths};
+use crate::context::{
+    Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths,
+};
 use crate::db::appdb::AppDb;
 use crate::types::*;
 use crate::{clarity, stacks};
@@ -52,9 +54,11 @@ impl RuntimeEnvBuilder {
     /// using it.
     pub fn stacks_node(&self, name: String, node_dir: PathBuf) -> Result<StacksNodeEnv> {
         let env = self.get_or_create_env(
-            &name, 
-            &Runtime::None, 
-            node_dir.to_str().ok_or(anyhow!("failed to convert node dir to path"))?
+            &name,
+            &Runtime::None,
+            node_dir
+                .to_str()
+                .ok_or(anyhow!("failed to convert node dir to path"))?,
         )?;
         Ok(StacksNodeEnv::new(env.id, name, node_dir))
     }
@@ -232,7 +236,10 @@ pub trait WriteableEnv: ReadableEnv {
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()>;
 
-    fn as_readable_env(&self) -> &dyn ReadableEnv where Self: Sized {
+    fn as_readable_env(&self) -> &dyn ReadableEnv
+    where
+        Self: Sized,
+    {
         self as &dyn ReadableEnv
     }
 }

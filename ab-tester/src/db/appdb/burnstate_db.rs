@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use color_eyre::Result;
-use diesel::{prelude::*, debug_query};
-use diesel::{OptionalExtension, QueryDsl};
+use diesel::prelude::*;
+use diesel::{debug_query, OptionalExtension, QueryDsl};
 
 use super::super::model::*;
 use super::super::schema::*;
@@ -61,10 +61,7 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
             )
             .select(_snapshots::block_height);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         query
             .get_result(&mut *self.app_db.conn.borrow_mut())
@@ -79,10 +76,7 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
             .order_by(_snapshots::block_height.asc())
             .select(_snapshots::block_height);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let first_height: i32 = query
             .get_result(&mut *self.app_db.conn.borrow_mut())
@@ -117,10 +111,7 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
             )
             .select(_snapshots::burn_header_hash);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         query
             .get_result(&mut *self.app_db.conn.borrow_mut())
@@ -140,15 +131,13 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     ) -> Option<stacks::SortitionId> {
         let query = _snapshots::table
             .filter(
-                _snapshots::environment_id.eq(self.environment_id)
+                _snapshots::environment_id
+                    .eq(self.environment_id)
                     .and(_snapshots::consensus_hash.eq(consensus_hash.0.to_vec())),
             )
             .select(_snapshots::sortition_id);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         query
             .get_result(&mut *self.app_db.conn.borrow_mut())
@@ -164,17 +153,14 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
     }
 
     fn get_stacks_epoch(&self, height: u32) -> Option<clarity::StacksEpoch> {
-        let query = _epochs::table
-            .filter(
-                _epochs::environment_id.eq(self.environment_id)
-                    .and(_epochs::start_block_height.le(height as i32))
-                    .and(_epochs::end_block_height.gt(height as i32)),
-            );
-
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
+        let query = _epochs::table.filter(
+            _epochs::environment_id
+                .eq(self.environment_id)
+                .and(_epochs::start_block_height.le(height as i32))
+                .and(_epochs::end_block_height.gt(height as i32)),
         );
+
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         query
             .get_result(&mut *self.app_db.conn.borrow_mut())
@@ -191,11 +177,11 @@ impl clarity::BurnStateDB for AppDbBurnStateWrapper {
         &self,
         epoch_id: &stacks::StacksEpochId,
     ) -> Option<clarity::StacksEpoch> {
-        let epoch_query = _epochs::table
-            .filter(
-                _epochs::environment_id.eq(self.environment_id)
-                    .and(_epochs::epoch_id.eq(*epoch_id as i32))
-            );
+        let epoch_query = _epochs::table.filter(
+            _epochs::environment_id
+                .eq(self.environment_id)
+                .and(_epochs::epoch_id.eq(*epoch_id as i32)),
+        );
 
         trace_sql!(
             "SQL: {}",

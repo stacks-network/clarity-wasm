@@ -3,9 +3,9 @@ use std::path::Path;
 
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
+use diesel::prelude::*;
 use diesel::upsert::excluded;
-use diesel::{prelude::*, insert_into, debug_query};
-use diesel::{OptionalExtension, QueryDsl, SqliteConnection};
+use diesel::{debug_query, insert_into, OptionalExtension, QueryDsl, SqliteConnection};
 use log::*;
 
 use super::model::chainstate::{BlockHeader, MaturedReward, Payment};
@@ -19,14 +19,16 @@ pub struct StacksHeadersDb {
 impl StacksHeadersDb {
     pub fn new(index_db_path: &Path) -> Result<Self> {
         Ok(Self {
-            conn: RefCell::new(SqliteConnection::establish(&index_db_path.display().to_string())?),
+            conn: RefCell::new(SqliteConnection::establish(
+                &index_db_path.display().to_string(),
+            )?),
         })
     }
 
     pub fn import_block_headers(
         &mut self,
         headers: Box<dyn Iterator<Item = Result<crate::types::BlockHeader>>>,
-        environment_id: Option<i32>,
+        _environment_id: Option<i32>, // Not supported for stacks node environments
     ) -> Result<()> {
         let conn = &mut *self.conn.borrow_mut();
 

@@ -8,7 +8,9 @@ use super::super::schema::chainstate::*;
 use crate::clarity;
 use crate::stacks::{self, Address};
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(version))]
 #[diesel(table_name = db_config)]
 pub struct DbConfig {
@@ -17,7 +19,9 @@ pub struct DbConfig {
     pub chain_id: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(parent_index_block_hash, child_index_block_hash, coinbase))]
 #[diesel(table_name = matured_rewards)]
 pub struct MaturedReward {
@@ -60,7 +64,9 @@ impl From<&MaturedReward> for stacks::MinerReward {
     }
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(address, block_hash))]
 #[diesel(table_name = payments)]
 pub struct Payment {
@@ -70,7 +76,9 @@ pub struct Payment {
     pub burnchain_sortition_burn: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable)]
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
 #[diesel(primary_key(consensus_hash, block_hash))]
 #[diesel(table_name = block_headers)]
 pub struct BlockHeader {
@@ -176,7 +184,7 @@ impl TryFrom<crate::types::BlockHeader> for BlockHeader {
             parent_block_id: value.parent_block_id.to_hex(),
             cost: serde_json::to_string(&value.cost)?,
             block_size: value.block_size.to_string(),
-            affirmation_weight: value.affirmation_weight as i32
+            affirmation_weight: value.affirmation_weight as i32,
         })
     }
 }

@@ -249,14 +249,15 @@ impl RuntimeEnv for StacksNodeEnv {
         let paths = &self.env_config.paths;
         let name = &self.name;
 
-        self.callbacks.env_open_start(self, &self.env_config.node_dir);
+        self.callbacks
+            .env_open_start(self, &self.env_config.node_dir);
         paths.print(name);
 
         debug!("[{name}] loading index db...");
         self.callbacks
             .open_index_db_start(self, &paths.index_db_path);
-        let mut index_db_conn = SqliteConnection::establish(
-            &paths.index_db_path.display().to_string())?;
+        let mut index_db_conn =
+            SqliteConnection::establish(&paths.index_db_path.display().to_string())?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
@@ -296,8 +297,8 @@ impl RuntimeEnv for StacksNodeEnv {
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, &paths.clarity_db_path);
-        let clarity_db_conn = SqliteConnection::establish(
-            &paths.clarity_db_path.display().to_string())?;
+        let clarity_db_conn =
+            SqliteConnection::establish(&paths.clarity_db_path.display().to_string())?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
@@ -305,8 +306,8 @@ impl RuntimeEnv for StacksNodeEnv {
         debug!("[{name}] opening sortition db");
         self.callbacks
             .open_sortition_db_start(self, &paths.sortition_dir);
-        let sortition_db_conn = SqliteConnection::establish(
-            &paths.sortition_db_path.display().to_string())?;
+        let sortition_db_conn =
+            SqliteConnection::establish(&paths.sortition_db_path.display().to_string())?;
         // Attempt to open the sortition DB using the Stacks node code to make use
         // of its validation. We won't actually use this value though, we will
         // read directly using SQLite.
@@ -369,7 +370,8 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn snapshot_count(&self) -> Result<usize> {
         let state = self.get_env_state()?;
-        let result: i64 = snapshots::table.count()
+        let result: i64 = snapshots::table
+            .count()
             .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
 
         Ok(result as usize)
@@ -390,7 +392,8 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn block_commit_count(&self) -> Result<usize> {
         let state = self.get_env_state()?;
-        let result: i64 = block_commits::table.count()
+        let result: i64 = block_commits::table
+            .count()
             .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
 
         Ok(result as usize)
@@ -415,7 +418,8 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn ast_rule_count(&self) -> Result<usize> {
         let state = self.get_env_state()?;
-        let result: i64 = ast_rule_heights::table.count()
+        let result: i64 = ast_rule_heights::table
+            .count()
             .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
 
         Ok(result as usize)
@@ -435,7 +439,8 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn epoch_count(&self) -> Result<usize> {
         let state = self.get_env_state()?;
-        let result: i64 = epochs::table.count()
+        let result: i64 = epochs::table
+            .count()
             .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
 
         Ok(result as usize)
@@ -456,7 +461,8 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn block_header_count(&self) -> Result<usize> {
         let state = self.get_env_state()?;
-        let result: i64 = block_headers::table.count()
+        let result: i64 = block_headers::table
+            .count()
             .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
 
         Ok(result as usize)

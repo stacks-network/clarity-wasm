@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders};
 
 use crate::cli::console::action::Action;
 use crate::cli::console::components::Component;

@@ -4,7 +4,7 @@ use log::*;
 
 use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
 use crate::context::Block;
-use crate::environments::{WriteableEnv, ReadableEnv};
+use crate::environments::{ReadableEnv, WriteableEnv};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
 use crate::{ok, stacks};
@@ -15,7 +15,7 @@ pub struct ReplayOpts {
     pub to_height: Option<u32>,
     pub max_blocks: Option<u32>,
     pub callbacks: Box<dyn ReplayCallbackHandler>,
-    pub working_dir: String
+    pub working_dir: String,
 }
 
 impl Default for ReplayOpts {
@@ -24,7 +24,7 @@ impl Default for ReplayOpts {
             from_height: Default::default(),
             to_height: Default::default(),
             max_blocks: Default::default(),
-            callbacks: Box::new(DefaultReplayCallbacks::default()),
+            callbacks: Box::<DefaultReplayCallbacks>::default(),
             working_dir: Default::default(),
         }
     }
@@ -36,7 +36,10 @@ impl<'a> ReplayOpts {
         self.working_dir = working_dir.to_string();
         self
     }
-    pub fn with_callbacks(&'a mut self, callbacks: impl ReplayCallbackHandler + 'static) -> &mut Self {
+    pub fn with_callbacks(
+        &'a mut self,
+        callbacks: impl ReplayCallbackHandler + 'static,
+    ) -> &mut Self {
         self.callbacks = Box::new(callbacks);
         self
     }
@@ -91,11 +94,15 @@ impl ChainStateReplayer {
         let mut processed_block_count = 0;
 
         let blocks = source.blocks()?;
-        opts.callbacks.replay_start(source, target.as_readable_env(), blocks.len());
+        opts.callbacks
+            .replay_start(source, target.as_readable_env(), blocks.len());
 
         for block in source.blocks()?.into_iter() {
-            opts.callbacks
-                .replay_block_start(source, target.as_readable_env(), block.block_height()?);
+            opts.callbacks.replay_block_start(
+                source,
+                target.as_readable_env(),
+                block.block_height()?,
+            );
 
             let (header, stacks_block) = match &block {
                 Block::Genesis(inner) => {
@@ -141,11 +148,13 @@ impl ChainStateReplayer {
                 target.block_begin(&block)?;
             }
 
-            opts.callbacks.replay_block_finish(source, target.as_readable_env());
+            opts.callbacks
+                .replay_block_finish(source, target.as_readable_env());
             processed_block_count += 1;
         }
 
-        opts.callbacks.replay_finish(source, target.as_readable_env());
+        opts.callbacks
+            .replay_finish(source, target.as_readable_env());
         info!("blocks processed: {processed_block_count}");
 
         ok!()

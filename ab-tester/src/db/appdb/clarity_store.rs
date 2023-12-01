@@ -81,7 +81,7 @@ impl clarity::ClarityBackingStore for AppDbContractExecutionContext {
         buff.map(|str| String::from_utf8(str).expect("failed to convert var to string"))
     }
 
-    fn get_with_proof(&mut self, key: &str) -> Option<(String, Vec<u8>)> {
+    fn get_with_proof(&mut self, _key: &str) -> Option<(String, Vec<u8>)> {
         None
     }
 
@@ -94,7 +94,7 @@ impl clarity::ClarityBackingStore for AppDbContractExecutionContext {
         Ok(prior_tip)
     }
 
-    fn get_block_at_height(&mut self, height: u32) -> Option<stacks::StacksBlockId> {
+    fn get_block_at_height(&mut self, _height: u32) -> Option<stacks::StacksBlockId> {
         todo!()
     }
 

@@ -125,8 +125,7 @@ impl<'env> BlockCursor<'env> {
         // we can do this here because we know that we're using a canonical chain
         // with no forks. In the "real world" we would need to account for the
         // possibility of multiple children - one for each fork.
-        let next_block_header = self.headers
-            .get(height + 1).cloned();
+        let next_block_header = self.headers.get(height + 1).cloned();
 
         if height == 0 {
             debug!("returning genesis");
@@ -139,8 +138,9 @@ impl<'env> BlockCursor<'env> {
         let block_id = header.index_block_hash;
         debug!("block_id: {block_id:?}");
         let block_path = stacks::StacksChainState::get_index_block_path(
-            &self.blocks_dir.display().to_string(), 
-            &block_id)?;
+            &self.blocks_dir.display().to_string(),
+            &block_id,
+        )?;
         debug!("block_path: {block_path:?}");
         // Load the block from chainstate.
         debug!("loading block with id {block_id} and path '{block_path}'");
@@ -148,10 +148,11 @@ impl<'env> BlockCursor<'env> {
         trace!("block loaded: {stacks_block:?}");
 
         let block = Block::new_regular(
-            header, 
-            stacks_block, 
-            next_block_header, 
-            parent_block_header.clone());
+            header,
+            stacks_block,
+            next_block_header,
+            parent_block_header.clone(),
+        );
 
         Ok(Some(block))
     }
@@ -210,13 +211,13 @@ impl Block {
         header: BlockHeader,
         stacks_block: stacks::StacksBlock,
         next_header: Option<BlockHeader>,
-        parent_header: BlockHeader
+        parent_header: BlockHeader,
     ) -> Self {
         Block::Regular(Box::new(RegularBlockInner {
             header,
             stacks_block,
             next_header,
-            parent_header
+            parent_header,
         }))
     }
 

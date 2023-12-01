@@ -12,7 +12,7 @@ pub struct Payment {
 #[derive(Debug, Clone)]
 pub struct BlockAndParentBlockHeaders {
     current: BlockHeader,
-    parent: BlockHeader
+    parent: BlockHeader,
 }
 
 #[derive(Debug, Clone)]

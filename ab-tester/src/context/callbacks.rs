@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::Network;
-use crate::environments::{RuntimeEnv, RuntimeEnvContext, RuntimeEnvContextMut, ReadableEnv};
+use crate::environments::{ReadableEnv, RuntimeEnv};
 
 #[allow(unused_variables)]
 pub trait RuntimeEnvCallbackHandler {
@@ -33,21 +33,10 @@ impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 
 #[allow(unused_variables)]
 pub trait ReplayCallbackHandler {
-    fn replay_start(
-        &self,
-        source: &dyn ReadableEnv,
-        target: &dyn ReadableEnv,
-        block_count: usize,
-    ) {
+    fn replay_start(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv, block_count: usize) {
     }
     fn replay_finish(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}
-    fn replay_block_start(
-        &self,
-        source: &dyn ReadableEnv,
-        target: &dyn ReadableEnv,
-        height: u32,
-    ) {
-    }
+    fn replay_block_start(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv, height: u32) {}
     fn replay_block_finish(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}
     fn replay_tx_start(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}
     fn replay_tx_finish(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}

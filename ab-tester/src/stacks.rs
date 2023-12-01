@@ -23,9 +23,9 @@ pub use blockstack_lib::{
     clarity_vm::clarity::{ClarityBlockConnection, ClarityInstance, ClarityTransactionConnection},
     core::{
         BITCOIN_MAINNET_FIRST_BLOCK_HASH, BITCOIN_MAINNET_FIRST_BLOCK_HEIGHT,
-        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, FIRST_BURNCHAIN_CONSENSUS_HASH,
-        FIRST_STACKS_BLOCK_HASH, FIRST_STACKS_BLOCK_ID, STACKS_EPOCHS_MAINNET,
-        BOOT_BLOCK_HASH, BURNCHAIN_BOOT_CONSENSUS_HASH
+        BITCOIN_MAINNET_FIRST_BLOCK_TIMESTAMP, BOOT_BLOCK_HASH, BURNCHAIN_BOOT_CONSENSUS_HASH,
+        FIRST_BURNCHAIN_CONSENSUS_HASH, FIRST_STACKS_BLOCK_HASH, FIRST_STACKS_BLOCK_ID,
+        STACKS_EPOCHS_MAINNET,
     },
     types::StacksEpoch,
     util::hash::{Hash160, Sha512Trunc256Sum},
@@ -39,4 +39,3 @@ pub use stacks_common::types::chainstate::{
 pub use stacks_common::types::StacksEpochId;
 pub use stacks_common::util::vrf::VRFProof;
 pub use stx_genesis::*;
-

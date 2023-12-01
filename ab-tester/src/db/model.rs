@@ -3,7 +3,6 @@ use color_eyre::eyre::{anyhow, bail};
 /// persistent state which is stored in an RDBMS.
 use color_eyre::Result;
 use diesel::prelude::*;
-use log::warn;
 
 use super::schema::*;
 use crate::stacks::Address;
@@ -171,35 +170,46 @@ impl TryFrom<BlockHeader> for crate::types::BlockHeader {
             total_work: value.total_work as u64,
             proof: stacks::VRFProof::from_bytes(&value.proof)
                 .ok_or(anyhow!("failed to convert proof into VRFProof"))?,
-            parent_block: stacks::BlockHeaderHash::from_bytes(&value.parent_block)
-                .ok_or(anyhow!("failed to convert parent_block into BlockHeaderHash"))?,
+            parent_block: stacks::BlockHeaderHash::from_bytes(&value.parent_block).ok_or(
+                anyhow!("failed to convert parent_block into BlockHeaderHash"),
+            )?,
             parent_microblock: stacks::BlockHeaderHash::from_bytes(&value.parent_microblock)
-                .ok_or(anyhow!("failed to convert parent_microblock into BlockHeaderHash"))?,
+                .ok_or(anyhow!(
+                    "failed to convert parent_microblock into BlockHeaderHash"
+                ))?,
             parent_microblock_sequence: value.parent_microblock_sequence as u32,
-            tx_merkle_root: stacks::Sha512Trunc256Sum::from_bytes(&value.tx_merkle_root)
-                .ok_or(anyhow!("failed to convert tx_merkle_root into Sha512Trunc256Sum"))?,
+            tx_merkle_root: stacks::Sha512Trunc256Sum::from_bytes(&value.tx_merkle_root).ok_or(
+                anyhow!("failed to convert tx_merkle_root into Sha512Trunc256Sum"),
+            )?,
             state_index_root: stacks::TrieHash::from_bytes(&value.state_index_root)
                 .ok_or(anyhow!("failed to convert state_index_root into TrieHash"))?,
             microblock_pubkey_hash: stacks::Hash160::from_bytes(&value.microblock_pubkey_hash)
-                .ok_or(anyhow!("failed to convert microblock_pubkey_hash into Hash160"))?,
+                .ok_or(anyhow!(
+                    "failed to convert microblock_pubkey_hash into Hash160"
+                ))?,
             block_hash: stacks::BlockHeaderHash::from_bytes(&value.block_hash)
                 .ok_or(anyhow!("failed to convert block_hash into BlockHeaderHash"))?,
-            index_block_hash: stacks::StacksBlockId::from_bytes(&value.index_block_hash)
-                .ok_or(anyhow!("failed to convert index_block_hash into StacksBlockId"))?,
+            index_block_hash: stacks::StacksBlockId::from_bytes(&value.index_block_hash).ok_or(
+                anyhow!("failed to convert index_block_hash into StacksBlockId"),
+            )?,
             block_height: value.block_height as u32,
             index_root: stacks::TrieHash::from_bytes(&value.index_root)
                 .ok_or(anyhow!("failed to convert index_root into TrieHash"))?,
-            consensus_hash: stacks::ConsensusHash::from_bytes(&value.consensus_hash)
-                .ok_or(anyhow!("failed to convert consensus_hash into ConsensusHash"))?,
+            consensus_hash: stacks::ConsensusHash::from_bytes(&value.consensus_hash).ok_or(
+                anyhow!("failed to convert consensus_hash into ConsensusHash"),
+            )?,
             burn_header_hash: stacks::BurnchainHeaderHash::from_bytes(&value.burn_header_hash)
-                .ok_or(anyhow!("failed to convert burn_header_hash into BurnchainHeaderHash"))?,
+                .ok_or(anyhow!(
+                    "failed to convert burn_header_hash into BurnchainHeaderHash"
+                ))?,
             burn_header_height: value.burn_header_height as u32,
             burn_header_timestamp: value.burn_header_timestamp as u64,
-            parent_block_id: stacks::StacksBlockId::from_bytes(&value.parent_block_id)
-                .ok_or(anyhow!("failed to convert parent_block_id into StacksBlockId"))?,
+            parent_block_id: stacks::StacksBlockId::from_bytes(&value.parent_block_id).ok_or(
+                anyhow!("failed to convert parent_block_id into StacksBlockId"),
+            )?,
             cost: rmp_serde::decode::from_slice(&value.cost)?,
             block_size: value.block_size as u64,
-            affirmation_weight: value.affirmation_weight as u64
+            affirmation_weight: value.affirmation_weight as u64,
         })
     }
 }

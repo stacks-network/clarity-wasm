@@ -197,7 +197,8 @@ impl RuntimeEnv for InstrumentedEnv {
         let network = &self.env_config.network;
 
         info!("[{name}] opening environment...");
-        self.callbacks.env_open_start(self, &self.env_config.working_dir);
+        self.callbacks
+            .env_open_start(self, &self.env_config.working_dir);
         paths.print(name);
 
         // Setup our options for the Marf.
@@ -227,7 +228,8 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("[{name}] loading index db...");
         self.callbacks
             .open_index_db_start(self, &paths.index_db_path);
-        let index_db_conn = SqliteConnection::establish(&paths.index_db_path.display().to_string())?;
+        let index_db_conn =
+            SqliteConnection::establish(&paths.index_db_path.display().to_string())?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
@@ -235,7 +237,8 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, &paths.clarity_db_path);
-        let clarity_db_conn = SqliteConnection::establish(&paths.clarity_db_path.display().to_string())?;
+        let clarity_db_conn =
+            SqliteConnection::establish(&paths.clarity_db_path.display().to_string())?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
@@ -243,7 +246,6 @@ impl RuntimeEnv for InstrumentedEnv {
             AppDbBurnStateWrapper::new(self.id, self.app_db.clone(), boot_data.pox_constants);
 
         //let headers_db = AppDbHeadersWrapper::new(self.id, self.app_db.clone());
-        
 
         // Open the burnstate db
         /*
@@ -360,8 +362,10 @@ impl WriteableEnv for InstrumentedEnv {
 
         match block {
             Block::Genesis(inner) => {
-                info!("Reached GENESIS block: {}", 
-                    &inner.header.index_block_hash.to_hex());
+                info!(
+                    "Reached GENESIS block: {}",
+                    &inner.header.index_block_hash.to_hex()
+                );
                 info!("Genesis block has already been processed as a part of boot init - continuing...");
             }
             Block::Regular(inner) => {
@@ -393,10 +397,7 @@ impl WriteableEnv for InstrumentedEnv {
                 // Transaction processing here
 
                 info!("committing regular block");
-                clarity_tx.commit_to_block(
-                    new_consensus_hash,
-                    new_block_hash,
-                );
+                clarity_tx.commit_to_block(new_consensus_hash, new_block_hash);
             }
         };
 
@@ -428,8 +429,7 @@ impl WriteableEnv for InstrumentedEnv {
         let src_block_headers_iter = source.block_headers()?;
 
         let mut headers_db = StacksHeadersDb::new(&self.env_config.paths.index_db_path)?;
-        headers_db
-            .import_block_headers(src_block_headers_iter, Some(self.id()))?;
+        headers_db.import_block_headers(src_block_headers_iter, Some(self.id()))?;
 
         ok!()
     }

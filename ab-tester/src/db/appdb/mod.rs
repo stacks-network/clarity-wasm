@@ -411,17 +411,11 @@ impl AppDb {
     /// Retrieves an existing runtime environment by name. Returns [None] if
     /// the environment was not found.
     pub fn get_env(&self, name: &str) -> Result<Option<Environment>> {
-        let query = environment::table
-            .filter(environment::name.like(name));
+        let query = environment::table.filter(environment::name.like(name));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
-        let result = query
-            .first(&mut *self.conn.borrow_mut())
-            .optional()?;
+        let result = query.first(&mut *self.conn.borrow_mut()).optional()?;
 
         Ok(result)
     }
@@ -429,16 +423,11 @@ impl AppDb {
     /// Retrieves a list over all [Environment]s existing in the local application
     /// database.
     pub fn list_envs(&self) -> Result<Vec<Environment>> {
-        let query = environment::table
-            .order_by(environment::id.asc());
+        let query = environment::table.order_by(environment::id.asc());
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
-        let results = query
-            .get_results::<Environment>(&mut *self.conn.borrow_mut())?;
+        let results = query.get_results::<Environment>(&mut *self.conn.borrow_mut())?;
 
         Ok(results)
     }
@@ -453,10 +442,7 @@ impl AppDb {
             .filter(contract::qualified_contract_id.eq(contract_identifier.to_string()))
             .select(contract::id);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .first::<i32>(&mut *self.conn.borrow_mut())
@@ -469,15 +455,13 @@ impl AppDb {
     pub fn get_var_id(&self, contract_id: i32, key: &str) -> Result<Option<i32>> {
         let query = contract_var::table
             .filter(
-                contract_var::key.eq(key)
+                contract_var::key
+                    .eq(key)
                     .and(contract_var::contract_id.eq(contract_id)),
             )
             .select(contract_var::id);
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .first::<i32>(&mut *self.conn.borrow_mut())
@@ -496,17 +480,13 @@ impl AppDb {
         contract_var_id: i32,
         value: &[u8],
     ) -> Result<ContractVarInstance> {
-        let query = insert_into(contract_var_instance::table)
-            .values((
-                contract_var_instance::columns::contract_execution_id.eq(contract_execution_id),
-                contract_var_instance::columns::contract_var_id.eq(contract_var_id),
-                contract_var_instance::columns::value.eq(value),
-            ));
+        let query = insert_into(contract_var_instance::table).values((
+            contract_var_instance::columns::contract_execution_id.eq(contract_execution_id),
+            contract_var_instance::columns::contract_var_id.eq(contract_var_id),
+            contract_var_instance::columns::value.eq(value),
+        ));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<ContractVarInstance>(&mut *self.conn.borrow_mut())
@@ -525,17 +505,13 @@ impl AppDb {
         transaction_id: &[u8],
         contract_id: i32,
     ) -> Result<ContractExecution> {
-        let query = insert_into(contract_execution::table)
-            .values((
-                contract_execution::contract_id.eq(contract_id),
-                contract_execution::block_id.eq(block_id),
-                contract_execution::transaction_id.eq(transaction_id),
-            ));
+        let query = insert_into(contract_execution::table).values((
+            contract_execution::contract_id.eq(contract_id),
+            contract_execution::block_id.eq(block_id),
+            contract_execution::transaction_id.eq(transaction_id),
+        ));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<ContractExecution>(&mut *self.conn.borrow_mut())
@@ -557,14 +533,9 @@ impl AppDb {
             .select(contract_var_instance::value)
             .order_by(contract_var_instance::id.desc());
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
-        let result = query
-            .first(&mut *self.conn.borrow_mut())
-            .optional()?;
+        let result = query.first(&mut *self.conn.borrow_mut()).optional()?;
 
         Ok(result)
     }
@@ -576,19 +547,15 @@ impl AppDb {
         hash: &[u8],
         marf_trie_root_hash: &[u8],
     ) -> Result<Block> {
-        let query = insert_into(block::table)
-            .values((
-                block::height.eq(height),
-                block::index_hash.eq(hash),
-                block::environment_id.eq(environment_id),
-                block::marf_trie_root_hash.eq(marf_trie_root_hash),
-            ));
-        
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
-        
+        let query = insert_into(block::table).values((
+            block::height.eq(height),
+            block::index_hash.eq(hash),
+            block::environment_id.eq(environment_id),
+            block::marf_trie_root_hash.eq(marf_trie_root_hash),
+        ));
+
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
+
         let result = query
             .get_result::<Block>(&mut *self.conn.borrow_mut())
             .unwrap();
@@ -605,17 +572,13 @@ impl AppDb {
         name: &str,
         path: &str,
     ) -> Result<Environment> {
-        let query = insert_into(environment::table)
-            .values((
-                environment::runtime_id.eq(runtime_id),
-                environment::name.eq(name),
-                environment::path.eq(path),
-            ));
+        let query = insert_into(environment::table).values((
+            environment::runtime_id.eq(runtime_id),
+            environment::name.eq(name),
+            environment::path.eq(path),
+        ));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<Environment>(&mut *self.conn.borrow_mut())
@@ -647,10 +610,7 @@ impl AppDb {
                 contract::source.eq(&compressed_source),
             ));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<Contract>(&mut *self.conn.borrow_mut())
@@ -669,10 +629,7 @@ impl AppDb {
         let query = _block_headers::table
             .filter(_block_headers::index_block_hash.eq(id_bhh.as_bytes().to_vec()));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .first::<BlockHeader>(&mut *self.conn.borrow_mut())
@@ -689,13 +646,9 @@ impl AppDb {
         &self,
         id_bhh: &stacks::StacksBlockId,
     ) -> Result<Option<Payment>> {
-        let query = _payments::table
-            .filter(_payments::block_hash.eq(id_bhh.as_bytes().to_vec()));
+        let query = _payments::table.filter(_payments::block_hash.eq(id_bhh.as_bytes().to_vec()));
 
-        trace_sql!(
-            "SQL: {}",
-            debug_query::<diesel::sqlite::Sqlite, _>(&query)
-        );
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .first::<Payment>(&mut *self.conn.borrow_mut())

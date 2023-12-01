@@ -9,7 +9,7 @@ use log::*;
 
 use crate::config::Config;
 use crate::db::appdb::AppDb;
-use crate::{clarity, stacks, ok};
+use crate::{clarity, ok, stacks};
 
 pub mod blocks;
 pub mod boot_data;
@@ -19,24 +19,24 @@ pub mod replay;
 pub use blocks::{Block, BlockCursor};
 
 use self::replay::{ReplayOpts, ReplayResult};
-use crate::environments::{RuntimeEnvBuilder, ReadableEnv, WriteableEnv};
+use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv};
 
 pub struct BaselineBuilder<'ctx> {
     app_db: Rc<AppDb>,
-    baseline_env: Option<Box<dyn ReadableEnv + 'ctx>>
+    baseline_env: Option<Box<dyn ReadableEnv + 'ctx>>,
 }
 
 impl<'ctx> BaselineBuilder<'ctx> {
     fn new(app_db: Rc<AppDb>) -> Self {
         Self {
             app_db,
-            baseline_env: None
+            baseline_env: None,
         }
     }
 
     pub fn stacks_node(mut self, name: &'_ str, node_dir: PathBuf) -> Result<Self> {
-        let env = RuntimeEnvBuilder::new(self.app_db.clone())
-            .stacks_node(name.to_string(), node_dir)?;
+        let env =
+            RuntimeEnvBuilder::new(self.app_db.clone()).stacks_node(name.to_string(), node_dir)?;
         self.baseline_env = Some(Box::new(env));
         Ok(self)
     }
@@ -44,14 +44,14 @@ impl<'ctx> BaselineBuilder<'ctx> {
 
 pub struct InstrumentIntoBuilder<'ctx> {
     app_db: Rc<AppDb>,
-    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>
+    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>,
 }
 
 impl<'ctx> InstrumentIntoBuilder<'ctx> {
     fn new(app_db: Rc<AppDb>) -> Self {
         Self {
             app_db,
-            instrumented_envs: Vec::new()
+            instrumented_envs: Vec::new(),
         }
     }
 
@@ -79,7 +79,7 @@ pub struct ComparisonContext<'ctx> {
     app_config: &'ctx Config,
     env_builder: RuntimeEnvBuilder,
     baseline_env: Option<Box<dyn ReadableEnv + 'ctx>>,
-    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>
+    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>,
 }
 
 impl<'ctx> ComparisonContext<'ctx> {
@@ -96,8 +96,8 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Sets the baseline environment to use for comparison.
     pub fn using_baseline<F>(mut self, f: F) -> Result<Self>
-    where 
-        F: FnOnce(BaselineBuilder<'ctx>) -> Result<BaselineBuilder<'ctx>>
+    where
+        F: FnOnce(BaselineBuilder<'ctx>) -> Result<BaselineBuilder<'ctx>>,
     {
         let mut builder = BaselineBuilder::new(self.app_db.clone());
         builder = f(builder)?;
@@ -109,11 +109,12 @@ impl<'ctx> ComparisonContext<'ctx> {
     /// environments will be replayed into and then compared against eachother.
     pub fn instrument_into<F>(mut self, f: F) -> Result<Self>
     where
-        F: FnOnce(InstrumentIntoBuilder<'ctx>) -> Result<InstrumentIntoBuilder<'ctx>> 
+        F: FnOnce(InstrumentIntoBuilder<'ctx>) -> Result<InstrumentIntoBuilder<'ctx>>,
     {
         let mut builder = InstrumentIntoBuilder::new(self.app_db.clone());
         builder = f(builder)?;
-        self.instrumented_envs.append(&mut builder.instrumented_envs);
+        self.instrumented_envs
+            .append(&mut builder.instrumented_envs);
         Ok(self)
     }
 
@@ -123,7 +124,7 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay(&'ctx mut self, opts: &ReplayOpts) -> Result<ReplayResult> {
+    pub fn replay(mut self, opts: &'ctx ReplayOpts) -> Result<ReplayResult> {
         let mut baseline_env_taken = self.baseline_env.take();
         let baseline_env = baseline_env_taken
             .as_mut()
@@ -148,7 +149,7 @@ impl<'ctx> ComparisonContext<'ctx> {
                 // burnstate being expected to be present during contract evaluation.
                 //target.import_burnstate(baseline_env.as_readable_env())?;
                 info!("finished");
-    
+
                 info!(
                     "[{target_name}] migrating chainstate from '{}'...",
                     baseline_env.name()
@@ -165,9 +166,9 @@ impl<'ctx> ComparisonContext<'ctx> {
     }
 
     fn is_environment_import_needed<Source: ReadableEnv, Target: ReadableEnv>(
-        &self, 
-        source: &dyn ReadableEnv, 
-        target: &dyn ReadableEnv
+        &self,
+        source: &dyn ReadableEnv,
+        target: &dyn ReadableEnv,
     ) -> Result<bool> {
         info!("checking import data equality between source and target environments...");
         if source.snapshot_count()? != target.snapshot_count()? {
@@ -180,15 +181,15 @@ impl<'ctx> ComparisonContext<'ctx> {
         }
         if source.ast_rule_count()? != target.ast_rule_count()? {
             debug!("ast rule counts differ");
-            return Ok(true)
+            return Ok(true);
         }
         if source.epoch_count()? != target.epoch_count()? {
             debug!("epoch counts differ");
-            return Ok(true)
+            return Ok(true);
         }
         if source.block_header_count()? != target.block_header_count()? {
             debug!("block header counts differ");
-            return Ok(true)
+            return Ok(true);
         }
 
         info!("found no differences between environments; continuing...");
@@ -201,19 +202,20 @@ impl<'ctx> ComparisonContext<'ctx> {
         // TODO: Load environment from src-target.backup if exists and --reset-env
         // is set.
         let init_chainstate_snapshot_path = format!("{:?}.zstd", target.paths().index_db_path);
-        let init_chainstate_snapshot_exists = std::fs::metadata(
-            &init_chainstate_snapshot_path
-        ).is_ok();
+        let init_chainstate_snapshot_exists =
+            std::fs::metadata(&init_chainstate_snapshot_path).is_ok();
         let init_burnstate_snapshot_path = format!("{:?}.zstd", target.paths().sortition_db_path);
-        let init_burnstate_snapshot_exists = std::fs::metadata(
-            &init_burnstate_snapshot_path
-        ).is_ok();
+        let init_burnstate_snapshot_exists =
+            std::fs::metadata(&init_burnstate_snapshot_path).is_ok();
 
         // TODO: Backup environment
         if !init_chainstate_snapshot_exists {
             info!("[{name}] chainstate index snapshot does not exist, creating it...");
             debug!("[{name}] source file: '{:?}'", target.paths().index_db_path);
-            debug!("[{name}] target file: '{:?}'", &init_chainstate_snapshot_path);
+            debug!(
+                "[{name}] target file: '{:?}'",
+                &init_chainstate_snapshot_path
+            );
             debug!("[{name}] opening db file for read");
             let db_file = File::open(target.paths().index_db_path)?;
             let db_reader = BufReader::new(db_file);
@@ -397,7 +399,7 @@ impl StacksEnvPaths {
             sortition_db_path: working_dir.join("burnchain/sortition/marf.sqlite"),
             blocks_dir: working_dir.join("chainstate_blocks"),
             chainstate_dir: working_dir.join("chainstate"),
-            clarity_db_path: working_dir.join("chainstate/vm/clarity/marf.sqlite")
+            clarity_db_path: working_dir.join("chainstate/vm/clarity/marf.sqlite"),
         }
     }
 
