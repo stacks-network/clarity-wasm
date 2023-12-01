@@ -4,20 +4,18 @@ mod stacks_node;
 
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use log::*;
 
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
+use log::*;
 
 use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
-use crate::context::{
-    Block, BlockCursor, BlockTransactionContext, Network, Runtime,
-};
+use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
 use crate::db::appdb::AppDb;
 use crate::types::*;
 use crate::{clarity, stacks};

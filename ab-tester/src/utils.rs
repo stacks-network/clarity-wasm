@@ -1,4 +1,4 @@
-use std::ffi::{OsString, OsStr};
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 use color_eyre::eyre::bail;

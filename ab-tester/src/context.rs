@@ -127,7 +127,10 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay<C: ReplayCallbackHandler>(mut self, opts: &ReplayOpts<C>) -> Result<ReplayResult> {
+    pub fn replay<C: ReplayCallbackHandler>(
+        mut self,
+        opts: &ReplayOpts<C>,
+    ) -> Result<ReplayResult> {
         let mut baseline_env_taken = self.baseline_env.take();
         let baseline_env = baseline_env_taken
             .as_mut()
@@ -209,10 +212,12 @@ impl<'ctx> ComparisonContext<'ctx> {
 
         // TODO: Load environment from src-target.backup if exists and --reset-env
         // is set.
-        let init_chainstate_snapshot_path = append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
+        let init_chainstate_snapshot_path =
+            append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
         let init_chainstate_snapshot_exists =
             std::fs::metadata(&init_chainstate_snapshot_path).is_ok();
-        let init_burnstate_snapshot_path = append_to_path(target.cfg().sortition_db_path(), ".zstd");
+        let init_burnstate_snapshot_path =
+            append_to_path(target.cfg().sortition_db_path(), ".zstd");
         let init_burnstate_snapshot_exists =
             std::fs::metadata(&init_burnstate_snapshot_path).is_ok();
 
@@ -220,7 +225,10 @@ impl<'ctx> ComparisonContext<'ctx> {
         if !init_chainstate_snapshot_exists {
             // Chainstate Index DB
             info!("[{name}] chainstate index snapshot does not exist, creating it...");
-            debug!("[{name}] source file: '{:?}'", target.cfg().chainstate_index_db_path());
+            debug!(
+                "[{name}] source file: '{:?}'",
+                target.cfg().chainstate_index_db_path()
+            );
             debug!(
                 "[{name}] target file: '{:?}'",
                 &init_chainstate_snapshot_path

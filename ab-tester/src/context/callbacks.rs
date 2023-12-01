@@ -33,12 +33,34 @@ impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 
 #[allow(unused_variables)]
 pub trait ReplayCallbackHandler {
-    fn replay_start(&self, source: &(impl ReadableEnv + ?Sized), target: &(impl ReadableEnv + ?Sized), block_count: usize) {}
-    fn replay_finish(&self, source: &dyn ReadableEnv, target: &(impl ReadableEnv + ?Sized)) {}
-    fn replay_block_start(&self, source: &dyn ReadableEnv, target: &(impl ReadableEnv + ?Sized), height: u32) {}
-    fn replay_block_finish(&self, source: &dyn ReadableEnv, target: &(impl ReadableEnv + ?Sized)) {}
-    fn replay_tx_start(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}
-    fn replay_tx_finish(&self, source: &dyn ReadableEnv, target: &dyn ReadableEnv) {}
+    fn replay_start<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+        &self,
+        source: &S,
+        target: &T,
+        block_count: usize,
+    ) {
+    }
+    fn replay_finish<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+        &self,
+        source: &S,
+        target: &T,
+    ) {
+    }
+    fn replay_block_start<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+        &self,
+        source: &S,
+        target: &T,
+        height: u32,
+    ) {
+    }
+    fn replay_block_finish<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+        &self,
+        source: &S,
+        target: &T,
+    ) {
+    }
+    fn replay_tx_start<E: ReadableEnv + ?Sized>(&self, source: &E, target: &E) {}
+    fn replay_tx_finish<E: ReadableEnv + ?Sized>(&self, source: &E, target: &E) {}
 }
 
 #[derive(Clone, Default)]

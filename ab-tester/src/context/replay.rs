@@ -2,12 +2,12 @@ use color_eyre::eyre::ensure;
 use color_eyre::Result;
 use log::*;
 
-use super::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
+use super::callbacks::ReplayCallbackHandler;
 use crate::context::Block;
 use crate::environments::{ReadableEnv, WriteableEnv};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
-use crate::{ok, stacks};
+use crate::{clarity, ok, stacks};
 
 /// Options for replaying an environment's chain into another environment.
 pub struct ReplayOpts<C>
@@ -23,7 +23,7 @@ where
 
 impl<C> Default for ReplayOpts<C>
 where
-    C: ReplayCallbackHandler + Default
+    C: ReplayCallbackHandler + Default,
 {
     fn default() -> Self {
         Self {
@@ -42,10 +42,7 @@ impl<'a, C: ReplayCallbackHandler> ReplayOpts<C> {
         self.working_dir = working_dir.to_string();
         self
     }
-    pub fn with_callbacks(
-        &'a mut self,
-        callbacks: C
-    ) -> &mut Self {
+    pub fn with_callbacks(&'a mut self, callbacks: C) -> &mut Self {
         self.callbacks = callbacks;
         self
     }
@@ -88,8 +85,8 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a, C: ReplayCallbackHandler>(
-        source: &'a dyn ReadableEnv,
-        target: &'a mut dyn WriteableEnv,
+        source: &(impl ReadableEnv + ?Sized),
+        target: &mut (impl WriteableEnv + ?Sized),
         opts: &'a ReplayOpts<C>,
     ) -> Result<()> {
         info!(
@@ -100,15 +97,11 @@ impl ChainStateReplayer {
         let mut processed_block_count = 0;
 
         let blocks = source.blocks()?;
-        opts.callbacks
-            .replay_start(source, target, blocks.len());
+        opts.callbacks.replay_start(source, target, blocks.len());
 
         for block in source.blocks()?.into_iter() {
-            opts.callbacks.replay_block_start(
-                source,
-                target,
-                block.block_height()?,
-            );
+            opts.callbacks
+                .replay_block_start(source, target, block.block_height()?);
 
             let (header, stacks_block) = match &block {
                 Block::Genesis(inner) => {
@@ -154,13 +147,11 @@ impl ChainStateReplayer {
                 target.block_begin(&block)?;
             }
 
-            opts.callbacks
-                .replay_block_finish(source, target);
+            opts.callbacks.replay_block_finish(source, target);
             processed_block_count += 1;
         }
 
-        opts.callbacks
-            .replay_finish(source, target);
+        opts.callbacks.replay_finish(source, target);
         info!("blocks processed: {processed_block_count}");
 
         ok!()
@@ -178,8 +169,6 @@ impl ChainStateReplayer {
         // Begin a new block in `target`.
         target.block_begin(block)?;
 
-        todo!("replay_block_into");
-        /*
         for tx in stacks_block.txs.iter() {
             info!("processing tx: {}", tx.txid());
 
@@ -187,7 +176,7 @@ impl ChainStateReplayer {
 
             // Begin a new Clarity transaction in `target` and process the source
             // transaction. This transaction will be automatically committed.
-            block_ctx
+            /*block_ctx
                 .clarity_block_conn
                 .as_transaction(|_clarity_tx| -> Result<()> {
                     debug!("IN PROCESS TX SCOPE");
@@ -219,7 +208,8 @@ impl ChainStateReplayer {
 
                     ok!()
                 })?;
-        }*/
+            */
+        }
 
         ok!()
     }

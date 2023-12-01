@@ -31,8 +31,7 @@ pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<
     replay_opts.with_working_dir(&config.app.working_dir);
 
     let ctx = ComparisonContext::new(&config, app_db.clone())
-        .using_baseline(|from| from
-            .stacks_node("baseline", "/home/cylwit/stacks/mainnet".into()))?
+        .using_baseline(|from| from.stacks_node("baseline", "/home/cylwit/stacks/mainnet".into()))?
         .instrument_into(|into| {
             into.instrumented(
                 "interp-replay",

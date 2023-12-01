@@ -1,7 +1,7 @@
 pub mod db;
 
 use std::cell::RefCell;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -15,7 +15,7 @@ use diesel::{
 use log::*;
 
 use self::db::schema::chainstate::block_headers;
-use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, EnvPaths, EnvConfig};
+use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv};
 use crate::clarity::{self, ClarityConnection};
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{BlockCursor, Network};
@@ -545,7 +545,7 @@ impl StacksEnvPaths {
             index_db_path: working_dir.join("chainstate/vm/index.sqlite"),
             sortition_dir: working_dir.join("burnchain/sortition"),
             sortition_db_path: working_dir.join("burnchain/sortition/marf.sqlite"),
-            blocks_dir: working_dir.join("chainstate_blocks"),
+            blocks_dir: working_dir.join("chainstate/blocks"),
             chainstate_dir: working_dir.join("chainstate"),
             clarity_db_path: working_dir.join("chainstate/vm/clarity/marf.sqlite"),
         }

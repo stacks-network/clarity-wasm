@@ -9,14 +9,12 @@ use diesel::{
 };
 use log::*;
 
-use super::stacks_node::StacksEnvPaths;
 use super::stacks_node::db::schema::chainstate::block_headers;
-use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, WriteableEnv, EnvPaths, EnvConfig};
+use super::stacks_node::StacksEnvPaths;
+use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
-use crate::context::{
-    Block, BlockCursor, BlockTransactionContext, Network, Runtime,
-};
+use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
