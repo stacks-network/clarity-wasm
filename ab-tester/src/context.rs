@@ -140,7 +140,8 @@ impl<'ctx> ComparisonContext<'ctx> {
             target.open()?;
 
             let baseline_readable: &dyn ReadableEnv = &**baseline_env as &dyn ReadableEnv;
-            /*if self.is_environment_import_needed(baseline_readable, *target)? {
+            let target_writeable: &dyn WriteableEnv = &**target as &dyn WriteableEnv;
+            if Self::is_environment_import_needed(baseline_readable, target_writeable)? {
                 info!(
                     "[{target_name}] migrating burnstate from '{}'...",
                     baseline_env.name(),
@@ -156,7 +157,7 @@ impl<'ctx> ComparisonContext<'ctx> {
                 );
                 //target.import_chainstate(baseline_env.as_readable_env())?;
                 info!("finished");
-            }*/
+            }
 
             // Replay from source into target.
             //ChainStateReplayer::replay(&baseline_env.into(), &target.into(), opts)?;
@@ -165,10 +166,9 @@ impl<'ctx> ComparisonContext<'ctx> {
         todo!()
     }
 
-    fn is_environment_import_needed<Source: ReadableEnv, Target: ReadableEnv>(
-        &self,
-        source: &dyn ReadableEnv,
-        target: &dyn ReadableEnv,
+    fn is_environment_import_needed<Source: ReadableEnv + ?Sized, Target: ReadableEnv + ?Sized>(
+        source: &Source,
+        target: &Target,
     ) -> Result<bool> {
         info!("checking import data equality between source and target environments...");
         if source.snapshot_count()? != target.snapshot_count()? {
