@@ -9,11 +9,13 @@ use diesel::{
 };
 use log::*;
 
-use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, WriteableEnv};
+use super::stacks_node::StacksEnvPaths;
+use super::stacks_node::db::schema::chainstate::block_headers;
+use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, WriteableEnv, EnvPaths, EnvConfig};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{
-    Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths,
+    Block, BlockCursor, BlockTransactionContext, Network, Runtime,
 };
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
@@ -28,9 +30,39 @@ use crate::{clarity, ok, stacks};
 pub struct InstrumentedEnvConfig {
     working_dir: PathBuf,
     readonly: bool,
-    paths: StacksEnvPaths,
+    paths: Box<dyn EnvPaths>,
     runtime: Runtime,
     network: Network,
+}
+
+impl EnvConfig for InstrumentedEnvConfig {
+    fn chainstate_index_db_path(&self) -> &std::path::Path {
+        self.paths.index_db_path()
+    }
+
+    fn is_chainstate_app_indexed(&self) -> bool {
+        false
+    }
+
+    fn sortition_dir(&self) -> &std::path::Path {
+        self.paths.sortition_dir()
+    }
+
+    fn sortition_db_path(&self) -> &std::path::Path {
+        self.paths.sortition_db_path()
+    }
+
+    fn is_sortition_app_indexed(&self) -> bool {
+        true
+    }
+
+    fn clarity_db_path(&self) -> &std::path::Path {
+        self.paths.clarity_db_path()
+    }
+
+    fn is_clarity_db_app_indexed(&self) -> bool {
+        true
+    }
 }
 
 /// Holds the opened state of an [InstrumentedEnv].
@@ -72,7 +104,7 @@ impl InstrumentedEnv {
         let env_config = InstrumentedEnvConfig {
             working_dir,
             readonly: false,
-            paths,
+            paths: Box::new(paths),
             runtime,
             network,
         };
@@ -214,11 +246,11 @@ impl RuntimeEnv for InstrumentedEnv {
 
         debug!("initializing chainstate");
         self.callbacks
-            .open_chainstate_start(self, &paths.chainstate_dir);
+            .open_chainstate_start(self, paths.chainstate_dir());
         let (chainstate, _) = stacks::StacksChainState::open_and_exec(
             network.is_mainnet(),
             1,
-            &paths.chainstate_dir.display().to_string(),
+            &paths.chainstate_dir().display().to_string(),
             Some(&mut boot_data),
             Some(marf_opts.clone()),
         )?;
@@ -227,18 +259,18 @@ impl RuntimeEnv for InstrumentedEnv {
 
         debug!("[{name}] loading index db...");
         self.callbacks
-            .open_index_db_start(self, &paths.index_db_path);
+            .open_index_db_start(self, paths.index_db_path());
         let index_db_conn =
-            SqliteConnection::establish(&paths.index_db_path.display().to_string())?;
+            SqliteConnection::establish(&paths.index_db_path().display().to_string())?;
         self.callbacks.open_index_db_finish(self);
         info!("[{name}] successfully connected to index db");
 
         // Open the Clarity sqlite db
         debug!("[{name}] loading clarity db...");
         self.callbacks
-            .open_clarity_db_start(self, &paths.clarity_db_path);
+            .open_clarity_db_start(self, paths.clarity_db_path());
         let clarity_db_conn =
-            SqliteConnection::establish(&paths.clarity_db_path.display().to_string())?;
+            SqliteConnection::establish(&paths.clarity_db_path().display().to_string())?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 
@@ -256,7 +288,7 @@ impl RuntimeEnv for InstrumentedEnv {
         */
 
         // Open the headers db
-        let headers_db = StacksHeadersDb::new(&paths.index_db_path)?;
+        let headers_db = StacksHeadersDb::new(paths.index_db_path())?;
 
         let state = InstrumentedEnvState {
             chainstate,
@@ -280,7 +312,7 @@ impl RuntimeEnv for InstrumentedEnv {
 impl ReadableEnv for InstrumentedEnv {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
-        let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
+        let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir(), headers);
         Ok(cursor)
     }
 
@@ -332,11 +364,15 @@ impl ReadableEnv for InstrumentedEnv {
     }
 
     fn block_header_count(&self) -> Result<usize> {
-        todo!()
+        let result: i64 = block_headers::table
+            .count()
+            .get_result(&mut *self.get_env_state()?.index_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
     }
 
-    fn paths(&self) -> StacksEnvPaths {
-        self.env_config.paths.clone()
+    fn cfg(&self) -> &dyn EnvConfig {
+        &self.env_config
     }
 }
 
@@ -428,7 +464,7 @@ impl WriteableEnv for InstrumentedEnv {
         );
         let src_block_headers_iter = source.block_headers()?;
 
-        let mut headers_db = StacksHeadersDb::new(&self.env_config.paths.index_db_path)?;
+        let mut headers_db = StacksHeadersDb::new(&self.env_config.paths.index_db_path())?;
         headers_db.import_block_headers(src_block_headers_iter, Some(self.id()))?;
 
         ok!()

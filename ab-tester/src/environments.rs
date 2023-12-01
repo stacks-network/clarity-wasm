@@ -4,8 +4,9 @@ mod stacks_node;
 
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::rc::Rc;
+use log::*;
 
 use color_eyre::eyre::anyhow;
 use color_eyre::Result;
@@ -15,7 +16,7 @@ use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::{
-    Block, BlockCursor, BlockTransactionContext, Network, Runtime, StacksEnvPaths,
+    Block, BlockCursor, BlockTransactionContext, Network, Runtime,
 };
 use crate::db::appdb::AppDb;
 use crate::types::*;
@@ -216,7 +217,7 @@ pub trait ReadableEnv: RuntimeEnv {
     fn block_header_count(&self) -> Result<usize>;
 
     /// Retrieves the paths used by this [RuntimeEnv].
-    fn paths(&self) -> StacksEnvPaths;
+    fn cfg(&self) -> &dyn EnvConfig;
 }
 
 /// Defines the functionality for a writeable [RuntimeEnv].
@@ -267,4 +268,36 @@ fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionD
             todo!("testnet not yet supported")
         }
     }
+}
+
+pub trait EnvPaths {
+    fn index_db_path(&self) -> &Path;
+    fn sortition_dir(&self) -> &Path;
+    fn sortition_db_path(&self) -> &Path;
+    fn blocks_dir(&self) -> &Path;
+    fn chainstate_dir(&self) -> &Path;
+    fn clarity_db_path(&self) -> &Path;
+
+    /// Prints information about the paths.
+    fn print(&self, env_name: &str) {
+        info!("[{env_name}] using directories:");
+        debug!("[{env_name}] index db: {:?}", self.index_db_path());
+        debug!("[{env_name}] sortition dir: {:?}", self.sortition_dir());
+        debug!("[{env_name}] sortition db: {:?}", self.sortition_db_path());
+        debug!("[{env_name}] clarity db: {:?}", self.clarity_db_path());
+        debug!("[{env_name}] blocks dir: {:?}", self.blocks_dir());
+        debug!("[{env_name}] chainstate dir: {:?}", self.chainstate_dir());
+    }
+}
+
+pub trait EnvConfig {
+    fn chainstate_index_db_path(&self) -> &Path;
+    fn is_chainstate_app_indexed(&self) -> bool;
+
+    fn sortition_dir(&self) -> &Path;
+    fn sortition_db_path(&self) -> &Path;
+    fn is_sortition_app_indexed(&self) -> bool;
+
+    fn clarity_db_path(&self) -> &Path;
+    fn is_clarity_db_app_indexed(&self) -> bool;
 }

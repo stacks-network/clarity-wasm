@@ -1,7 +1,7 @@
 pub mod db;
 
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -15,10 +15,10 @@ use diesel::{
 use log::*;
 
 use self::db::schema::chainstate::block_headers;
-use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv};
+use super::{BoxedDbIterResult, ReadableEnv, RuntimeEnv, EnvPaths, EnvConfig};
 use crate::clarity::{self, ClarityConnection};
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
-use crate::context::{BlockCursor, Network, StacksEnvPaths};
+use crate::context::{BlockCursor, Network};
 use crate::db::appdb::burnstate_db::AsBurnStateDb;
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::dbcursor::stream_results;
@@ -29,6 +29,36 @@ use crate::{ok, stacks};
 pub struct StacksNodeEnvConfig {
     node_dir: PathBuf,
     paths: StacksEnvPaths,
+}
+
+impl EnvConfig for StacksNodeEnvConfig {
+    fn chainstate_index_db_path(&self) -> &Path {
+        &self.paths.chainstate_dir
+    }
+
+    fn is_chainstate_app_indexed(&self) -> bool {
+        false
+    }
+
+    fn sortition_dir(&self) -> &Path {
+        &self.paths.sortition_dir
+    }
+
+    fn sortition_db_path(&self) -> &Path {
+        &self.paths.sortition_db_path
+    }
+
+    fn is_sortition_app_indexed(&self) -> bool {
+        false
+    }
+
+    fn clarity_db_path(&self) -> &Path {
+        &self.paths.clarity_db_path
+    }
+
+    fn is_clarity_db_app_indexed(&self) -> bool {
+        false
+    }
 }
 
 /// Holds state for a [StacksNodeEnv].
@@ -463,12 +493,61 @@ impl ReadableEnv for StacksNodeEnv {
         let state = self.get_env_state()?;
         let result: i64 = block_headers::table
             .count()
-            .get_result(&mut *state.sortition_db_conn.borrow_mut())?;
+            .get_result(&mut *state.index_db_conn.borrow_mut())?;
 
         Ok(result as usize)
     }
 
-    fn paths(&self) -> StacksEnvPaths {
-        self.env_config.paths.clone()
+    fn cfg(&self) -> &dyn EnvConfig {
+        &self.env_config
+    }
+}
+
+/// Helper struct to carry all of the different paths involved in chainstate
+/// and sortition.
+#[derive(Debug, Clone)]
+pub struct StacksEnvPaths {
+    pub index_db_path: PathBuf,
+    pub sortition_dir: PathBuf,
+    pub sortition_db_path: PathBuf,
+    pub blocks_dir: PathBuf,
+    pub chainstate_dir: PathBuf,
+    pub clarity_db_path: PathBuf,
+}
+
+impl EnvPaths for StacksEnvPaths {
+    fn index_db_path(&self) -> &Path {
+        &self.index_db_path
+    }
+    fn sortition_dir(&self) -> &Path {
+        &self.sortition_dir
+    }
+    fn sortition_db_path(&self) -> &Path {
+        &self.sortition_db_path
+    }
+    fn blocks_dir(&self) -> &Path {
+        &self.blocks_dir
+    }
+    fn chainstate_dir(&self) -> &Path {
+        &self.chainstate_dir
+    }
+    fn clarity_db_path(&self) -> &Path {
+        &self.clarity_db_path
+    }
+}
+
+impl StacksEnvPaths {
+    /// Creates a new instance of [StacksEnvPaths] from the provided base
+    /// `working_dir`. This will populate all of the relevent paths needed for
+    /// this application.
+    pub fn new(working_dir: PathBuf) -> Self {
+        Self {
+            index_db_path: working_dir.join("chainstate/vm/index.sqlite"),
+            sortition_dir: working_dir.join("burnchain/sortition"),
+            sortition_db_path: working_dir.join("burnchain/sortition/marf.sqlite"),
+            blocks_dir: working_dir.join("chainstate_blocks"),
+            chainstate_dir: working_dir.join("chainstate"),
+            clarity_db_path: working_dir.join("chainstate/vm/clarity/marf.sqlite"),
+        }
     }
 }

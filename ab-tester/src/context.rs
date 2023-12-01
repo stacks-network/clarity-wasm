@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::rc::Rc;
 
 use color_eyre::eyre::{anyhow, bail};
@@ -9,6 +9,7 @@ use log::*;
 
 use crate::config::Config;
 use crate::db::appdb::AppDb;
+use crate::utils::append_to_path;
 use crate::{clarity, ok, stacks};
 
 pub mod blocks;
@@ -141,6 +142,7 @@ impl<'ctx> ComparisonContext<'ctx> {
 
             let baseline_readable: &dyn ReadableEnv = &**baseline_env as &dyn ReadableEnv;
             let target_writeable: &dyn WriteableEnv = &**target as &dyn WriteableEnv;
+
             if Self::is_environment_import_needed(baseline_readable, target_writeable)? {
                 info!(
                     "[{target_name}] migrating burnstate from '{}'...",
@@ -148,16 +150,20 @@ impl<'ctx> ComparisonContext<'ctx> {
                 );
                 // Import source burnstate into target environment. This is done due to
                 // burnstate being expected to be present during contract evaluation.
-                //target.import_burnstate(baseline_env.as_readable_env())?;
+                target.import_burnstate(baseline_readable)?;
                 info!("finished");
 
                 info!(
                     "[{target_name}] migrating chainstate from '{}'...",
                     baseline_env.name()
                 );
-                //target.import_chainstate(baseline_env.as_readable_env())?;
+                target.import_chainstate(baseline_readable)?;
                 info!("finished");
             }
+
+            // Move this into the if-statement above when it works
+            info!("[{target_name} preparing to snapshot environment....");
+            Self::snapshot_environment(&**target)?;
 
             // Replay from source into target.
             //ChainStateReplayer::replay(&baseline_env.into(), &target.into(), opts)?;
@@ -196,28 +202,29 @@ impl<'ctx> ComparisonContext<'ctx> {
         Ok(false)
     }
 
-    fn snapshot_environment(target: &dyn ReadableEnv) -> Result<()> {
+    fn snapshot_environment<Target: ReadableEnv + ?Sized>(target: &Target) -> Result<()> {
         let name = target.name();
 
         // TODO: Load environment from src-target.backup if exists and --reset-env
         // is set.
-        let init_chainstate_snapshot_path = format!("{:?}.zstd", target.paths().index_db_path);
+        let init_chainstate_snapshot_path = append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
         let init_chainstate_snapshot_exists =
             std::fs::metadata(&init_chainstate_snapshot_path).is_ok();
-        let init_burnstate_snapshot_path = format!("{:?}.zstd", target.paths().sortition_db_path);
+        let init_burnstate_snapshot_path = append_to_path(target.cfg().sortition_db_path(), ".zstd");
         let init_burnstate_snapshot_exists =
             std::fs::metadata(&init_burnstate_snapshot_path).is_ok();
 
         // TODO: Backup environment
         if !init_chainstate_snapshot_exists {
+            // Chainstate Index DB
             info!("[{name}] chainstate index snapshot does not exist, creating it...");
-            debug!("[{name}] source file: '{:?}'", target.paths().index_db_path);
+            debug!("[{name}] source file: '{:?}'", target.cfg().chainstate_index_db_path());
             debug!(
                 "[{name}] target file: '{:?}'",
                 &init_chainstate_snapshot_path
             );
             debug!("[{name}] opening db file for read");
-            let db_file = File::open(target.paths().index_db_path)?;
+            let db_file = File::open(target.cfg().chainstate_index_db_path())?;
             let db_reader = BufReader::new(db_file);
             debug!("[{name}] creating target file");
             let file = File::options()
@@ -232,9 +239,10 @@ impl<'ctx> ComparisonContext<'ctx> {
             debug!("[{name}] finished");
         }
 
-        if !init_burnstate_snapshot_exists {
-            std::fs::create_dir_all(target.paths().sortition_dir)?;
-            let db_file = File::open(target.paths().sortition_db_path)?;
+        if !init_burnstate_snapshot_exists && !target.cfg().is_sortition_app_indexed() {
+            // Sortition DB
+            std::fs::create_dir_all(target.cfg().sortition_dir())?;
+            let db_file = File::open(target.cfg().sortition_db_path())?;
             let db_reader = BufReader::new(db_file);
             std::fs::create_dir_all(&init_burnstate_snapshot_path)?;
             let file = File::options()
@@ -373,44 +381,5 @@ impl Network {
 
     pub fn testnet(chain_id: u32) -> Network {
         Network::Testnet(chain_id)
-    }
-}
-
-/// Helper struct to carry all of the different paths involved in chainstate
-/// and sortition.
-#[derive(Debug, Clone)]
-pub struct StacksEnvPaths {
-    pub index_db_path: PathBuf,
-    pub sortition_dir: PathBuf,
-    pub sortition_db_path: PathBuf,
-    pub blocks_dir: PathBuf,
-    pub chainstate_dir: PathBuf,
-    pub clarity_db_path: PathBuf,
-}
-
-impl StacksEnvPaths {
-    /// Creates a new instance of [StacksEnvPaths] from the provided base
-    /// `working_dir`. This will populate all of the relevent paths needed for
-    /// this application.
-    pub fn new(working_dir: PathBuf) -> Self {
-        Self {
-            index_db_path: working_dir.join("chainstate/vm/index.sqlite"),
-            sortition_dir: working_dir.join("burnchain/sortition"),
-            sortition_db_path: working_dir.join("burnchain/sortition/marf.sqlite"),
-            blocks_dir: working_dir.join("chainstate_blocks"),
-            chainstate_dir: working_dir.join("chainstate"),
-            clarity_db_path: working_dir.join("chainstate/vm/clarity/marf.sqlite"),
-        }
-    }
-
-    /// Prints information about the paths.
-    pub fn print(&self, env_name: &str) {
-        info!("[{env_name}] using directories:");
-        debug!("[{env_name}] index db: {:?}", self.index_db_path);
-        debug!("[{env_name}] sortition dir: {:?}", self.sortition_dir);
-        debug!("[{env_name}] sortition db: {:?}", self.sortition_db_path);
-        debug!("[{env_name}] clarity db: {:?}", self.clarity_db_path);
-        debug!("[{env_name}] blocks dir: {:?}", self.blocks_dir);
-        debug!("[{env_name}] chainstate dir: {:?}", self.chainstate_dir);
     }
 }
