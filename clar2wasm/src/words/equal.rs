@@ -124,22 +124,26 @@ impl Word for IndexOf {
         builder.local_set(offset);
         // STACK: []
 
-        // Get the type of the sequence.
-        let seq_ty = match generator
+        // Get Sequence type.
+        let ty = generator
             .get_expr_type(seq)
-            .expect("sequence must be typed")
-        {
-            TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
-            _ => {
-                return Err(GeneratorError::InternalError(
-                    "expected sequence type".to_string(),
-                ));
-            }
+            .expect("Sequence must be typed")
+            .clone();
+
+        let seq_sub_ty = if let TypeSignature::SequenceType(seq_sub_type) = &ty {
+            seq_sub_type
+        } else {
+            return Err(GeneratorError::TypeError(format!(
+                "Expected a Sequence type. Found {:?}",
+                ty
+            )));
         };
 
         // Get sequence size (quantity of items in the sequence)
-        // and sequence elements type.
-        let (seq_size, elem_ty) = match &seq_ty {
+        let seq_size = get_type_size(&ty);
+
+        // Get elements type.
+        let (_, elem_ty) = match &seq_sub_ty {
             SequenceSubtype::ListType(list_type) => {
                 (list_type.get_max_len(), list_type.get_list_item_type())
             }
@@ -147,14 +151,12 @@ impl Word for IndexOf {
             _ => unimplemented!("Unsupported sequence type"),
         };
 
-        // TODO return when size = 0
-
         // Store the end of the sequence into a local.
         let elem_size = get_type_size(elem_ty);
         let end_offset = generator.module.locals.add(ValType::I32);
         builder
             .local_get(offset)
-            .i32_const(seq_size as i32 * elem_size)
+            .i32_const(seq_size * elem_size)
             .binop(BinaryOp::I32Add)
             .local_set(end_offset);
 
@@ -174,14 +176,11 @@ impl Word for IndexOf {
         // STACK: []
 
         // Create and store an index into a local.
-        let index = generator.module.locals.add(ValType::I32);
-        builder.i32_const(0);
+        let index = generator.module.locals.add(ValType::I64);
+        builder.i64_const(0);
         // STACK: [0]
         builder.local_set(index);
         // STACK: []
-
-        // Code block label to be used in the loop.
-        let block_id = builder.id();
 
         // Loop through the sequence.
         let loop_body_ty = InstrSeqType::new(
@@ -219,43 +218,53 @@ impl Word for IndexOf {
             loop_.local_tee(result);
             // STACK: [wasm_equal_result]
 
-            // Build the stack to be returned.
-            loop_
-                .i32_const(1)
-                .binop(BinaryOp::I32Eq)
-                // STACK: [(0 | 1)]
-                .local_get(index)
-                .unop(UnaryOp::I64ExtendUI32)
-                .i64_const(0);
-            // STACK: [(0 | 1), index_lo, index_hi]
+            loop_.if_else(
+                InstrSeqType::new(
+                    &mut generator.module.types,
+                    &[],
+                    &[ValType::I32, ValType::I64, ValType::I64],
+                ),
+                |then| {
+                    then.i32_const(1).local_get(index).i64_const(0);
+                    // STACK: [1, index_lo, index_hi]
+                },
+                |else_| {
+                    // Increment the sequence offset by the size of the element
+                    // and push it to the stack.
+                    // Also push the offset limit onto the top of the stack.
+                    else_
+                        .local_get(offset)
+                        .i32_const(elem_size)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(offset)
+                        .local_get(end_offset);
+                    // STACK: [offset, end_offset]
 
-            // Break loop if the result of the comparison is true.
-            loop_
-                .local_get(result)
-                .i32_const(1)
-                .binop(BinaryOp::I32Eq)
-                .br_if(block_id);
-
-            // Increment index by 1.
-            loop_
-                .local_get(index)
-                .i32_const(1)
-                .binop(BinaryOp::I32Add)
-                .local_set(index);
-
-            // Increment the sequence offset by the size of the element,
-            // leaving the incremented offset onto the top of the stack.
-            loop_
-                .local_get(offset)
-                .i32_const(elem_size)
-                .binop(BinaryOp::I32Add)
-                .local_tee(offset); // current offset
-
-            // Loop if not in the end of the sequence.
-            loop_
-                .local_get(end_offset)
-                .binop(BinaryOp::I32LtU)
-                .br_if(loop_id);
+                    else_.binop(BinaryOp::I32GtU).if_else(
+                        InstrSeqType::new(
+                            &mut generator.module.types,
+                            &[],
+                            &[ValType::I32, ValType::I64, ValType::I64],
+                        ),
+                        |then| {
+                            // Reached the end of the sequence
+                            // and not found the element.
+                            then.i32_const(0).local_get(index).i64_const(0);
+                            // STACK: [0, index_lo, index_hi]
+                        },
+                        |else_| {
+                            // Increment index by 1
+                            // and continue loop.
+                            else_
+                                .local_get(index)
+                                .i64_const(1)
+                                .binop(BinaryOp::I64Add)
+                                .local_set(index)
+                                .br(loop_id);
+                        },
+                    );
+                },
+            );
         });
 
         Ok(())
@@ -908,7 +917,7 @@ mod tests {
     #[test]
     fn index_of_first_elem() {
         assert_eq!(
-            eval("(index-of? (list 1 2 3 4 5 6 7) 1)"),
+            eval("(index-of? (list 1 2 3 4) 1)"),
             Some(Value::Optional(OptionalData {
                 data: Some(Box::new(Value::UInt(0)))
             }))
