@@ -213,11 +213,6 @@ impl Word for IndexOf {
             );
             // STACK: [wasm_equal_result]
 
-            // Store the result into a local.
-            let result = generator.module.locals.add(ValType::I32);
-            loop_.local_tee(result);
-            // STACK: [wasm_equal_result]
-
             loop_.if_else(
                 InstrSeqType::new(
                     &mut generator.module.types,
