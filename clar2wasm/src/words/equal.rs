@@ -229,7 +229,7 @@ impl Word for IndexOf {
                         .local_get(end_offset);
                     // STACK: [offset, end_offset]
 
-                    else_.binop(BinaryOp::I32GtU).if_else(
+                    else_.binop(BinaryOp::I32GeU).if_else(
                         InstrSeqType::new(
                             &mut generator.module.types,
                             &[],
