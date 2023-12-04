@@ -1,4 +1,3 @@
-use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
@@ -115,21 +114,11 @@ impl Word for IndexOf {
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
-        // Drop the sequence size from the stack.
-        builder.drop();
-        // STACK: [offset]
-
-        // Move the sequence offset from the stack to a local variable.
-        let offset = generator.module.locals.add(ValType::I32);
-        builder.local_set(offset);
-        // STACK: []
-
         // Get Sequence type.
         let ty = generator
             .get_expr_type(seq)
             .expect("Sequence must be typed")
             .clone();
-
         let seq_sub_ty = if let TypeSignature::SequenceType(seq_sub_type) = &ty {
             seq_sub_type
         } else {
@@ -138,9 +127,6 @@ impl Word for IndexOf {
                 ty
             )));
         };
-
-        // Get sequence size (quantity of items in the sequence)
-        let seq_size = get_type_size(&ty);
 
         // Get elements type.
         let (_, elem_ty) = match &seq_sub_ty {
@@ -151,14 +137,22 @@ impl Word for IndexOf {
             _ => unimplemented!("Unsupported sequence type"),
         };
 
-        // Store the end of the sequence into a local.
-        let elem_size = get_type_size(elem_ty);
+        // Locals declaration.
+        let seq_size = generator.module.locals.add(ValType::I32);
+        let offset = generator.module.locals.add(ValType::I32);
         let end_offset = generator.module.locals.add(ValType::I32);
+
         builder
-            .local_get(offset)
-            .i32_const(seq_size * elem_size)
+            .local_set(seq_size)
+            // STACK: [offset]
+            .local_tee(offset)
+            // STACK: [offset]
+            .local_get(seq_size)
+            // STACK: [offset, size]
             .binop(BinaryOp::I32Add)
+            // STACK: [add_result]
             .local_set(end_offset);
+        // STACK: []
 
         // Traverse the item, leaving it on top of the stack.
         let item = args.get_expr(1)?;
@@ -896,8 +890,8 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::OptionalData;
     use clarity::vm::Value;
+    use clarity::vm::Value::Bool;
 
     use crate::tools::{evaluate as eval, TestEnvironment};
 
@@ -905,7 +899,7 @@ mod tests {
     fn index_of_elem_not_in_list() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 9)"),
-            Some(Value::Optional(OptionalData { data: None }))
+            Some(Value::none())
         );
     }
 
@@ -913,9 +907,7 @@ mod tests {
     fn index_of_first_elem() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4) 1)"),
-            Some(Value::Optional(OptionalData {
-                data: Some(Box::new(Value::UInt(0)))
-            }))
+            Some(Value::some(Value::UInt(0)).unwrap())
         );
     }
 
@@ -923,9 +915,7 @@ mod tests {
     fn index_of_elem() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 3)"),
-            Some(Value::Optional(OptionalData {
-                data: Some(Box::new(Value::UInt(2)))
-            }))
+            Some(Value::some(Value::UInt(2)).unwrap())
         );
     }
 
@@ -933,9 +923,7 @@ mod tests {
     fn index_of_last_elem() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 7)"),
-            Some(Value::Optional(OptionalData {
-                data: Some(Box::new(Value::UInt(6)))
-            }))
+            Some(Value::some(Value::UInt(6)).unwrap())
         );
     }
 
@@ -943,27 +931,33 @@ mod tests {
     fn index_of_called_by_v1_alias() {
         assert_eq!(
             eval("(index-of (list 1 2 3 4 5 6 7) 100)"),
-            Some(Value::Optional(OptionalData { data: None }))
+            Some(Value::none())
         );
     }
 
     #[test]
-    fn index_of() {
+    fn index_of_list_of_lists() {
+        assert_eq!(
+            eval("(index-of (list (list 1 2) (list 2 3 4) (list 1 2 3 4 5) (list 1 2 3 4)) (list 1 2 3 4))"),
+            Some(Value::some(Value::UInt(3)).unwrap())
+        );
+    }
+
+    // TODO [chris]
+    #[ignore = "need asserts! function to be implemented"]
+    #[test]
+    fn index_of_check_stack() {
         let mut env = TestEnvironment::default();
         let val = env.init_contract_with_snippet(
             "index_of",
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
-  (index-of? haystack needle))
-(define-public (check (needle int) (haystack (list 10 int)))
-  (ok (find-it? needle haystack)))
-(check 6 (list 1 2 3))
+  (is-eq (index-of? haystack needle) none))
+(asserts! (find-it? 6 (list 1 2 3)) (err u1))
+(list 4 5 6)
 "#,
         );
 
-        assert_eq!(
-            val.unwrap(),
-            Some(Value::okay(Value::Optional(OptionalData { data: None })).unwrap())
-        );
+        assert_eq!(val.unwrap(), Some(Bool(true)));
     }
 }
