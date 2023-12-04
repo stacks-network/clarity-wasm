@@ -1,6 +1,6 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{InstrSeqType, UnaryOp};
+use walrus::ir::UnaryOp;
 
 use super::Word;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
@@ -80,7 +80,7 @@ impl Word for UnwrapPanic {
 
                 // If the indicator is 0, throw a runtime error
                 builder.unop(UnaryOp::I32Eqz).if_else(
-                    InstrSeqType::new(&mut generator.module.types, &[], &[]),
+                    None,
                     |then| {
                         then.i32_const(Trap::Panic as i32).call(
                             generator
@@ -122,7 +122,7 @@ impl Word for UnwrapPanic {
 
                 // If the indicator is 0, throw a runtime error
                 builder.unop(UnaryOp::I32Eqz).if_else(
-                    InstrSeqType::new(&mut generator.module.types, &[], &[]),
+                    None,
                     |then| {
                         then.i32_const(Trap::Panic as i32).call(
                             generator
@@ -197,7 +197,7 @@ impl Word for UnwrapErrPanic {
 
                 // If the indicator is 0, throw a runtime error
                 builder.unop(UnaryOp::I32Eqz).if_else(
-                    InstrSeqType::new(&mut generator.module.types, &[], &[]),
+                    None,
                     |_| {},
                     |else_| {
                         else_.i32_const(Trap::Panic as i32).call(

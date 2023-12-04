@@ -97,7 +97,6 @@ impl Word for Fold {
             .get_expr_type(initial)
             .expect("fold's initial value expression must be typed")
             .clone();
-        let loop_body_ty = InstrSeqType::new(&mut generator.module.types, &[], &[]);
 
         // Get the type of the sequence
         let seq_ty = match generator
@@ -155,7 +154,7 @@ impl Word for Fold {
 
         // Define the body of a loop, to loop over the sequence and make the
         // function call.
-        builder.loop_(loop_body_ty, |loop_| {
+        builder.loop_(None, |loop_| {
             let loop_id = loop_.id();
 
             // Load the element from the sequence

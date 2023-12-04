@@ -2104,7 +2104,7 @@ impl WasmGenerator {
             // is an `err`, then we roll it back. `result_locals[0]` is the
             // response indicator (all public functions return a response).
             builder.local_get(result_locals[0]).if_else(
-                InstrSeqType::new(&mut self.module.types, &[], &[]),
+                None,
                 |then| {
                     // Call the host interface function, `commit_call`
                     then.call(
