@@ -401,4 +401,285 @@ mod tests {
             .unwrap()
         );
     }
+
+    #[test]
+    /// Call the erroring function directly and verify that the changes are
+    /// rolled back.
+    fn err_rollback_direct() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an error
+        let res = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee set-err -42)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::err_uint(1));
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+    }
+
+    #[test]
+    /// Call the erroring function indirectly, through another contract's
+    /// function which also fails, and verify that the changes are rolled back.
+    fn err_rollback() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(define-public (call-set-err)
+    (contract-call? .contract-callee set-err -42)
+)
+              "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an err
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-caller call-set-err)")
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::err_uint(1));
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+    }
+
+    #[test]
+    /// Call the erroring function indirectly, through another contract's
+    /// function which returns ok, but verify that the erroring functions'
+    /// changes are still rolled back.
+    fn err_rollback_ok() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(define-public (call-set-err-ok)
+    (ok (unwrap-err-panic (contract-call? .contract-callee set-err -42)))
+)
+              "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an okay.
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-caller call-set-err-ok)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::okay(Value::UInt(1)).unwrap());
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+    }
+
+    #[test]
+    /// Call the erroring function indirectly, through another contract's
+    /// function which returns ok, but verify that the erroring functions'
+    /// changes are still rolled back, while the ok function's changes are
+    /// preserved.
+    fn err_rollback_ok_preserve_changes() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        env.init_contract_with_snippet(
+            "contract-caller",
+            r#"
+(define-data-var my-val int 3)
+(define-public (call-set-err-ok)
+    (begin
+        (var-set my-val 123)
+        (ok (unwrap-err-panic (contract-call? .contract-callee set-err -42)))
+    )
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+              "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an okay.
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-caller call-set-err-ok)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::okay(Value::UInt(1)).unwrap());
+
+        // Expect the callee data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+
+        // Expect the caller data-var to be changed.
+        let val = env
+            .init_contract_with_snippet(
+                "check-value-2",
+                "(contract-call? .contract-caller get-val)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(123));
+    }
+
+    #[test]
+    /// Call the erroring function via an intra-contract function call (not
+    /// using `contract-call?`), and verify that the changes are rolled back.
+    fn err_rollback_intra_contract_call() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-public (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-public (set-it)
+    (ok (unwrap-err-panic (set-err -123)))
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an okay.
+        let res = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee set-it)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::okay(Value::UInt(1)).unwrap());
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(111));
+    }
+
+    #[test]
+    /// Call the erroring function via an intra-contract function call (not
+    /// using `contract-call?`), and verify that the changes are rolled back
+    /// because the erroring function is private.
+    fn err_no_rollback_intra_contract_call() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-data-var my-val int 111)
+(define-private (set-err (val int))
+    (begin
+        (var-set my-val val)
+        (err u1)
+    )
+)
+(define-public (set-it)
+    (ok (unwrap-err-panic (set-err -123)))
+)
+(define-read-only (get-val)
+    (var-get my-val)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        // Expect this call to return an okay.
+        let res = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                "(contract-call? .contract-callee set-it)",
+            )
+            .expect("Failed to init contract.");
+        assert_eq!(res.unwrap(), Value::okay(Value::UInt(1)).unwrap());
+
+        // Expect the data-var to be unchanged
+        let val = env
+            .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
+            .expect("Failed to init contract.");
+        assert_eq!(val.unwrap(), Value::Int(-123));
+    }
 }

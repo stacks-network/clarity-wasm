@@ -481,6 +481,34 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .unwrap();
 
     linker
+        .func_wrap("clarity", "begin_public_call", || {
+            println!("begin_public_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "begin_read_only_call", || {
+            println!("begin_read_only_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "commit_call", || {
+            println!("commit_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "roll_back_call", || {
+            println!("roll_back_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
         .func_wrap(
             "clarity",
             "keccak256",

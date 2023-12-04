@@ -191,11 +191,9 @@ impl Word for Filter {
 
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
-        // the loop returns nothing itself, but builds the result in the data stack
-        let loop_body_ty = InstrSeqType::new(&mut generator.module.types, &[], &[]);
         let memory = generator.get_memory();
 
-        builder.loop_(loop_body_ty, |loop_| {
+        builder.loop_(None, |loop_| {
             let loop_id = loop_.id();
 
             // Load an element from the sequence
@@ -211,8 +209,7 @@ impl Word for Filter {
 
             // [ Discriminator result (bool) ]
 
-            let mut success_branch =
-                loop_.dangling_instr_seq(InstrSeqType::new(&mut generator.module.types, &[], &[]));
+            let mut success_branch = loop_.dangling_instr_seq(None);
             let succ_id = success_branch.id();
 
             // on success, increment length and copy value
@@ -244,8 +241,7 @@ impl Word for Filter {
 
             // fail branch is a no-op (FIXME there is most certainly a better way to do this)
 
-            let fail_branch =
-                loop_.dangling_instr_seq(InstrSeqType::new(&mut generator.module.types, &[], &[]));
+            let fail_branch = loop_.dangling_instr_seq(None);
             let fail_id = fail_branch.id();
 
             loop_.instr(ir::IfElse {

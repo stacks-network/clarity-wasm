@@ -232,8 +232,7 @@ impl WasmGenerator {
                 if let Some(word) = words::lookup(function_name) {
                     word.traverse(self, builder, expr, args)?;
                 } else {
-                    self.traverse_args(builder, args)?;
-                    self.visit_call_user_defined(builder, expr, function_name, args)?;
+                    self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
             }
             _ => todo!(),
@@ -2031,19 +2030,143 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_call_user_defined(
+    fn traverse_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         name: &ClarityName,
-        _args: &[SymbolicExpression],
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        self.traverse_args(builder, args)?;
+
+        if self
+            .contract_analysis
+            .get_public_function_type(name.as_str())
+            .is_some()
+        {
+            self.local_call_public(builder, expr, name)?;
+        } else if self
+            .contract_analysis
+            .get_read_only_function_type(name.as_str())
+            .is_some()
+        {
+            self.local_call_read_only(builder, name)?;
+        } else if self
+            .contract_analysis
+            .get_private_function(name.as_str())
+            .is_some()
+        {
+            self.local_call(builder, name)?;
+        } else {
+            return Err(GeneratorError::TypeError(format!(
+                "function not found: {name}",
+                name = name.as_str()
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Call a function defined in the current contract.
+    fn local_call(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
     ) -> Result<(), GeneratorError> {
         builder.call(
             self.module
                 .funcs
                 .by_name(name.as_str())
-                .unwrap_or_else(|| panic!("function not found: {name}")),
+                .ok_or(GeneratorError::TypeError(format!(
+                    "function not found: {name}"
+                )))?,
         );
+
+        Ok(())
+    }
+
+    /// Call a public function defined in the current contract. This requires
+    /// going through the host interface to handle roll backs.
+    fn local_call_public(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
+        // Call the host interface function, `begin_public_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.begin_public_call")
+                .expect("function not found"),
+        );
+
+        self.local_call(builder, name)?;
+
+        // Save the result to a local
+        let res_ty = self
+            .get_expr_type(expr)
+            .expect("function result must be typed")
+            .clone();
+        let result_locals = self.save_to_locals(builder, &res_ty, true);
+
+        // If the result is an `ok`, then we can commit the call, and if it
+        // is an `err`, then we roll it back. `result_locals[0]` is the
+        // response indicator (all public functions return a response).
+        builder.local_get(result_locals[0]).if_else(
+            None,
+            |then| {
+                // Call the host interface function, `commit_call`
+                then.call(
+                    self.module
+                        .funcs
+                        .by_name("stdlib.commit_call")
+                        .expect("function not found"),
+                );
+            },
+            |else_| {
+                // Call the host interface function, `roll_back_call`
+                else_.call(
+                    self.module
+                        .funcs
+                        .by_name("stdlib.roll_back_call")
+                        .expect("function not found"),
+                );
+            },
+        );
+
+        // Restore the result to the top of the stack.
+        for local in &result_locals {
+            builder.local_get(*local);
+        }
+
+        Ok(())
+    }
+
+    /// Call a read-only function defined in the current contract.
+    fn local_call_read_only(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
+        // Call the host interface function, `begin_readonly_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.begin_read_only_call")
+                .expect("function not found"),
+        );
+
+        self.local_call(builder, name)?;
+
+        // Call the host interface function, `roll_back_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.roll_back_call")
+                .expect("function not found"),
+        );
+
         Ok(())
     }
 
