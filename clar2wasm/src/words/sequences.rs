@@ -29,7 +29,7 @@ impl Word for ListCons {
             .get_expr_type(expr)
             .expect("list expression must be typed")
             .clone();
-        let (elem_ty, num_elem) =
+        let (elem_ty, _num_elem) =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 (list_type.get_list_item_type(), list_type.get_max_len())
             } else {
@@ -39,10 +39,8 @@ impl Word for ListCons {
                 );
             };
 
-        assert_eq!(num_elem as usize, list.len(), "list size mismatch");
-
         // Allocate space on the data stack for the entire list
-        let (offset, size) = generator.create_call_stack_local(builder, &ty, false, true);
+        let (offset, _size) = generator.create_call_stack_local(builder, &ty, false, true);
 
         // Loop through the expressions in the list and store them onto the
         // data stack.
@@ -53,10 +51,9 @@ impl Word for ListCons {
             let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty);
             total_size += elem_size;
         }
-        assert_eq!(total_size, size as u32, "list size mismatch");
 
         // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(size);
+        builder.local_get(offset).i32_const(total_size as i32);
 
         Ok(())
     }
