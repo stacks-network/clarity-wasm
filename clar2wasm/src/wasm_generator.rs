@@ -2130,7 +2130,7 @@ impl WasmGenerator {
                 builder.local_get(*local);
             }
         } else if readonly {
-            // Call the host interface function, `end_readonly_call`
+            // Call the host interface function, `roll_back_call`
             builder.call(
                 self.module
                     .funcs
