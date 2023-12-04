@@ -53,6 +53,12 @@ impl Word for ListCons {
         // data stack.
         let mut total_size = 0;
         for expr in list.iter() {
+            // workaround nanana
+            generator
+                .contract_analysis
+                .type_map
+                .as_mut()
+                .map(|tm| tm.set_type(expr, elem_ty.clone()));
             generator.traverse_expr(builder, expr)?;
             // Write this element to memory
             let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty);
