@@ -94,6 +94,7 @@ impl Word for Fold {
             .get_expr_type(initial)
             .expect("fold's initial value expression must be typed")
             .clone();
+        let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
         let seq_ty = match generator
@@ -108,7 +109,7 @@ impl Word for Fold {
             }
         };
 
-        let (seq_len, elem_ty) = match &seq_ty {
+        let (_, elem_ty) = match &seq_ty {
             SequenceSubtype::ListType(list_type) => {
                 (list_type.get_max_len(), list_type.get_list_item_type())
             }
@@ -118,77 +119,87 @@ impl Word for Fold {
         // Evaluate the sequence, which will load it into the call stack,
         // leaving the offset and size on the data stack.
         generator.traverse_expr(builder, sequence)?;
+        // STACK: [offset, length]
 
-        // Drop the size, since we don't need it
-        builder.drop();
-
-        // Store the offset into a local
+        let length = generator.module.locals.add(ValType::I32);
         let offset = generator.module.locals.add(ValType::I32);
-        builder.local_set(offset);
-
-        let elem_size = get_type_size(elem_ty);
-
-        // Store the end of the sequence into a local
         let end_offset = generator.module.locals.add(ValType::I32);
+
+        // Store the length and offset into locals.
+        builder.local_set(length).local_tee(offset);
+        // STACK: [offset]
+
+        // Compute the ending offset of the sequence.
         builder
-            .local_get(offset)
-            .i32_const(seq_len as i32 * elem_size)
+            .local_get(length)
             .binop(BinaryOp::I32Add)
             .local_set(end_offset);
+        // STACK: []
 
         // Evaluate the initial value, so that its result is on the data stack
         generator.traverse_expr(builder, initial)?;
+        // STACK: [initial_val]
 
-        if seq_len == 0 {
-            // If the sequence is empty, just return the initial value
-            return Ok(());
-        }
+        // If the length of the sequence is 0, then just return the initial
+        // value.
+        builder.local_get(length).unop(UnaryOp::I32Eqz).if_else(
+            InstrSeqType::new(
+                &mut generator.module.types,
+                &result_wasm_types,
+                &result_wasm_types,
+            ),
+            |_| {
+                // Just return the initial value, which is already on the
+                // top of the stack.
+            },
+            |else_| {
+                // Define local(s) to hold the intermediate result, and initialize them
+                // with the initial value. Note that we are looping in reverse order,
+                // to pop values from the top of the stack.
+                let result_locals = generator.save_to_locals(else_, &result_clar_ty, true);
 
-        // Define local(s) to hold the intermediate result, and initialize them
-        // with the initial value. Not that we are looping in reverse order, to
-        // pop values from the top of the stack.
-        let result_locals = generator.save_to_locals(builder, &result_clar_ty, true);
+                // Define the body of a loop, to loop over the sequence and make the
+                // function call.
+                else_.loop_(None, |loop_| {
+                    let loop_id = loop_.id();
 
-        // Define the body of a loop, to loop over the sequence and make the
-        // function call.
-        builder.loop_(None, |loop_| {
-            let loop_id = loop_.id();
+                    // Load the element from the sequence
+                    let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
 
-            // Load the element from the sequence
-            let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
+                    // Push the locals to the stack
+                    for result_local in &result_locals {
+                        loop_.local_get(*result_local);
+                    }
 
-            // Push the locals to the stack
-            for result_local in &result_locals {
-                loop_.local_get(*result_local);
-            }
+                    // Call the function
+                    loop_.call(generator.func_by_name(func.as_str()));
 
-            // Call the function
-            loop_.call(generator.func_by_name(func.as_str()));
+                    // Save the result into the locals (in reverse order as we pop)
+                    for result_local in result_locals.iter().rev() {
+                        loop_.local_set(*result_local);
+                    }
 
-            // Save the result into the locals (in reverse order as we pop)
-            for result_local in result_locals.iter().rev() {
-                loop_.local_set(*result_local);
-            }
+                    // Increment the offset by the size of the element, leaving the
+                    // offset on the top of the stack
+                    loop_
+                        .local_get(offset)
+                        .i32_const(elem_size)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(offset);
 
-            // Increment the offset by the size of the element, leaving the
-            // offset on the top of the stack
-            loop_
-                .local_get(offset)
-                .i32_const(elem_size)
-                .binop(BinaryOp::I32Add)
-                .local_tee(offset);
+                    // Loop if we haven't reached the end of the sequence
+                    loop_
+                        .local_get(end_offset)
+                        .binop(BinaryOp::I32LtU)
+                        .br_if(loop_id);
+                });
 
-            // Loop if we haven't reached the end of the sequence
-            loop_
-                .local_get(end_offset)
-                .binop(BinaryOp::I32LtU)
-                .br_if(loop_id);
-        });
-
-        // Push the locals to the stack
-        for result_local in result_locals {
-            builder.local_get(result_local);
-        }
+                // Push the locals to the stack
+                for result_local in result_locals {
+                    else_.local_get(result_local);
+                }
+            },
+        );
 
         Ok(())
     }
@@ -1096,5 +1107,44 @@ impl Word for Slice {
             .unop(UnaryOp::I32WrapI64);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate as eval;
+    use clarity::vm::Value;
+
+    #[test]
+    fn test_fold_sub() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (sub (x int) (y int))
+    (- x y)
+)
+(fold sub (list 1 2 3 4) 0)
+    "#
+            ),
+            Some(Value::Int(2))
+        );
+    }
+
+    #[test]
+    fn test_fold_sub_empty() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (sub (x int) (y int))
+    (- x y)
+)
+(define-private (fold-sub (l (list 10 int)))
+    (fold sub l 42)
+)
+(fold-sub (list))
+    "#
+            ),
+            Some(Value::Int(42))
+        );
     }
 }
