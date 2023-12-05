@@ -139,16 +139,6 @@ impl Word for IndexOf {
             _ => unimplemented!("Unsupported sequence type"),
         };
 
-        // Return earlier if Sequence size is zero.
-        // if elem_size == 0 {
-        //     builder.drop().drop();
-        //     // STACK: []
-        //     builder.i32_const(0).i64_const(0).i64_const(0);
-        //     // STACK: [i32, i64, i64]
-
-        //     return Ok(());
-        // }
-
         // Locals declaration.
         let seq_size = generator.module.locals.add(ValType::I32);
         let offset = generator.module.locals.add(ValType::I32);
