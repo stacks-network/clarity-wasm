@@ -119,6 +119,8 @@ impl Word for IndexOf {
             .get_expr_type(seq)
             .expect("Sequence must be typed")
             .clone();
+
+        // Get Sequence sub-type
         let seq_sub_ty = if let TypeSignature::SequenceType(seq_sub_type) = &ty {
             seq_sub_type
         } else {
@@ -128,14 +130,24 @@ impl Word for IndexOf {
             )));
         };
 
-        // Get elements type.
-        let (_, elem_ty) = match &seq_sub_ty {
+        // Get Element type.
+        let (elem_size, elem_ty) = match &seq_sub_ty {
             SequenceSubtype::ListType(list_type) => {
                 (list_type.get_max_len(), list_type.get_list_item_type())
             }
             // TODO implement check for other sequence types
             _ => unimplemented!("Unsupported sequence type"),
         };
+
+        // Return earlier if Sequence size is zero.
+        if elem_size == 0 {
+            builder.drop().drop();
+            // STACK: []
+            builder.i32_const(0).i64_const(0).i64_const(0);
+            // STACK: [i32, i64, i64]
+
+            return Ok(());
+        }
 
         // Locals declaration.
         let seq_size = generator.module.locals.add(ValType::I32);
@@ -941,6 +953,21 @@ mod tests {
             eval("(index-of (list (list 1 2) (list 2 3 4) (list 1 2 3 4 5) (list 1 2 3 4)) (list 1 2 3 4))"),
             Some(Value::some(Value::UInt(3)).unwrap())
         );
+    }
+
+    #[test]
+    fn index_of_zero_len_list() {
+        let mut env = TestEnvironment::default();
+        let val = env.init_contract_with_snippet(
+            "index_of",
+            r#"
+(define-private (find-it? (needle int) (haystack (list 0 int)))
+  (index-of? haystack needle))
+(find-it? 6 (list))
+"#,
+        );
+
+        assert_eq!(val.unwrap(), Some(Value::none()));
     }
 
     // TODO [chris]
