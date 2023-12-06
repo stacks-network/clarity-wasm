@@ -38,7 +38,7 @@ pub struct WasmGenerator {
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
-    pub(crate) literal_memory_offet: HashMap<String, u32>,
+    pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
@@ -48,6 +48,12 @@ pub struct WasmGenerator {
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub enum LiteralMemoryEntry {
+    Ascii(String),
+    Utf8(String),
 }
 
 #[derive(Debug)]
@@ -153,7 +159,7 @@ impl WasmGenerator {
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: global_id,
-            literal_memory_offet: HashMap::new(),
+            literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
             early_return_block_id: None,
@@ -382,22 +388,28 @@ impl WasmGenerator {
     pub(crate) fn add_clarity_string_literal(&mut self, s: &CharType) -> (u32, u32) {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
-        if let CharType::ASCII(s) = s {
-            if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-                return (*offset, s.data.len() as u32);
+        let (data, entry) = match s {
+            CharType::ASCII(s) => {
+                let entry = LiteralMemoryEntry::Ascii(s.to_string());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, s.data.len() as u32);
+                }
+                (s.data.clone(), entry)
             }
-        }
-
-        let data = match s {
-            CharType::ASCII(s) => s.data.clone(),
             CharType::UTF8(u) => {
+                let data_str = String::from_utf8(u.data.iter().flatten().cloned().collect())
+                    .expect("Invalid UTF-8 sequence");
+                let entry = LiteralMemoryEntry::Utf8(data_str.clone());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, u.data.len() as u32 * 4);
+                }
                 // Convert the Vec<Vec<u8>> utf8 byte sequences into unicode scalar values.
-                String::from_utf8(u.data.iter().flatten().cloned().collect())
-                    .expect("Invalid UTF-8 sequence")
+                let data = data_str
                     .chars()
                     .map(|c| c as u32) // Convert chars into unicode scalar values
                     .flat_map(|n| n.to_be_bytes().to_vec()) // Flatten the u32 scalar values into a Vec<u8>
-                    .collect()
+                    .collect();
+                (data, entry)
             }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
@@ -412,11 +424,8 @@ impl WasmGenerator {
         );
         self.literal_memory_end += len;
 
-        // Only save literals for ASCII
-        if let CharType::ASCII(_) = s {
-            // Save the offset in the literal memory for this string
-            self.literal_memory_offet.insert(s.to_string(), offset);
-        }
+        // Save the offset in the literal memory for this string
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
@@ -425,7 +434,8 @@ impl WasmGenerator {
     pub(crate) fn add_string_literal(&mut self, name: &str) -> (u32, u32) {
         // If this identifier has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(name) {
+        let entry = LiteralMemoryEntry::Ascii(name.to_string());
+        if let Some(offset) = self.literal_memory_offset.get(&entry) {
             return (*offset, name.len() as u32);
         }
 
@@ -442,7 +452,7 @@ impl WasmGenerator {
         self.literal_memory_end += name.len() as u32;
 
         // Save the offset in the literal memory for this identifier
-        self.literal_memory_offet.insert(name.to_string(), offset);
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
