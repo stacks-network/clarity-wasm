@@ -382,15 +382,10 @@ impl WasmGenerator {
     pub(crate) fn add_clarity_string_literal(&mut self, s: &CharType) -> (u32, u32) {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            let length = match s {
-                CharType::ASCII(s) => s.data.len() as u32,
-                CharType::UTF8(u) => {
-                    // Represented as 4-byte unicode scalar values in memory
-                    u.data.len() as u32 * 4
-                }
-            };
-            return (*offset, length);
+        if let CharType::ASCII(s) = s {
+            if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
+                return (*offset, s.data.len() as u32);
+            }
         }
 
         let data = match s {
