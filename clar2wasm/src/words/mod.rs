@@ -88,6 +88,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &enums::ClarityOk,
     &enums::ClaritySome,
     &equal::IsEq,
+    &equal::IndexOf::Alias,
+    &equal::IndexOf::Original,
     &functions::DefinePrivateFunction,
     &functions::DefinePublicFunction,
     &functions::DefineReadonlyFunction,
