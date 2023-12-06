@@ -4194,6 +4194,26 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_less_than_string_utf8_a,
+    "cmp-buffer",
+    "less-string-utf8-a",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_utf8_b,
+    "cmp-buffer",
+    "less-string-utf8-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_greater_than_string_ascii,
     "cmp-buffer",
     "greater-string-ascii",
@@ -4214,12 +4234,32 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_less_or_equal_string_utf8,
+    "cmp-buffer",
+    "less-or-equal-string-utf8",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_greater_or_equal_string_ascii,
     "cmp-buffer",
     "greater-or-equal-string-ascii",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_string_utf8,
+    "cmp-buffer",
+    "greater-or-equal-string-utf8",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
     }
 );
 
@@ -4267,6 +4307,16 @@ test_contract_call_response!(
     test_less_than_string_ascii_diff_len,
     "cmp-buffer",
     "less-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_utf8_diff_len,
+    "cmp-buffer",
+    "less-string-utf8-diff-len",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(true));
