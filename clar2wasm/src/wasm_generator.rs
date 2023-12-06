@@ -385,14 +385,25 @@ impl WasmGenerator {
         if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
             let length = match s {
                 CharType::ASCII(s) => s.data.len() as u32,
-                CharType::UTF8(_u) => todo!("UTF8"),
+                CharType::UTF8(u) => {
+                    // Represented as 4-byte unicode scalar values in memory
+                    u.data.len() as u32 * 4
+                }
             };
             return (*offset, length);
         }
 
         let data = match s {
             CharType::ASCII(s) => s.data.clone(),
-            CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
+            CharType::UTF8(u) => {
+                // Convert the Vec<Vec<u8>> utf8 byte sequences into unicode scalar values.
+                String::from_utf8(u.data.iter().flat_map(|vec| vec.iter()).cloned().collect())
+                    .expect("Invalid UTF-8 sequence")
+                    .chars()
+                    .map(|c| c as u32) // Convert chars into unicode scalar values
+                    .flat_map(|n| n.to_be_bytes().to_vec()) // Flatten the u32 scalar values into a Vec<u8>
+                    .collect()
+            }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
@@ -402,12 +413,15 @@ impl WasmGenerator {
                 memory: memory.id(),
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
-            data.clone(),
+            data,
         );
-        self.literal_memory_end += data.len() as u32;
+        self.literal_memory_end += len;
 
-        // Save the offset in the literal memory for this string
-        self.literal_memory_offet.insert(s.to_string(), offset);
+        // Only save literals for ASCII
+        if let CharType::ASCII(_) = s {
+            // Save the offset in the literal memory for this string
+            self.literal_memory_offet.insert(s.to_string(), offset);
+        }
 
         (offset, len)
     }

@@ -320,7 +320,15 @@ impl Word for AsMaxLen {
                 }
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
-                ))) => Err(GeneratorError::NotImplemented),
+                ))) => {
+                    builder.i32_const(4);
+
+                    // Divide the length of the list by the length of each element to get
+                    // the number of elements in the list.
+                    builder.binop(BinaryOp::I32DivU);
+
+                    Ok(())
+                }
                 // The byte length of buffers and ASCII strings is the same as
                 // the value length, so just leave it as-is.
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
@@ -466,7 +474,13 @@ impl Word for Len {
                 }
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
-                ))) => Err(GeneratorError::NotImplemented),
+                ))) => {
+                    // UTF8 is represented as 32-bit unicode scalars values.
+                    builder.i32_const(4);
+                    builder.binop(BinaryOp::I32DivU);
+
+                    Ok(())
+                }
                 // The byte length of buffers and ASCII strings is the same as
                 // the value length, so just leave it as-is.
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
@@ -580,7 +594,16 @@ impl Word for ElementAt {
                 }
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
-                ))) => Err(GeneratorError::NotImplemented),
+                ))) => {
+                    // UTF8 is represented as 32-bit unicode scalars values.
+                    builder.i64_const(4);
+                    builder.binop(BinaryOp::I64Mul);
+
+                    // Save the element type for later.
+                    element_ty = Some(ty.clone());
+
+                    Ok(())
+                }
                 _ => Err(GeneratorError::InternalError(
                     "expected sequence type".to_string(),
                 )),
@@ -618,13 +641,19 @@ impl Word for ElementAt {
                 then.i32_const(0);
 
                 // Then push a placeholder for the element type.
-                if let Some(elem_ty) = placeholder_ty {
-                    // Read the element type from the list.
-                    add_placeholder_for_clarity_type(then, &elem_ty)
-                } else {
-                    // The element type is an in-memory type, so we need
-                    // placeholders for offset and length
-                    then.i32_const(0).i32_const(0);
+                match placeholder_ty {
+                    None
+                    | Some(TypeSignature::SequenceType(SequenceSubtype::StringType(
+                        StringSubtype::UTF8(_),
+                    ))) => {
+                        // The element type is an in-memory type, so we need
+                        // placeholders for offset and length
+                        then.i32_const(0).i32_const(0);
+                    }
+                    Some(elem_ty) => {
+                        // Read the element type from the list.
+                        add_placeholder_for_clarity_type(then, &elem_ty)
+                    }
                 }
             },
             |else_| {
@@ -643,13 +672,23 @@ impl Word for ElementAt {
                 else_.i32_const(1);
 
                 // Load the value at the specified offset.
-                if let Some(elem_ty) = &element_ty {
-                    generator.read_from_memory(else_, offset_local, 0, elem_ty);
-                } else {
-                    // The element type is a byte (from a string or buffer), so
-                    // we need to push the offset and length (1) to the
-                    // stack.
-                    else_.local_get(offset_local).i32_const(1);
+                match &element_ty {
+                    None => {
+                        // The element type is a byte (from a string or buffer), so
+                        // we need to push the offset and length (1) to the
+                        // stack.
+                        else_.local_get(offset_local).i32_const(1);
+                    }
+                    Some(TypeSignature::SequenceType(SequenceSubtype::StringType(
+                        StringSubtype::UTF8(_),
+                    ))) => {
+                        // UTF8 is represented as 32-bit unicode scalar values.
+                        else_.local_get(offset_local).i32_const(4);
+                    }
+                    Some(elem_ty) => {
+                        // If the element type is not UTF8, use `read_from_memory`.
+                        generator.read_from_memory(else_, offset_local, 0, elem_ty);
+                    }
                 }
             },
         );
@@ -756,7 +795,14 @@ impl Word for ReplaceAt {
                 Ok(())
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                Err(GeneratorError::NotImplemented)
+                // UTF8 is represented as 32-bit unicode scalars values.
+                builder.i64_const(4);
+                builder.binop(BinaryOp::I64Mul);
+
+                // Save the element type for later.
+                element_ty = Some(seq_ty.clone());
+
+                Ok(())
             }
             _ => Err(GeneratorError::InternalError(
                 "expected sequence type".to_string(),
@@ -828,25 +874,49 @@ impl Word for ReplaceAt {
                     .binop(BinaryOp::I32Add)
                     .local_set(offset_local);
 
+                // if element_ty is some but not TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_)))
+
                 // Write the value to the specified offset.
-                if let Some(elem_ty) = &element_ty {
-                    generator.write_to_memory(else_, offset_local, 0, elem_ty);
-                } else {
-                    // The element type is a byte (from a string or buffer), so
-                    // we need to just copy that byte to the specified offset.
+                match &element_ty {
+                    None => {
+                        // The element type is a byte (from a string or buffer), so
+                        // we need to just copy that byte to the specified offset.
 
-                    // Drop the length of the value (it must be 1)
-                    else_.drop();
+                        // Drop the length of the value (it must be 1)
+                        else_.drop();
 
-                    // Save the source offset to a local.
-                    let src_local = generator.module.locals.add(ValType::I32);
-                    else_.local_set(src_local);
+                        // Save the source offset to a local.
+                        let src_local = generator.module.locals.add(ValType::I32);
+                        else_.local_set(src_local);
 
-                    else_
-                        .local_get(offset_local)
-                        .local_get(src_local)
-                        .i32_const(1)
-                        .memory_copy(memory, memory);
+                        else_
+                            .local_get(offset_local)
+                            .local_get(src_local)
+                            .i32_const(1)
+                            .memory_copy(memory, memory);
+                    }
+                    Some(TypeSignature::SequenceType(SequenceSubtype::StringType(
+                        StringSubtype::UTF8(_),
+                    ))) => {
+                        // The element is a 32-bit unicode scalar value, so we
+                        // need to just copy those 4 bytes to the specified offset.
+
+                        // Drop the length of the value (it must be 1)
+                        else_.drop();
+
+                        // Save the source offset to a local.
+                        let src_local = generator.module.locals.add(ValType::I32);
+                        else_.local_set(src_local);
+
+                        else_
+                            .local_get(offset_local)
+                            .local_get(src_local)
+                            .i32_const(4)
+                            .memory_copy(memory, memory);
+                    }
+                    Some(elem_ty) => {
+                        generator.write_to_memory(else_, offset_local, 0, elem_ty);
+                    }
                 }
 
                 // Push the `some` indicator with destination offset/length.
@@ -945,7 +1015,11 @@ impl Word for Slice {
                 Ok(())
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                Err(GeneratorError::NotImplemented)
+                // UTF8 is represented as 32-bit unicode scalars values.
+                builder.i64_const(4);
+                builder.binop(BinaryOp::I64Mul);
+
+                Ok(())
             }
             _ => Err(GeneratorError::InternalError(
                 "expected sequence type".to_string(),
@@ -1045,7 +1119,11 @@ impl Word for Slice {
                 Ok(())
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                Err(GeneratorError::NotImplemented)
+                // UTF8 is represented as 32-bit unicode scalars values.
+                builder.i64_const(4);
+                builder.binop(BinaryOp::I64Mul);
+
+                Ok(())
             }
             _ => Err(GeneratorError::InternalError(
                 "expected sequence type".to_string(),

@@ -26,6 +26,10 @@
   (ok (as-max-len? "hello" u8))
 )
 
+(define-public (string-utf8-as-max-len)
+  (ok (as-max-len? u"hello\u{1F98A}" u8))
+)
+
 (define-public (buffer-as-max-len)
   (ok (as-max-len? 0x123456 u4))
 )
@@ -38,6 +42,14 @@
   (ok (concat "hello" " world"))
 )
 
+(define-public (string-utf8-concat)
+  (ok (concat u"hello" u" world"))
+)
+
+(define-public (string-utf8-concat-b)
+  (ok (concat u"hello" u" world\u{1F98A}"))
+)
+
 (define-public (buffer-concat)
   (ok (concat 0x123456 0x789abc))
 )
@@ -48,6 +60,14 @@
 
 (define-public (string-len)
   (ok (len "sup"))
+)
+
+(define-public (string-utf8-len)
+  (ok (len u"sup"))
+)
+
+(define-public (string-utf8-len-b)
+  (ok (len u"sup\u{1F98A}"))
 )
 
 (define-public (buffer-len)
@@ -74,6 +94,10 @@
   (ok (element-at "hello" u4))
 )
 
+(define-public (string-utf8-element-at)
+  (ok (element-at u"hello" u4))
+)
+
 (define-public (buffer-element-at)
   (ok (element-at 0x123456 u2))
 )
@@ -86,6 +110,14 @@
   (ok (element-at? "hello" u4))
 )
 
+(define-public (string-utf8-element-at?)
+  (ok (element-at? u"hello" u4))
+)
+
+(define-public (string-utf8-element-at-b?)
+  (ok (element-at? u"hello\u{1F98A}" u5))
+)
+
 (define-public (buffer-element-at?)
   (ok (element-at? 0x123456 u2))
 )
@@ -96,6 +128,10 @@
 
 (define-public (string-element-at-none)
   (ok (element-at? "hello" u5))
+)
+
+(define-public (string-utf8-element-at-none)
+  (ok (element-at? u"hello" u5))
 )
 
 (define-public (buffer-element-at-none)
@@ -115,6 +151,14 @@
   (ok (replace-at? "hello" u0 "j"))
 )
 
+(define-public (string-utf8-replace-at)
+  (ok (replace-at? u"hello" u0 u"j"))
+)
+
+(define-public (string-utf8-replace-at-b)
+  (ok (replace-at? u"hello\u{1F98A}" u2 u"e"))
+)
+
 (define-public (buffer-replace-at)
   (ok (replace-at? 0xfedcba9876543210 u4 0x67))
 )
@@ -125,6 +169,10 @@
 
 (define-public (string-replace-at-none)
   (ok (replace-at? "hello" u5 "X"))
+)
+
+(define-public (string-utf8-replace-at-none)
+  (ok (replace-at? u"hello" u5 u"X"))
 )
 
 (define-public (buffer-replace-at-none)
@@ -151,6 +199,10 @@
   (ok (slice? "hello" u2 u3))
 )
 
+(define-public (string-utf8-slice)
+  (ok (slice? u"hello" u2 u3))
+)
+
 (define-public (buffer-slice)
   (ok (slice? 0xfedcba9876543210 u4 u7))
 )
@@ -163,6 +215,10 @@
   (ok (slice? "hello" u2 u6))
 )
 
+(define-public (string-utf8-slice-none)
+  (ok (slice? u"hello" u2 u6))
+)
+
 (define-public (buffer-slice-none)
   (ok (slice? 0xfedcba9876543210 u0 u10))
 )
@@ -173,6 +229,10 @@
 
 (define-public (string-slice-empty)
   (ok (slice? "hello" u1 u1))
+)
+
+(define-public (string-utf8-slice-empty)
+  (ok (slice? u"hello" u1 u1))
 )
 
 (define-public (buffer-slice-empty)

@@ -3532,6 +3532,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_as_max_len,
+    "sequences",
+    "string-utf8-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("hello🦊".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_list_concat,
     "sequences",
     "list-concat",
@@ -3559,6 +3572,32 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_concat,
+    "sequences",
+    "string-utf8-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world".into()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_concat_b,
+    "sequences",
+    "string-utf8-concat-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world🦊".into()).unwrap()
         );
     }
 );
@@ -3593,6 +3632,26 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_len,
+    "sequences",
+    "string-utf8-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_len_b,
+    "sequences",
+    "string-utf8-len-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
     }
 );
 
@@ -3660,6 +3719,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_element_at,
+    "sequences",
+    "string-utf8-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_buffer_element_at,
     "sequences",
     "buffer-element-at",
@@ -3696,6 +3768,32 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_element_at_alias,
+    "sequences",
+    "string-utf8-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_element_at_alias_b,
+    "sequences",
+    "string-utf8-element-at-b?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("🦊".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_buffer_element_at_alias,
     "sequences",
     "buffer-element-at?",
@@ -3722,6 +3820,16 @@ test_contract_call_response!(
     test_string_element_at_none,
     "sequences",
     "string-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_element_at_none,
+    "sequences",
+    "string-utf8-element-at-none",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::none());
@@ -3780,6 +3888,32 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_replace_at,
+    "sequences",
+    "string-utf8-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("jello".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_replace_at_b,
+    "sequences",
+    "string-utf8-replace-at-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("heelo🦊".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_buffer_replace_at,
     "sequences",
     "buffer-replace-at",
@@ -3809,6 +3943,16 @@ test_contract_call_response!(
     test_string_replace_at_none,
     "sequences",
     "string-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_replace_at_none,
+    "sequences",
+    "string-utf8-replace-at-none",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::none());
@@ -3869,6 +4013,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_slice,
+    "sequences",
+    "string-utf8-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(b"l".to_vec()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_buffer_slice,
     "sequences",
     "buffer-slice",
@@ -3895,6 +4052,16 @@ test_contract_call_response!(
     test_string_slice_none,
     "sequences",
     "string-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_slice_none,
+    "sequences",
+    "string-utf8-slice-none",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::none());
@@ -3933,6 +4100,19 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_slice_empty,
+    "sequences",
+    "string-utf8-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![]).unwrap()).unwrap()
         );
     }
 );
