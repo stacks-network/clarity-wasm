@@ -397,7 +397,7 @@ impl WasmGenerator {
             CharType::ASCII(s) => s.data.clone(),
             CharType::UTF8(u) => {
                 // Convert the Vec<Vec<u8>> utf8 byte sequences into unicode scalar values.
-                String::from_utf8(u.data.iter().flat_map(|vec| vec.iter()).cloned().collect())
+                String::from_utf8(u.data.iter().flatten().cloned().collect())
                     .expect("Invalid UTF-8 sequence")
                     .chars()
                     .map(|c| c as u32) // Convert chars into unicode scalar values
