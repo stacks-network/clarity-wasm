@@ -3116,6 +3116,26 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_str_utf8_equal,
+    "equal",
+    "str-utf8-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_str_utf8_unequal,
+    "equal",
+    "str-utf8-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_principal_equal,
     "equal",
     "principal-equal",
