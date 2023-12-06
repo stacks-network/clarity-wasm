@@ -1,7 +1,7 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{BinaryOp, InstrSeqType, UnaryOp};
+use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use super::Word;
@@ -94,13 +94,27 @@ impl Word for Fold {
             .get_expr_type(initial)
             .expect("fold's initial value expression must be typed")
             .clone();
+        let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
-        let seq_ty = match generator
+        let elem_ty = match generator
             .get_expr_type(sequence)
             .expect("sequence expression must be typed")
         {
-            TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
+            TypeSignature::SequenceType(seq_ty) => match &seq_ty {
+                SequenceSubtype::ListType(list_type) => {
+                    Some(list_type.get_list_item_type().clone())
+                }
+                SequenceSubtype::BufferType(_)
+                | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
+                    // For buffer and string-ascii return none, which indicates
+                    // that elements should be read byte-by-byte.
+                    None
+                }
+                SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
+                    unimplemented!("UTF8 strings not yet supported")
+                }
+            },
             _ => {
                 return Err(GeneratorError::InternalError(
                     "expected sequence type".to_string(),
@@ -108,87 +122,108 @@ impl Word for Fold {
             }
         };
 
-        let (seq_len, elem_ty) = match &seq_ty {
-            SequenceSubtype::ListType(list_type) => {
-                (list_type.get_max_len(), list_type.get_list_item_type())
-            }
-            _ => unimplemented!("Unsupported sequence type"),
-        };
-
         // Evaluate the sequence, which will load it into the call stack,
         // leaving the offset and size on the data stack.
         generator.traverse_expr(builder, sequence)?;
+        // STACK: [offset, length]
 
-        // Drop the size, since we don't need it
-        builder.drop();
-
-        // Store the offset into a local
+        let length = generator.module.locals.add(ValType::I32);
         let offset = generator.module.locals.add(ValType::I32);
-        builder.local_set(offset);
-
-        let elem_size = get_type_size(elem_ty);
-
-        // Store the end of the sequence into a local
         let end_offset = generator.module.locals.add(ValType::I32);
+
+        // Store the length and offset into locals.
+        builder.local_set(length).local_tee(offset);
+        // STACK: [offset]
+
+        // Compute the ending offset of the sequence.
         builder
-            .local_get(offset)
-            .i32_const(seq_len as i32 * elem_size)
+            .local_get(length)
             .binop(BinaryOp::I32Add)
             .local_set(end_offset);
+        // STACK: []
 
         // Evaluate the initial value, so that its result is on the data stack
         generator.traverse_expr(builder, initial)?;
+        // STACK: [initial_val]
 
-        if seq_len == 0 {
-            // If the sequence is empty, just return the initial value
-            return Ok(());
-        }
+        // If the length of the sequence is 0, then just return the initial
+        // value which is already on the stack. Else, loop over the sequence
+        // and apply the function.
+        let then = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &result_wasm_types,
+            &result_wasm_types,
+        ));
+        let then_id = then.id();
+
+        let mut else_ = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &result_wasm_types,
+            &result_wasm_types,
+        ));
+        let else_id = else_.id();
 
         // Define local(s) to hold the intermediate result, and initialize them
-        // with the initial value. Not that we are looping in reverse order, to
-        // pop values from the top of the stack.
-        let result_locals = generator.save_to_locals(builder, &result_clar_ty, true);
+        // with the initial value. Note that we are looping in reverse order,
+        // to pop values from the top of the stack.
+        let result_locals = generator.save_to_locals(&mut else_, &result_clar_ty, true);
 
         // Define the body of a loop, to loop over the sequence and make the
         // function call.
-        builder.loop_(None, |loop_| {
-            let loop_id = loop_.id();
+        let mut loop_ = else_.dangling_instr_seq(None);
+        let loop_id = loop_.id();
 
-            // Load the element from the sequence
-            let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
+        // Load the element from the sequence
+        let elem_size = if let Some(elem_ty) = elem_ty {
+            generator.read_from_memory(&mut loop_, offset, 0, &elem_ty)
+        } else {
+            // The element type is a byte, so we can just push the
+            // offset and length (1) to the stack.
+            loop_.local_get(offset).i32_const(1);
+            1
+        };
 
-            // Push the locals to the stack
-            for result_local in &result_locals {
-                loop_.local_get(*result_local);
-            }
+        // Push the locals to the stack
+        for result_local in &result_locals {
+            loop_.local_get(*result_local);
+        }
 
-            // Call the function
-            loop_.call(generator.func_by_name(func.as_str()));
+        // Call the function
+        generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
 
-            // Save the result into the locals (in reverse order as we pop)
-            for result_local in result_locals.iter().rev() {
-                loop_.local_set(*result_local);
-            }
+        // Save the result into the locals (in reverse order as we pop)
+        for result_local in result_locals.iter().rev() {
+            loop_.local_set(*result_local);
+        }
 
-            // Increment the offset by the size of the element, leaving the
-            // offset on the top of the stack
-            loop_
-                .local_get(offset)
-                .i32_const(elem_size)
-                .binop(BinaryOp::I32Add)
-                .local_tee(offset);
+        // Increment the offset by the size of the element, leaving the
+        // offset on the top of the stack
+        loop_
+            .local_get(offset)
+            .i32_const(elem_size)
+            .binop(BinaryOp::I32Add)
+            .local_tee(offset);
 
-            // Loop if we haven't reached the end of the sequence
-            loop_
-                .local_get(end_offset)
-                .binop(BinaryOp::I32LtU)
-                .br_if(loop_id);
-        });
+        // Loop if we haven't reached the end of the sequence
+        loop_
+            .local_get(end_offset)
+            .binop(BinaryOp::I32LtU)
+            .br_if(loop_id);
+
+        else_.instr(Loop { seq: loop_id });
 
         // Push the locals to the stack
         for result_local in result_locals {
-            builder.local_get(result_local);
+            else_.local_get(result_local);
         }
+
+        builder
+            .local_get(length)
+            .unop(UnaryOp::I32Eqz)
+            .instr(IfElse {
+                consequent: then_id,
+                alternative: else_id,
+            });
 
         Ok(())
     }
@@ -1096,5 +1131,105 @@ impl Word for Slice {
             .unop(UnaryOp::I32WrapI64);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::Value;
+
+    use crate::tools::evaluate as eval;
+
+    #[test]
+    fn test_fold_sub() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (sub (x int) (y int))
+    (- x y)
+)
+(fold sub (list 1 2 3 4) 0)
+    "#
+            ),
+            Some(Value::Int(2))
+        );
+    }
+
+    #[test]
+    fn test_fold_sub_empty() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (sub (x int) (y int))
+    (- x y)
+)
+(define-private (fold-sub (l (list 10 int)))
+    (fold sub l 42)
+)
+(fold-sub (list))
+    "#
+            ),
+            Some(Value::Int(42))
+        );
+    }
+
+    #[test]
+    fn test_fold_string_ascii() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-string "cdef" "ab")
+    "#
+            ),
+            Some(Value::string_ascii_from_bytes("fedcab".to_string().into_bytes()).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_string_ascii_empty() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-string "" "ab")
+    "#
+            ),
+            Some(Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_buffer() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-buff (a (buff 20)) (b (buff 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-buff 0x03040506 0x0102)
+"#,
+            ),
+            Some(Value::buff_from(vec![0x06, 0x05, 0x04, 0x03, 0x01, 0x02]).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_buffer_empty() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-buff (a (buff 20)) (b (buff 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-buff 0x 0x0102)
+"#,
+            ),
+            Some(Value::buff_from(vec![0x01, 0x02]).unwrap())
+        );
     }
 }
