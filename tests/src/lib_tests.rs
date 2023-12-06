@@ -1154,6 +1154,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_constant,
+    "constant",
+    "get-string-utf8-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world🦊".into()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_bytes_constant,
     "constant",
     "get-bytes-constant",
