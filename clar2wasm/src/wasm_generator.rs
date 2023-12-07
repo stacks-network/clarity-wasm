@@ -403,11 +403,10 @@ impl WasmGenerator {
                 if let Some(offset) = self.literal_memory_offset.get(&entry) {
                     return (*offset, u.data.len() as u32 * 4);
                 }
-                // Convert the Vec<Vec<u8>> utf8 byte sequences into unicode scalar values.
+                // Convert the string into 4-byte big-endian unicode scalar values.
                 let data = data_str
                     .chars()
-                    .map(|c| c as u32) // Convert chars into unicode scalar values
-                    .flat_map(|n| n.to_be_bytes().to_vec()) // Flatten the u32 scalar values into a Vec<u8>
+                    .flat_map(|c| (c as u32).to_be_bytes())
                     .collect();
                 (data, entry)
             }
