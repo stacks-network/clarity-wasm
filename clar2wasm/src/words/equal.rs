@@ -114,29 +114,30 @@ impl Word for IndexOf {
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
-        // Get Sequence type.
-        let ty = generator
+        // Get type of the Sequence element.
+        let elem_ty = match generator
             .get_expr_type(seq)
-            .expect("Sequence must be typed")
-            .clone();
-
-        // Get Sequence sub-type
-        let seq_sub_ty = if let TypeSignature::SequenceType(seq_sub_type) = &ty {
-            seq_sub_type
-        } else {
-            return Err(GeneratorError::TypeError(format!(
-                "Expected a Sequence type. Found {:?}",
-                ty
-            )));
-        };
-
-        // Get Element type.
-        let (_, elem_ty) = match &seq_sub_ty {
-            SequenceSubtype::ListType(list_type) => {
-                (list_type.get_max_len(), list_type.get_list_item_type())
+            .expect("Sequence expression must be typed")
+        {
+            TypeSignature::SequenceType(ty) => match &ty {
+                SequenceSubtype::ListType(list_type) => {
+                    Some(list_type.get_list_item_type().clone())
+                }
+                SequenceSubtype::BufferType(_)
+                | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
+                    // For buffer and string-ascii return none, which indicates
+                    // that elements should be read byte-by-byte.
+                    None
+                }
+                SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
+                    unimplemented!("UTF8 strings not yet supported")
+                }
+            },
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "expected sequence type".to_string(),
+                ));
             }
-            // TODO implement check for other sequence types
-            _ => unimplemented!("Unsupported sequence type"),
         };
 
         // Locals declaration.
@@ -166,7 +167,7 @@ impl Word for IndexOf {
                 &[ValType::I32, ValType::I64, ValType::I64],
             ),
             |then| {
-                // If size is 0 returns "None".
+                // If Sequence size is 0 returns "None".
                 then.i32_const(0).i64_const(0).i64_const(0);
                 // STACK: [i32, i64, i64]
             },
@@ -205,18 +206,28 @@ impl Word for IndexOf {
 
                     // Load an element from the sequence, at offset position,
                     // and push it onto the top of the stack.
-                    let elem_size = generator.read_from_memory(loop_, offset, 0, elem_ty);
-                    // STACK: [element]
+                    // Also store the current sequence element into a local.
+                    let (elem_size, elem_locals) = if let Some(elem_ty) = elem_ty {
+                        (
+                            generator.read_from_memory(loop_, offset, 0, &elem_ty),
+                            generator.save_to_locals(loop_, &elem_ty, true),
+                        )
+                        // STACK: [element]
+                    } else {
+                        // The element type is a byte, so we can just push the
+                        // offset and size = 1 to the stack.
+                        let size = 1;
+                        loop_.local_get(offset).i32_const(size);
+                        // STACK: [offset, size]
 
-                    // Store the current sequence element into a local.
-                    let elem_locals = generator.save_to_locals(loop_, elem_ty, true);
-                    // STACK: []
+                        (size, generator.save_to_locals(loop_, &item_ty, true))
+                    };
 
                     // Check item and element equality.
                     // And push the result of the comparison onto the top of the stack.
                     let _res = wasm_equal(
                         &item_ty,
-                        elem_ty,
+                        &item_ty,
                         generator,
                         loop_,
                         &item_locals,
@@ -922,7 +933,7 @@ mod tests {
     use crate::tools::{evaluate as eval, TestEnvironment};
 
     #[test]
-    fn index_of_elem_not_in_list() {
+    fn index_of_list_not_present() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 9)"),
             Some(Value::none())
@@ -930,7 +941,7 @@ mod tests {
     }
 
     #[test]
-    fn index_of_first_elem() {
+    fn index_of_list_first() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4) 1)"),
             Some(Value::some(Value::UInt(0)).unwrap())
@@ -938,7 +949,7 @@ mod tests {
     }
 
     #[test]
-    fn index_of_elem() {
+    fn index_of_list() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 3)"),
             Some(Value::some(Value::UInt(2)).unwrap())
@@ -946,7 +957,7 @@ mod tests {
     }
 
     #[test]
-    fn index_of_last_elem() {
+    fn index_of_list_last() {
         assert_eq!(
             eval("(index-of? (list 1 2 3 4 5 6 7) 7)"),
             Some(Value::some(Value::UInt(6)).unwrap())
@@ -954,7 +965,7 @@ mod tests {
     }
 
     #[test]
-    fn index_of_called_by_v1_alias() {
+    fn index_of_list_called_by_v1_alias() {
         assert_eq!(
             eval("(index-of (list 1 2 3 4 5 6 7) 100)"),
             Some(Value::none())
@@ -970,7 +981,7 @@ mod tests {
     }
 
     #[test]
-    fn index_of_zero_len_list() {
+    fn index_of_list_zero_len() {
         let mut env = TestEnvironment::default();
         let val = env.init_contract_with_snippet(
             "index_of",
@@ -987,7 +998,7 @@ mod tests {
     // TODO [chris]
     #[ignore = "need asserts! function to be implemented"]
     #[test]
-    fn index_of_check_stack() {
+    fn index_of_list_check_stack() {
         let mut env = TestEnvironment::default();
         let val = env.init_contract_with_snippet(
             "index_of",
@@ -1000,5 +1011,63 @@ mod tests {
         );
 
         assert_eq!(val.unwrap(), Some(Bool(true)));
+    }
+
+    #[test]
+    fn index_of_ascii() {
+        assert_eq!(
+            eval("(index-of \"Stacks\" \"a\")"),
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_ascii_first_elem() {
+        assert_eq!(
+            eval("(index-of \"Stacks\" \"S\")"),
+            Some(Value::some(Value::UInt(0)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_ascii_last_elem() {
+        assert_eq!(
+            eval("(index-of \"Stacks\" \"s\")"),
+            Some(Value::some(Value::UInt(5)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_ascii_zero_len() {
+        assert_eq!(eval("(index-of \"Stacks\" \"\")"), Some(Value::none()));
+    }
+
+    #[test]
+    fn index_of_buff_last_byte() {
+        assert_eq!(
+            eval("(index-of 0xfb01 0x01)"),
+            Some(Value::some(Value::UInt(1)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_buff_first_byte() {
+        assert_eq!(
+            eval("(index-of 0xfb01 0xfb)"),
+            Some(Value::some(Value::UInt(0)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_buff() {
+        assert_eq!(
+            eval("(index-of 0xeeaadd 0xaa)"),
+            Some(Value::some(Value::UInt(1)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_buff_not_present() {
+        assert_eq!(eval("(index-of 0xeeaadd 0xcc)"), Some(Value::none()));
     }
 }
