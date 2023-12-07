@@ -2492,6 +2492,37 @@ test_contract_call_response_events!(
 );
 
 test_contract_call_response_events!(
+    test_print_string_utf8,
+    "print",
+    "print-string-utf8",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("helŁo world 愛🦊".into()).unwrap()
+        );
+    },
+    |event_batches: &Vec<EventBatch>| {
+        assert_eq!(event_batches.len(), 1);
+        assert_eq!(event_batches[0].events.len(), 1);
+        if let StacksTransactionEvent::SmartContractEvent(event) = &event_batches[0].events[0] {
+            let (ref contract, ref label) = &event.key;
+            assert_eq!(
+                contract,
+                &QualifiedContractIdentifier::local("print").unwrap()
+            );
+            assert_eq!(label, "print");
+            assert_eq!(
+                event.value,
+                Value::string_utf8_from_bytes("helŁo world 愛🦊".into()).unwrap()
+            );
+        } else {
+            panic!("Unexpected event received from Wasm function call.");
+        }
+    }
+);
+
+test_contract_call_response_events!(
     test_print_string_ascii,
     "print",
     "print-string-ascii",
