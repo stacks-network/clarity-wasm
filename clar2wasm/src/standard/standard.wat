@@ -2525,7 +2525,6 @@
     (func $stdlib.convert-scalars-to-utf8 (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
         (local $i i32)       ;; Loop counter
         (local $initial-output-offset i32)
-        (local $output-length i32)
         (local $scalar i32)  ;; Scalar value
         (local $byte1 i32)   ;; Byte variables for UTF-8 encoding
         (local $byte2 i32)
@@ -2649,11 +2648,8 @@
             (br_if $loop (i32.lt_u (local.get $i) (local.get $length)))
         )
 
-        ;; Calculate the length
-        (local.set $output-length (i32.sub (local.get $output-offset) (local.get $initial-output-offset)))
-
-        ;; Return the start offset and the length of the UTF-8 bytes
-        (local.get $output-length)  ;; Push the calculated length onto the stack
+        ;; Calculate the length and push to stack
+        (i32.sub (local.get $output-offset) (local.get $initial-output-offset))
     )
 
     (export "stdlib.add-uint" (func $stdlib.add-uint))
