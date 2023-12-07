@@ -102,17 +102,17 @@ impl Word for Fold {
             .expect("sequence expression must be typed")
         {
             TypeSignature::SequenceType(seq_ty) => match &seq_ty {
-                SequenceSubtype::ListType(list_type) => {
-                    Some(list_type.get_list_item_type().clone())
-                }
+                SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
+                    list_type.get_list_item_type().clone(),
+                )),
                 SequenceSubtype::BufferType(_)
                 | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
                     // For buffer and string-ascii return none, which indicates
                     // that elements should be read byte-by-byte.
-                    None
+                    Ok(SequenceElementType::Byte)
                 }
                 SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
-                    unimplemented!("UTF8 strings not yet supported")
+                    Ok(SequenceElementType::UnicodeScalar)
                 }
             },
             _ => {
@@ -120,7 +120,7 @@ impl Word for Fold {
                     "expected sequence type".to_string(),
                 ));
             }
-        };
+        }?;
 
         // Evaluate the sequence, which will load it into the call stack,
         // leaving the offset and size on the data stack.
@@ -174,13 +174,22 @@ impl Word for Fold {
         let loop_id = loop_.id();
 
         // Load the element from the sequence
-        let elem_size = if let Some(elem_ty) = elem_ty {
-            generator.read_from_memory(&mut loop_, offset, 0, &elem_ty)
-        } else {
-            // The element type is a byte, so we can just push the
-            // offset and length (1) to the stack.
-            loop_.local_get(offset).i32_const(1);
-            1
+        let elem_size = match &elem_ty {
+            SequenceElementType::Other(elem_ty) => {
+                generator.read_from_memory(&mut loop_, offset, 0, elem_ty)
+            }
+            SequenceElementType::Byte => {
+                // The element type is a byte, so we can just push the
+                // offset and length (1) to the stack.
+                loop_.local_get(offset).i32_const(1);
+                1
+            }
+            SequenceElementType::UnicodeScalar => {
+                // The element type is a 32-bit unicode scalar, so we can just push the
+                // offset and length (4) to the stack.
+                loop_.local_get(offset).i32_const(4);
+                4
+            }
         };
 
         // Push the locals to the stack
@@ -1261,6 +1270,51 @@ mod tests {
     "#
             ),
             Some(Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_string_utf8() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-string u"cdef" u"ab")
+    "#
+            ),
+            Some(Value::string_utf8_from_bytes("fedcab".into()).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_string_utf8_b() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-string u"cdef" u"ab\u{1F98A}")
+    "#
+            ),
+            Some(Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fold_string_utf8_empty() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
+    (unwrap-panic (as-max-len? (concat a b) u20))
+)
+(fold concat-string u"" u"ab\u{1F98A}")
+    "#
+            ),
+            Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())
         );
     }
 
