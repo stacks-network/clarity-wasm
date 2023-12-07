@@ -2058,12 +2058,27 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         self.traverse_args(builder, args)?;
 
+        let return_ty = self
+            .get_expr_type(expr)
+            .expect("function call expression must be typed")
+            .clone();
+        self.visit_call_user_defined(builder, &return_ty, name)
+    }
+
+    /// Visit a function call to a user-defined function. Arguments must have
+    /// already been traversed and pushed to the stack.
+    pub fn visit_call_user_defined(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        return_ty: &TypeSignature,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
         if self
             .contract_analysis
             .get_public_function_type(name.as_str())
             .is_some()
         {
-            self.local_call_public(builder, expr, name)?;
+            self.local_call_public(builder, return_ty, name)?;
         } else if self
             .contract_analysis
             .get_read_only_function_type(name.as_str())
@@ -2081,6 +2096,34 @@ impl WasmGenerator {
                 "function not found: {name}",
                 name = name.as_str()
             )));
+        }
+
+        // If an in-memory value is returned from a function, we need to copy
+        // it to our frame, from the callee's frame.
+        if is_in_memory_type(return_ty) {
+            // The result may be in the callee's call frame, can be overwritten
+            // after returning, so we need to copy it to our frame.
+            let result_offset = self.module.locals.add(ValType::I32);
+            let result_length = self.module.locals.add(ValType::I32);
+            builder.local_set(result_length).local_set(result_offset);
+
+            // Reserve space to store the returned value.
+            let offset = self.module.locals.add(ValType::I32);
+            builder.global_get(self.stack_pointer).local_tee(offset);
+            builder
+                .local_get(result_length)
+                .binop(BinaryOp::I32Add)
+                .global_set(self.stack_pointer);
+
+            // Copy the result to our frame.
+            builder
+                .local_get(offset)
+                .local_get(result_offset)
+                .local_get(result_length)
+                .memory_copy(self.get_memory(), self.get_memory());
+
+            // Push the copied offset and length to the stack
+            builder.local_get(offset).local_get(result_length);
         }
 
         Ok(())
@@ -2109,7 +2152,7 @@ impl WasmGenerator {
     fn local_call_public(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        return_ty: &TypeSignature,
         name: &ClarityName,
     ) -> Result<(), GeneratorError> {
         // Call the host interface function, `begin_public_call`
@@ -2123,11 +2166,7 @@ impl WasmGenerator {
         self.local_call(builder, name)?;
 
         // Save the result to a local
-        let res_ty = self
-            .get_expr_type(expr)
-            .expect("function result must be typed")
-            .clone();
-        let result_locals = self.save_to_locals(builder, &res_ty, true);
+        let result_locals = self.save_to_locals(builder, return_ty, true);
 
         // If the result is an `ok`, then we can commit the call, and if it
         // is an `err`, then we roll it back. `result_locals[0]` is the
