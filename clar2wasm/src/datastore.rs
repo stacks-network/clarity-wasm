@@ -5,25 +5,21 @@
 //! `developer-mode` feature is enabled. Many of these methods are just
 //! mock implementations that do nothing.
 
-use clarity::types::chainstate::BlockHeaderHash;
-use clarity::types::chainstate::BurnchainHeaderHash;
-use clarity::types::chainstate::ConsensusHash;
-use clarity::types::chainstate::SortitionId;
-use clarity::types::chainstate::StacksAddress;
-use clarity::types::chainstate::StacksBlockId;
-use clarity::types::chainstate::VRFSeed;
+use std::collections::HashMap;
+
+use clarity::types::chainstate::{
+    BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
+    VRFSeed,
+};
 use clarity::types::StacksEpochId;
 use clarity::util::hash::Sha512Trunc256Sum;
 use clarity::vm::analysis::AnalysisDatabase;
-use clarity::vm::database::BurnStateDB;
-use clarity::vm::database::{ClarityBackingStore, HeadersDB};
+use clarity::vm::database::{BurnStateDB, ClarityBackingStore, HeadersDB};
 use clarity::vm::errors::InterpreterResult as Result;
-use clarity::vm::types::QualifiedContractIdentifier;
-use clarity::vm::types::TupleData;
-use clarity::vm::StacksEpoch;
-use clarity::vm::Value;
+use clarity::vm::types::{QualifiedContractIdentifier, TupleData};
+use clarity::vm::{StacksEpoch, Value};
+use rusqlite::Connection;
 use sha2::{Digest, Sha512_256};
-use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct Datastore {
@@ -301,7 +297,7 @@ impl ClarityBackingStore for Datastore {
     }
 
     #[cfg(not(feature = "wasm"))]
-    fn get_side_store(&mut self) -> &::clarity::rusqlite::Connection {
+    fn get_side_store(&mut self) -> &Connection {
         panic!("Datastore cannot get_side_store")
     }
 }
@@ -465,6 +461,14 @@ impl BurnStateDB for BurnDatastore {
 
     /// Returns the height of the burnchain when the Stacks chain started running.
     fn get_burn_start_height(&self) -> u32 {
+        0
+    }
+
+    fn get_v3_unlock_height(&self) -> u32 {
+        0
+    }
+
+    fn get_pox_4_activation_height(&self) -> u32 {
         0
     }
 

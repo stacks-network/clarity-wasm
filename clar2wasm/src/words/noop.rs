@@ -1,7 +1,7 @@
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.
@@ -78,12 +78,10 @@ impl Word for ContractOf {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::evaluate as eval;
-    use crate::tools::TestEnvironment;
-    use clarity::vm::{
-        types::{PrincipalData, QualifiedContractIdentifier},
-        Value,
-    };
+    use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
+    use clarity::vm::Value;
+
+    use crate::tools::{evaluate as eval, TestEnvironment};
 
     #[test]
     #[should_panic]

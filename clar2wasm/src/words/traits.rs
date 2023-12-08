@@ -1,7 +1,7 @@
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineTrait;
@@ -105,10 +105,8 @@ impl Word for ImplTrait {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{StandardPrincipalData, TraitIdentifier},
-        Value,
-    };
+    use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
+    use clarity::vm::Value;
 
     use crate::tools::{evaluate, TestEnvironment};
 

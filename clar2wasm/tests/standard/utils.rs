@@ -1,10 +1,10 @@
+use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
+
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::ToHex;
 use proptest::prelude::*;
-use std::ops::Deref;
-use std::{cell::RefCell, ops::DerefMut};
-use wasmtime::Val;
-use wasmtime::{Caller, Engine, Instance, Linker, Module, Store};
+use wasmtime::{Caller, Engine, Instance, Linker, Module, Store, Val};
 
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.
@@ -481,6 +481,34 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .unwrap();
 
     linker
+        .func_wrap("clarity", "begin_public_call", || {
+            println!("begin_public_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "begin_read_only_call", || {
+            println!("begin_read_only_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "commit_call", || {
+            println!("commit_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "roll_back_call", || {
+            println!("roll_back_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
         .func_wrap(
             "clarity",
             "keccak256",
@@ -541,6 +569,17 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
              _pk_length: i32| {
                 println!("secp256k1_verify");
                 Ok(0i32)
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "principal_of",
+            |_key_offset: i32, _key_length: i32, _principal_offset: i32| {
+                println!("secp256k1_verify");
+                Ok((0i32, 0i32, 0i32, 0i64, 0i64))
             },
         )
         .unwrap();

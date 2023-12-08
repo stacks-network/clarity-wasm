@@ -1,10 +1,10 @@
+use std::collections::HashMap;
+
+use clarity::vm::{ClarityName, SymbolicExpression};
+use lazy_static::lazy_static;
 use walrus::InstrSeqBuilder;
 
 use crate::{GeneratorError, WasmGenerator};
-use clarity::vm::{ClarityName, SymbolicExpression};
-
-use lazy_static::lazy_static;
-use std::collections::HashMap;
 
 pub mod arithmetic;
 pub mod bindings;
@@ -13,6 +13,7 @@ pub mod blockinfo;
 pub mod buff_to_integer;
 pub mod comparison;
 pub mod conditionals;
+pub mod consensus_buff;
 pub mod constants;
 pub mod contract;
 pub mod control_flow;
@@ -66,7 +67,10 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::And,
     &conditionals::Filter,
     &conditionals::If,
+    &conditionals::Match,
     &conditionals::Or,
+    &conditionals::Unwrap,
+    &consensus_buff::ToConsensusBuf,
     &constants::DefineConstant,
     &contract::AsContract,
     &contract::ContractCall,
@@ -84,6 +88,8 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &enums::ClarityOk,
     &enums::ClaritySome,
     &equal::IsEq,
+    &equal::IndexOf::Alias,
+    &equal::IndexOf::Original,
     &functions::DefinePrivateFunction,
     &functions::DefinePublicFunction,
     &functions::DefineReadonlyFunction,
@@ -106,6 +112,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &principal::Construct,
     &principal::Destruct,
     &principal::IsStandard,
+    &principal::PrincipalOf,
     &print::Print,
     &responses::IsErr,
     &responses::IsOk,
@@ -171,4 +178,39 @@ lazy_static! {
 
 pub fn lookup(name: &str) -> Option<&'static dyn Word> {
     WORDS_BY_NAME.get(name).copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::functions::define::DefineFunctions;
+    use clarity::vm::functions::NativeFunctions;
+    use clarity::vm::variables::NativeVariables;
+
+    #[test]
+    fn check_for_duplicates() {
+        use std::collections::HashSet;
+
+        let mut names = HashSet::new();
+
+        for word in super::WORDS {
+            assert!(
+                names.insert(word.name()),
+                "duplicate word: {:?}",
+                word.name()
+            );
+        }
+    }
+
+    #[test]
+    fn check_for_non_reserved_words() {
+        for word in super::WORDS {
+            // Printing each word also gets us coverage on the Debug impl.
+            println!("{:?} => {}", word, word.name());
+            assert!(
+                DefineFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeVariables::lookup_by_name(&word.name()).is_some(),
+            );
+        }
+    }
 }

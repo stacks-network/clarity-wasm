@@ -1,15 +1,12 @@
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt};
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{
-    types::{SequenceSubtype, TypeSignature},
-    ClarityName, SymbolicExpression,
-};
-use walrus::{
-    ir::{self, InstrSeqType},
-    ValType,
-};
+use clarity::vm::types::{SequenceSubtype, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ir::{self, InstrSeqType};
+use walrus::ValType;
 
 use super::Word;
+use crate::wasm_generator::{
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 
 #[derive(Debug)]
 pub struct If;
@@ -23,36 +20,15 @@ impl Word for If {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
 
-        let return_type = clar2wasm_ty(
-            generator
-                .get_expr_type(expr)
-                .expect("If results must be typed"),
-        );
-
-        // create block for true branch
-
-        let mut true_block = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &return_type,
-        ));
-        generator.traverse_expr(&mut true_block, true_branch)?;
-        let id_true = true_block.id();
-
-        let mut false_block = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &return_type,
-        ));
-        generator.traverse_expr(&mut false_block, false_branch)?;
-        let id_false = false_block.id();
+        let id_true = generator.block_from_expr(builder, true_branch)?;
+        let id_false = generator.block_from_expr(builder, false_branch)?;
 
         generator.traverse_expr(builder, conditional)?;
 
@@ -62,6 +38,91 @@ impl Word for If {
         });
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Match;
+
+impl Word for Match {
+    fn name(&self) -> ClarityName {
+        "match".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let match_on = args.get_expr(0)?;
+        let success_binding = args.get_name(1)?;
+        let success_body = args.get_expr(2)?;
+
+        // save the current set of named locals, for later restoration
+        let saved_bindings = generator.bindings.clone();
+
+        generator.traverse_expr(builder, match_on)?;
+
+        match generator.get_expr_type(match_on).cloned() {
+            Some(TypeSignature::OptionalType(inner_type)) => {
+                let none_body = args.get_expr(3)?;
+                let some_locals = generator.save_to_locals(builder, &inner_type, true);
+
+                generator
+                    .bindings
+                    .insert(success_binding.as_str().into(), some_locals);
+                let some_block = generator.block_from_expr(builder, success_body)?;
+
+                // we can restore early, since the none branch does not bind anything
+                generator.bindings = saved_bindings;
+
+                let none_block = generator.block_from_expr(builder, none_body)?;
+
+                builder.instr(ir::IfElse {
+                    consequent: some_block,
+                    alternative: none_block,
+                });
+
+                Ok(())
+            }
+            Some(TypeSignature::ResponseType(inner_types)) => {
+                let (ok_ty, err_ty) = &*inner_types;
+
+                let err_binding = args.get_name(3)?;
+                let err_body = args.get_expr(4)?;
+
+                let err_locals = generator.save_to_locals(builder, err_ty, true);
+                let ok_locals = generator.save_to_locals(builder, ok_ty, true);
+
+                generator
+                    .bindings
+                    .insert(success_binding.as_str().into(), ok_locals);
+                let ok_block = generator.block_from_expr(builder, success_body)?;
+
+                // restore named locals
+                generator.bindings = saved_bindings.clone();
+
+                // bind err branch local
+                generator
+                    .bindings
+                    .insert(err_binding.as_str().into(), err_locals);
+
+                let err_block = generator.block_from_expr(builder, err_body)?;
+
+                // restore named locals again
+                generator.bindings = saved_bindings;
+
+                builder.instr(ir::IfElse {
+                    consequent: ok_block,
+                    alternative: err_block,
+                });
+
+                Ok(())
+            }
+            _ => Err(GeneratorError::TypeError("Invalid type for match".into())),
+        }
     }
 }
 
@@ -130,11 +191,9 @@ impl Word for Filter {
 
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
-        // the loop returns nothing itself, but builds the result in the data stack
-        let loop_body_ty = InstrSeqType::new(&mut generator.module.types, &[], &[]);
         let memory = generator.get_memory();
 
-        builder.loop_(loop_body_ty, |loop_| {
+        builder.loop_(None, |loop_| {
             let loop_id = loop_.id();
 
             // Load an element from the sequence
@@ -150,8 +209,7 @@ impl Word for Filter {
 
             // [ Discriminator result (bool) ]
 
-            let mut success_branch =
-                loop_.dangling_instr_seq(InstrSeqType::new(&mut generator.module.types, &[], &[]));
+            let mut success_branch = loop_.dangling_instr_seq(None);
             let succ_id = success_branch.id();
 
             // on success, increment length and copy value
@@ -183,8 +241,7 @@ impl Word for Filter {
 
             // fail branch is a no-op (FIXME there is most certainly a better way to do this)
 
-            let fail_branch =
-                loop_.dangling_instr_seq(InstrSeqType::new(&mut generator.module.types, &[], &[]));
+            let fail_branch = loop_.dangling_instr_seq(None);
             let fail_id = fail_branch.id();
 
             loop_.instr(ir::IfElse {
@@ -304,10 +361,81 @@ impl Word for Or {
     }
 }
 
+#[derive(Debug)]
+pub struct Unwrap;
+
+impl Word for Unwrap {
+    fn name(&self) -> ClarityName {
+        "unwrap!".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let input = args.get_expr(0)?;
+        let throw = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+
+        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+
+        let inner_type = match generator.get_expr_type(input) {
+            Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
+            Some(TypeSignature::ResponseType(inner_types)) => {
+                let (ok_type, err_type) = &**inner_types;
+                // Drop the err value;
+                drop_value(builder, err_type);
+                ok_type.clone()
+            }
+            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
+        };
+
+        // stack [ discriminant some_val ]
+        let some_locals = generator.save_to_locals(builder, &inner_type, true);
+
+        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &throw_type,
+        ));
+        generator.traverse_expr(&mut throw_branch, throw)?;
+
+        generator.return_early(&mut throw_branch)?;
+
+        let throw_branch_id = throw_branch.id();
+
+        // stack [ discriminant ]
+
+        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &clar2wasm_ty(&inner_type),
+        ));
+
+        // in unwrap we restore the value from the locals
+        for local in some_locals {
+            unwrap_branch.local_get(local);
+        }
+
+        let unwrap_branch_id = unwrap_branch.id();
+
+        builder.instr(ir::IfElse {
+            consequent: unwrap_branch_id,
+            alternative: throw_branch_id,
+        });
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::tools::evaluate as eval;
     use clarity::vm::Value;
+
+    use crate::tools::evaluate as eval;
 
     #[test]
     fn trivial() {
@@ -384,6 +512,77 @@ mod tests {
                 "#
             ),
             eval("8")
+        );
+    }
+
+    #[test]
+    fn clar_match_a() {
+        const ADD_10: &str = "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   err (+ err 107)))";
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (ok 115))")),
+            Some(Value::Int(125))
+        );
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (err 18))")),
+            Some(Value::Int(125))
+        );
+    }
+
+    #[test]
+    fn clar_match_b() {
+        const ADD_10: &str = "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val
+   1001))";
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 none)")),
+            Some(Value::Int(1001))
+        );
+
+        assert_eq!(
+            eval(&format!("{ADD_10} (add-10 (some 10))")),
+            Some(Value::Int(10))
+        );
+    }
+
+    #[test]
+    fn clar_unwrap_a() {
+        const FN: &str = "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x 23) 10))";
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper none)")),
+            Some(Value::Int(23))
+        );
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (some 10))")),
+            Some(Value::Int(20))
+        );
+    }
+
+    #[test]
+    fn clar_unwrap_b() {
+        const FN: &str = "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap! x 23) 10))";
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (err 9999))")),
+            Some(Value::Int(23))
+        );
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (ok 10))")),
+            Some(Value::Int(20))
         );
     }
 }

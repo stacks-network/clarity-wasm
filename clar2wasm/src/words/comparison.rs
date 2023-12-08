@@ -1,10 +1,8 @@
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use clarity::vm::{
-    types::{SequenceSubtype, StringSubtype, TypeSignature},
-    ClarityName, SymbolicExpression,
-};
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
     name: &str,
@@ -25,7 +23,10 @@ fn traverse_comparison(
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_)))
         | TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buff",
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-            todo!()
+            // For `string-utf8`, comparison is done on a codepoint-by-codepoint basis.
+            // Comparing two codepoints is the act of comparing them on a byte-by-byte basis.
+            // Since we already have 32-bit unicode scalars, we can just compare them with buff.
+            "buff"
         }
         _ => {
             return Err(GeneratorError::InternalError(

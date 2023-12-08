@@ -1,27 +1,23 @@
+use std::collections::HashMap;
+
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
-use clarity::vm::types::TupleData;
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        callables::DefineType,
-        clarity_wasm::{call_function, initialize_contract},
-        contexts::{CallStack, EventBatch, GlobalContext},
-        contracts::Contract,
-        costs::LimitedCostTracker,
-        database::{ClarityDatabase, MemoryBackingStore},
-        errors::{Error, WasmError},
-        events::StacksTransactionEvent,
-        types::{
-            PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
-            TypeSignature,
-        },
-        ClarityVersion, ContractContext, Value,
-    },
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::callables::DefineType;
+use clarity::vm::clarity_wasm::{call_function, initialize_contract};
+use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
+use clarity::vm::contracts::Contract;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::events::StacksTransactionEvent;
+use clarity::vm::types::{
+    PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
+    TypeSignature,
 };
+use clarity::vm::{ClarityVersion, ContractContext, Value};
 use hex::FromHex;
-use std::collections::HashMap;
 
 /// This macro provides a convenient way to test contract initialization.
 /// In order, it takes as parameters:
@@ -777,7 +773,7 @@ test_contract_call_response!(
     "fold-bench",
     "fold-add-square",
     &[
-        Value::list_from((1..=8192).map(Value::Int).collect())
+        Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument"),
         Value::Int(1)
     ],
@@ -1153,6 +1149,19 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::string_ascii_from_bytes(b"hello world".to_vec()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_constant,
+    "constant",
+    "get-string-utf8-constant",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world🦊".into()).unwrap()
         );
     }
 );
@@ -2299,7 +2308,8 @@ test_contract_call_response_events!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     },
     |event_batches: &Vec<EventBatch>| {
@@ -2314,7 +2324,8 @@ test_contract_call_response_events!(
             assert_eq!(label, "print");
             assert_eq!(
                 event.value,
-                Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                    .unwrap()
             );
         } else {
             panic!("Unexpected event received from Wasm function call.");
@@ -2330,7 +2341,7 @@ test_contract_call_response_events!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::Principal(
                     PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
                 ),
@@ -2354,7 +2365,7 @@ test_contract_call_response_events!(
             assert_eq!(label, "print");
             assert_eq!(
                 event.value,
-                Value::list_from(vec![
+                Value::cons_list_unsanitized(vec![
                     Value::Principal(
                         PrincipalData::parse("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM").unwrap()
                     ),
@@ -2377,7 +2388,10 @@ test_contract_call_response_events!(
     "print-list-empty",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::list_from(vec![]).unwrap());
+        assert_eq!(
+            *response.data,
+            Value::cons_list_unsanitized(vec![]).unwrap()
+        );
     },
     |event_batches: &Vec<EventBatch>| {
         assert_eq!(event_batches.len(), 1);
@@ -2389,7 +2403,7 @@ test_contract_call_response_events!(
                 &QualifiedContractIdentifier::local("print").unwrap()
             );
             assert_eq!(label, "print");
-            assert_eq!(event.value, Value::list_from(vec![]).unwrap());
+            assert_eq!(event.value, Value::cons_list_unsanitized(vec![]).unwrap());
         } else {
             panic!("Unexpected event received from Wasm function call.");
         }
@@ -3102,6 +3116,26 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_str_utf8_equal,
+    "equal",
+    "str-utf8-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_str_utf8_unequal,
+    "equal",
+    "str-utf8-unequal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
     test_principal_equal,
     "equal",
     "principal-equal",
@@ -3439,7 +3473,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     }
 );
@@ -3452,7 +3487,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::string_ascii_from_bytes("hello".to_string().into_bytes()).unwrap(),
                 Value::string_ascii_from_bytes("world".to_string().into_bytes()).unwrap(),
                 Value::string_ascii_from_bytes("!".to_string().into_bytes()).unwrap(),
@@ -3470,7 +3505,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Bool(true)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Bool(true)]).unwrap()
         );
     }
 );
@@ -3483,7 +3518,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![Value::Int(1), Value::Int(2)]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2)]).unwrap())
+                .unwrap()
         );
     }
 );
@@ -3506,7 +3542,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap()
         );
     }
 );
@@ -3539,6 +3575,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_as_max_len,
+    "sequences",
+    "string-utf8-as-max-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("hello🦊".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_list_concat,
     "sequences",
     "list-concat",
@@ -3546,7 +3595,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![
+            Value::cons_list_unsanitized(vec![
                 Value::Int(1),
                 Value::Int(2),
                 Value::Int(3),
@@ -3566,6 +3615,32 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::string_ascii_from_bytes("hello world".to_string().into_bytes()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_concat,
+    "sequences",
+    "string-utf8-concat",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world".into()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_concat_b,
+    "sequences",
+    "string-utf8-concat-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::string_utf8_from_bytes("hello world🦊".into()).unwrap()
         );
     }
 );
@@ -3600,6 +3675,26 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_len,
+    "sequences",
+    "string-utf8-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(3));
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_len_b,
+    "sequences",
+    "string-utf8-len-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
     }
 );
 
@@ -3667,6 +3762,19 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_element_at,
+    "sequences",
+    "string-utf8-element-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
     test_buffer_element_at,
     "sequences",
     "buffer-element-at",
@@ -3698,6 +3806,32 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(Value::string_ascii_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_element_at_alias,
+    "sequences",
+    "string-utf8-element-at?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![b'o']).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_element_at_alias_b,
+    "sequences",
+    "string-utf8-element-at-b?",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("🦊".into()).unwrap()).unwrap()
         );
     }
 );
@@ -3736,6 +3870,16 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_element_at_none,
+    "sequences",
+    "string-utf8-element-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
     test_buffer_element_at_none,
     "sequences",
     "buffer-element-at-none",
@@ -3764,7 +3908,8 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(
-                Value::list_from(vec![Value::Int(1), Value::Int(4), Value::Int(3)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(4), Value::Int(3)])
+                    .unwrap()
             )
             .unwrap()
         );
@@ -3781,6 +3926,32 @@ test_contract_call_response!(
             *response.data,
             Value::some(Value::string_ascii_from_bytes("jello".to_string().into_bytes()).unwrap())
                 .unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_replace_at,
+    "sequences",
+    "string-utf8-replace-at",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("jello".into()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_replace_at_b,
+    "sequences",
+    "string-utf8-replace-at-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes("heelo🦊".into()).unwrap()).unwrap()
         );
     }
 );
@@ -3822,6 +3993,16 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_replace_at_none,
+    "sequences",
+    "string-utf8-replace-at-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
     test_buffer_replace_at_none,
     "sequences",
     "buffer-replace-at-none",
@@ -3853,7 +4034,8 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(
-                Value::list_from(vec![Value::Int(2), Value::Int(3), Value::Int(4)]).unwrap()
+                Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
+                    .unwrap()
             )
             .unwrap()
         );
@@ -3869,6 +4051,19 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(Value::string_ascii_from_bytes(b"l".to_vec()).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_slice,
+    "sequences",
+    "string-utf8-slice",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(b"l".to_vec()).unwrap()).unwrap()
         );
     }
 );
@@ -3907,6 +4102,16 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_string_utf8_slice_none,
+    "sequences",
+    "string-utf8-slice-none",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
+
+test_contract_call_response!(
     test_buffer_slice_none,
     "sequences",
     "buffer-slice-none",
@@ -3924,7 +4129,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::some(Value::list_from(vec![]).unwrap()).unwrap()
+            Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap()
         );
     }
 );
@@ -3938,6 +4143,19 @@ test_contract_call_response!(
         assert_eq!(
             *response.data,
             Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap()
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_string_utf8_slice_empty,
+    "sequences",
+    "string-utf8-slice-empty",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::some(Value::string_utf8_from_bytes(vec![]).unwrap()).unwrap()
         );
     }
 );
@@ -4006,6 +4224,26 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_less_than_string_utf8_a,
+    "cmp-buffer",
+    "less-string-utf8-a",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_utf8_b,
+    "cmp-buffer",
+    "less-string-utf8-b",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_greater_than_string_ascii,
     "cmp-buffer",
     "greater-string-ascii",
@@ -4026,12 +4264,32 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_less_or_equal_string_utf8,
+    "cmp-buffer",
+    "less-or-equal-string-utf8",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_greater_or_equal_string_ascii,
     "cmp-buffer",
     "greater-or-equal-string-ascii",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(false));
+    }
+);
+
+test_contract_call_response!(
+    test_greater_or_equal_string_utf8,
+    "cmp-buffer",
+    "greater-or-equal-string-utf8",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
     }
 );
 
@@ -4079,6 +4337,16 @@ test_contract_call_response!(
     test_less_than_string_ascii_diff_len,
     "cmp-buffer",
     "less-string-ascii-diff-len",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
+    test_less_than_string_utf8_diff_len,
+    "cmp-buffer",
+    "less-string-utf8-diff-len",
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Bool(true));
@@ -4346,7 +4614,8 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::list_from(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap()
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
         );
     }
 );

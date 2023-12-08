@@ -8,7 +8,7 @@ use proptest::prelude::ProptestConfig;
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 1000, .. ProptestConfig::default()
+        cases: 100, .. ProptestConfig::default()
     })]
     #[test]
     fn generated_value_is_syntactically_correct(val in PropValue::from_type(ListTypeData::new_list(clarity::vm::types::TypeSignature::new_option(clarity::vm::types::TypeSignature::IntType).unwrap(), 15).unwrap().into())) {

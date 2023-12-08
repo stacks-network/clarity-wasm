@@ -1,20 +1,16 @@
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
 use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::clarity_wasm::{call_function, initialize_contract};
-use clarity::vm::database::MemoryBackingStore;
-use clarity::vm::{eval_all, CallStack, Environment, Value};
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        contexts::GlobalContext,
-        costs::LimitedCostTracker,
-        database::ClarityDatabase,
-        types::{QualifiedContractIdentifier, StandardPrincipalData},
-        ClarityVersion, ContractContext, ContractName,
-    },
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::{
+    eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -71,7 +67,7 @@ fn wasm_fold_add_square(c: &mut Criterion) {
 
         let mut call_stack = CallStack::new();
 
-        let list = Value::list_from((1..=8192).map(Value::Int).collect())
+        let list = Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument");
 
         let result = call_function(
@@ -187,7 +183,7 @@ fn interp_fold_add_square(c: &mut Criterion) {
             None,
         );
 
-        let list = Value::list_from((1..=8192).map(Value::Int).collect())
+        let list = Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
             .expect("failed to construct list argument");
 
         // Run once outside of benchmark to test the result

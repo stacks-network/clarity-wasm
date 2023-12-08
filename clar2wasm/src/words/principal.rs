@@ -1,24 +1,18 @@
+use clarity::vm::clarity_wasm::STANDARD_PRINCIPAL_BYTES;
+use clarity::vm::types::signatures::ASCII_40;
+use clarity::vm::types::{TypeSignature, BUFF_1, BUFF_20};
+use clarity::vm::{ClarityName, SymbolicExpression};
 use clarity::{
-    address::{
-        C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
-        C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
-    },
-    vm::{
-        clarity_wasm::STANDARD_PRINCIPAL_BYTES,
-        types::{signatures::ASCII_40, TypeSignature, BUFF_1, BUFF_20},
-        ClarityName, SymbolicExpression,
-    },
+    C32_ADDRESS_VERSION_MAINNET_MULTISIG, C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
+    C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
-use walrus::{
-    ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg},
-    LocalId, ValType,
-};
+use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
+use walrus::{LocalId, ValType};
 
+use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-
-use super::Word;
 
 #[derive(Debug)]
 pub struct IsStandard;
@@ -271,14 +265,48 @@ impl Word for Destruct {
     }
 }
 
+#[derive(Debug)]
+pub struct PrincipalOf;
+
+impl Word for PrincipalOf {
+    fn name(&self) -> ClarityName {
+        "principal-of?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Traverse the public key
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
+
+        // Reserve stack space for the host-function to write the principal
+        builder.global_get(generator.stack_pointer);
+
+        // Adjust the stack pointer.
+        builder
+            .global_get(generator.stack_pointer)
+            .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+            .binop(BinaryOp::I32Add)
+            .global_set(generator.stack_pointer);
+
+        // Call the host interface function, `principal-of?`
+        builder.call(generator.func_by_name("stdlib.principal_of"));
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{PrincipalData, TupleData},
-        Value,
-    };
+    use clarity::types::StacksEpochId;
+    use clarity::vm::types::{PrincipalData, TupleData};
+    use clarity::vm::{ClarityVersion, Value};
 
-    use crate::tools::evaluate;
+    use crate::tools::{evaluate, TestEnvironment};
 
     //- is-standard
 
@@ -633,6 +661,43 @@ mod tests {
                 )
                 .unwrap()
             )
+        );
+    }
+
+    //- principal-of?
+
+    #[test]
+    fn test_principal_of() {
+        assert_eq!(
+            evaluate(
+                "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)"
+            ),
+            Some(
+                Value::okay(
+                    PrincipalData::parse("ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP").unwrap().into()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_principal_of_runtime_err() {
+        let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+        let res = env.init_contract_with_snippet(
+            "snippet",
+            "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
+        );
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_principal_of_err() {
+        assert_eq!(
+            evaluate(
+                "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)"
+            ),
+            Some(Value::err_uint(1))
         );
     }
 }

@@ -1,20 +1,23 @@
-use clarity::vm::clarity_wasm::{PRINCIPAL_BYTES, STANDARD_PRINCIPAL_BYTES};
-use clarity::vm::types::serialization::TypePrefix;
-use clarity::vm::types::{ListTypeData, TupleTypeSignature};
-use clarity::vm::{
-    analysis::ContractAnalysis,
-    clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type},
-    diagnostic::DiagnosableError,
-    types::{CharType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype, TypeSignature},
-    variables::NativeVariables,
-    ClarityName, SymbolicExpression, SymbolicExpressionType, Value,
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
+use clarity::vm::analysis::ContractAnalysis;
+use clarity::vm::clarity_wasm::{
+    get_type_in_memory_size, get_type_size, is_in_memory_type, PRINCIPAL_BYTES,
+    STANDARD_PRINCIPAL_BYTES,
 };
-use std::{borrow::BorrowMut, collections::HashMap};
-use walrus::MemoryId;
+use clarity::vm::diagnostic::DiagnosableError;
+use clarity::vm::types::serialization::TypePrefix;
+use clarity::vm::types::{
+    CharType, FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
+    StringSubtype, TupleTypeSignature, TypeSignature,
+};
+use clarity::vm::variables::NativeVariables;
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
+use walrus::ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind};
 use walrus::{
-    ir::{BinaryOp, Block, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind},
-    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module,
-    ValType,
+    ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId,
+    MemoryId, Module, ValType,
 };
 
 use crate::words;
@@ -35,14 +38,22 @@ pub struct WasmGenerator {
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
-    pub(crate) literal_memory_offet: HashMap<String, u32>,
+    pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
+    /// The current function body block, used for early exit
+    early_return_block_id: Option<InstrSeqId>,
 
     /// The locals for the current function.
-    pub(crate) locals: HashMap<String, Vec<LocalId>>,
+    pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub enum LiteralMemoryEntry {
+    Ascii(String),
+    Utf8(String),
 }
 
 #[derive(Debug)]
@@ -50,6 +61,12 @@ pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
     TypeError(String),
+}
+
+pub enum FunctionKind {
+    Public,
+    Private,
+    ReadOnly,
 }
 
 impl DiagnosableError for GeneratorError {
@@ -142,9 +159,10 @@ impl WasmGenerator {
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: global_id,
-            literal_memory_offet: HashMap::new(),
+            literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
-            locals: HashMap::new(),
+            bindings: HashMap::new(),
+            early_return_block_id: None,
             frame_size: 0,
         }
     }
@@ -194,7 +212,6 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
     ) -> Result<(), GeneratorError> {
         match &expr.expr {
-            SymbolicExpressionType::AtomValue(value) => self.visit_atom_value(builder, expr, value),
             SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
             SymbolicExpressionType::List(exprs) => self.traverse_list(builder, expr, exprs),
             SymbolicExpressionType::LiteralValue(value) => {
@@ -221,21 +238,140 @@ impl WasmGenerator {
                 if let Some(word) = words::lookup(function_name) {
                     word.traverse(self, builder, expr, args)?;
                 } else {
-                    self.traverse_args(builder, args)?;
-                    self.visit_call_user_defined(builder, expr, function_name, args)?;
+                    self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
             }
             _ => todo!(),
         }
-        self.visit_list(builder, expr, list)
+        Ok(())
     }
 
-    fn visit_list(
+    pub fn traverse_define_function(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _list: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
+        body: &SymbolicExpression,
+        kind: FunctionKind,
+    ) -> Result<FunctionId, GeneratorError> {
+        let opt_function_type = match kind {
+            FunctionKind::ReadOnly => {
+                builder.i32_const(0);
+                self.contract_analysis
+                    .get_read_only_function_type(name.as_str())
+            }
+            FunctionKind::Public => {
+                builder.i32_const(1);
+                self.contract_analysis
+                    .get_public_function_type(name.as_str())
+            }
+            FunctionKind::Private => {
+                builder.i32_const(2);
+                self.contract_analysis.get_private_function(name.as_str())
+            }
+        };
+        let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
+            fixed.clone()
+        } else {
+            return Err(GeneratorError::InternalError(match opt_function_type {
+                Some(_) => "expected fixed function type".to_string(),
+                None => format!("unable to find function type for {}", name.as_str()),
+            }));
+        };
+
+        // Call the host interface to save this function
+        // Arguments are kind (already pushed) and name (offset, length)
+        let (id_offset, id_length) = self.add_string_literal(name);
+        builder
+            .i32_const(id_offset as i32)
+            .i32_const(id_length as i32);
+
+        // Call the host interface function, `define_function`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.define_function")
+                .expect("define_function not found"),
+        );
+
+        let mut bindings = HashMap::new();
+
+        // Setup the parameters
+        let mut param_locals = Vec::new();
+        let mut params_types = Vec::new();
+        for param in function_type.args.iter() {
+            let param_types = clar2wasm_ty(&param.signature);
+            let mut plocals = Vec::with_capacity(param_types.len());
+            for ty in param_types {
+                let local = self.module.locals.add(ty);
+                param_locals.push(local);
+                plocals.push(local);
+                params_types.push(ty);
+            }
+            bindings.insert(param.name.to_string(), plocals.clone());
+        }
+
+        let results_types = clar2wasm_ty(&function_type.returns);
+        let mut func_builder = FunctionBuilder::new(
+            &mut self.module.types,
+            params_types.as_slice(),
+            results_types.as_slice(),
+        );
+        func_builder.name(name.as_str().to_string());
+        let mut func_body = func_builder.func_body();
+
+        // Function prelude
+        // Save the frame pointer in a local variable.
+        let frame_pointer = self.module.locals.add(ValType::I32);
+        func_body
+            .global_get(self.stack_pointer)
+            .local_set(frame_pointer);
+
+        // Setup the locals map for this function, saving the top-level map to
+        // restore after.
+        let top_level_locals = std::mem::replace(&mut self.bindings, bindings);
+
+        let mut block = func_body.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            results_types.as_slice(),
+        ));
+        let block_id = block.id();
+
+        self.early_return_block_id = Some(block_id);
+
+        // Traverse the body of the function
+        self.traverse_expr(&mut block, body)?;
+
+        // TODO: We need to ensure that all exits from the function go through
+        // the postlude. Maybe put the body in a block, and then have any exits
+        // from the block go to the postlude with a `br` instruction?
+
+        // Insert the function body block into the function
+        func_body.instr(walrus::ir::Block { seq: block_id });
+
+        // Function postlude
+        // Restore the initial stack pointer.
+        func_body
+            .local_get(frame_pointer)
+            .global_set(self.stack_pointer);
+
+        // Restore the top-level locals map.
+        self.bindings = top_level_locals;
+
+        Ok(func_builder.finish(param_locals, &mut self.module.funcs))
+    }
+
+    pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+        let early_return = self
+            .early_return_block_id
+            .ok_or(GeneratorError::InternalError(
+                "No return block avaliable".into(),
+            ))?;
+
+        builder.instr(walrus::ir::Br {
+            block: early_return,
+        });
+
         Ok(())
     }
 
@@ -248,30 +384,32 @@ impl WasmGenerator {
             .get_type(expr)
     }
 
-    fn visit_atom_value(
-        &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        _value: &Value,
-    ) -> Result<(), GeneratorError> {
-        Ok(())
-    }
-
     /// Adds a new string literal into the memory, and returns the offset and length.
     pub(crate) fn add_clarity_string_literal(&mut self, s: &CharType) -> (u32, u32) {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            let length = match s {
-                CharType::ASCII(s) => s.data.len() as u32,
-                CharType::UTF8(_u) => todo!("UTF8"),
-            };
-            return (*offset, length);
-        }
-
-        let data = match s {
-            CharType::ASCII(s) => s.data.clone(),
-            CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
+        let (data, entry) = match s {
+            CharType::ASCII(s) => {
+                let entry = LiteralMemoryEntry::Ascii(s.to_string());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, s.data.len() as u32);
+                }
+                (s.data.clone(), entry)
+            }
+            CharType::UTF8(u) => {
+                let data_str = String::from_utf8(u.data.iter().flatten().cloned().collect())
+                    .expect("Invalid UTF-8 sequence");
+                let entry = LiteralMemoryEntry::Utf8(data_str.clone());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, u.data.len() as u32 * 4);
+                }
+                // Convert the string into 4-byte big-endian unicode scalar values.
+                let data = data_str
+                    .chars()
+                    .flat_map(|c| (c as u32).to_be_bytes())
+                    .collect();
+                (data, entry)
+            }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
@@ -281,12 +419,12 @@ impl WasmGenerator {
                 memory: memory.id(),
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
-            data.clone(),
+            data,
         );
-        self.literal_memory_end += data.len() as u32;
+        self.literal_memory_end += len;
 
         // Save the offset in the literal memory for this string
-        self.literal_memory_offet.insert(s.to_string(), offset);
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
@@ -295,7 +433,8 @@ impl WasmGenerator {
     pub(crate) fn add_string_literal(&mut self, name: &str) -> (u32, u32) {
         // If this identifier has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(name) {
+        let entry = LiteralMemoryEntry::Ascii(name.to_string());
+        if let Some(offset) = self.literal_memory_offset.get(&entry) {
             return (*offset, name.len() as u32);
         }
 
@@ -312,7 +451,7 @@ impl WasmGenerator {
         self.literal_memory_end += name.len() as u32;
 
         // Save the offset in the literal memory for this identifier
-        self.literal_memory_offet.insert(name.to_string(), offset);
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
@@ -368,6 +507,26 @@ impl WasmGenerator {
         self.literal_memory_end += data.len() as u32;
 
         (offset, len)
+    }
+
+    pub(crate) fn block_from_expr(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+    ) -> Result<InstrSeqId, GeneratorError> {
+        let return_type = clar2wasm_ty(
+            self.get_expr_type(expr)
+                .expect("Expression results must be typed"),
+        );
+
+        let mut block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &return_type,
+        ));
+        self.traverse_expr(&mut block, expr)?;
+
+        Ok(block.id())
     }
 
     /// Push a new local onto the call stack, adjusting the stack pointer and
@@ -1123,14 +1282,14 @@ impl WasmGenerator {
         Ok(())
     }
 
-    /// Serialize an `optional` to memory using consensus serialization. Leaves
+    /// Serialize a `list` to memory using consensus serialization. Leaves
     /// the length of the data written on the top of the data stack. See
     /// SIP-005 for details.
     /// Representation:
-    ///   None:
-    ///    | 0x09 |
-    ///   Some:
-    ///    | 0x0a | serialized value |
+    ///    | 0x0b | number of elements: 4-bytes (big-endian)
+    ///         | serialized representation of element 0
+    ///         | serialized representation of element 1
+    ///         | ...
     fn serialize_list(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -1140,10 +1299,8 @@ impl WasmGenerator {
         list_ty: &ListTypeData,
     ) -> Result<(), GeneratorError> {
         // Data stack: TOP | Length | Offset |
-        // Create a local for the write pointer.
         let write_ptr = self.module.locals.add(ValType::I32);
         let read_ptr = self.module.locals.add(ValType::I32);
-        let end_read_ptr = self.module.locals.add(ValType::I32);
         let bytes_length = self.module.locals.add(ValType::I32);
 
         // Write the type prefix to memory
@@ -1158,105 +1315,108 @@ impl WasmGenerator {
 
         // Save the length of the list to a local
         builder.local_set(bytes_length);
-
-        // Push the write pointer onto the stack, to prepare for
-        // serializing the length.
-        builder
-            .local_get(offset_local)
-            .i32_const(offset as i32 + 1)
-            .binop(BinaryOp::I32Add)
-            .local_tee(write_ptr);
-
-        // Compute the length of the list in elements. The length on
-        // the top of the stack is in bytes, so divide by the size of
-        // the element.
-        let element_ty = list_ty.get_list_item_type();
-        let element_size = get_type_size(element_ty);
-        builder
-            .local_get(bytes_length)
-            .i32_const(element_size)
-            .binop(BinaryOp::I32DivU);
-
-        // Write the length of the list to memory (big-endian)
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.store-i32-be")
-                .expect("store-i32-be not found"),
-        );
-
-        // Adjust the write pointer by 4
-        builder
-            .local_get(write_ptr)
-            .i32_const(4)
-            .binop(BinaryOp::I32Add)
-            .local_set(write_ptr);
-
-        // Save the offset of the list (still at the top of the stack)
         builder.local_set(read_ptr);
 
-        // Compute the pointer to the end of the list
+        // if bytes_length is zero, we can simply add 0_i32 to the serialized buffer,
+        // otherwise, we'll loop through elements and serialize them one by one.
+
+        let size_zero_id = {
+            let mut size_zero = builder.dangling_instr_seq(ValType::I32);
+
+            size_zero.local_get(offset_local).i32_const(0).store(
+                memory,
+                StoreKind::I32 { atomic: false },
+                MemArg {
+                    align: 1,
+                    offset: offset + 1,
+                },
+            );
+
+            size_zero.i32_const(5);
+            size_zero.id()
+        };
+
+        let size_non_zero_id = {
+            let mut size_non_zero = builder.dangling_instr_seq(ValType::I32);
+
+            let element_ty = list_ty.get_list_item_type();
+            let element_size = get_type_size(element_ty);
+
+            // set write pointer
+            size_non_zero
+                .local_get(offset_local)
+                .i32_const(offset as i32 + 1)
+                .binop(BinaryOp::I32Add)
+                .local_tee(write_ptr);
+
+            // compute size of list and store it as big-endian i32
+            size_non_zero
+                .local_get(bytes_length)
+                .i32_const(element_size)
+                .binop(BinaryOp::I32DivU);
+            size_non_zero.call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.store-i32-be")
+                    .expect("store-i32-be not found"),
+            );
+
+            // Adjust the write pointer
+            size_non_zero
+                .local_get(write_ptr)
+                .i32_const(4)
+                .binop(BinaryOp::I32Add)
+                .local_set(write_ptr);
+
+            // Loop through elements and serialize
+            let loop_id = {
+                let mut loop_ = size_non_zero.dangling_instr_seq(None);
+                let loop_id = loop_.id();
+
+                self.read_from_memory(&mut loop_, read_ptr, 0, element_ty);
+
+                self.serialize_to_memory(&mut loop_, write_ptr, 0, element_ty)?;
+
+                // Adjust pointers (for write_ptr, adjustment is on the stack)
+                loop_
+                    .local_get(write_ptr)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(write_ptr);
+                loop_
+                    .local_get(read_ptr)
+                    .i32_const(element_size)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(read_ptr);
+
+                // we loop while there are bytes to read in the list
+                loop_
+                    .local_get(bytes_length)
+                    .i32_const(element_size)
+                    .binop(BinaryOp::I32Sub)
+                    .local_tee(bytes_length)
+                    .br_if(loop_id);
+
+                loop_id
+            };
+
+            size_non_zero.instr(Loop { seq: loop_id });
+
+            // Push the amount written to the data stack
+            size_non_zero
+                .local_get(write_ptr)
+                .local_get(offset_local)
+                .binop(BinaryOp::I32Sub);
+
+            size_non_zero.id()
+        };
+
         builder
-            .local_get(read_ptr)
             .local_get(bytes_length)
-            .binop(BinaryOp::I32Add)
-            .local_set(end_read_ptr);
-
-        // Loop over the list, serializing each element to memory.
-        // Wrap the loop inside of a block so that we can put the check
-        // at the top of the loop, allowing us to skip the loop body
-        // in the case where the loop is empty
-        let loop_wrap_block =
-            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
-        let loop_wrap_block_id = loop_wrap_block.id();
-
-        let mut loop_block =
-            builder.dangling_instr_seq(InstrSeqType::new(&mut self.module.types, &[], &[]));
-        let loop_block_id = loop_block.id();
-
-        loop_block
-            .local_get(read_ptr)
-            .local_get(end_read_ptr)
-            .binop(BinaryOp::I32GeU)
-            .br_if(loop_wrap_block_id);
-
-        // Load the element at the read pointer to the top of the stack
-        self.read_from_memory(&mut loop_block, read_ptr, 0, element_ty);
-
-        // Increment the read pointer by the size read
-        loop_block
-            .local_get(read_ptr)
-            .i32_const(element_size)
-            .binop(BinaryOp::I32Add)
-            .local_set(read_ptr);
-
-        // Serialize the element to memory
-        self.serialize_to_memory(&mut loop_block, write_ptr, 0, element_ty)?;
-
-        // Increment the write pointer by the size written (which is on
-        // the top of the stack)
-        loop_block
-            .local_get(write_ptr)
-            .binop(BinaryOp::I32Add)
-            .local_set(write_ptr);
-
-        // Loop back to the top.
-        loop_block.br(loop_block_id);
-
-        // Add the loop block to the loop wrap block
-        let mut loop_wrap_block = builder.instr_seq(loop_wrap_block_id);
-        loop_wrap_block.instr(Loop { seq: loop_block_id });
-
-        // Add the loop wrap block to the main block
-        builder.instr(Block {
-            seq: loop_wrap_block_id,
-        });
-
-        // Push the amount written to the data stack
-        builder
-            .local_get(write_ptr)
-            .local_get(offset_local)
-            .binop(BinaryOp::I32Sub);
+            .unop(walrus::ir::UnaryOp::I32Eqz)
+            .instr(IfElse {
+                consequent: size_zero_id,
+                alternative: size_non_zero_id,
+            });
 
         Ok(())
     }
@@ -1950,7 +2110,7 @@ impl WasmGenerator {
 
         // Handle parameters and local bindings
         let values = self
-            .locals
+            .bindings
             .get(atom.as_str())
             .ok_or(GeneratorError::InternalError(format!(
                 "unable to find local for {}",
@@ -1964,19 +2124,182 @@ impl WasmGenerator {
         Ok(())
     }
 
-    fn visit_call_user_defined(
+    fn traverse_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         name: &ClarityName,
-        _args: &[SymbolicExpression],
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        self.traverse_args(builder, args)?;
+
+        let return_ty = self
+            .get_expr_type(expr)
+            .expect("function call expression must be typed")
+            .clone();
+        self.visit_call_user_defined(builder, &return_ty, name)
+    }
+
+    /// Visit a function call to a user-defined function. Arguments must have
+    /// already been traversed and pushed to the stack.
+    pub fn visit_call_user_defined(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        return_ty: &TypeSignature,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
+        if self
+            .contract_analysis
+            .get_public_function_type(name.as_str())
+            .is_some()
+        {
+            self.local_call_public(builder, return_ty, name)?;
+        } else if self
+            .contract_analysis
+            .get_read_only_function_type(name.as_str())
+            .is_some()
+        {
+            self.local_call_read_only(builder, name)?;
+        } else if self
+            .contract_analysis
+            .get_private_function(name.as_str())
+            .is_some()
+        {
+            self.local_call(builder, name)?;
+        } else {
+            return Err(GeneratorError::TypeError(format!(
+                "function not found: {name}",
+                name = name.as_str()
+            )));
+        }
+
+        // If an in-memory value is returned from a function, we need to copy
+        // it to our frame, from the callee's frame.
+        if is_in_memory_type(return_ty) {
+            // The result may be in the callee's call frame, can be overwritten
+            // after returning, so we need to copy it to our frame.
+            let result_offset = self.module.locals.add(ValType::I32);
+            let result_length = self.module.locals.add(ValType::I32);
+            builder.local_set(result_length).local_set(result_offset);
+
+            // Reserve space to store the returned value.
+            let offset = self.module.locals.add(ValType::I32);
+            builder.global_get(self.stack_pointer).local_tee(offset);
+            builder
+                .local_get(result_length)
+                .binop(BinaryOp::I32Add)
+                .global_set(self.stack_pointer);
+
+            // Copy the result to our frame.
+            builder
+                .local_get(offset)
+                .local_get(result_offset)
+                .local_get(result_length)
+                .memory_copy(self.get_memory(), self.get_memory());
+
+            // Push the copied offset and length to the stack
+            builder.local_get(offset).local_get(result_length);
+        }
+
+        Ok(())
+    }
+
+    /// Call a function defined in the current contract.
+    fn local_call(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
     ) -> Result<(), GeneratorError> {
         builder.call(
             self.module
                 .funcs
                 .by_name(name.as_str())
-                .unwrap_or_else(|| panic!("function not found: {name}")),
+                .ok_or(GeneratorError::TypeError(format!(
+                    "function not found: {name}"
+                )))?,
         );
+
+        Ok(())
+    }
+
+    /// Call a public function defined in the current contract. This requires
+    /// going through the host interface to handle roll backs.
+    fn local_call_public(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        return_ty: &TypeSignature,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
+        // Call the host interface function, `begin_public_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.begin_public_call")
+                .expect("function not found"),
+        );
+
+        self.local_call(builder, name)?;
+
+        // Save the result to a local
+        let result_locals = self.save_to_locals(builder, return_ty, true);
+
+        // If the result is an `ok`, then we can commit the call, and if it
+        // is an `err`, then we roll it back. `result_locals[0]` is the
+        // response indicator (all public functions return a response).
+        builder.local_get(result_locals[0]).if_else(
+            None,
+            |then| {
+                // Call the host interface function, `commit_call`
+                then.call(
+                    self.module
+                        .funcs
+                        .by_name("stdlib.commit_call")
+                        .expect("function not found"),
+                );
+            },
+            |else_| {
+                // Call the host interface function, `roll_back_call`
+                else_.call(
+                    self.module
+                        .funcs
+                        .by_name("stdlib.roll_back_call")
+                        .expect("function not found"),
+                );
+            },
+        );
+
+        // Restore the result to the top of the stack.
+        for local in &result_locals {
+            builder.local_get(*local);
+        }
+
+        Ok(())
+    }
+
+    /// Call a read-only function defined in the current contract.
+    fn local_call_read_only(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        name: &ClarityName,
+    ) -> Result<(), GeneratorError> {
+        // Call the host interface function, `begin_readonly_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.begin_read_only_call")
+                .expect("function not found"),
+        );
+
+        self.local_call(builder, name)?;
+
+        // Call the host interface function, `roll_back_call`
+        builder.call(
+            self.module
+                .funcs
+                .by_name("stdlib.roll_back_call")
+                .expect("function not found"),
+        );
+
         Ok(())
     }
 

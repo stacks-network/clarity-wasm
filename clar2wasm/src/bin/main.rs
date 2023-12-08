@@ -1,13 +1,12 @@
+use std::fs;
+
 use clap::Parser;
 use clar2wasm::CompileError;
-use clarity::{
-    types::StacksEpochId,
-    vm::{
-        costs::LimitedCostTracker, database::MemoryBackingStore,
-        types::QualifiedContractIdentifier, ClarityVersion,
-    },
-};
-use std::fs;
+use clarity::types::StacksEpochId;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::MemoryBackingStore;
+use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::ClarityVersion;
 
 /// clar2wasm is a compiler for generating WebAssembly from Clarity.
 #[derive(Parser)]
@@ -59,6 +58,7 @@ fn main() {
     .unwrap_or_else(|err| match err {
         CompileError::Generic {
             diagnostics,
+            ast: _,
             cost_tracker: _,
         } => {
             for diagnostic in diagnostics.iter() {

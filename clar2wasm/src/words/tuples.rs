@@ -1,5 +1,7 @@
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use std::collections::{BTreeMap, HashMap};
+
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};

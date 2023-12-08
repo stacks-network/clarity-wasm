@@ -1,20 +1,19 @@
+use std::borrow::BorrowMut;
+
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
-use clarity::{
-    consts::CHAIN_ID_TESTNET,
-    types::StacksEpochId,
-    vm::{
-        analysis::{run_analysis, AnalysisDatabase},
-        ast::build_ast_with_diagnostics,
-        contexts::GlobalContext,
-        costs::LimitedCostTracker,
-        database::{ClarityDatabase, MemoryBackingStore},
-        eval_all,
-        types::{QualifiedContractIdentifier, StandardPrincipalData},
-        CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
-    },
+use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::StacksEpochId;
+use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
+use clarity::vm::ast::build_ast_with_diagnostics;
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::{
+    eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::borrow::BorrowMut;
+use pprof::criterion::{Output, PProfProfiler};
 use wasmtime::{
     AsContextMut, Caller, Config, Engine, Extern, ExternRef, Func, Instance, Linker, Module, Store,
     Val,
@@ -80,6 +79,26 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
             "define_map",
             |_name_offset: i32, _name_length: i32| {
                 println!("define-map");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "define_trait",
+            |_name_offset: i32, _name_length: i32| {
+                println!("define-trait");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "impl_trait",
+            |_name_offset: i32, _name_length: i32| {
+                println!("impl-trait");
             },
         )
         .unwrap();
@@ -199,6 +218,24 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap("clarity", "exit_as_contract", |_: Caller<'_, ()>| {
             println!("as-contract: exit");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "enter_at_block",
+            |_block_hash_offset: i32, _block_hash_length: i32| {
+                println!("at-block: enter");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "exit_at_block", |_: Caller<'_, ()>| {
+            println!("at-block: exit");
             Ok(())
         })
         .unwrap();
@@ -425,6 +462,40 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker
         .func_wrap(
             "clarity",
+            "get_burn_block_info",
+            |_name_offset: i32,
+             _name_length: i32,
+             _height_lo: i64,
+             _height_hi: i64,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("get_burn_block_info");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_call",
+            |_contract_offset: i32,
+             _contract_length: i32,
+             _function_offset: i32,
+             _function_length: i32,
+             _args_offset: i32,
+             _args_length: i32,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("contract_call");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
             "static_contract_call",
             |_contract_offset: i32,
              _contract_length: i32,
@@ -436,6 +507,71 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
              _return_length: i32| {
                 println!("static_contract_call");
                 Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "keccak256",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("keccak256");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("sha512");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512_256",
+            |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+                println!("sha512_256");
+                Ok((_return_offset, _return_length))
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "secp256k1_recover",
+            |_msg_offset: i32,
+             _msg_length: i32,
+             _sig_offset: i32,
+             _sig_length: i32,
+             _return_offset: i32,
+             _return_length: i32| {
+                println!("secp256k1_recover");
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "secp256k1_verify",
+            |_msg_offset: i32,
+             _msg_length: i32,
+             _sig_offset: i32,
+             _sig_length: i32,
+             _pk_offset: i32,
+             _pk_length: i32| {
+                println!("secp256k1_verify");
+                Ok(0i32)
             },
         )
         .unwrap();
@@ -455,7 +591,9 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 fn add(c: &mut Criterion) {
     c.bench_function("add: clarity wasm", |b| {
         let (instance, mut store) = load_stdlib().unwrap();
-        let add = instance.get_func(store.borrow_mut(), "add-int").unwrap();
+        let add = instance
+            .get_func(store.borrow_mut(), "stdlib.add-int")
+            .unwrap();
 
         b.iter(|| {
             let mut results = [Val::I64(0), Val::I64(0)];
@@ -705,5 +843,17 @@ fn add_externfunc(c: &mut Criterion) {
     });
 }
 
-criterion_group!(add_comparison, add, add_externfunc, rust_add, clarity_add);
+criterion_group! {
+    name = add_comparison;
+    config = {
+        if cfg!(feature = "flamegraph") {
+            Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
+        } else if cfg!(feature = "pb") {
+            Criterion::default().with_profiler(PProfProfiler::new(100, Output::Protobuf))
+        } else {
+            Criterion::default()
+        }
+    };
+    targets = add, add_externfunc, rust_add, clarity_add
+}
 criterion_main!(add_comparison);

@@ -82,6 +82,14 @@
     (ok (is-eq "hello" "world"))
 )
 
+(define-public (str-utf8-equal)
+    (ok (is-eq u"hello" u"hello"))
+)
+
+(define-public (str-utf8-unequal)
+    (ok (is-eq u"hello" u"world"))
+)
+
 (define-public (principal-equal)
     (ok (is-eq 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))
 )

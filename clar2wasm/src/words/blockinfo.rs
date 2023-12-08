@@ -1,8 +1,7 @@
-use crate::wasm_generator::ArgumentsExt;
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct GetBlockInfo;
@@ -140,10 +139,8 @@ impl Word for AtBlock {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{OptionalData, PrincipalData, TupleData},
-        Value,
-    };
+    use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
+    use clarity::vm::Value;
 
     use crate::tools::{evaluate, TestEnvironment};
 
@@ -310,7 +307,7 @@ mod tests {
                     TupleData::from_data(vec![
                         (
                             "addrs".into(),
-                            Value::list_from(vec![TupleData::from_data(vec![
+                            Value::cons_list_unsanitized(vec![TupleData::from_data(vec![
                                 (
                                     "hashbytes".into(),
                                     Value::buff_from([0; 32].to_vec()).unwrap()
