@@ -4,6 +4,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
+use super::sequences::SequenceElementType;
 use super::Word;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
@@ -120,17 +121,17 @@ impl Word for IndexOf {
             .expect("Sequence expression must be typed")
         {
             TypeSignature::SequenceType(ty) => match &ty {
-                SequenceSubtype::ListType(list_type) => {
-                    Some(list_type.get_list_item_type().clone())
-                }
+                SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
+                    list_type.get_list_item_type().clone(),
+                )),
                 SequenceSubtype::BufferType(_)
                 | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
-                    // For buffer and string-ascii return none, which indicates
-                    // that elements should be read byte-by-byte.
-                    None
+                    // buffer and string-ascii elements should be read byte-by-byte
+                    Ok(SequenceElementType::Byte)
                 }
                 SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
-                    unimplemented!("UTF8 strings not yet supported")
+                    // UTF8 is represented as 32-bit unicode scalars values should be read 4 bytes at a time
+                    Ok(SequenceElementType::UnicodeScalar)
                 }
             },
             _ => {
@@ -138,7 +139,7 @@ impl Word for IndexOf {
                     "expected sequence type".to_string(),
                 ));
             }
-        };
+        }?;
 
         // Locals declaration.
         let seq_size = generator.module.locals.add(ValType::I32);
@@ -207,20 +208,32 @@ impl Word for IndexOf {
                     // Load an element from the sequence, at offset position,
                     // and push it onto the top of the stack.
                     // Also store the current sequence element into a local.
-                    let (elem_size, elem_locals) = if let Some(elem_ty) = elem_ty {
-                        (
-                            generator.read_from_memory(loop_, offset, 0, &elem_ty),
-                            generator.save_to_locals(loop_, &elem_ty, true),
-                        )
-                        // STACK: [element]
-                    } else {
-                        // The element type is a byte, so we can just push the
-                        // offset and size = 1 to the stack.
-                        let size = 1;
-                        loop_.local_get(offset).i32_const(size);
-                        // STACK: [offset, size]
+                    let (elem_size, elem_locals) = match &elem_ty {
+                        SequenceElementType::Other(elem_ty) => {
+                            (
+                                generator.read_from_memory(loop_, offset, 0, elem_ty),
+                                generator.save_to_locals(loop_, elem_ty, true),
+                            )
+                            // STACK: [element]
+                        }
+                        SequenceElementType::Byte => {
+                            // The element type is a byte, so we can just push the
+                            // offset and size = 1 to the stack.
+                            let size = 1;
+                            loop_.local_get(offset).i32_const(size);
+                            // STACK: [offset, size]
 
-                        (size, generator.save_to_locals(loop_, &item_ty, true))
+                            (size, generator.save_to_locals(loop_, &item_ty, true))
+                        }
+                        SequenceElementType::UnicodeScalar => {
+                            // The element type is a unicode scalar, so we can just push the
+                            // offset and size = 4 to the stack.
+                            let size = 4;
+                            loop_.local_get(offset).i32_const(size);
+                            // STACK: [offset, size]
+
+                            (size, generator.save_to_locals(loop_, &item_ty, true))
+                        }
                     };
 
                     // Check item and element equality.
@@ -1040,6 +1053,43 @@ mod tests {
     #[test]
     fn index_of_ascii_zero_len() {
         assert_eq!(eval("(index-of \"Stacks\" \"\")"), Some(Value::none()));
+    }
+
+    #[test]
+    fn index_of_utf8() {
+        assert_eq!(
+            eval("(index-of u\"Stacks\" u\"a\")"),
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_utf8_b() {
+        assert_eq!(
+            eval("(index-of u\"St\\u{1F98A}cks\" u\"\\u{1F98A}\")"),
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_utf8_first_elem() {
+        assert_eq!(
+            eval("(index-of u\"Stacks\\u{1F98A}\" u\"S\")"),
+            Some(Value::some(Value::UInt(0)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_utf8_last_elem() {
+        assert_eq!(
+            eval("(index-of u\"Stacks\\u{1F98A}\" u\"\\u{1F98A}\")"),
+            Some(Value::some(Value::UInt(6)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_utf8_zero_len() {
+        assert_eq!(eval("(index-of u\"Stacks\" u\"\")"), Some(Value::none()));
     }
 
     #[test]
