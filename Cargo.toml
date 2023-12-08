@@ -1,4 +1,4 @@
 [workspace]
 members = ["clar2wasm", "tests"]
-exclude = ["stacks-blockchain"]
+exclude = ["stacks-core"]
 resolver = "2"
