@@ -689,44 +689,51 @@ impl WasmGenerator {
             }
             TypeSignature::ResponseType(ok_err_ty) => {
                 // Data stack: TOP | err_value | ok_value | (ok|err)
+                let memory_id = memory.id();
+                let mut bytes_written = 0;
+
+                // write err value at offset + size of variant (4) + size of ok_value
+                bytes_written += self.write_to_memory(
+                    builder,
+                    offset_local,
+                    offset + 4 + bytes_size(&ok_err_ty.0),
+                    &ok_err_ty.1,
+                );
+
+                // write ok value at offset + size of variant (4)
+                bytes_written +=
+                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0);
+
                 let variant_val = self.module.locals.add(ValType::I32);
                 builder
                     .local_set(variant_val)
                     .local_get(offset_local)
                     .local_get(variant_val)
                     .store(
-                        memory.id(),
+                        memory_id,
                         StoreKind::I32 { atomic: false },
                         MemArg { align: 4, offset },
                     );
-                let mut bytes_written = 4;
 
-                // recursively write ok value
-                bytes_written += self.write_to_memory(
-                    builder,
-                    offset_local,
-                    offset + bytes_written,
-                    &ok_err_ty.0,
-                );
-
-                // recursively write err value
-                bytes_written += self.write_to_memory(
-                    builder,
-                    offset_local,
-                    offset + bytes_written,
-                    &ok_err_ty.1,
-                );
-
-                bytes_written
+                bytes_written + 4
             }
-            // TypeSignature::TupleType(tuple_ty) => {
-            //     let mut bytes_written = 0;
-            //     for ty in tuple_ty.get_type_map().values() {
-            //         bytes_written +=
-            //             self.write_to_memory(builder, offset_local, offset + bytes_written, ty);
-            //     }
-            //     bytes_written
-            // }
+            TypeSignature::TupleType(tuple_ty) => {
+                let mut bytes_written = 0;
+                let types: Vec<_> = tuple_ty.get_type_map().values().collect();
+                let offsets_delta: Vec<_> = types
+                    .iter()
+                    .map(|t| bytes_size(t))
+                    .scan(0, |acc, i| {
+                        *acc += i;
+                        Some(*acc)
+                    })
+                    .collect();
+                for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
+                    bytes_written +=
+                        self.write_to_memory(builder, offset_local, offset + offset_delta, elem_ty);
+                }
+                dbg!(bytes_written)
+            }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         }
     }
@@ -825,9 +832,12 @@ impl WasmGenerator {
                 // Memory: Offset -> | Value1 | Value2 | ... |
                 let mut offset_adjust = 0;
                 for ty in tuple.get_type_map().values() {
-                    offset_adjust +=
-                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)
-                            as u32;
+                    offset_adjust += self.read_from_memory(
+                        builder,
+                        offset,
+                        literal_offset + offset_adjust,
+                        dbg!(ty),
+                    ) as u32;
                 }
                 offset_adjust as i32
             }
@@ -2049,6 +2059,17 @@ pub(crate) fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
     (0..wasm_types.len()).for_each(|_| {
         builder.drop();
     });
+}
+
+fn bytes_size(ty: &TypeSignature) -> u32 {
+    clar2wasm_ty(ty)
+        .into_iter()
+        .map(|v| match v {
+            ValType::I32 => 4,
+            ValType::I64 => 8,
+            _ => unreachable!(),
+        })
+        .sum()
 }
 
 impl WasmGenerator {

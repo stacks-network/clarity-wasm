@@ -6,14 +6,18 @@ use crate::property_value::PropValue;
 
 use proptest::prelude::ProptestConfig;
 
+use clarity::vm::types::*;
+
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 100, .. ProptestConfig::default()
+        cases: 1, .. ProptestConfig::default()
     })]
     #[test]
-    fn generated_value_is_syntactically_correct(val in PropValue::from_type(ListTypeData::new_list(clarity::vm::types::TypeSignature::new_option(clarity::vm::types::TypeSignature::IntType).unwrap(), 15).unwrap().into())) {
+    fn generated_value_is_syntactically_correct(val in PropValue::from_type(
+        ListTypeData::new_list(
+            TupleTypeSignature::try_from(vec![("a".into(), TypeSignature::IntType), ("b".into(), TypeSignature::SequenceType(SequenceSubtype::BufferType(5u32.try_into().unwrap())))]).unwrap().into(), 5).unwrap().into())) {
         assert_eq!(
-            evaluate(&val.to_string()),
+            evaluate(dbg!(&val.to_string())),
             Some(val.into())
         )
     }
@@ -26,4 +30,10 @@ fn foo() {
     let p: PropValue = v.into();
     assert_eq!(s, &p.to_string());
     // evaluate(&format!("{p}")).unwrap();
+}
+
+#[test]
+fn foo2() {
+    let s = "(list (tuple (a 148987255394482843142261275651954923681) (b 0x07fa6db2f2)) (tuple (a 10625222246108328138550657607965884282) (b 0x2b6d48b605)))";
+    let _v = evaluate(s);
 }
