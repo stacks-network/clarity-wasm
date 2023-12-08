@@ -89,7 +89,7 @@ WebAssembly only supports basic number types, `i32`, `i64`, `f32`, and `f64`. We
 - `principal`: `i32` offset in call stack, `i32` length; call stack contains 21 bytes for standard principal (1 byte version, 20 byte Hash160) followed by 4 bytes indicating the length of the contract name, which, if non-zero, is followed by the contract name string.
 - `buff`: `i32` offset in call stack, `i32` length
 - `string-ascii`: `i32` offset in call stack, `i32` length
-- `string-utf8`: `i32` offset in call stack, `i32` length
+- `string-utf8`: `i32` offset in call stack, `i32` length; the string is represented as array of 4 byte (big-endian) Unicode scalars
 - `list`: `i32` offset in call stack, `i32` length
 - `tuple`: each value in the tuple concatenated
 - `optional`: `i32` indicator (`0` for `none`, `1` for `some`), followed by value for `some`
