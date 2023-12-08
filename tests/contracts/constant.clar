@@ -13,6 +13,11 @@
   (ok string)
 )
 
+(define-constant string-utf8 u"hello world\u{1F98A}")
+(define-public (get-string-utf8-constant)
+  (ok string-utf8)
+)
+
 (define-constant bytes 0x12345678)
 (define-public (get-bytes-constant)
   (ok bytes)
