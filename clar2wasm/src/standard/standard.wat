@@ -2522,6 +2522,9 @@
         (local.get $hi)
     )
 
+    ;; Converts a span of 4-byte unicode scalar values into UTF-8.
+    ;; The input bytes are assumed to be composed of valid unicode scalar values.
+    ;; Do not call this function with arbitrary or bytes.
     (func $stdlib.convert-scalars-to-utf8 (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
         (local $i i32)       ;; Loop counter
         (local $initial-output-offset i32)
