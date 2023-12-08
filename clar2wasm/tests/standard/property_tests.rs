@@ -517,7 +517,7 @@ fn prop_store_i64_be() {
 fn prop_sha256_buff() {
     test_on_buffer_hash(
         "stdlib.sha256-buf",
-        1024,
+        1600,
         END_OF_STANDARD_DATA as usize + 32,
         300,
         END_OF_STANDARD_DATA as i32,

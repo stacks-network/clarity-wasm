@@ -3516,3 +3516,108 @@ fn int_to_string() {
     test_num(i128::MIN);
     test_num(i128::MAX);
 }
+
+#[test]
+fn sha512_buf() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let sha512 = instance.get_func(&mut store, "stdlib.sha512-buf").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // test with "Hello, World!", which requires only one pass
+    let text = b"Hello, World!";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha512
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha512-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 64);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("374d794a95cdcfd8b35993185fef9ba368f160d8daf432d08ba9f1ed1e5abe6cc69291e0fa2fe0006a52570ef18c19def4e617c33ce52ef0a6e5fbe318cb0387").unwrap();
+    assert_eq!(&buffer, &expected_result);
+
+    // test with Lorem Ipsum, which will require multiple passes
+    let text = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha512
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha512-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 64);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("83cd8866be238eda447cb0ee94a6bfa6248109346b1ce3c75f8a67d35f3d8ab1697b46703065c094fcc7d3a61acc1e8ee85a4f306f13cc1a7aea7651781199b3").unwrap();
+    assert_eq!(&buffer, &expected_result);
+
+    // test with buffer of size 119, the limit between 1 and 2 blocks
+    // We're handling length in 8 bytes, so 128-8-1(1 inserted after the message)
+    let text = &[0; 119];
+    memory
+        .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+        .expect("Should be able to write to memory");
+
+    sha512
+        .call(
+            &mut store,
+            &[
+                Val::I32(END_OF_STANDARD_DATA as i32),
+                Val::I32(text.len() as i32),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha512-buf failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 64);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("c2e210f2674a648d9b58683e651f8fca5ce4270c0489773d8e4ffaecd46b22b1d5273697f45275a7c441c9e4ca91a39bdb3e3b7eb74cbdb85266eef8f30ac860").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}
