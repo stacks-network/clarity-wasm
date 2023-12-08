@@ -78,6 +78,10 @@
   )
 )
 
+(define-public (print-string-utf8)
+  (ok (print u"hel\u{0141}o world \u{611B}\u{1F98A}"))
+)
+
 (define-public (print-string-ascii)
   (ok (print "hello world"))
 )

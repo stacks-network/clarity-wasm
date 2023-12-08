@@ -1492,19 +1492,73 @@ impl WasmGenerator {
     ///  | 0x0e | length: 4-bytes (big-endian) | utf8-encoded string: variable length |
     fn serialize_string_utf8(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _memory: MemoryId,
-        _offset_local: LocalId,
-        _offset: u32,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
     ) -> Result<(), GeneratorError> {
-        // Sequence(SequenceData::String(UTF8(value))) => {
-        //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
-        //     w.write_all(&(total_len.to_be_bytes()))?;
-        //     for bytes in value.data.iter() {
-        //         w.write_all(&bytes)?
-        //     }
-        // }
-        todo!("serialize_string_utf8");
+        // Data stack: TOP | Length | Offset |
+        let write_ptr = self.module.locals.add(ValType::I32);
+        let read_ptr = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+        let utf8_length = self.module.locals.add(ValType::I32);
+
+        // Save the length and offset to locals
+        builder.local_set(length).local_set(read_ptr);
+
+        // Write the type prefix first
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::StringUTF8 as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount + 1 (prefix) + 4 (length).
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 5)
+            .binop(BinaryOp::I32Add)
+            .local_set(write_ptr);
+
+        // Push the offset, length, and output-offset to the data stack
+        builder
+            .local_get(read_ptr)
+            .local_get(length)
+            .local_get(write_ptr);
+
+        // Call scalar to utf8 conversion function
+        builder
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.convert-scalars-to-utf8")
+                    .expect("convert-scalars-to-utf8 not found"),
+            )
+            .local_tee(utf8_length);
+
+        // Serialize the length to memory (big endian)
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_get(utf8_length)
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.store-i32-be")
+                    .expect("store-i32-be not found"),
+            );
+
+        // Push the length written to the data stack, the length of the serialized string is already on the stack
+        //  length    +    1    +    4
+        //      type prefix^         ^length
+        builder.i32_const(5).binop(BinaryOp::I32Add);
+
+        Ok(())
     }
 
     /// Serialize a `tuple` to memory using consensus serialization. Leaves the
