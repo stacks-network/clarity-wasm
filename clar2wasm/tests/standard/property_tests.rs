@@ -517,7 +517,7 @@ fn prop_store_i64_be() {
 fn prop_sha256_buff() {
     test_on_buffer_hash(
         "stdlib.sha256-buf",
-        1600,
+        2048,
         END_OF_STANDARD_DATA as usize + 32,
         300,
         END_OF_STANDARD_DATA as i32,
@@ -530,7 +530,7 @@ fn prop_sha256_buff() {
 fn prop_sha256_int_on_signed() {
     test_on_int_hash(
         "stdlib.sha256-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         32,
         |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -541,7 +541,7 @@ fn prop_sha256_int_on_signed() {
 fn prop_sha256_int_on_unsigned() {
     test_on_uint_hash(
         "stdlib.sha256-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         32,
         |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -565,7 +565,7 @@ fn prop_hash160_buff() {
 fn prop_hash160_int_on_signed() {
     test_on_int_hash(
         "stdlib.hash160-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         20,
         |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -576,7 +576,7 @@ fn prop_hash160_int_on_signed() {
 fn prop_hash160_int_on_unsigned() {
     test_on_uint_hash(
         "stdlib.hash160-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         20,
         |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),

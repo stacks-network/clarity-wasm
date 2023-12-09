@@ -177,6 +177,12 @@
                                                            (param $arguments_length i32)
                                                            (param $return_offset i32)
                                                            (param $return_length i32)))
+                                                           
+    (import "clarity" "begin_public_call" (func $stdlib.begin_public_call))
+    (import "clarity" "begin_read_only_call" (func $stdlib.begin_read_only_call))
+    (import "clarity" "commit_call" (func $stdlib.commit_call))
+    (import "clarity" "roll_back_call" (func $stdlib.roll_back_call))
+
     (import "clarity" "keccak256" (func $stdlib.keccak256 (param $buffer_offset i32)
                                                    (param $buffer_length i32)
                                                    (param $result_offset i32)
