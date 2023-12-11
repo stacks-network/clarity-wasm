@@ -46,6 +46,17 @@ impl Word for ListCons {
         // data stack.
         let mut total_size = 0;
         for expr in list.iter() {
+            // WORKAROUND: if you have a list like `(list (some 1) none)`, even if the list elements have type
+            // `optional int`, the typechecker will give NoType to `none`.
+            // This means that the placeholder will be represented with a different number of `ValType`, and will
+            // cause errors (example: function called with wrong number of arguments).
+            // While we wait for a real fix in the typechecker, here is a workaround to set all the elements types.
+            generator
+                .contract_analysis
+                .type_map
+                .as_mut()
+                .map(|tm| tm.set_type(expr, elem_ty.clone()));
+
             generator.traverse_expr(builder, expr)?;
             // Write this element to memory
             let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty);
