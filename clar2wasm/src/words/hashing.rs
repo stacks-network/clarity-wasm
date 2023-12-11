@@ -203,23 +203,18 @@ impl Word for Sha512 {
                 );
                 Ok(())
             }
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => {
-                traverse_hash(
-                    "sha512",
-                    core::mem::size_of::<u32>() * 8,
-                    generator,
-                    builder,
-                    expr,
-                    args,
-                )
-            }
-            _ => {
-                Err(GeneratorError::TypeError(
-                    "invalid type for sha512".to_string(),
-                ))
-            }
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => traverse_hash(
+                "sha512",
+                core::mem::size_of::<u32>() * 8,
+                generator,
+                builder,
+                expr,
+                args,
+            ),
+            _ => Err(GeneratorError::TypeError(
+                "invalid type for sha512".to_string(),
+            )),
         }
-
     }
 }
 
