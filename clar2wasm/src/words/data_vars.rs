@@ -2,7 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::Word;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineDataVar;
@@ -94,8 +94,8 @@ impl Word for SetDataVar {
 
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
-            .literal_memory_offet
-            .get(name.as_str())
+            .literal_memory_offset
+            .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
             .expect("variable not found: {name}");
         let id_length = name.len();
 
@@ -152,8 +152,8 @@ impl Word for GetDataVar {
 
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
-            .literal_memory_offet
-            .get(name.as_str())
+            .literal_memory_offset
+            .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
             .expect("variable not found: {name}");
         let id_length = name.len();
 

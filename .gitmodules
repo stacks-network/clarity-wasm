@@ -1,3 +1,3 @@
-[submodule "stacks-blockchain"]
-	path = stacks-blockchain
-	url = https://github.com/stacks-network/stacks-blockchain.git
+[submodule "stacks-core"]
+	path = stacks-core
+	url = https://github.com/stacks-network/stacks-core.git

@@ -2536,6 +2536,7 @@
         (local.get $hi)
     )
 
+
     (func $stdlib.sha512-buf (param $offset i32) (param $length i32) (param $offset-result i32)(result i32 i32)
 
         ;; Length of the data after adding padding and length to it
@@ -2820,6 +2821,137 @@
         )
 
         (local.get $offset-result) (i32.const 64)
+    ;; Converts a span of 4-byte unicode scalar values into UTF-8.
+    ;; The input bytes are assumed to be composed of valid unicode scalar values.
+    ;; Do not call this function with arbitrary bytes.
+    (func $stdlib.convert-scalars-to-utf8 (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
+        (local $i i32)       ;; Loop counter
+        (local $initial-output-offset i32)
+        (local $scalar i32)  ;; Scalar value
+        (local $byte1 i32)   ;; Byte variables for UTF-8 encoding
+        (local $byte2 i32)
+        (local $byte3 i32)
+        (local $byte4 i32)
+
+        ;; Store the initial value of $output-offset
+        (local.set $initial-output-offset (local.get $output-offset))
+
+        ;; Initialize loop counter
+        (local.set $i (i32.const 0))  
+
+        ;; Check if the length is zero to avoid unnecessary processing
+        (if (i32.eqz (local.get $length))
+            (then 
+                (i32.const 0)  ;; Push 0 as the return value
+                (return)       ;; Return with two values on the stack
+            )
+        )
+
+        (loop $loop
+            ;; Load the scalar value from the array and convert to big-endian
+            (local.set $scalar (i32.load (i32.add (local.get $offset) (local.get $i))))
+
+            ;; Big-endian conversion (if necessary)
+            (local.set $scalar
+                (i32.or
+                    (i32.shl (i32.and (local.get $scalar) (i32.const 0xFF)) (i32.const 24))
+                    (i32.or
+                        (i32.shl (i32.and (local.get $scalar) (i32.const 0xFF00)) (i32.const 8))
+                        (i32.or
+                            (i32.shr_u (i32.and (local.get $scalar) (i32.const 0xFF0000)) (i32.const 8))
+                            (i32.shr_u (local.get $scalar) (i32.const 24))
+                        )
+                    )
+                )
+            )
+
+            ;; UTF-8 encoding
+
+            ;; block 1
+            (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
+                (then
+                    ;; 1-byte sequence: 0xxxxxxx
+                    (i32.store8 (local.get $output-offset) (local.get $scalar))
+                    (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                )
+                (else
+                    ;; block 2
+                    (if (i32.lt_u (local.get $scalar) (i32.const 0x800))
+                        (then
+                            ;; 2-byte sequence: 110xxxxx 10xxxxxx
+                            (local.set $byte1
+                                (i32.or (i32.const 0xC0) (i32.shr_u (local.get $scalar) (i32.const 6)))
+                            )
+                            (local.set $byte2
+                                (i32.or (i32.const 0x80) (i32.and (local.get $scalar) (i32.const 0x3F)))
+                            )
+                            (i32.store8 (local.get $output-offset) (local.get $byte1))
+                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                            (i32.store8 (local.get $output-offset) (local.get $byte2))
+                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                        )
+                        (else
+                            ;; block 3
+                            (if (i32.lt_u (local.get $scalar) (i32.const 0x10000))
+                                (then
+                                    ;; 3-byte sequence: 1110xxxx 10xxxxxx 10xxxxxx
+                                    (local.set $byte1
+                                        (i32.or (i32.const 0xE0) (i32.shr_u (local.get $scalar) (i32.const 12)))
+                                    )
+                                    (local.set $byte2
+                                        (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $scalar) (i32.const 6)) (i32.const 0x3F)))
+                                    )
+                                    (local.set $byte3
+                                        (i32.or (i32.const 0x80) (i32.and (local.get $scalar) (i32.const 0x3F)))
+                                    )
+                                    (i32.store8 (local.get $output-offset) (local.get $byte1))
+                                    (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                    (i32.store8 (local.get $output-offset) (local.get $byte2))
+                                    (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                    (i32.store8 (local.get $output-offset) (local.get $byte3))
+                                    (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                )
+                                (else
+                                    ;; block 4
+                                    (if (i32.lt_u (local.get $scalar) (i32.const 0x110000))
+                                        (then
+                                            ;; 4-byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+                                            (local.set $byte1
+                                                (i32.or (i32.const 0xF0) (i32.shr_u (local.get $scalar) (i32.const 18)))
+                                            )
+                                            (local.set $byte2
+                                                (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $scalar) (i32.const 12)) (i32.const 0x3F)))
+                                            )
+                                            (local.set $byte3
+                                                (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $scalar) (i32.const 6)) (i32.const 0x3F)))
+                                            )
+                                            (local.set $byte4
+                                                (i32.or (i32.const 0x80) (i32.and (local.get $scalar) (i32.const 0x3F)))
+                                            )
+                                            (i32.store8 (local.get $output-offset) (local.get $byte1))
+                                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                            (i32.store8 (local.get $output-offset) (local.get $byte2))
+                                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                            (i32.store8 (local.get $output-offset) (local.get $byte3))
+                                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                            (i32.store8 (local.get $output-offset) (local.get $byte4))
+                                            (local.set $output-offset (i32.add (local.get $output-offset) (i32.const 1)))
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+
+            ;; Increment loop counter and continue loop
+            (local.set $i (i32.add (local.get $i) (i32.const 4)))
+            (br_if $loop (i32.lt_u (local.get $i) (local.get $length)))
+        )
+
+        ;; Calculate the length and push to stack
+        (i32.sub (local.get $output-offset) (local.get $initial-output-offset))
     )
 
     (export "stdlib.add-uint" (func $stdlib.add-uint))

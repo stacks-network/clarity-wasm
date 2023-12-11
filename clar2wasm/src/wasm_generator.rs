@@ -38,7 +38,7 @@ pub struct WasmGenerator {
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
     /// Map strings saved in the literal memory to their offset.
-    pub(crate) literal_memory_offet: HashMap<String, u32>,
+    pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
@@ -48,6 +48,12 @@ pub struct WasmGenerator {
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
+}
+
+#[derive(Hash, Eq, PartialEq)]
+pub enum LiteralMemoryEntry {
+    Ascii(String),
+    Utf8(String),
 }
 
 #[derive(Debug)]
@@ -153,7 +159,7 @@ impl WasmGenerator {
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: global_id,
-            literal_memory_offet: HashMap::new(),
+            literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
             early_return_block_id: None,
@@ -382,17 +388,28 @@ impl WasmGenerator {
     pub(crate) fn add_clarity_string_literal(&mut self, s: &CharType) -> (u32, u32) {
         // If this string has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(s.to_string().as_str()) {
-            let length = match s {
-                CharType::ASCII(s) => s.data.len() as u32,
-                CharType::UTF8(_u) => todo!("UTF8"),
-            };
-            return (*offset, length);
-        }
-
-        let data = match s {
-            CharType::ASCII(s) => s.data.clone(),
-            CharType::UTF8(u) => u.data.clone().into_iter().flatten().collect(),
+        let (data, entry) = match s {
+            CharType::ASCII(s) => {
+                let entry = LiteralMemoryEntry::Ascii(s.to_string());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, s.data.len() as u32);
+                }
+                (s.data.clone(), entry)
+            }
+            CharType::UTF8(u) => {
+                let data_str = String::from_utf8(u.data.iter().flatten().cloned().collect())
+                    .expect("Invalid UTF-8 sequence");
+                let entry = LiteralMemoryEntry::Utf8(data_str.clone());
+                if let Some(offset) = self.literal_memory_offset.get(&entry) {
+                    return (*offset, u.data.len() as u32 * 4);
+                }
+                // Convert the string into 4-byte big-endian unicode scalar values.
+                let data = data_str
+                    .chars()
+                    .flat_map(|c| (c as u32).to_be_bytes())
+                    .collect();
+                (data, entry)
+            }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
@@ -402,12 +419,12 @@ impl WasmGenerator {
                 memory: memory.id(),
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
-            data.clone(),
+            data,
         );
-        self.literal_memory_end += data.len() as u32;
+        self.literal_memory_end += len;
 
         // Save the offset in the literal memory for this string
-        self.literal_memory_offet.insert(s.to_string(), offset);
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
@@ -416,7 +433,8 @@ impl WasmGenerator {
     pub(crate) fn add_string_literal(&mut self, name: &str) -> (u32, u32) {
         // If this identifier has already been saved in the literal memory,
         // just return the offset and length.
-        if let Some(offset) = self.literal_memory_offet.get(name) {
+        let entry = LiteralMemoryEntry::Ascii(name.to_string());
+        if let Some(offset) = self.literal_memory_offset.get(&entry) {
             return (*offset, name.len() as u32);
         }
 
@@ -433,7 +451,7 @@ impl WasmGenerator {
         self.literal_memory_end += name.len() as u32;
 
         // Save the offset in the literal memory for this identifier
-        self.literal_memory_offet.insert(name.to_string(), offset);
+        self.literal_memory_offset.insert(entry, offset);
 
         (offset, len)
     }
@@ -1474,19 +1492,73 @@ impl WasmGenerator {
     ///  | 0x0e | length: 4-bytes (big-endian) | utf8-encoded string: variable length |
     fn serialize_string_utf8(
         &mut self,
-        _builder: &mut InstrSeqBuilder,
-        _memory: MemoryId,
-        _offset_local: LocalId,
-        _offset: u32,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        offset: u32,
     ) -> Result<(), GeneratorError> {
-        // Sequence(SequenceData::String(UTF8(value))) => {
-        //     let total_len: u32 = value.data.iter().fold(0u32, |len, c| len + c.len() as u32);
-        //     w.write_all(&(total_len.to_be_bytes()))?;
-        //     for bytes in value.data.iter() {
-        //         w.write_all(&bytes)?
-        //     }
-        // }
-        todo!("serialize_string_utf8");
+        // Data stack: TOP | Length | Offset |
+        let write_ptr = self.module.locals.add(ValType::I32);
+        let read_ptr = self.module.locals.add(ValType::I32);
+        let length = self.module.locals.add(ValType::I32);
+        let utf8_length = self.module.locals.add(ValType::I32);
+
+        // Save the length and offset to locals
+        builder.local_set(length).local_set(read_ptr);
+
+        // Write the type prefix first
+        builder
+            .local_get(offset_local)
+            .i32_const(TypePrefix::StringUTF8 as i32)
+            .store(
+                memory,
+                StoreKind::I32_8 { atomic: false },
+                MemArg { align: 1, offset },
+            );
+
+        // Create a local for the write pointer by adjusting the
+        // offset local by the offset amount + 1 (prefix) + 4 (length).
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 5)
+            .binop(BinaryOp::I32Add)
+            .local_set(write_ptr);
+
+        // Push the offset, length, and output-offset to the data stack
+        builder
+            .local_get(read_ptr)
+            .local_get(length)
+            .local_get(write_ptr);
+
+        // Call scalar to utf8 conversion function
+        builder
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.convert-scalars-to-utf8")
+                    .expect("convert-scalars-to-utf8 not found"),
+            )
+            .local_tee(utf8_length);
+
+        // Serialize the length to memory (big endian)
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32 + 1)
+            .binop(BinaryOp::I32Add)
+            .local_get(utf8_length)
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.store-i32-be")
+                    .expect("store-i32-be not found"),
+            );
+
+        // Push the length written to the data stack, the length of the serialized string is already on the stack
+        //  length    +    1    +    4
+        //      type prefix^         ^length
+        builder.i32_const(5).binop(BinaryOp::I32Add);
+
+        Ok(())
     }
 
     /// Serialize a `tuple` to memory using consensus serialization. Leaves the
