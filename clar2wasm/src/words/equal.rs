@@ -1035,6 +1035,21 @@ mod tests {
     }
 
     #[test]
+    fn index_of_ascii_empty() {
+        assert_eq!(eval("(index-of \"\" \"\")"), Some(Value::none()));
+    }
+
+    #[test]
+    fn index_of_ascii_empty_input() {
+        assert_eq!(eval("(index-of \"\" \"a\")"), Some(Value::none()));
+    }
+
+    #[test]
+    fn index_of_ascii_empty_char() {
+        assert_eq!(eval("(index-of \"Stacks\" \"\")"), Some(Value::none()));
+    }
+
+    #[test]
     fn index_of_ascii_first_elem() {
         assert_eq!(
             eval("(index-of \"Stacks\" \"S\")"),
@@ -1048,11 +1063,6 @@ mod tests {
             eval("(index-of \"Stacks\" \"s\")"),
             Some(Value::some(Value::UInt(5)).unwrap())
         );
-    }
-
-    #[test]
-    fn index_of_ascii_zero_len() {
-        assert_eq!(eval("(index-of \"Stacks\" \"\")"), Some(Value::none()));
     }
 
     #[test]
