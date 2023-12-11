@@ -177,7 +177,7 @@
                                                            (param $arguments_length i32)
                                                            (param $return_offset i32)
                                                            (param $return_length i32)))
-                                                           
+
     (import "clarity" "begin_public_call" (func $stdlib.begin_public_call))
     (import "clarity" "begin_read_only_call" (func $stdlib.begin_read_only_call))
     (import "clarity" "commit_call" (func $stdlib.commit_call))
@@ -2821,6 +2821,8 @@
         )
 
         (local.get $offset-result) (i32.const 64)
+    )
+    
     ;; Converts a span of 4-byte unicode scalar values into UTF-8.
     ;; The input bytes are assumed to be composed of valid unicode scalar values.
     ;; Do not call this function with arbitrary bytes.

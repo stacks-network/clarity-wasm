@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
-use clarity::util::hash::{Hash160, Sha256Sum,Sha512Sum};
+use clarity::util::hash::{Hash160, Sha256Sum, Sha512Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
