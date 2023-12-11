@@ -608,6 +608,16 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> u32 {
+        const BYTES_COUNT: fn(&TypeSignature) -> u32 = |ty| {
+            clar2wasm_ty(ty)
+                .into_iter()
+                .map(|v| match v {
+                    ValType::I32 => 4,
+                    ValType::I64 => 8,
+                    _ => unreachable!(),
+                })
+                .sum()
+        };
         let memory = self.module.memories.iter().next().expect("no memory found");
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -633,7 +643,10 @@ impl WasmGenerator {
                 );
                 16
             }
-            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
+            TypeSignature::PrincipalType
+            | TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::ListType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 // Data stack: TOP | Length | Offset | ...
                 // Save the offset/length to locals.
                 let seq_offset = self.module.locals.add(ValType::I32);
@@ -669,6 +682,86 @@ impl WasmGenerator {
                     MemArg { align: 4, offset },
                 );
                 4
+            }
+            TypeSignature::NoType => {
+                // Data stack: TOP | (Place holder i32)
+                // We just have to drop the placeholder and write a i32
+                builder.drop().local_get(offset_local).i32_const(0).store(
+                    memory.id(),
+                    StoreKind::I32 { atomic: false },
+                    MemArg { align: 4, offset },
+                );
+                4
+            }
+            TypeSignature::OptionalType(some_ty) => {
+                let memory_id = memory.id();
+                // Data stack: TOP | inner value | (some|none) variant
+                // recursively store the inner value
+
+                let bytes_written =
+                    self.write_to_memory(builder, offset_local, offset + 4, some_ty);
+
+                // Save the variant to a local and store it to memory
+                let variant_val = self.module.locals.add(ValType::I32);
+                builder
+                    .local_set(variant_val)
+                    .local_get(offset_local)
+                    .local_get(variant_val)
+                    .store(
+                        memory_id,
+                        StoreKind::I32 { atomic: false },
+                        MemArg { align: 4, offset },
+                    );
+
+                // recursively store the inner value
+                4 + bytes_written
+            }
+            TypeSignature::ResponseType(ok_err_ty) => {
+                // Data stack: TOP | err_value | ok_value | (ok|err) variant
+                let memory_id = memory.id();
+                let mut bytes_written = 0;
+
+                // write err value at offset + size of variant (4) + size of ok_value
+                bytes_written += self.write_to_memory(
+                    builder,
+                    offset_local,
+                    offset + 4 + BYTES_COUNT(&ok_err_ty.0),
+                    &ok_err_ty.1,
+                );
+
+                // write ok value at offset + size of variant (4)
+                bytes_written +=
+                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0);
+
+                let variant_val = self.module.locals.add(ValType::I32);
+                builder
+                    .local_set(variant_val)
+                    .local_get(offset_local)
+                    .local_get(variant_val)
+                    .store(
+                        memory_id,
+                        StoreKind::I32 { atomic: false },
+                        MemArg { align: 4, offset },
+                    );
+
+                bytes_written + 4
+            }
+            TypeSignature::TupleType(tuple_ty) => {
+                // Data stack: TOP | last_value | value_before_last | ... | first_value
+                // we will write the values from last to first by setting the correct offset at which it's supposed to be written
+                let mut bytes_written = 0;
+                let types: Vec<_> = tuple_ty.get_type_map().values().collect();
+                let offsets_delta: Vec<_> = std::iter::once(0u32)
+                    .chain(types.iter().map(|t| BYTES_COUNT(t)).scan(0, |acc, i| {
+                        *acc += i;
+                        Some(*acc)
+                    }))
+                    .collect();
+                for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
+                    bytes_written +=
+                        self.write_to_memory(builder, offset_local, offset + offset_delta, elem_ty);
+                }
+                bytes_written
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         }
