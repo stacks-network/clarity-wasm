@@ -508,15 +508,21 @@ fn wasm_equal_optional(
         let mut then = builder.dangling_instr_seq(ValType::I32);
         // is none ?
         then.local_get(*first_variant).unop(UnaryOp::I32Eqz);
-        // is some inner equal ?
-        wasm_equal(
-            some_ty,
-            nth_some_ty,
-            generator,
-            &mut then,
-            first_inner,
-            nth_inner,
-        )?; // is some arguments equal ?
+        // is some inner equal ? (or automatic true if NoType)
+        if some_ty == &TypeSignature::NoType {
+            // if first operand is NoType, it means that it is a none and we
+            // put true directly to because it is enough to check for variant equality
+            then.i32_const(1);
+        } else {
+            wasm_equal(
+                some_ty,
+                nth_some_ty,
+                generator,
+                &mut then,
+                first_inner,
+                nth_inner,
+            )?; // is some arguments equal ?
+        }
         then.binop(BinaryOp::I32Or);
         then.id()
     };
