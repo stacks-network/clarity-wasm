@@ -1,7 +1,6 @@
 use clar2wasm::tools::evaluate;
-use proptest::proptest;
-
 use proptest::prelude::ProptestConfig;
+use proptest::proptest;
 
 use crate::PropValue;
 

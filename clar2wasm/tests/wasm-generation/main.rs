@@ -4,7 +4,6 @@ use clarity::vm::types::{
     ASCIIData, BuffData, ListData, ListTypeData, OptionalData, ResponseData, SequenceData,
     SequenceSubtype, StringSubtype, TupleData, TupleTypeSignature, TypeSignature, Value,
 };
-
 use proptest::prelude::*;
 
 pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
