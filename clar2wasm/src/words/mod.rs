@@ -70,6 +70,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::Match,
     &conditionals::Or,
     &conditionals::Unwrap,
+    &conditionals::UnwrapErr,
     &consensus_buff::ToConsensusBuf,
     &constants::DefineConstant,
     &contract::AsContract,
