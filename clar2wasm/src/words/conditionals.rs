@@ -431,6 +431,82 @@ impl Word for Unwrap {
     }
 }
 
+#[derive(Debug)]
+pub struct UnwrapErr;
+
+impl Word for UnwrapErr {
+    fn name(&self) -> ClarityName {
+        "unwrap-err!".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let input = args.get_expr(0)?;
+        let throw = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+
+        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+
+        let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
+            generator.get_expr_type(input)
+        {
+            (&**inner_types).clone()
+        } else {
+            return Err(GeneratorError::InternalError(
+                "unwrap-error! only accepts response types".to_string(),
+            ));
+        };
+
+        // Save the err value
+        let err_locals = generator.save_to_locals(builder, &err_type, true);
+
+        // drop the ok value
+        drop_value(builder, &ok_type);
+
+        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &throw_type,
+        ));
+        generator.traverse_expr(&mut throw_branch, throw)?;
+        generator.return_early(&mut throw_branch)?;
+
+        let throw_branch_id = throw_branch.id();
+
+        // stack [ discriminant ]
+
+        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &clar2wasm_ty(&err_type),
+        ));
+
+        // in unwrap we restore the value from the locals
+        for local in err_locals {
+            unwrap_branch.local_get(local);
+        }
+
+        let unwrap_branch_id = unwrap_branch.id();
+
+        builder
+            // invert the value
+            .i32_const(0)
+            .binop(ir::BinaryOp::I32Eq)
+            // conditionally branch
+            .instr(ir::IfElse {
+                consequent: unwrap_branch_id,
+                alternative: throw_branch_id,
+            });
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clarity::vm::Value;
@@ -553,7 +629,7 @@ mod tests {
     }
 
     #[test]
-    fn clar_unwrap_a() {
+    fn unwrap_a() {
         const FN: &str = "
 (define-private (unwrapper (x (optional int)))
   (+ (unwrap! x 23) 10))";
@@ -570,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn clar_unwrap_b() {
+    fn unwrap_b() {
         const FN: &str = "
 (define-private (unwrapper (x (response int int)))
   (+ (unwrap! x 23) 10))";
@@ -583,6 +659,23 @@ mod tests {
         assert_eq!(
             eval(&format!("{FN} (unwrapper (ok 10))")),
             Some(Value::Int(20))
+        );
+    }
+
+    #[test]
+    fn unwrap_err() {
+        const FN: &str = "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap-err! x 23) 10))";
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (err 9999))")),
+            Some(Value::Int(10009))
+        );
+
+        assert_eq!(
+            eval(&format!("{FN} (unwrapper (ok 10))")),
+            Some(Value::Int(23))
         );
     }
 }
