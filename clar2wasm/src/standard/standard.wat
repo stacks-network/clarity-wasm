@@ -2536,7 +2536,7 @@
 
         ;; For binary representation, you can take a look at https://sha256algorithm.com/
         ;; Keep in mind that SHA-256 handles 4-byte words, but SHA-512 handles 8-byte words
-        ;; SHA-256 block is 512-bits(64 bytes) but SHA-512 block is 1028 bits (128 bytes)
+        ;; SHA-256 block is of 512-bits(64 bytes) but SHA-512 block is of 1028-bits(128 bytes)
         ;; For initial values, constants and high level understanding of SHA-512, please take a look at this rust implementation
         ;; https://github.com/dandyvica/sha/blob/master/src/sha512.rs
         ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf

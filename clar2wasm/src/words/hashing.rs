@@ -166,7 +166,7 @@ impl Word for Sha512 {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
@@ -186,31 +186,40 @@ impl Word for Sha512 {
 
                 // The load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);
+
+                // Reserve stack space for the host-function to write the result
+                let ret_ty = BUFF_64.clone();
+                let (result_local, result_size) =
+                    generator.create_call_stack_local(builder, &ret_ty, false, true);
+                builder.local_get(result_local).i32_const(result_size);
+
+                // Call the host interface function, `sha512`
+                builder.call(
+                    generator
+                        .module
+                        .funcs
+                        .by_name("stdlib.sha512")
+                        .expect("function not found"),
+                );
+                Ok(())
             }
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => {}
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => {
+                traverse_hash(
+                    "sha512",
+                    core::mem::size_of::<u32>() * 8,
+                    generator,
+                    builder,
+                    expr,
+                    args,
+                )
+            }
             _ => {
-                return Err(GeneratorError::TypeError(
+                Err(GeneratorError::TypeError(
                     "invalid type for sha512".to_string(),
                 ))
             }
         }
 
-        // Reserve stack space for the host-function to write the result
-        let ret_ty = BUFF_64.clone();
-        let (result_local, result_size) =
-            generator.create_call_stack_local(builder, &ret_ty, false, true);
-        builder.local_get(result_local).i32_const(result_size);
-
-        // Call the host interface function, `sha512`
-        builder.call(
-            generator
-                .module
-                .funcs
-                .by_name("stdlib.sha512")
-                .expect("function not found"),
-        );
-
-        Ok(())
     }
 }
 
