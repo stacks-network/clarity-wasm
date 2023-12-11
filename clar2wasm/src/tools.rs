@@ -19,6 +19,9 @@ use clarity::vm::{ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
+#[cfg(test)]
+use wabt::wasm2wat;
+
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
     epoch: StacksEpochId,
@@ -95,7 +98,14 @@ impl TestEnvironment {
             .expect("Failed to insert contract analysis.");
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
-        // compile_result.module.emit_wasm_file("test.wasm").unwrap();
+
+        #[cfg(test)]
+        {
+            let wasm = compile_result.module.emit_wasm();
+            let wat = wasm2wat(wasm);
+            println!("WAT OUTPUT\n{:?}", wat);
+        }
+
         contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
         let mut cost_tracker = LimitedCostTracker::new_free();

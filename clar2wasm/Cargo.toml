@@ -33,6 +33,7 @@ num-integer = { version = "0.1.45", default-features = false }
 clar2wasm-tests = { path = "../tests" }
 hex = "0.4.3"
 pprof = { version = "0.13", features = ["flamegraph", "protobuf-codec", "criterion", "frame-pointer"] }
+wabt = "0.10"
 
 [lib]
 path = "src/lib.rs"

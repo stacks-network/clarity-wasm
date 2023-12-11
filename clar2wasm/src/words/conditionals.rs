@@ -458,6 +458,7 @@ impl Word for UnwrapErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
+
         let throw = args.get_expr(1)?;
 
         generator.traverse_expr(builder, input)?;
@@ -525,6 +526,29 @@ impl Word for UnwrapErr {
                 consequent: unwrap_branch_id,
                 alternative: throw_branch_id,
             });
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Try;
+
+impl Word for Try {
+    fn name(&self) -> ClarityName {
+        "try!".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Seemingly no matter what is put here, the error is "expected i64"
+        builder.i64_const(0);
+        builder.i64_const(0);
         Ok(())
     }
 }
@@ -737,5 +761,17 @@ mod tests {
             "#,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn try_a() {
+        const FN: &str = "
+(define-private (tryhard (x (response int int)))
+  (ok (+ (try! x) 10)))";
+
+        assert_eq!(
+            eval(&format!("{FN} (tryhard (ok 1))")),
+            Some(Value::Int(11))
+        );
     }
 }
