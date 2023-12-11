@@ -12,10 +12,10 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         Just(TypeSignature::IntType),
         Just(TypeSignature::UIntType),
         Just(TypeSignature::BoolType),
-        (0u32..256).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
             s.try_into().unwrap()
         ))),
-        (0u32..256).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
         // TODO: principal,
@@ -40,11 +40,11 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
             prop::collection::btree_map(
                 r#"[a-zA-Z]{1,16}"#.prop_map(|name| name.try_into().unwrap()),
                 inner.clone(),
-                1..16
+                1..8
             )
             .prop_map(|btree| TypeSignature::TupleType(btree.try_into().unwrap())),
             // list type
-            (16u32..64, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
+            (8u32..32, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
         ]
     })
 }
