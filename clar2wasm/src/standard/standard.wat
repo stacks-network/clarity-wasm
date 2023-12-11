@@ -1421,7 +1421,6 @@
         (local.set $length)
 
         (local.set $i (i32.const 0))
-
         (loop
             (call $block64 (local.get $i))
             (call $working-vars)
@@ -1494,7 +1493,6 @@
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W (result of $block64)
         ;;   288..$length+288 -> shifted data
-
         (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
         (memory.copy (i32.add (global.get $stack-pointer) (i32.const 288)) (local.get $offset) (local.get $length))
 
@@ -1547,7 +1545,6 @@
                 )
             )
         )
-
         i64.store offset=288
 
         (local.get $res_len)
@@ -1566,12 +1563,10 @@
         ;; TODO? : unroll this loop, since it's one instruction 4 times?
         (loop
             (i32.add (local.get $origin) (local.get $i))
-            
             (i8x16.swizzle
                 (v128.load offset=288 (i32.add (local.get $data) (local.get $i)))
                 (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
             )
-
             v128.store offset=32
 
             (br_if 0
@@ -2539,9 +2534,17 @@
 
     (func $stdlib.sha512-buf (param $offset i32) (param $length i32) (param $offset-result i32)(result i32 i32)
 
+        ;; For binary representation, you can take a look at https://sha256algorithm.com/
+        ;; Keep in mind that SHA-256 handles 4-byte words, but SHA-512 handles 8-byte words
+        ;; SHA-256 block is 512-bits(64 bytes) but SHA-512 block is 1028 bits (128 bytes)
+        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this rust implementation
+        ;; https://github.com/dandyvica/sha/blob/master/src/sha512.rs
+        ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
+
         ;; Length of the data after adding padding and length to it
         (local $length_after_padding i32)
 
+        ;; Message length in 8 bytes
         (local $message_length_64 i64)
         
         ;; Index to track all blocks
@@ -2561,8 +2564,6 @@
         (local $e i64) (local $f i64) (local $g i64) (local $h i64)
         (local $temp1 i64) (local $temp2 i64)
 
-        
-
         ;; Copying initial values (64 bytes) for SHA-512 from 648 index
         (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
 
@@ -2580,7 +2581,6 @@
                 )
         )
 
-        
         ;; Add "1" at the end of the data
         (i32.store offset=704
             (i32.add (global.get $stack-pointer) (local.get $length))
@@ -2591,7 +2591,6 @@
         (memory.fill
                 (i32.add (i32.add (global.get $stack-pointer) (local.get $length)) (i32.const 705))
                 (i32.const 0)
-
                 ;; Leave the last 8 bytes for the length
                 ;; Not handling 16 bytes length here
                 (i32.sub (i32.sub (local.get $length_after_padding) (local.get $length)) (i32.const 8))
@@ -2600,8 +2599,7 @@
         ;; Add the length, as a 64bits big-endian integer
         (local.set $message_length_64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
 
-
-        ;; Although length is being handled as i64 (8 bytes)
+        ;; Length is being handled as i64 (8 bytes), because we don't need to handle it in 16 bytes, it will be complex
         ;; This is the location where reversed length is going to be stored
         (i32.sub (i32.add (global.get $stack-pointer) (local.get $length_after_padding)) (i32.const 8))
 
@@ -2628,30 +2626,23 @@
                     )
                 )
         )
-
         i64.store offset=704
-
         
         (local.set $outer-index (i32.const 0))
-
         ;; Iterations on blocks
         (loop
-            
             ;; Process a block
-            
-            (local.set $temp-block-data (i32.add (global.get $stack-pointer) (local.get $outer-index)))
-            
-            (local.set $inner-index (i32.const 0))
 
+            (local.set $temp-block-data (i32.add (global.get $stack-pointer) (local.get $outer-index)))
+
+            (local.set $inner-index (i32.const 0))
             ;; Reverse each word in the block (8 bytes for sha-512) to convert it to little-endian format
             (loop
                 (i32.add (global.get $stack-pointer) (local.get $inner-index))
-                
                 (i8x16.swizzle
                     (v128.load offset=704 (i32.add (local.get $temp-block-data) (local.get $inner-index)))
                     (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
                 )
-
                 v128.store offset=64
 
                 (br_if 0
@@ -2663,38 +2654,29 @@
             )
             
             (local.set $inner-index (i32.const 0))
-
             (loop
                 (local.set $temp-block-data (i32.add (global.get $stack-pointer) (local.get $inner-index)))
-                
                 ;; Location to store the calculated word in current iteration (current-word + 16) 
                 (i32.add (local.get $temp-block-data) (i32.const 128))
-
                 ;; w(current)
                 (i64.load offset=64 (local.get $temp-block-data))
-
                 ;; sigma 0
                 (local.set $block-iteration-temp (i64.load offset=72 (local.get $temp-block-data))) ;; offset (w+1) = 64 + 8 
                 (i64.rotr (local.get $block-iteration-temp) (i64.const 1))
                 (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 8)))
                 (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 7)))
                 i64.add
-
                 ;; w(current+9)
                 (i64.add (i64.load offset=136 (local.get $temp-block-data))) ;; offset = 64+72
-
                 ;; sigma 1
                 (local.set $block-iteration-temp (i64.load offset=176 (local.get $temp-block-data))) ;; offset = 64 + 112 w(current+14)
                 (i64.rotr (local.get $block-iteration-temp) (i64.const 19))
                 (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 61)))
                 (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 6)))
                 i64.add
-
-
                 ;; save
                 i64.store offset=64
 
-                
                 (br_if 0
                     (i32.lt_u
                         (local.tee $inner-index (i32.add (local.get $inner-index) (i32.const 8)))
@@ -2702,7 +2684,6 @@
                     )
                 )
             )
-
 
             ;; Calculating variables
             (local.set $a (i64.load offset=0 (global.get $stack-pointer)))
@@ -2713,8 +2694,6 @@
             (local.set $f (i64.load offset=40 (global.get $stack-pointer)))
             (local.set $g (i64.load offset=48 (global.get $stack-pointer)))
             (local.set $h (i64.load offset=56 (global.get $stack-pointer)))
-
-
 
             (local.set $inner-index (i32.const 0))
 
@@ -2738,7 +2717,6 @@
                 (local.set $temp1)
 
                 ;; compute temp2: sigma0 + majority
-
                 (i64.rotr (local.get $a) (i64.const 28))
                 (i64.xor (i64.rotr (local.get $a) (i64.const 34)))
                 (i64.xor (i64.rotr (local.get $a) (i64.const 39))) ;; sigma0
@@ -2759,7 +2737,6 @@
                 (local.set $c (local.get $b))
                 (local.set $b (local.get $a))
                 (local.set $a (i64.add (local.get $temp1) (local.get $temp2)))
-
             
                 (br_if 0
                     (i32.lt_u
@@ -2778,8 +2755,6 @@
             (i64.store offset=40 (global.get $stack-pointer) (i64.add (i64.load offset=40 (global.get $stack-pointer)) (local.get $f)))
             (i64.store offset=48 (global.get $stack-pointer) (i64.add (i64.load offset=48 (global.get $stack-pointer)) (local.get $g)))
             (i64.store offset=56 (global.get $stack-pointer) (i64.add (i64.load offset=56 (global.get $stack-pointer)) (local.get $h)))
-
-
 
             (br_if 0
                 (i32.lt_u
@@ -2804,7 +2779,6 @@
                 (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
             )
         )
-
         (v128.store offset=32
             (local.get $offset-result)
             (i8x16.swizzle
@@ -2822,7 +2796,7 @@
 
         (local.get $offset-result) (i32.const 64)
     )
-    
+
     ;; Converts a span of 4-byte unicode scalar values into UTF-8.
     ;; The input bytes are assumed to be composed of valid unicode scalar values.
     ;; Do not call this function with arbitrary bytes.
