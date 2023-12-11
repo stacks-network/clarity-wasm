@@ -1,23 +1,19 @@
 use clar2wasm::tools::evaluate;
-use clarity::vm::types::ListTypeData;
 use proptest::proptest;
 
 use crate::property_value::PropValue;
 
 use proptest::prelude::ProptestConfig;
 
-use clarity::vm::types::*;
-
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 1, .. ProptestConfig::default()
+        cases: 1000,
+        .. ProptestConfig::default()
     })]
     #[test]
-    fn generated_value_is_syntactically_correct(val in PropValue::from_type(
-        ListTypeData::new_list(
-            TupleTypeSignature::try_from(vec![("a".into(), TypeSignature::IntType), ("b".into(), TypeSignature::SequenceType(SequenceSubtype::BufferType(5u32.try_into().unwrap())))]).unwrap().into(), 5).unwrap().into())) {
+    fn generated_value_is_syntactically_correct(val in PropValue::any()) {
         assert_eq!(
-            evaluate(dbg!(&val.to_string())),
+            evaluate(&val.to_string()),
             Some(val.into())
         )
     }
@@ -34,6 +30,14 @@ fn foo() {
 
 #[test]
 fn foo2() {
-    let s = "(list (tuple (a 148987255394482843142261275651954923681) (b 0x07fa6db2f2)) (tuple (a 10625222246108328138550657607965884282) (b 0x2b6d48b605)))";
+    let s = "(list (tuple (a 148987255394482843142261275651954923681) (b 0x07fa6db2f2)))";
     let _v = evaluate(s);
+}
+
+#[test]
+fn foo3() {
+    let s = r#"(list (tuple (CgqYu u971415834095449701293036248069) (CsSeCuVgpHfkP 0x35b8b50fb26a1eef60e36c2314d4bb3d263eb18f43ace3c320e8ade5e018e9f874168e8dcdef69bedf92e0f28a2be7e04d786521a58169961021fcd7f4d701c184ed86b820baba647d6304117a4834ba064b6c8b64dc666108e2c743eaec117d77167fcd37d345ce0af6af4ce3a723a1908b87ae97ec76d84e4ef6a51eca6d809173c31bf0c50021fded0ab98622d405ffd5074bc0fb9757abeff11182b7b46769b27311dc82d4c9639849ef9c62323b14d553d745173e6c394cdbfb546dd4a0c7f769f52fd5f0f5b67ab2dd086a08ea977fdd47bd79df175c8f408472882be5ffadfb952089881fe3c49245806dce3db2781b39ba03f67357bf5e8e2d69) (GFvsyyJSOKReLrHO true) (Gc -151744247601133785040907200226867507251) (LsmmbMhZco false) (O true) (aiqeCKovWFqpzwX -128511247695271005176047588894174938250) (c none) (mPmPiYEWpWwmsJ true) (skqWIys 132209634101610707749247928089229437478) (vqen u113354540274071889863912336895750576019) (wEC u97201975031131840202262828953965296159) (wKzNTOWIUb 0x94d00e314578e75a6bb1b083b912c48dfdfe7b0445764d6b9669f20c048e9e0fd5cfa36b9c7d23ddb5f211f21f629d10c62a1ad9e964be6d3dba22dd9022a3483fe03c5829f63b010b33a333740a123d3953b453caf962dd634af66476e1a87ee4b8ed23fac391ca183104d4ee7169f157438ba3815e2d468505277fecf236b747605128767d2b2bd5428152333f7a38392c69ad50cce2da1e905352c7787b49e9e596f228b76154c7290b56334347a98cf7108607a881cf9bfdb912e6e0fdd1705d979b804250f4ba8a663eb8ec326dbcc5625c432062da213614fe4c8793e6ce2d89af2bea06fce67bd30ed996e3583bd53f2ff5e798d83b4b5c) (zQgBsD 0x9bfb834924425e591f2da199f97f2baac159a7e0f6c0483295cfb4bb0bb18ff5ae27e7ad8e877c9c21a9e0e858662b164f33fcb5671817d6f02c0ce92e431e1671deb69068e9a51b12c0a2027d478a30a4b1f3e1247c5dfcd9fa579835156b74b345379995c2f89fec285a784bfe79403b4fc1c5f93037a8531a3f4cdaf1)) (tuple (CgqYu u53904014079545972491264275689142269782) (CsSeCuVgpHfkP 0x7334362a636eb312e5d29d0852699b35738ef87e1524316c98e8d0af401c48584f4d739cd00059abf0f962bb764adc0e3a99f53f7e573f2879183ac277b371ae959fa5c575b080f998d61227e732b136e093734e222d51f7241b815a017dae7bab4da1bc046f3b105af6286393702a9d4f2d6cd40922e8680edbaf30461fd71012b0f9853484c08eb22b00757170e850c45e572224530db1ec01582ec2c9c7f763608cd2d8432334a2ebfcbe548275524de627f456ed792131a04e2bf1b15010fad281ae98bffe1554134c72472014f84e81e2d06760edb5f46a95803959236ef56b7c300292c88599bd009b9aa8f845740f53062ade85200cffc9313e19) (GFvsyyJSOKReLrHO true) (Gc -156164185718488843266421570219093559277) (LsmmbMhZco false) (O false) (aiqeCKovWFqpzwX -113578753743334586324953636038454212437) (c (some "zbx{lw3`}NwaFIA_XyHDv=GaycVr:3lMEx;ksgeX;Hz?^\\XjD_=cshrDM=ri7y_GdWBmEL?3tQOVnRy8cy`3Z=sq=SaPJHxRxhUHhkw758a2BUsj8oo7sD22qFYpS=@DXd}9zFQb7WkcKqFIKw@cd@T|Po6p6VbzgAEVdW`muLo7w<iOEN")) (mPmPiYEWpWwmsJ false) (skqWIys -69050046558061743190463887267089097314) (vqen u139269596083592709954224684722281377442) (wEC u309858186939941553505674345931963321223) (wKzNTOWIUb 0x47493123ff8486a2c33a1f443ee851bee3576e769bcb2f84d3cb26e975ca86c3476400f279ae61f2de0eaf03cb10cae0d9948a3f742be32791111565848aaeb89c6d9f231820f8292e41974eb5acf20fa2274c20152b3afca2dd2e964216cee14c0f7e22d8d0b036b0c53766245cdab6da2da4b74de7976a21a18c5edfff42596eb206cf46fe02e4e874b07762ee4a5bd1feb541063431544409f5b52952c49d1857194b35240a25c48b924a8b2326bf69eaca24c6384c9bbd6198e0db1eb8ebbb3a20d7bc72be184c6aff58ce0e439f136812356744733387ef94180472776ed8105c1ec6732668c4f6d5cf400d70f83d9c376e840239a783d64a) (zQgBsD 0xc7266204c3e9acd9514c7ecd9e85227dc5d81fb19cbbbe559f1bd376b3ddca2ef8e5916ddfa4d321ad26a738b804e1723e7fa467c887f229ed3dd50d76825f6f3437b574f69c6dc74b5fe3183e35a097cadf8f9f46a7f8664b1edfd99c5fe88ad10547931161eacb45159cdc5a382ce565833d3ec46bd3608b44451c2760)))"#;
+    let v = evaluate(s).unwrap();
+    let p: PropValue = v.into();
+    assert_eq!(s, &p.to_string());
 }

@@ -59,12 +59,17 @@ impl Word for TupleCons {
         }
 
         // Now we can iterate over the tuple type and build the tuple.
-        for key in tuple_ty.get_type_map().keys() {
+        for (key, ty) in tuple_ty.get_type_map() {
             let value = values
                 .remove(key)
                 .ok_or(GeneratorError::InternalError(format!(
                     "missing key '{key}' in tuple"
                 )))?;
+            generator
+                .contract_analysis
+                .type_map
+                .as_mut()
+                .map(|tm| tm.set_type(value, ty.clone()));
             generator.traverse_expr(builder, value)?;
         }
 

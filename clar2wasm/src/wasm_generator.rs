@@ -720,19 +720,17 @@ impl WasmGenerator {
             TypeSignature::TupleType(tuple_ty) => {
                 let mut bytes_written = 0;
                 let types: Vec<_> = tuple_ty.get_type_map().values().collect();
-                let offsets_delta: Vec<_> = types
-                    .iter()
-                    .map(|t| bytes_size(t))
-                    .scan(0, |acc, i| {
+                let offsets_delta: Vec<_> = std::iter::once(0u32)
+                    .chain(types.iter().map(|t| bytes_size(t)).scan(0, |acc, i| {
                         *acc += i;
                         Some(*acc)
-                    })
+                    }))
                     .collect();
                 for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
                     bytes_written +=
                         self.write_to_memory(builder, offset_local, offset + offset_delta, elem_ty);
                 }
-                dbg!(bytes_written)
+                bytes_written
             }
             _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
         }

@@ -10,16 +10,16 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         Just(TypeSignature::IntType),
         Just(TypeSignature::UIntType),
         Just(TypeSignature::BoolType),
-        // Just(TypeSignature::PrincipalType),
         (0u32..256).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
             s.try_into().unwrap()
         ))),
         (0u32..256).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
+        // TODO: principal,
         // TODO: string-utf8
         // TODO: CallableType
-        // TODO: trait types
+        // TODO: trait types?
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
         prop_oneof![
@@ -42,9 +42,8 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
                 1..16
             )
             .prop_map(|btree| TypeSignature::TupleType(btree.try_into().unwrap())),
-            // // list type
-            // (16u32..64, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
-            // // TODO: ListUnionType
+            // list type
+            (16u32..64, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
         ]
     })
 }
@@ -65,7 +64,7 @@ impl From<PropValue> for Value {
 
 impl std::fmt::Debug for PropValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self.0, f)
+        std::fmt::Display::fmt(&self, f)
     }
 }
 
