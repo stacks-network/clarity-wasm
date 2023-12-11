@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
-use clarity::util::hash::{Hash160, Sha256Sum};
+use clarity::util::hash::{Hash160, Sha256Sum, Sha512Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
@@ -517,7 +517,7 @@ fn prop_store_i64_be() {
 fn prop_sha256_buff() {
     test_on_buffer_hash(
         "stdlib.sha256-buf",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as usize + 32,
         300,
         END_OF_STANDARD_DATA as i32,
@@ -527,10 +527,23 @@ fn prop_sha256_buff() {
 }
 
 #[test]
+fn prop_sha512_buff() {
+    test_on_buffer_hash(
+        "stdlib.sha512-buf",
+        2048,
+        END_OF_STANDARD_DATA as usize + 64,
+        300,
+        END_OF_STANDARD_DATA as i32,
+        64,
+        |buf| Sha512Sum::from_data(buf).as_bytes().to_vec(),
+    )
+}
+
+#[test]
 fn prop_sha256_int_on_signed() {
     test_on_int_hash(
         "stdlib.sha256-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         32,
         |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -541,7 +554,7 @@ fn prop_sha256_int_on_signed() {
 fn prop_sha256_int_on_unsigned() {
     test_on_uint_hash(
         "stdlib.sha256-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         32,
         |n| Sha256Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -565,7 +578,7 @@ fn prop_hash160_buff() {
 fn prop_hash160_int_on_signed() {
     test_on_int_hash(
         "stdlib.hash160-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         20,
         |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
@@ -576,7 +589,7 @@ fn prop_hash160_int_on_signed() {
 fn prop_hash160_int_on_unsigned() {
     test_on_uint_hash(
         "stdlib.hash160-int",
-        1024,
+        2048,
         END_OF_STANDARD_DATA as i32,
         20,
         |n| Hash160::from_data(&n.to_le_bytes()).as_bytes().to_vec(),

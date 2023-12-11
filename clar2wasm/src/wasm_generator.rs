@@ -23,7 +23,7 @@ use walrus::{
 use crate::words;
 
 /// First free position after data directly defined in standard.wat
-pub const END_OF_STANDARD_DATA: u32 = 648;
+pub const END_OF_STANDARD_DATA: u32 = 1352;
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
 /// as it traverses the AST.
