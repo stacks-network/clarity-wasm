@@ -30,9 +30,18 @@ impl Word for Begin {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        generator.set_expr_type(
+            args.last().ok_or_else(|| {
+                GeneratorError::TypeError("begin must have at least one arg".to_string())
+            })?,
+            generator
+                .get_expr_type(expr)
+                .expect("begin must be typed")
+                .clone(),
+        );
         generator.traverse_statement_list(builder, args)
     }
 }
@@ -296,5 +305,27 @@ mod tests {
             )
             .expect_err("should panic");
         matches!(err, Error::Wasm(WasmError::Runtime(_)));
+    }
+
+    /// Verify that the full response type is set correctly for the last
+    /// expression in a `begin` block.
+    #[test]
+    fn begin_response_type_bug() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "snippet",
+            r#"
+(define-private (foo)
+    (err u1)
+)
+(define-read-only (get-count-at-block (block uint))
+    (begin
+        (unwrap-err! (foo) (err u100))
+        (ok u100)
+    )
+)
+            "#,
+        )
+        .unwrap();
     }
 }
