@@ -395,7 +395,8 @@ impl WasmGenerator {
     /// hopefully can be removed in the future.
     pub fn set_expr_type(&mut self, expr: &SymbolicExpression, ty: TypeSignature) {
         // Safely ignore the error because we know this type has already been set.
-        let _ = self.contract_analysis
+        let _ = self
+            .contract_analysis
             .type_map
             .as_mut()
             .expect("type-checker must be called before Wasm generation")
