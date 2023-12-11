@@ -402,6 +402,17 @@ impl Word for Unwrap {
             &[],
             &throw_type,
         ));
+
+        // The type-checker does not fill in the complete type for the throw
+        // expression, so we need to manually update it here.
+        generator.set_expr_type(
+            throw,
+            generator
+                .return_type
+                .as_ref()
+                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
+                .clone(),
+        );
         generator.traverse_expr(&mut throw_branch, throw)?;
 
         generator.return_early(&mut throw_branch)?;
@@ -474,6 +485,17 @@ impl Word for UnwrapErr {
             &[],
             &throw_type,
         ));
+
+        // The type-checker does not fill in the complete type for the throw
+        // expression, so we need to manually update it here.
+        generator.set_expr_type(
+            throw,
+            generator
+                .return_type
+                .as_ref()
+                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
+                .clone(),
+        );
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
 
@@ -511,7 +533,7 @@ impl Word for UnwrapErr {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::evaluate as eval;
+    use crate::tools::{evaluate as eval, TestEnvironment};
 
     #[test]
     fn trivial() {
@@ -677,5 +699,43 @@ mod tests {
             eval(&format!("{FN} (unwrapper (ok 10))")),
             Some(Value::Int(23))
         );
+    }
+
+    /// Verify that the full response type is set correctly for the throw
+    /// expression.
+    #[test]
+    fn response_type_bug() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "snippet",
+            r#"
+(define-private (foo)
+    (ok u1)
+)
+(define-read-only (get-count-at-block (block uint))
+    (ok (unwrap! (foo) (err u100)))
+)
+            "#,
+        )
+        .unwrap();
+    }
+
+    /// Verify that the full response type is set correctly for the throw
+    /// expression.
+    #[test]
+    fn response_type_err_bug() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "snippet",
+            r#"
+(define-private (foo)
+    (err u1)
+)
+(define-read-only (get-count-at-block (block uint))
+    (ok (unwrap-err! (foo) (err u100)))
+)
+            "#,
+        )
+        .unwrap();
     }
 }

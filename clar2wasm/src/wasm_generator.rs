@@ -43,6 +43,8 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
     early_return_block_id: Option<InstrSeqId>,
+    /// The return type of the current function.
+    pub(crate) return_type: Option<TypeSignature>,
 
     /// The locals for the current function.
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
@@ -163,6 +165,7 @@ impl WasmGenerator {
             constants: HashMap::new(),
             bindings: HashMap::new(),
             early_return_block_id: None,
+            return_type: None,
             frame_size: 0,
         }
     }
@@ -278,6 +281,8 @@ impl WasmGenerator {
             }));
         };
 
+        self.return_type = Some(function_type.returns.clone());
+
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
         let (id_offset, id_length) = self.add_string_literal(name);
@@ -340,6 +345,7 @@ impl WasmGenerator {
         self.early_return_block_id = Some(block_id);
 
         // Traverse the body of the function
+        self.set_expr_type(body, function_type.returns.clone());
         self.traverse_expr(&mut block, body)?;
 
         // TODO: We need to ensure that all exits from the function go through
@@ -382,6 +388,19 @@ impl WasmGenerator {
             .as_ref()
             .expect("type-checker must be called before Wasm generation")
             .get_type(expr)
+    }
+
+    /// Sets the result type of the given `SymbolicExpression`. This is
+    /// necessary to overcome some weaknesses in the type-checker and
+    /// hopefully can be removed in the future.
+    pub fn set_expr_type(&mut self, expr: &SymbolicExpression, ty: TypeSignature) {
+        // Safely ignore the error because we know this type has already been set.
+        let _ = self
+            .contract_analysis
+            .type_map
+            .as_mut()
+            .expect("type-checker must be called before Wasm generation")
+            .set_type(expr, ty);
     }
 
     /// Adds a new string literal into the memory, and returns the offset and length.
