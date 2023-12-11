@@ -456,7 +456,7 @@ impl Word for UnwrapErr {
         let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
             generator.get_expr_type(input)
         {
-            (&**inner_types).clone()
+            (**inner_types).clone()
         } else {
             return Err(GeneratorError::InternalError(
                 "unwrap-error! only accepts response types".to_string(),
