@@ -1,13 +1,13 @@
-use clarity::vm::types::MAX_VALUE_SIZE;
+use clarity::vm::types::{TypeSignature, MAX_VALUE_SIZE};
 use walrus::ir::InstrSeqType;
 
 use super::Word;
-use crate::wasm_generator::ArgumentsExt;
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
-pub struct ToConsensusBuf;
+pub struct To;
 
-impl Word for ToConsensusBuf {
+impl Word for To {
     fn name(&self) -> clarity::vm::ClarityName {
         "to-consensus-buff?".into()
     }
@@ -23,7 +23,7 @@ impl Word for ToConsensusBuf {
 
         let ty = generator
             .get_expr_type(args.get_expr(0)?)
-            .expect("to-consensus-buff? value exprission must be typed")
+            .expect("to-consensus-buff? value expression must be typed")
             .clone();
 
         // Save the offset (current stack pointer) into a local.
@@ -66,6 +66,49 @@ impl Word for ToConsensusBuf {
                     else_.i32_const(0).i32_const(0).i32_const(0);
                 },
             );
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct From;
+
+impl Word for From {
+    fn name(&self) -> clarity::vm::ClarityName {
+        "from-consensus-buff?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &clarity::vm::SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        // Rather than parsing the type from args[0], we can just use the type
+        // of this expression.
+        let ty = generator
+            .get_expr_type(_expr)
+            .expect("from-consensus-buff? value expression must be typed")
+            .clone();
+        let value_ty = if let TypeSignature::OptionalType(inner) = ty {
+            *inner
+        } else {
+            return Err(GeneratorError::TypeError(
+                "from-consensus-buff? value expression must be an optional type".to_string(),
+            ));
+        };
+
+        // Traverse the input buffer, leaving the offset and length on the stack.
+        generator.traverse_expr(builder, args.get_expr(1)?)?;
+
+        let offset = generator.module.locals.add(walrus::ValType::I32);
+        let length = generator.module.locals.add(walrus::ValType::I32);
+        builder.local_set(length);
+        builder.local_set(offset);
+
+        generator.deserialize_from_memory(builder, offset, length, 0, &value_ty)?;
 
         Ok(())
     }
@@ -220,6 +263,24 @@ mod tests {
                 })))
                 .unwrap()
             )
+        );
+    }
+
+    //--- `from-consensus-buff?` tests
+
+    #[test]
+    fn from_consensus_buff_int() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? int 0x000000000000000000000000000001e240)"#),
+            Some(Value::some(Value::Int(123456)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_uint() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? uint 0x010000000000000000000000000001e240)"#),
+            Some(Value::some(Value::UInt(123456)).unwrap())
         );
     }
 }

@@ -14,7 +14,10 @@ use clarity::vm::types::{
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
-use walrus::ir::{BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg, StoreKind};
+use walrus::ir::{
+    BinaryOp, Const, ExtendedLoad, IfElse, InstrSeqId, InstrSeqType, LoadKind, Loop, MemArg,
+    StoreKind, UnaryOp,
+};
 use walrus::{
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId,
     MemoryId, Module, ValType,
@@ -1806,13 +1809,7 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .expect("no memory found")
-            .id();
+        let memory = self.get_memory();
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {
@@ -1851,6 +1848,137 @@ impl WasmGenerator {
                 Ok(())
             }
             ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
+        }
+    }
+
+    /// Deserialize an integer (`int` or `uint`) from memory using consensus
+    /// serialization. Leaves an `(optional int|uint)` on the top of the stack.
+    /// See SIP-005 for details.
+    ///
+    /// Representation:
+    ///   Int:
+    ///     | 0x00 | value: 16-bytes (big-endian) |
+    ///   UInt:
+    ///     | 0x01 | value: 16-bytes (big-endian) |
+    fn deserialize_integer(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        length_local: LocalId,
+        offset: u32,
+        signed: bool,
+    ) -> Result<(), GeneratorError> {
+        // Create a block that returns `none` if the length is not 17 bytes
+        let mut none_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32, ValType::I64, ValType::I64],
+        ));
+        // Return `none`
+        none_block.i32_const(0).i64_const(0).i64_const(0);
+        let none_block_id = none_block.id();
+
+        // Create a block that continues to process the buffer if the length is
+        // 17 bytes.
+        let mut continue_block = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32, ValType::I64, ValType::I64],
+        ));
+        let continue_block_id = continue_block.id();
+
+        // Read the prefix byte
+        continue_block.local_get(offset_local).load(
+            memory,
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg { align: 1, offset },
+        );
+
+        // Verify the prefix byte
+        continue_block
+            .i32_const(if signed { 0 } else { 1 })
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                InstrSeqType::new(
+                    &mut self.module.types,
+                    &[],
+                    &[ValType::I32, ValType::I64, ValType::I64],
+                ),
+                |then| {
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // Load the integer into a vector register
+                    then.local_get(offset_local).load(
+                        memory,
+                        LoadKind::V128 {},
+                        MemArg {
+                            align: 1,
+                            offset: offset + 1,
+                        },
+                    );
+                    // Convert from big-endian to little
+                    let tmp_v128 = self.module.locals.add(ValType::V128);
+                    then.instr(Const {
+                        value: walrus::ir::Value::V128(0x000102030405060708090a0b0c0d0e0f),
+                    })
+                    .i8x16_swizzle()
+                    .local_tee(tmp_v128);
+
+                    // Push the two i64s onto the stack
+                    then.unop(UnaryOp::I64x2ExtractLane { idx: 0 });
+                    then.local_get(tmp_v128)
+                        .unop(UnaryOp::I64x2ExtractLane { idx: 1 });
+                },
+                |else_| {
+                    // Return `none`
+                    else_.i32_const(0).i64_const(0).i64_const(0);
+                },
+            );
+
+        // Check the length of the buffer to ensure it is 17 bytes
+        builder
+            .local_get(length_local)
+            .i32_const(17)
+            .binop(BinaryOp::I32Ne)
+            .instr(IfElse {
+                consequent: none_block_id,
+                alternative: continue_block_id,
+            });
+
+        Ok(())
+    }
+
+    /// Deserialize a buffer in memory using the consensus serialization rules.
+    /// The offset and length of the buffer are on the top of the data stack.
+    /// Leaves `(some value)` on the top of the stack, or `none` if
+    /// deserialization fails. See SIP-005 for details.
+    pub(crate) fn deserialize_from_memory(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        offset_local: LocalId,
+        length_local: LocalId,
+        offset: u32,
+        ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        let memory = self.get_memory();
+
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            IntType | UIntType => self.deserialize_integer(
+                builder,
+                memory,
+                offset_local,
+                length_local,
+                offset,
+                ty == &IntType,
+            ),
+            NoType => unreachable!("NoType should not be deserialized"),
+            ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
+            _ => unimplemented!("deserialization for type {:?}", ty),
         }
     }
 
