@@ -69,7 +69,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::If,
     &conditionals::Match,
     &conditionals::Or,
-    &conditionals::Try,    
+    &conditionals::Try,
     &conditionals::Unwrap,
     &conditionals::UnwrapErr,
     &consensus_buff::ToConsensusBuf,

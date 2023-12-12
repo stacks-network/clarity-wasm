@@ -644,7 +644,8 @@ impl Word for Try {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{types::OptionalData, Value};
+    use clarity::vm::Value;
+    use clarity::vm::types::OptionalData, 
 
     use crate::tools::{evaluate as eval, TestEnvironment};
 
