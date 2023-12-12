@@ -47,10 +47,12 @@ impl Word for ClarityOk {
 
         let TypeSignature::ResponseType(inner_types) = generator
             .get_expr_type(expr)
-            .expect("ok expression must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("ok expression must be typed".to_owned()))?
             .clone()
         else {
-            panic!("expected response type")
+            return Err(GeneratorError::TypeError(
+                "expected response type".to_owned(),
+            ));
         };
 
         // (ok <val>) is represented by an i32 1, followed by the ok value,
@@ -92,7 +94,7 @@ impl Word for ClarityErr {
         builder.i32_const(0);
         let ty = generator
             .get_expr_type(expr)
-            .expect("err expression must be typed");
+            .ok_or_else(|| GeneratorError::TypeError("err expression must be typed".to_owned()))?;
         if let TypeSignature::ResponseType(inner_types) = ty {
             let ok_types = clar2wasm_ty(&inner_types.0);
             for ok_type in ok_types.iter() {
@@ -101,7 +103,9 @@ impl Word for ClarityErr {
             // WORKAROUND: set full type to err value
             generator.set_expr_type(value, inner_types.1.clone())
         } else {
-            panic!("expected response type");
+            return Err(GeneratorError::TypeError(
+                "expected response type".to_owned(),
+            ));
         }
         generator.traverse_expr(builder, value)
     }
