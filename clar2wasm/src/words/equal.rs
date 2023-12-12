@@ -212,9 +212,10 @@ impl Word for IndexOf {
                         SequenceElementType::Other(elem_ty) => {
                             (
                                 generator.read_from_memory(loop_, offset, 0, elem_ty),
+                                // STACK: [element]
                                 generator.save_to_locals(loop_, elem_ty, true),
+                                // STACK: []
                             )
-                            // STACK: [element]
                         }
                         SequenceElementType::Byte => {
                             // The element type is a byte, so we can just push the
@@ -224,6 +225,7 @@ impl Word for IndexOf {
                             // STACK: [offset, size]
 
                             (size, generator.save_to_locals(loop_, &item_ty, true))
+                            // STACK: []
                         }
                         SequenceElementType::UnicodeScalar => {
                             // The element type is a unicode scalar, so we can just push the
@@ -233,6 +235,7 @@ impl Word for IndexOf {
                             // STACK: [offset, size]
 
                             (size, generator.save_to_locals(loop_, &item_ty, true))
+                            // STACK: []
                         }
                     };
 
@@ -1129,5 +1132,45 @@ mod tests {
     #[test]
     fn index_of_buff_not_present() {
         assert_eq!(eval("(index-of 0xeeaadd 0xcc)"), Some(Value::none()));
+    }
+
+    #[test]
+    fn index_of_first_optional_complex_type() {
+        assert_eq!(
+            eval("(index-of (list (some 42) none none none (some 15)) (some 42))"),
+            Some(Value::some(Value::UInt(0)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_last_optional_complex_type() {
+        assert_eq!(
+            eval("(index-of (list (some 42) (some 3) (some 6) (some 15) none) none)"),
+            Some(Value::some(Value::UInt(4)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_optional_complex_type() {
+        assert_eq!(
+            eval("(index-of (list (some 1) none) none)"),
+            Some(Value::some(Value::UInt(1)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_complex_type() {
+        assert_eq!(
+            eval("(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))"),
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+    }
+
+    #[test]
+    fn index_of_tuple_complex_type() {
+        assert_eq!(
+            eval("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))"),
+            Some(Value::none())
+        );
     }
 }
