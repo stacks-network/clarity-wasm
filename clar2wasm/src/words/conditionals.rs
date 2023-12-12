@@ -414,7 +414,6 @@ impl Word for Unwrap {
                 .clone(),
         );
         generator.traverse_expr(&mut throw_branch, throw)?;
-
         generator.return_early(&mut throw_branch)?;
 
         let throw_branch_id = throw_branch.id();
@@ -546,16 +545,106 @@ impl Word for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        // Seemingly no matter what is put here, the error is "expected i64"
-        builder.i64_const(0);
-        builder.i64_const(0);
+        let input = args.get_expr(0)?;
+        generator.traverse_expr(builder, input)?;
+
+        let (succ_branch_id, throw_branch_id) = match generator.get_expr_type(input).cloned() {
+            Some(ref full_type @ TypeSignature::OptionalType(ref inner_type)) => {
+                let some_type = &**inner_type;
+
+                let some_locals = generator.save_to_locals(builder, &some_type, true);
+
+                let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut generator.module.types,
+                    &[],
+                    &clar2wasm_ty(full_type),
+                ));
+
+                // in the case of throw, we need to restore the value, and re-push the discriminant
+                throw_branch.i32_const(0);
+                for local in &some_locals {
+                    throw_branch.local_get(*local);
+                }
+                generator.return_early(&mut throw_branch)?;
+
+                let throw_branch_id = throw_branch.id();
+
+                // on Some
+
+                let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut generator.module.types,
+                    &[],
+                    &clar2wasm_ty(&some_type),
+                ));
+
+                // in unwrap we restore the value from the locals
+                for local in &some_locals {
+                    succ_branch.local_get(*local);
+                }
+
+                let succ_branch_id = succ_branch.id();
+
+                (succ_branch_id, throw_branch_id)
+            }
+            Some(ref full_type @ TypeSignature::ResponseType(ref inner_types)) => {
+                let (ok_type, err_type) = &**inner_types;
+
+                // save both values to local
+                let err_locals = generator.save_to_locals(builder, &err_type, true);
+                let ok_locals = generator.save_to_locals(builder, &ok_type, true);
+
+                let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut generator.module.types,
+                    &[],
+                    &clar2wasm_ty(full_type),
+                ));
+
+                // in the case of throw, we need to re-push the discriminant, and restore both values
+                throw_branch.i32_const(0);
+                for local in &ok_locals {
+                    throw_branch.local_get(*local);
+                }
+                for local in &err_locals {
+                    throw_branch.local_get(*local);
+                }
+                generator.return_early(&mut throw_branch)?;
+
+                let throw_branch_id = throw_branch.id();
+
+                // On success
+
+                let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
+                    &mut generator.module.types,
+                    &[],
+                    &clar2wasm_ty(&ok_type),
+                ));
+
+                // in unwrap we restore the value from the locals
+                for local in &ok_locals {
+                    succ_branch.local_get(*local);
+                }
+
+                let succ_branch_id = succ_branch.id();
+
+                (succ_branch_id, throw_branch_id)
+            }
+            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
+        };
+
+        // stack [ discriminant ]
+
+        builder.instr(ir::IfElse {
+            consequent: succ_branch_id,
+            alternative: throw_branch_id,
+        });
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
+    use clarity::vm::{types::OptionalData, Value};
 
     use crate::tools::{evaluate as eval, TestEnvironment};
 
@@ -755,6 +844,7 @@ mod tests {
 (define-private (foo)
     (err u1)
 )
+
 (define-read-only (get-count-at-block (block uint))
     (ok (unwrap-err! (foo) (err u100)))
 )
@@ -763,15 +853,40 @@ mod tests {
         .unwrap();
     }
 
-    #[test]
-    fn try_a() {
-        const FN: &str = "
+    const TRY_FN: &str = "
 (define-private (tryhard (x (response int int)))
   (ok (+ (try! x) 10)))";
 
+    #[test]
+    fn try_a() {
+        assert_eq!(eval(&format!("{TRY_FN} (tryhard (ok 1))")), eval("(ok 11)"),);
+    }
+
+    #[test]
+    fn try_b() {
         assert_eq!(
-            eval(&format!("{FN} (tryhard (ok 1))")),
-            Some(Value::Int(11))
+            eval(&format!("{TRY_FN} (tryhard (err 1))")),
+            eval("(err 1)"),
+        );
+    }
+
+    const TRY_FN_OPT: &str = "
+(define-private (tryharder (x (optional int)))
+  (some (+ (try! x) 10)))";
+
+    #[test]
+    fn try_c() {
+        assert_eq!(
+            eval(&format!("{TRY_FN_OPT} (tryharder (some 1))")),
+            eval("(some 11)"),
+        );
+    }
+
+    #[test]
+    fn try_d() {
+        assert_eq!(
+            eval(&format!("{TRY_FN_OPT} (tryharder none)")),
+            Some(Value::Optional(OptionalData { data: None }))
         );
     }
 }
