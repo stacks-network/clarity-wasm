@@ -25,3 +25,10 @@ fn list_err_response() {
         r#"(list (err (ok -1475)) (err (err u115911259112154807243168097824046874107)))"#,
     )
 }
+
+#[test]
+fn list_some_response() {
+    evaluate_expression(
+        r#"(list (some (ok -1475)) (some (err u115911259112154807243168097824046874107)))"#,
+    )
+}

@@ -18,13 +18,26 @@ impl Word for ClaritySome {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
-        generator.traverse_expr(builder, value)
+
+        if let TypeSignature::OptionalType(inner_type) = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("some expression must be typed".to_owned()))?
+        {
+            // WORKKAROUND: set inner value full type
+            generator.set_expr_type(value, *inner_type.clone());
+
+            generator.traverse_expr(builder, value)
+        } else {
+            Err(GeneratorError::TypeError(
+                "expected optional type".to_owned(),
+            ))
+        }
     }
 }
 
