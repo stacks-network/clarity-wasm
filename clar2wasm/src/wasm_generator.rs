@@ -608,16 +608,6 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> u32 {
-        const BYTES_COUNT: fn(&TypeSignature) -> u32 = |ty| {
-            clar2wasm_ty(ty)
-                .into_iter()
-                .map(|v| match v {
-                    ValType::I32 => 4,
-                    ValType::I64 => 8,
-                    _ => unreachable!(),
-                })
-                .sum()
-        };
         let memory = self.module.memories.iter().next().expect("no memory found");
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -725,7 +715,7 @@ impl WasmGenerator {
                 bytes_written += self.write_to_memory(
                     builder,
                     offset_local,
-                    offset + 4 + BYTES_COUNT(&ok_err_ty.0),
+                    offset + 4 + get_type_size(&ok_err_ty.0) as u32,
                     &ok_err_ty.1,
                 );
 
@@ -752,10 +742,15 @@ impl WasmGenerator {
                 let mut bytes_written = 0;
                 let types: Vec<_> = tuple_ty.get_type_map().values().collect();
                 let offsets_delta: Vec<_> = std::iter::once(0u32)
-                    .chain(types.iter().map(|t| BYTES_COUNT(t)).scan(0, |acc, i| {
-                        *acc += i;
-                        Some(*acc)
-                    }))
+                    .chain(
+                        types
+                            .iter()
+                            .map(|t| get_type_size(t) as u32)
+                            .scan(0, |acc, i| {
+                                *acc += i;
+                                Some(*acc)
+                            }),
+                    )
                     .collect();
                 for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
                     bytes_written +=
