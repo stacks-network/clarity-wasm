@@ -552,7 +552,7 @@ impl Word for Try {
             Some(ref full_type @ TypeSignature::OptionalType(ref inner_type)) => {
                 let some_type = &**inner_type;
 
-                let some_locals = generator.save_to_locals(builder, &some_type, true);
+                let some_locals = generator.save_to_locals(builder, some_type, true);
 
                 let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
                     &mut generator.module.types,
@@ -574,7 +574,7 @@ impl Word for Try {
                 let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
                     &mut generator.module.types,
                     &[],
-                    &clar2wasm_ty(&some_type),
+                    &clar2wasm_ty(some_type),
                 ));
 
                 // in unwrap we restore the value from the locals
@@ -590,8 +590,8 @@ impl Word for Try {
                 let (ok_type, err_type) = &**inner_types;
 
                 // save both values to local
-                let err_locals = generator.save_to_locals(builder, &err_type, true);
-                let ok_locals = generator.save_to_locals(builder, &ok_type, true);
+                let err_locals = generator.save_to_locals(builder, err_type, true);
+                let ok_locals = generator.save_to_locals(builder, ok_type, true);
 
                 let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
                     &mut generator.module.types,
@@ -616,7 +616,7 @@ impl Word for Try {
                 let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
                     &mut generator.module.types,
                     &[],
-                    &clar2wasm_ty(&ok_type),
+                    &clar2wasm_ty(ok_type),
                 ));
 
                 // in unwrap we restore the value from the locals
@@ -644,8 +644,8 @@ impl Word for Try {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::types::OptionalData;
     use clarity::vm::Value;
-    use clarity::vm::types::OptionalData, 
 
     use crate::tools::{evaluate as eval, TestEnvironment};
 
