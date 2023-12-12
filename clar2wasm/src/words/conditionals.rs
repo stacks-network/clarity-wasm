@@ -5,7 +5,8 @@ use walrus::ValType;
 
 use super::Word;
 use crate::wasm_generator::{
-    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
+    WasmGenerator,
 };
 
 #[derive(Debug)]
@@ -562,9 +563,7 @@ impl Word for Try {
 
                 // in the case of throw, we need to restore the value, and re-push the discriminant
                 throw_branch.i32_const(0);
-                for local in &some_locals {
-                    throw_branch.local_get(*local);
-                }
+                add_placeholder_for_clarity_type(&mut throw_branch, some_type);
                 generator.return_early(&mut throw_branch)?;
 
                 let throw_branch_id = throw_branch.id();
@@ -601,9 +600,7 @@ impl Word for Try {
 
                 // in the case of throw, we need to re-push the discriminant, and restore both values
                 throw_branch.i32_const(0);
-                for local in &ok_locals {
-                    throw_branch.local_get(*local);
-                }
+                add_placeholder_for_clarity_type(&mut throw_branch, ok_type);
                 for local in &err_locals {
                     throw_branch.local_get(*local);
                 }
@@ -619,7 +616,7 @@ impl Word for Try {
                     &clar2wasm_ty(ok_type),
                 ));
 
-                // in unwrap we restore the value from the locals
+                // in ok case we restore the value from the locals
                 for local in &ok_locals {
                     succ_branch.local_get(*local);
                 }
@@ -644,7 +641,6 @@ impl Word for Try {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::OptionalData;
     use clarity::vm::Value;
 
     use crate::tools::{evaluate as eval, TestEnvironment};
@@ -887,7 +883,7 @@ mod tests {
     fn try_d() {
         assert_eq!(
             eval(&format!("{TRY_FN_OPT} (tryharder none)")),
-            Some(Value::Optional(OptionalData { data: None }))
+            Some(Value::none())
         );
     }
 }
