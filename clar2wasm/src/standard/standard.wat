@@ -2797,6 +2797,184 @@
         (local.get $offset-result) (i32.const 64)
     )
 
+    (func $stdlib.sha512-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+
+    ;; Temporary block data (a word of 8 bytes) in current block iteration
+    (local $block-iteration-temp i64)
+
+    ;; Local index to a block, to perform iterations on bytes
+    (local $index i32)
+
+    ;; Temporary block data, in an iteration
+    (local $temp-block-data i32)
+
+    (local $a i64) (local $b i64) (local $c i64) (local $d i64)
+    (local $e i64) (local $f i64) (local $g i64) (local $h i64)
+    (local $temp1 i64) (local $temp2 i64)
+
+    ;; Copy data to the working stack, so that it has this relative configuration:
+    ;;   0..64 -> Initial hash vals (will be the result hash in the end)
+    ;;   64..704 -> Space to store W
+    ;;   704..831 -> extended int
+    (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
+    (i64.store offset=704 (global.get $stack-pointer) (local.get $lo))
+    (i64.store offset=712 (global.get $stack-pointer) (local.get $hi)) ;; offset = 704 + 8
+    (i32.store offset=720 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 704 + 16
+    (memory.fill (i32.add (global.get $stack-pointer) (i32.const 724)) (i32.const 0) (i32.const 110)) ;; offset = 704+20
+    (i32.store8 offset=831 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 704+127
+
+    (local.set $index (i32.const 0))
+    ;; Reverse each word in the block (8 bytes for sha-512) to convert it to little-endian format
+    (loop
+        (i32.add (global.get $stack-pointer) (local.get $index))        
+        (i8x16.swizzle
+            (v128.load offset=704 (i32.add (global.get $stack-pointer) (local.get $index)))
+            (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+        )
+        v128.store offset=64
+
+        (br_if 0
+            (i32.lt_u
+                (local.tee $index (i32.add (local.get $index) (i32.const 16)))
+                (i32.const 128)
+            )
+        )
+    )
+
+    (local.set $index (i32.const 0))
+    (loop
+        (local.set $temp-block-data (i32.add (global.get $stack-pointer) (local.get $index)))
+       
+        ;; Location to store the calculated word in current iteration (current-word + 16) 
+        (i32.add (local.get $temp-block-data) (i32.const 128))
+
+        ;; w(current)
+        (i64.load offset=64 (local.get $temp-block-data))
+        ;; sigma 0
+        (local.set $block-iteration-temp (i64.load offset=72 (local.get $temp-block-data))) ;; offset (w+1) = 64 + 8 
+        (i64.rotr (local.get $block-iteration-temp) (i64.const 1))
+        (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 8)))
+        (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 7)))
+        i64.add
+        ;; w(current+9)
+        (i64.add (i64.load offset=136 (local.get $temp-block-data))) ;; offset = 64+72
+        ;; sigma 1
+        (local.set $block-iteration-temp (i64.load offset=176 (local.get $temp-block-data))) ;; offset = 64 + 112 w(current+14)
+        (i64.rotr (local.get $block-iteration-temp) (i64.const 19))
+        (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 61)))
+        (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 6)))
+        i64.add
+        ;; save
+        i64.store offset=64
+        
+        (br_if 0
+            (i32.lt_u
+                (local.tee $index (i32.add (local.get $index) (i32.const 8)))
+                (i32.const 512)
+            )
+        )
+    )
+
+    ;; Calculating variables
+    (local.set $a (i64.load offset=0 (global.get $stack-pointer)))
+    (local.set $b (i64.load offset=8 (global.get $stack-pointer)))
+    (local.set $c (i64.load offset=16 (global.get $stack-pointer)))
+    (local.set $d (i64.load offset=24 (global.get $stack-pointer)))
+    (local.set $e (i64.load offset=32 (global.get $stack-pointer)))
+    (local.set $f (i64.load offset=40 (global.get $stack-pointer)))
+    (local.set $g (i64.load offset=48 (global.get $stack-pointer)))
+    (local.set $h (i64.load offset=56 (global.get $stack-pointer)))
+
+    (local.set $index (i32.const 0))
+    (loop
+        ;; compute $temp1: h + sigma1 + choice + k0 + w0
+        (local.get $h) ;; h
+        (i64.rotr (local.get $e) (i64.const 14))
+        (i64.xor (i64.rotr (local.get $e) (i64.const 18)))
+        (i64.xor (i64.rotr (local.get $e) (i64.const 41)))
+        i64.add ;; + sigma1
+
+        (i64.and (local.get $e) (local.get $f))
+        (i64.xor (i64.and (i64.xor (local.get $e) (i64.const -1)) (local.get $g)))
+        i64.add ;; + choice
+
+        (i64.add (i64.load offset=712 (local.get $index))) ;; + k(current)
+        
+        (i64.add (i64.load offset=64 (i32.add (global.get $stack-pointer) (local.get $index)))) ;; + w(current)
+        (local.set $temp1)
+
+        ;; compute temp2: sigma0 + majority
+        (i64.rotr (local.get $a) (i64.const 28))
+        (i64.xor (i64.rotr (local.get $a) (i64.const 34)))
+        (i64.xor (i64.rotr (local.get $a) (i64.const 39))) ;; sigma0
+
+        (i64.and (local.get $a) (local.get $b))
+        (i64.xor (i64.and (local.get $a) (local.get $c)))
+        (i64.xor (i64.and (local.get $b) (local.get $c)))
+        i64.add ;; + majority
+        
+        (local.set $temp2)
+        
+        ;; assign new variables
+        (local.set $h (local.get $g))
+        (local.set $g (local.get $f))
+        (local.set $f (local.get $e))
+        (local.set $e (i64.add (local.get $d) (local.get $temp1)))
+        (local.set $d (local.get $c))
+        (local.set $c (local.get $b))
+        (local.set $b (local.get $a))
+        (local.set $a (i64.add (local.get $temp1) (local.get $temp2)))
+      
+        (br_if 0
+            (i32.lt_u
+                (local.tee $index (i32.add (local.get $index) (i32.const 8)))
+                (i32.const 640)
+            )
+        )
+    )
+    ;; update hash
+    (i64.store offset=0 (global.get $stack-pointer) (i64.add (i64.load offset=0 (global.get $stack-pointer)) (local.get $a)))
+    (i64.store offset=8 (global.get $stack-pointer) (i64.add (i64.load offset=8 (global.get $stack-pointer)) (local.get $b)))
+    (i64.store offset=16 (global.get $stack-pointer) (i64.add (i64.load offset=16 (global.get $stack-pointer)) (local.get $c)))
+    (i64.store offset=24 (global.get $stack-pointer) (i64.add (i64.load offset=24 (global.get $stack-pointer)) (local.get $d)))
+    (i64.store offset=32 (global.get $stack-pointer) (i64.add (i64.load offset=32 (global.get $stack-pointer)) (local.get $e)))
+    (i64.store offset=40 (global.get $stack-pointer) (i64.add (i64.load offset=40 (global.get $stack-pointer)) (local.get $f)))
+    (i64.store offset=48 (global.get $stack-pointer) (i64.add (i64.load offset=48 (global.get $stack-pointer)) (local.get $g)))
+    (i64.store offset=56 (global.get $stack-pointer) (i64.add (i64.load offset=56 (global.get $stack-pointer)) (local.get $h)))
+    
+    ;; store at result position with correct endianness
+    (v128.store
+        (local.get $offset-result)
+        (i8x16.swizzle
+            (v128.load (global.get $stack-pointer))
+            (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+        )
+    )
+    (v128.store offset=16
+        (local.get $offset-result)
+        (i8x16.swizzle
+            (v128.load offset=16 (global.get $stack-pointer))
+            (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+        )
+    )
+    (v128.store offset=32
+        (local.get $offset-result)
+        (i8x16.swizzle
+            (v128.load offset=32 (global.get $stack-pointer))
+            (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+        )
+    )
+    (v128.store offset=48
+        (local.get $offset-result)
+        (i8x16.swizzle
+            (v128.load offset=48 (global.get $stack-pointer))
+            (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
+        )
+    )
+
+    (local.get $offset-result) (i32.const 64)
+  )
+
     ;; Converts a span of 4-byte unicode scalar values into UTF-8.
     ;; The input bytes are assumed to be composed of valid unicode scalar values.
     ;; Do not call this function with arbitrary bytes.
@@ -2994,5 +3172,6 @@
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
+    (export "stdlib.sha512-int" (func $stdlib.sha512-int))
    
 )
