@@ -59,12 +59,20 @@ impl Word for TupleCons {
         }
 
         // Now we can iterate over the tuple type and build the tuple.
-        for key in tuple_ty.get_type_map().keys() {
+        for (key, ty) in tuple_ty.get_type_map() {
             let value = values
                 .remove(key)
                 .ok_or(GeneratorError::InternalError(format!(
                     "missing key '{key}' in tuple"
                 )))?;
+
+            // WORKAROUND: if you have a tuple like `(tuple (foo none))`, the `none` will have the type
+            // NoType, even if it has a defined type in the tuple. This creates issues because the placeholder
+            // does not have the same amount of values in the Wasm code than the correct type.
+            // While we wait for a real fix in the typechecker, here is a workaround to make sure that the type
+            // is correct.
+            generator.set_expr_type(value, ty.clone());
+
             generator.traverse_expr(builder, value)?;
         }
 
