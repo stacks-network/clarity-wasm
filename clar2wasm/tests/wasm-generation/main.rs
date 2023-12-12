@@ -167,7 +167,7 @@ fn bool() -> impl Strategy<Value = Value> {
 
 pub fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
     let size = size as usize;
-    prop::collection::vec(0x32u8..0x7e, size..=size).prop_map(|bytes| {
+    prop::collection::vec(0x20u8..0x7e, size..=size).prop_map(|bytes| {
         Value::Sequence(SequenceData::String(clarity::vm::types::CharType::ASCII(
             clarity::vm::types::ASCIIData { data: bytes },
         )))
