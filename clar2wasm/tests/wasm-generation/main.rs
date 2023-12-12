@@ -19,7 +19,6 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         ))),
         // TODO: principal,
         // TODO: string-utf8
-        // TODO: CallableType
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
         prop_oneof![
