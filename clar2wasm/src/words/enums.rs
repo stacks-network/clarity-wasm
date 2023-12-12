@@ -44,21 +44,29 @@ impl Word for ClarityOk {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
+
+        let TypeSignature::ResponseType(inner_types) = generator
+            .get_expr_type(expr)
+            .expect("ok expression must be typed")
+            .clone()
+        else {
+            panic!("expected response type")
+        };
+
         // (ok <val>) is represented by an i32 1, followed by the ok value,
         // followed by a placeholder for the err value
         builder.i32_const(1);
+
+        //WORKAROUND: set full type to ok value
+        generator.set_expr_type(value, inner_types.0);
         generator.traverse_expr(builder, value)?;
-        let ty = generator
-            .get_expr_type(expr)
-            .expect("ok expression must be typed");
-        if let TypeSignature::ResponseType(inner_types) = ty {
-            let err_types = clar2wasm_ty(&inner_types.1);
-            for err_type in err_types.iter() {
-                add_placeholder_for_type(builder, *err_type);
-            }
-        } else {
-            panic!("expected response type");
+
+        // deal with err placeholders
+        let err_types = clar2wasm_ty(&inner_types.1);
+        for err_type in err_types.iter() {
+            add_placeholder_for_type(builder, *err_type);
         }
+
         Ok(())
     }
 }
@@ -90,6 +98,8 @@ impl Word for ClarityErr {
             for ok_type in ok_types.iter() {
                 add_placeholder_for_type(builder, *ok_type);
             }
+            // WORKAROUND: set full type to err value
+            generator.set_expr_type(value, inner_types.1.clone())
         } else {
             panic!("expected response type");
         }
