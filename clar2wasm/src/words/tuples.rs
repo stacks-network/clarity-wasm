@@ -71,11 +71,7 @@ impl Word for TupleCons {
             // does not have the same amount of values in the Wasm code than the correct type.
             // While we wait for a real fix in the typechecker, here is a workaround to make sure that the type
             // is correct.
-            generator
-                .contract_analysis
-                .type_map
-                .as_mut()
-                .map(|tm| tm.set_type(value, ty.clone()));
+            generator.set_expr_type(value, ty.clone());
 
             generator.traverse_expr(builder, value)?;
         }

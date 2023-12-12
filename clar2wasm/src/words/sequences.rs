@@ -51,11 +51,7 @@ impl Word for ListCons {
             // This means that the placeholder will be represented with a different number of `ValType`, and will
             // cause errors (example: function called with wrong number of arguments).
             // While we wait for a real fix in the typechecker, here is a workaround to set all the elements types.
-            generator
-                .contract_analysis
-                .type_map
-                .as_mut()
-                .map(|tm| tm.set_type(expr, elem_ty.clone()));
+            generator.set_expr_type(expr, elem_ty.clone());
 
             generator.traverse_expr(builder, expr)?;
             // Write this element to memory
