@@ -1,3 +1,4 @@
+pub mod regression;
 pub mod values;
 
 use clarity::vm::types::{
