@@ -131,7 +131,7 @@ impl Word for IntToUtf8 {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{ASCIIData, CharType, SequenceData};
+    use clarity::vm::types::{ASCIIData, CharType, SequenceData, UTF8Data};
     use clarity::vm::Value;
 
     use crate::tools::evaluate;
@@ -207,6 +207,18 @@ mod tests {
             Some(Value::Sequence(SequenceData::String(CharType::ASCII(
                 ASCIIData {
                     data: "-2048".bytes().collect()
+                }
+            ))))
+        )
+    }
+
+    #[test]
+    fn uint_to_utf8() {
+        assert_eq!(
+            evaluate(r#"(int-to-utf8 u42)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+                UTF8Data {
+                    data: "42".bytes().map(|b| vec![b]).collect()
                 }
             ))))
         )
