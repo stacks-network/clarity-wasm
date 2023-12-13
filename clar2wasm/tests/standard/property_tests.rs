@@ -527,19 +527,6 @@ fn prop_sha256_buff() {
 }
 
 #[test]
-fn prop_sha512_buff() {
-    test_on_buffer_hash(
-        "stdlib.sha512-buf",
-        2048,
-        END_OF_STANDARD_DATA as usize + 64,
-        300,
-        END_OF_STANDARD_DATA as i32,
-        64,
-        |buf| Sha512Sum::from_data(buf).as_bytes().to_vec(),
-    )
-}
-
-#[test]
 fn prop_sha256_int_on_signed() {
     test_on_int_hash(
         "stdlib.sha256-int",
@@ -643,4 +630,39 @@ fn prop_ge_buff() {
 #[test]
 fn prop_is_eq_bytes() {
     test_buff_comparison("stdlib.is-eq-bytes", |a, b| a == b)
+}
+
+#[test]
+fn prop_sha512_buff() {
+    test_on_buffer_hash(
+        "stdlib.sha512-buf",
+        2048,
+        END_OF_STANDARD_DATA as usize + 64,
+        300,
+        END_OF_STANDARD_DATA as i32,
+        64,
+        |buf| Sha512Sum::from_data(buf).as_bytes().to_vec(),
+    )
+}
+
+#[test]
+fn prop_sha512_int_on_signed() {
+    test_on_int_hash(
+        "stdlib.sha512-int",
+        2048,
+        END_OF_STANDARD_DATA as i32,
+        64,
+        |n| Sha512Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
+}
+
+#[test]
+fn prop_sha512_int_on_unsigned() {
+    test_on_uint_hash(
+        "stdlib.sha512-int",
+        2048,
+        END_OF_STANDARD_DATA as i32,
+        64,
+        |n| Sha512Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
+    )
 }

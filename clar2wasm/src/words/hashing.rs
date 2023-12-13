@@ -1,4 +1,4 @@
-use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32, BUFF_64};
+use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::Word;
@@ -169,52 +169,14 @@ impl Word for Sha512 {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let value = args.get_expr(0)?;
-        generator.traverse_expr(builder, value)?;
-
-        let ty = generator
-            .get_expr_type(value)
-            .expect("Hash value should be typed")
-            .clone();
-
-        match &ty {
-            TypeSignature::IntType | TypeSignature::UIntType => {
-                // Convert integers to buffers by storing them to memory
-                let (buffer_local, size) =
-                    generator.create_call_stack_local(builder, &ty, false, true);
-                generator.write_to_memory(builder, buffer_local, 0, &ty);
-
-                // The load the offset and length onto the stack
-                builder.local_get(buffer_local).i32_const(size);
-
-                // Reserve stack space for the host-function to write the result
-                let ret_ty = BUFF_64.clone();
-                let (result_local, result_size) =
-                    generator.create_call_stack_local(builder, &ret_ty, false, true);
-                builder.local_get(result_local).i32_const(result_size);
-
-                // Call the host interface function, `sha512`
-                builder.call(
-                    generator
-                        .module
-                        .funcs
-                        .by_name("stdlib.sha512")
-                        .expect("function not found"),
-                );
-                Ok(())
-            }
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => traverse_hash(
-                "sha512",
-                core::mem::size_of::<u32>() * 8,
-                generator,
-                builder,
-                expr,
-                args,
-            ),
-            _ => Err(GeneratorError::TypeError(
-                "invalid type for sha512".to_string(),
-            )),
-        }
+        traverse_hash(
+            "sha512",
+            core::mem::size_of::<u32>() * 8,
+            generator,
+            builder,
+            expr,
+            args,
+        )
     }
 }
 

@@ -3621,3 +3621,46 @@ fn sha512_buf() {
         Vec::from_hex("c2e210f2674a648d9b58683e651f8fca5ce4270c0489773d8e4ffaecd46b22b1d5273697f45275a7c441c9e4ca91a39bdb3e3b7eb74cbdb85266eef8f30ac860").unwrap();
     assert_eq!(&buffer, &expected_result);
 }
+
+#[test]
+fn sha512_int() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let sha256 = instance.get_func(&mut store, "stdlib.sha512-int").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    // This algo needs space on the stack,
+    // we move the initial value of $stack-pointer
+    // to a random one where it wouldn't matter
+    let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+    stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+    // The offset where the result hash will be written to
+    let res_offset = 3000i32;
+
+    // Test on 0xfeedc0dedeadbeefcafed00dcafebabe
+    sha256
+        .call(
+            &mut store,
+            &[
+                Val::I64(0xcafed00dcafebabe_u64 as i64),
+                Val::I64(0xfeedc0dedeadbeef_u64 as i64),
+                res_offset.into(),
+            ],
+            &mut result,
+        )
+        .expect("call to sha512-int failed");
+    assert_eq!(result[0].unwrap_i32(), res_offset);
+    assert_eq!(result[1].unwrap_i32(), 64);
+
+    let mut buffer = vec![0u8; result[1].unwrap_i32() as usize];
+    memory
+        .read(&mut store, result[0].unwrap_i32() as usize, &mut buffer)
+        .expect("could not read resulting hash from memory");
+    let expected_result =
+        Vec::from_hex("83b7d9d929320aa6a6898e4ce1dc11db78a8e4f01e47c379b49b18e3c0c8bfb98af99a758f44d4f4ee845205a4c90d6016e01d470ff95a19f1f1b37284c5afa6").unwrap();
+    assert_eq!(&buffer, &expected_result);
+}
