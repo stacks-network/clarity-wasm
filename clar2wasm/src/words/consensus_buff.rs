@@ -609,4 +609,63 @@ mod tests {
             Some(Value::none())
         );
     }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_exact_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-ascii 13) 0x0d0000000d48656c6c6f2c20776f726c6421)"#
+            ),
+            Some(
+                Value::some(
+                    Value::string_ascii_from_bytes("Hello, world!".to_string().into_bytes())
+                        .unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_smaller_than_type() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (string-ascii 13) 0x0d00000008686920776f726c64)"#),
+            Some(
+                Value::some(
+                    Value::string_ascii_from_bytes("hi world".to_string().into_bytes()).unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_smaller_than_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-ascii 13) 0x0d0000000d48656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_larger_than_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-ascii 13) 0x0d0000000d48656c6c6f2c20776f726c642121)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_larger_than_type() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-ascii 8) 0x0d0000000d48656c6c6f2c20776f726c6421)"#
+            ),
+            Some(Value::none())
+        );
+    }
 }

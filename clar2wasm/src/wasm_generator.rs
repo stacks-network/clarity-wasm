@@ -2539,6 +2539,144 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Deserialize a `string-ascii` from memory using consensus serialization.
+    /// Leaves an `(optional (string-ascii n))` on the top of the data stack.
+    /// See SIP-005 for details.
+    ///
+    /// Representation:
+    ///  | 0x0d | length: 4-bytes (big-endian) | ascii-encoded string: variable length |
+    fn deserialize_string_ascii(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        type_length: u32,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        let block_ty = InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32, ValType::I32, ValType::I32],
+        );
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 5 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        block.local_get(offset_local).load(
+            memory,
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Check for the string-ascii prefix (0x0d)
+        block
+            .i32_const(TypePrefix::StringASCII as i32)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                block_ty,
+                |then| {
+                    // Read the string length
+                    let buffer_length = self.module.locals.add(ValType::I32);
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .call(
+                            self.module
+                                .funcs
+                                .by_name("stdlib.load-i32-be")
+                                .expect("load-i32-be not found"),
+                        )
+                        .local_tee(buffer_length);
+
+                    // Verify that the string length is within the
+                    // string type size.
+                    then.i32_const(type_length as i32)
+                        .binop(BinaryOp::I32GtU)
+                        .if_else(
+                            None,
+                            |inner| {
+                                // Return none
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
+                            },
+                            |_| {},
+                        );
+
+                    // Verify that the string length is within the
+                    // buffer.
+                    let computed_end = self.module.locals.add(ValType::I32);
+                    then.local_get(buffer_length)
+                        .local_get(offset_local)
+                        .binop(BinaryOp::I32Add)
+                        .i32_const(5)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(computed_end)
+                        .local_get(end_local)
+                        .binop(BinaryOp::I32GtU)
+                        .if_else(
+                            None,
+                            |inner| {
+                                // Return none
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
+                            },
+                            |_| {},
+                        );
+
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // The serialized string is represented in the same
+                    // way that Clarity-Wasm expects, after the type prefix
+                    // and size, so just return a pointer to the corresponding
+                    // part of the serialized buffer.
+                    then.local_get(offset_local)
+                        .i32_const(5)
+                        .binop(BinaryOp::I32Add);
+
+                    // Push the buffer length onto the stack
+                    then.local_get(buffer_length);
+
+                    // Increment the offset by the length of the serialized
+                    // buffer.
+                    then.local_get(computed_end).local_set(offset_local);
+                },
+                |else_| {
+                    // Invalid prefix, return `none`.
+                    else_.i32_const(0).i32_const(0).i32_const(0);
+                },
+            );
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
     /// Deserialize a buffer in memory using the consensus serialization rules.
     /// The offset and length of the buffer are on the top of the data stack.
     /// Leaves `(some value)` on the top of the stack, or `none` if
@@ -2577,7 +2715,14 @@ impl WasmGenerator {
                 end_local,
                 type_length.into(),
             ),
-            SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => Ok(()),
+            SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(type_length))) => self
+                .deserialize_string_ascii(
+                    builder,
+                    memory,
+                    offset_local,
+                    end_local,
+                    type_length.into(),
+                ),
             SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => Ok(()),
             TupleType(tuple_ty) => Ok(()),
             NoType => unreachable!("NoType should not be deserialized"),
