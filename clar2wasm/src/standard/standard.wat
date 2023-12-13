@@ -3105,6 +3105,12 @@
         (i32.sub (local.get $output-offset) (local.get $initial-output-offset))
     )
 
+    ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
+    (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
+        ;; FIXME: Implement this function
+        (i32.const 0)
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
