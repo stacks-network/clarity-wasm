@@ -487,4 +487,70 @@ mod tests {
             Some(Value::none())
         );
     }
+
+    #[test]
+    fn from_consensus_buff_optional_int_none() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (optional int) 0x09)"#),
+            Some(Value::some(Value::none()).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_bad_prefix() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (optional int) 0x00ffffffffffffffffffffffffffffffd6)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_int_some() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (optional int) 0x0a00ffffffffffffffffffffffffffffffd6)"#
+            ),
+            Some(Value::some(Value::some(Value::Int(-42)).unwrap()).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_bool_some() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (optional bool) 0x0a03)"#),
+            Some(Value::some(Value::some(Value::Bool(true)).unwrap()).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_int_some_invalid() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (optional int) 0x0a02ffffffffffffffffffffffffffffffd6)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_int_some_long() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (optional int) 0x0a00ffffffffffffffffffffffffffffffd600)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_optional_int_some_short() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (optional int) 0x0a00ffffffffffffffffffffffffffffd6)"#
+            ),
+            Some(Value::none())
+        );
+    }
 }

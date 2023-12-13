@@ -2248,6 +2248,150 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Deserialize an `optional` from memory using consensus serialization.
+    /// Leaves an `(optional (optional T))` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///   None:
+    ///    | 0x09 |
+    ///   Some:
+    ///    | 0x0a | serialized value |
+    fn deserialize_optional(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        value_ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        // These two I32's are the some indicators for the outer and inner
+        // optionals.
+        let mut wasm_val_ty = vec![ValType::I32, ValType::I32];
+        wasm_val_ty.append(&mut clar2wasm_ty(value_ty));
+        let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 1 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0);
+                    add_placeholder_for_clarity_type(then, value_ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        let type_prefix = self.module.locals.add(ValType::I32);
+        block
+            .local_get(offset_local)
+            .load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            )
+            .local_tee(type_prefix);
+
+        // Check for the `none` prefix (0x09)
+        block.i32_const(0x09).binop(BinaryOp::I32Eq).if_else(
+            None,
+            |then| {
+                // Push `(some none)` onto the stack (with a placeholder for
+                // the inner type).
+                then.i32_const(1).i32_const(0);
+                add_placeholder_for_clarity_type(then, value_ty);
+
+                // Increment the offset by 1.
+                then.local_get(offset_local)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(offset_local);
+
+                // Break out of the block
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Check for the `some` prefix (0x0a)
+
+        // Build the block for the case where the prefix is `some`
+        let mut some_block = block.dangling_instr_seq(block_ty);
+        let some_block_id = some_block.id();
+
+        // Increment offset by 1
+        some_block
+            .local_get(offset_local)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Deserialize the inner value
+        self.deserialize_from_memory(&mut some_block, offset_local, end_local, value_ty)?;
+
+        // Check if the deserialization failed:
+        // - Store the value in locals
+        // - Check the inidicator now on top of the stack
+        let inner_locals = self.save_to_locals(&mut some_block, value_ty, true);
+        some_block.unop(UnaryOp::I32Eqz).if_else(
+            None,
+            |then| {
+                // Return none
+                then.i32_const(0).i32_const(0);
+                add_placeholder_for_clarity_type(then, value_ty);
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Push the `some` indicator onto the stack, for the result of this
+        // operation, then push the `some` indicator for the actual value
+        // we deserialized.
+        some_block.i32_const(1).i32_const(1);
+
+        // Push the inner value back onto the stack
+        for local in inner_locals {
+            some_block.local_get(local);
+        }
+
+        // Build the block for the case of an invalid type prefix
+        let mut invalid_block = block.dangling_instr_seq(block_ty);
+        let invalid_block_id = invalid_block.id();
+
+        // Invalid prefix, return `none`.
+        invalid_block.i32_const(0).i32_const(0);
+        add_placeholder_for_clarity_type(&mut invalid_block, value_ty);
+
+        block
+            .local_get(type_prefix)
+            .i32_const(0x0a)
+            .binop(BinaryOp::I32Eq)
+            .instr(IfElse {
+                consequent: some_block_id,
+                alternative: invalid_block_id,
+            });
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
     /// Deserialize a buffer in memory using the consensus serialization rules.
     /// The offset and length of the buffer are on the top of the data stack.
     /// Leaves `(some value)` on the top of the stack, or `none` if
@@ -2275,7 +2419,9 @@ impl WasmGenerator {
             }
             ResponseType(types) => Ok(()),
             BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
-            OptionalType(value_ty) => Ok(()),
+            OptionalType(value_ty) => {
+                self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
+            }
             SequenceType(SequenceSubtype::ListType(list_ty)) => Ok(()),
             SequenceType(SequenceSubtype::BufferType(_)) => Ok(()),
             SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => Ok(()),
