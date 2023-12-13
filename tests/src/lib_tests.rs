@@ -3227,6 +3227,16 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
+    test_call_optional_none_equal,
+    "equal",
+    "call-optional-none-equal",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Bool(true));
+    }
+);
+
+test_contract_call_response!(
     test_call_optional_unequal,
     "equal",
     "call-optional-unequal",
