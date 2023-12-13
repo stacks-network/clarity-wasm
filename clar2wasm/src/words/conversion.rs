@@ -90,6 +90,45 @@ impl Word for IntToAscii {
     }
 }
 
+#[derive(Debug)]
+pub struct IntToUtf8;
+
+impl Word for IntToUtf8 {
+    fn name(&self) -> clarity::vm::ClarityName {
+        "int-to-utf8".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &clarity::vm::SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        generator.traverse_args(builder, args)?;
+
+        let input = args.get_expr(0)?;
+        let ty = generator
+            .get_expr_type(input)
+            .expect("int-to-utf8 input must be typed");
+        let type_prefix = match ty {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "invalid type for int-to-utf8".to_owned(),
+                ));
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-utf8"));
+
+        builder.call(func);
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{ASCIIData, CharType, SequenceData};
