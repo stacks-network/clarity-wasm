@@ -65,6 +65,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &comparison::CmpLeq,
     &comparison::CmpLess,
     &conditionals::And,
+    &conditionals::Asserts,
     &conditionals::Filter,
     &conditionals::If,
     &conditionals::Match,
