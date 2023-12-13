@@ -405,15 +405,12 @@ impl Word for Unwrap {
         ));
 
         // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here.
-        generator.set_expr_type(
-            throw,
-            generator
-                .return_type
-                .as_ref()
-                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
-                .clone(),
-        );
+        // expression, so we need to manually update it here. If the return
+        // type is not set, then we are not in a function, and the type can't
+        // be determined.
+        if let Some(return_ty) = &generator.return_type {
+            generator.set_expr_type(throw, return_ty.clone());
+        }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
 
@@ -487,15 +484,12 @@ impl Word for UnwrapErr {
         ));
 
         // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here.
-        generator.set_expr_type(
-            throw,
-            generator
-                .return_type
-                .as_ref()
-                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
-                .clone(),
-        );
+        // expression, so we need to manually update it here. If the return
+        // type is not set, then we are not in a function, and the type can't
+        // be determined.
+        if let Some(return_ty) = &generator.return_type {
+            generator.set_expr_type(throw, return_ty.clone());
+        }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
 
@@ -570,15 +564,12 @@ impl Word for Asserts {
         ));
 
         // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here.
-        generator.set_expr_type(
-            throw,
-            generator
-                .return_type
-                .as_ref()
-                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
-                .clone(),
-        );
+        // expression, so we need to manually update it here. If the return
+        // type is not set, then we are not in a function, and the type can't
+        // be determined.
+        if let Some(return_ty) = &generator.return_type {
+            generator.set_expr_type(throw, return_ty.clone());
+        }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
 
