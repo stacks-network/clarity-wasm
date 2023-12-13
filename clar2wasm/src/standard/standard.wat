@@ -2090,7 +2090,7 @@
             (i32.const 20)
         )
         ;; Write the size of the contract name
-        (i32.store offset=21 (global.get $stack-pointer) (local.get $contract_length))
+        (i32.store8 offset=21 (global.get $stack-pointer) (local.get $contract_length))
 
         ;; If a contract name is specified, check if it is valid. If so,
         ;; append it to the principal
@@ -2114,14 +2114,14 @@
 
                 ;; Copy the contract name to the stack
                 (memory.copy
-                    (i32.add (global.get $stack-pointer) (i32.const 25))
+                    (i32.add (global.get $stack-pointer) (i32.const 22))
                     (local.get $contract_offset)
                     (local.get $contract_length)
                 )
             )
         )
 
-        (local.set $result_length (i32.add (local.get $contract_length) (i32.const 25)))
+        (local.set $result_length (i32.add (local.get $contract_length) (i32.const 22)))
 
         ;; If the version was valid, return an ok value
         (if (result i32 i32 i32 i64 i64 i32 i32 i32) (local.get $valid)

@@ -505,14 +505,14 @@ impl WasmGenerator {
                     let mut data = vec![standard.0];
                     data.extend_from_slice(&standard.1);
                     // Append a 0 for the length of the contract name
-                    data.extend_from_slice(&[0u8; 4]);
+                    data.push(0);
                     data
                 }
                 PrincipalData::Contract(contract) => {
                     let mut data = vec![contract.issuer.0];
                     data.extend_from_slice(&contract.issuer.1);
-                    let contract_length = (contract.name.len() as i32).to_le_bytes();
-                    data.extend_from_slice(&contract_length);
+                    let contract_length = contract.name.len();
+                    data.push(contract_length);
                     data.extend_from_slice(contract.name.as_bytes());
                     data
                 }
@@ -1078,8 +1078,8 @@ impl WasmGenerator {
                         .memory_copy(memory, memory);
 
                     // Push the total length written onto the data stack.
-                    // It is the same as plength, minus 3.
-                    then.local_get(plength).i32_const(2).binop(BinaryOp::I32Sub);
+                    // It is the same as plength, plus 1 (the type prefix).
+                    then.local_get(plength).i32_const(1).binop(BinaryOp::I32Add);
 
                     // Push the type prefix for a contract principal
                     then.local_get(write_ptr)
