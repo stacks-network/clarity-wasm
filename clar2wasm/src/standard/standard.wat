@@ -2505,10 +2505,8 @@
                     ;; remainder on the stack
                     drop ;; drop remainder_hi
                     (local.set $lo (i64.add (i64.const 48))) ;; to ascii
-                    ;; to store a digit on 32 bits in big-endian, we write 4bytes of 0
-                    ;; and we replace the last one by the correct value
-                    (i32.store (local.get $i) (i32.const 0))
-                    (i64.store8 offset=3 (local.get $i) (local.get $lo))
+                    ;; store as 4 bytes in big-endian
+                    (i64.store32 (local.get $i) (i64.shl (local.get $lo) (i64.const 24)))
 
                     ;; quotient on the stack
                     (local.set $hi)
@@ -2538,8 +2536,10 @@
             )
             ;; to ascii
             (i64.add (i64.const 48))
+            ;; to be on 4 bytes
+            (i64.shl (i64.const 24))
 
-            i64.store8 offset=3
+            i64.store32
 
             (local.set $i (i32.add (local.get $i) (i32.const 4)))
             (br_if $loop (i64.ne (local.get $lo) (i64.const 0)))
