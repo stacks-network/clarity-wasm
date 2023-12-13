@@ -553,7 +553,7 @@ impl Word for Len {
     }
 }
 
-enum SequenceElementType {
+pub enum SequenceElementType {
     /// A byte, from a string-ascii or buffer.
     Byte,
     /// A 32-bit unicode scalar value, from a string-utf8.
