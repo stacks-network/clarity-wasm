@@ -2493,6 +2493,87 @@
         (local.get $len)
     )
 
+    (func $stdlib.uint-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
+        (local $i i32) (local $j i32)
+        (local.set $j (local.tee $i (global.get $stack-pointer)))
+
+        ;; slow loop while $hi > 0
+        (if (i64.ne (local.get $hi) (i64.const 0))
+            (then
+                (loop $loop
+                    (call $stdlib.div-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                    ;; remainder on the stack
+                    drop ;; drop remainder_hi
+                    (local.set $lo (i64.add (i64.const 48))) ;; to ascii
+                    ;; to store a digit on 32 bits in big-endian, we write 4bytes of 0
+                    ;; and we replace the last one by the correct value
+                    (i32.store (local.get $i) (i32.const 0))
+                    (i64.store8 offset=3 (local.get $i) (local.get $lo))
+
+                    ;; quotient on the stack
+                    (local.set $hi)
+                    (local.set $lo)
+
+                    (local.set $i (i32.add (local.get $i) (i32.const 4)))
+                    (br_if $loop (i64.ne (local.get $hi) (i64.const 0)))
+                )
+            )
+        )
+
+        ;; faster loop while $lo > 0 (or at least once in case the number was 0)
+        (loop $loop
+            ;; to store a digit on 32 bits in big-endian, we write 4bytes of 0
+            ;; and we replace the last one by the correct value
+            (i32.store (local.get $i) (i32.const 0))
+
+            (local.get $i)
+
+            ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n
+            (i64.add
+                (local.get $lo)
+                (i64.mul
+                    (local.tee $lo (i64.div_u (local.get $lo) (i64.const 10)))
+                    (i64.const -10)
+                )
+            )
+            ;; to ascii
+            (i64.add (i64.const 48))
+
+            i64.store8 offset=3
+
+            (local.set $i (i32.add (local.get $i) (i32.const 4)))
+            (br_if $loop (i64.ne (local.get $lo) (i64.const 0)))
+        )
+
+        ;; final result offset and length on the stack
+        (local.get $j)
+        (i32.sub (local.get $i) (local.get $j))
+        ;; update stack-pointer
+        (global.set $stack-pointer (local.get $i))
+
+        ;; reverse answer in memory
+        (local.set $i (i32.sub (local.get $i) (i32.const 4)))
+        (loop $loop
+            (local.get $j)
+            (i32.load (local.get $i))
+
+            (local.get $i)
+            (i32.load (local.get $j))
+
+            i32.store
+            i32.store
+
+            (br_if $loop
+                (i32.lt_u
+                    (local.tee $j (i32.add (local.get $j) (i32.const 4)))
+                    (local.tee $i (i32.sub (local.get $i) (i32.const 4)))
+                )
+            )
+        )
+
+        ;; final result is already on the stack
+    )
+
     ;;
     ;; -- 'to-uint' implementation
     ;;
@@ -3036,6 +3117,7 @@
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
     (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
+    (export "stdlib.uint-to-utf8" (func $stdlib.uint-to-utf8))
     (export "stdlib.int-to-string" (func $stdlib.int-to-string))
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
