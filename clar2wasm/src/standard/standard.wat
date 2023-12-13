@@ -278,7 +278,8 @@
         ;; 4: expected a non-negative number
         ;; 5: buffer to integer expects a buffer length <= 16
         ;; 6: panic
-    (func $runtime-error (param $error-code i32)
+        ;; 7: short return
+    (func $stdlib.runtime-error (param $error-code i32)
         ;; TODO: Implement runtime error
         unreachable
     )
@@ -311,7 +312,7 @@
         (if (i64.eq (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have the same sign
             (then
                 (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $sum_hi) (i64.const 63))) ;; and the result has a different sign
-                    (then (call $runtime-error (i32.const 0)))
+                    (then (call $stdlib.runtime-error (i32.const 0)))
                 )
             )
         )
@@ -327,7 +328,7 @@
 
         ;; overflow condition: sum (a) < operand (b)
         (if (call $stdlib.lt-uint (local.get $a_lo) (local.get $a_hi) (local.get $b_lo) (local.get $b_hi))
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         (local.get $a_lo) (local.get $a_hi)
@@ -369,7 +370,7 @@
         (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $b_hi) (i64.const 63))) ;; if a and b have different signs
             (then
                 (if (i64.ne (i64.shr_s (local.get $a_hi) (i64.const 63)) (i64.shr_s (local.get $diff_hi) (i64.const 63))) ;; and the result has a different sign from a
-                    (then (call $runtime-error (i32.const 1)))
+                    (then (call $stdlib.runtime-error (i32.const 1)))
                 )
             )
         )
@@ -393,7 +394,7 @@
 
         ;; Check for underflow
         (if (i64.gt_u (local.get $diff_hi) (local.get $a_hi))
-            (then (call $runtime-error (i32.const 1)))
+            (then (call $stdlib.runtime-error (i32.const 1)))
         )
 
         ;; Return the result
@@ -464,7 +465,7 @@
         (if (i32.le_u (local.get $tmp) (i32.const 126))
             (then
                 ;; product will overflow if the sum of leading zeros is <= 126
-                (call $runtime-error (i32.const 0))
+                (call $stdlib.runtime-error (i32.const 0))
             )
         )
 
@@ -490,7 +491,7 @@
 
         ;; if result/2 > 2**127 overflow
         (if (i64.lt_s (local.get $b_hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         ;; res *= 2, meaning res <<= 1
@@ -566,7 +567,7 @@
 
         ;; Sign bit should be 0, otherwise there is an overflow
         (if (i64.lt_s (local.get $a_hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         ;; Return the result and adapt with sign bit
@@ -591,7 +592,7 @@
 
         ;; Check for division by 0
         (if (i64.eqz (i64.or (local.get $divisor_hi) (local.get $divisor_lo)))
-            (then (call $runtime-error (i32.const 2)))
+            (then (call $stdlib.runtime-error (i32.const 2)))
         )
 
         ;; Long division algorithm
@@ -1016,7 +1017,7 @@
 
     (func $stdlib.log2-uint (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.eqz (i64.or (local.get $hi) (local.get $lo)))
-            (then (call $runtime-error (i32.const 3)))
+            (then (call $stdlib.runtime-error (i32.const 3)))
         )
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
@@ -1024,7 +1025,7 @@
 
     (func $stdlib.log2-int (param $lo i64) (param $hi i64) (result i64 i64)
         (if (call $stdlib.le-int (local.get $lo) (local.get $hi) (i64.const 0) (i64.const 0))
-            (then (call $runtime-error (i32.const 3)))
+            (then (call $stdlib.runtime-error (i32.const 3)))
         )
         (call $log2 (local.get $lo) (local.get $hi))
         (i64.const 0)
@@ -1125,7 +1126,7 @@
 
     (func $stdlib.sqrti-int (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 4)))
         )
         (call $stdlib.sqrti-uint (local.get $lo) (local.get $hi))
     )
@@ -1270,7 +1271,7 @@
                 (i64.gt_u (local.get $b_lo) (i64.const 127))
                 (i64.ne (local.get $b_hi) (i64.const 0))
             )
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         ;; shortcut if a == 2
@@ -1313,7 +1314,7 @@
 
         ;; otherwise, if b < 0 => runtime error
         (if (i64.lt_s (local.get $b_hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 4)))
         )
 
         ;; if b > (a >= 0 ? 126 : 127) -> runtime error: overflow (since the biggest b that doesn't
@@ -1322,7 +1323,7 @@
                 (local.get $b_lo)
                 (i64.add (i64.const 126) (i64.extend_i32_u (i64.lt_s (local.get $a_hi) (i64.const 0))))
             )
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         ;; shortcut if a == 2
@@ -1393,7 +1394,7 @@
 
         ;; overflow if result is negative
         (if (i64.lt_s (local.get $a_hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 0)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
 
         (if (result i64 i64) (local.get $negative)
@@ -1916,7 +1917,7 @@
     (func $stdlib.buff-to-uint-be (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64) (local $double v128)
         (if (i32.gt_u (local.get $length) (i32.const 16))
-            (then (call $runtime-error (i32.const 5)))
+            (then (call $stdlib.runtime-error (i32.const 5)))
         )
 
         (if (i32.eqz (local.get $length))
@@ -1954,7 +1955,7 @@
     (func $stdlib.buff-to-uint-le (param $offset i32) (param $length i32) (result i64 i64)
         (local $mask_lo i64) (local $mask_hi i64)
         (if (i32.gt_u (local.get $length) (i32.const 16))
-            (then (call $runtime-error (i32.const 5)))
+            (then (call $stdlib.runtime-error (i32.const 5)))
         )
 
         (if (i32.eqz (local.get $length))
@@ -2501,7 +2502,7 @@
     ;;
     (func $stdlib.to-uint (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
-            (then (call $runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 4)))
         )
         (local.get $lo)
         (local.get $hi)
@@ -2520,7 +2521,7 @@
         ;; Thus, if $hi >= 2^63 the argument is >= 2^127,
         ;; no matter what is present in $lo.
         (if (i64.ge_u (local.get $hi) (i64.const 9223372036854775808))
-            (then (call $runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 4)))
         )
         (local.get $lo)
         (local.get $hi)

@@ -95,8 +95,8 @@ impl Word for UnwrapPanic {
                             generator
                                 .module
                                 .funcs
-                                .by_name("runtime-error")
-                                .expect("runtime_error not found"),
+                                .by_name("stdlib.runtime-error")
+                                .expect("stdlib.runtime-error not found"),
                         );
                     },
                     |_| {},
@@ -137,8 +137,8 @@ impl Word for UnwrapPanic {
                             generator
                                 .module
                                 .funcs
-                                .by_name("runtime-error")
-                                .expect("runtime_error not found"),
+                                .by_name("stdlib.runtime-error")
+                                .expect("stdlib.runtime-error not found"),
                         );
                     },
                     |_| {},
@@ -213,8 +213,8 @@ impl Word for UnwrapErrPanic {
                             generator
                                 .module
                                 .funcs
-                                .by_name("runtime-error")
-                                .expect("runtime_error not found"),
+                                .by_name("stdlib.runtime-error")
+                                .expect("stdlib.runtime-error not found"),
                         );
                     },
                 );
