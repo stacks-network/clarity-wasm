@@ -223,4 +223,28 @@ mod tests {
             ))))
         )
     }
+
+    #[test]
+    fn positive_int_to_utf8() {
+        assert_eq!(
+            evaluate(r#"(int-to-utf8 2048)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+                UTF8Data {
+                    data: "2048".bytes().map(|b| vec![b]).collect()
+                }
+            ))))
+        )
+    }
+
+    #[test]
+    fn negative_int_to_utf8() {
+        assert_eq!(
+            evaluate(r#"(int-to-utf8 -2048)"#),
+            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+                UTF8Data {
+                    data: "-2048".bytes().map(|b| vec![b]).collect()
+                }
+            ))))
+        )
+    }
 }
