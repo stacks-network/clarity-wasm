@@ -1885,6 +1885,21 @@
             )
         )
     )
+
+    (func $stdlib.load-i32-be (param $address i32) (result i32)
+        (local $value i32)
+        (local.set $value (i32.load (local.get $address)))
+        (i32.or
+            (i32.or
+                (i32.shl (local.get $value) (i32.const 24))
+                (i32.shl (i32.and (local.get $value) (i32.const 0xff00)) (i32.const 8))
+            )
+            (i32.or
+                (i32.and (i32.shr_u (local.get $value) (i32.const 8)) (i32.const 0xff00))
+                (i32.shr_u (local.get $value) (i32.const 24))
+            )
+        )
+    )
     
     (func $stdlib.store-i64-be (param $address i32) (param $value i64)
         (i64.store 
@@ -3136,6 +3151,7 @@
     (export "stdlib.hash160-int" (func $stdlib.hash160-int))
     (export "stdlib.store-i32-be" (func $stdlib.store-i32-be))
     (export "stdlib.store-i64-be" (func $stdlib.store-i64-be))
+    (export "stdlib.load-i32-be" (func $stdlib.load-i32-be))
     (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))

@@ -1900,7 +1900,11 @@ impl WasmGenerator {
 
         // Verify the prefix byte
         continue_block
-            .i32_const(if signed { 0 } else { 1 })
+            .i32_const(if signed {
+                TypePrefix::Int
+            } else {
+                TypePrefix::UInt
+            } as i32)
             .binop(BinaryOp::I32Eq)
             .if_else(
                 block_ty,
@@ -2018,72 +2022,65 @@ impl WasmGenerator {
             .local_tee(type_prefix);
 
         // Check for the standard principal prefix (0x05)
-        block.i32_const(5).binop(BinaryOp::I32Eq).if_else(
-            None,
-            |then| {
-                // Push the `some` indicator onto the stack
-                then.i32_const(1);
-
-                // Allocate space for the principal on the call stack
-                let result_offset = self.module.locals.add(ValType::I32);
-                then.global_get(self.stack_pointer).local_tee(result_offset);
-                then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
-                    .binop(BinaryOp::I32Add)
-                    .global_set(self.stack_pointer);
-
-                // Copy the principal to the destination
-                then.local_get(result_offset)
-                    .local_get(offset_local)
-                    .i32_const(1)
-                    .binop(BinaryOp::I32Add)
-                    .i32_const(PRINCIPAL_BYTES as i32)
-                    .memory_copy(memory, memory);
-
-                // Write the contract name length (0)
-                then.local_get(result_offset).i32_const(0).store(
-                    memory,
-                    StoreKind::I32_8 { atomic: false },
-                    MemArg {
-                        align: 1,
-                        offset: PRINCIPAL_BYTES as u32,
-                    },
-                );
-
-                // Increment the offset by the length of the serialized
-                // principal.
-                then.local_get(offset_local)
-                    .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
-                    .binop(BinaryOp::I32Add)
-                    .local_set(offset_local);
-
-                // Push the offset and length onto the stack
-                then.local_get(result_offset)
-                    .i32_const(PRINCIPAL_BYTES as i32);
-
-                // Break out of the block
-                then.br(block_id);
-            },
-            |_| {},
-        );
-
-        // Check for the contract principal prefix (0x06)
         block
-            .local_get(type_prefix)
-            .i32_const(6)
+            .i32_const(TypePrefix::PrincipalStandard as i32)
             .binop(BinaryOp::I32Eq)
             .if_else(
-                block_ty,
+                None,
                 |then| {
                     // Push the `some` indicator onto the stack
                     then.i32_const(1);
 
-                    // The serialized principal is represented in the same
-                    // way that Clarity-Wasm expects, after the type prefix
-                    // so just return a pointer to the serialized principal.
-                    then.local_get(offset_local)
-                        .i32_const(1)
-                        .binop(BinaryOp::I32Add);
+                    // Allocate space for the principal on the call stack
+                    let result_offset = self.module.locals.add(ValType::I32);
+                    then.global_get(self.stack_pointer).local_tee(result_offset);
+                    then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add)
+                        .global_set(self.stack_pointer);
 
+                    // Copy the principal to the destination
+                    then.local_get(result_offset)
+                        .local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .i32_const(PRINCIPAL_BYTES as i32)
+                        .memory_copy(memory, memory);
+
+                    // Write the contract name length (0)
+                    then.local_get(result_offset).i32_const(0).store(
+                        memory,
+                        StoreKind::I32_8 { atomic: false },
+                        MemArg {
+                            align: 1,
+                            offset: PRINCIPAL_BYTES as u32,
+                        },
+                    );
+
+                    // Increment the offset by the length of the serialized
+                    // principal.
+                    then.local_get(offset_local)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
+
+                    // Push the offset and length onto the stack
+                    then.local_get(result_offset)
+                        .i32_const(PRINCIPAL_BYTES as i32);
+
+                    // Break out of the block
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Check for the contract principal prefix (0x06)
+        block
+            .local_get(type_prefix)
+            .i32_const(TypePrefix::PrincipalContract as i32)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                block_ty,
+                |then| {
                     // Read the contract name length
                     let contract_length = self.module.locals.add(ValType::I32);
                     then.local_get(offset_local)
@@ -2100,22 +2097,34 @@ impl WasmGenerator {
                         .local_tee(contract_length);
 
                     // Verify that the contract name length is within the
-                    // buffer
+                    // buffer.
+                    let computed_end = self.module.locals.add(ValType::I32);
                     then.local_get(offset_local)
                         .binop(BinaryOp::I32Add)
-                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32 + 1)
                         .binop(BinaryOp::I32Add)
+                        .local_tee(computed_end)
                         .local_get(end_local)
                         .binop(BinaryOp::I32GtU)
                         .if_else(
                             None,
-                            |then| {
+                            |inner| {
                                 // Return none
-                                then.i32_const(0).i32_const(0).i32_const(0);
-                                then.br(block_id);
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
                             },
                             |_| {},
                         );
+
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // The serialized principal is represented in the same
+                    // way that Clarity-Wasm expects, after the type prefix
+                    // so just return a pointer to the serialized principal.
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add);
 
                     // The total length is the contract name length plus
                     // the standard principal length.
@@ -2125,14 +2134,7 @@ impl WasmGenerator {
 
                     // Increment the offset by the length of the serialized
                     // principal.
-                    then.local_get(offset_local)
-                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
-                        .binop(BinaryOp::I32Add)
-                        .local_get(contract_length)
-                        .binop(BinaryOp::I32Add)
-                        .i32_const(1)
-                        .binop(BinaryOp::I32Add)
-                        .local_set(offset_local);
+                    then.local_get(computed_end).local_set(offset_local);
                 },
                 |else_| {
                     // Invalid prefix, return `none`.
@@ -2201,28 +2203,31 @@ impl WasmGenerator {
             .local_tee(type_prefix);
 
         // Check for the `true` prefix (0x03)
-        block.i32_const(3).binop(BinaryOp::I32Eq).if_else(
-            None,
-            |then| {
-                // Push `(some true)` onto the stack
-                then.i32_const(1).i32_const(1);
+        block
+            .i32_const(TypePrefix::BoolTrue as i32)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                None,
+                |then| {
+                    // Push `(some true)` onto the stack
+                    then.i32_const(1).i32_const(1);
 
-                // Increment the offset by 1.
-                then.local_get(offset_local)
-                    .i32_const(1)
-                    .binop(BinaryOp::I32Add)
-                    .local_set(offset_local);
+                    // Increment the offset by 1.
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
 
-                // Break out of the block
-                then.br(block_id);
-            },
-            |_| {},
-        );
+                    // Break out of the block
+                    then.br(block_id);
+                },
+                |_| {},
+            );
 
         // Check for the `false` prefix (0x04)
         block
             .local_get(type_prefix)
-            .i32_const(4)
+            .i32_const(TypePrefix::BoolFalse as i32)
             .binop(BinaryOp::I32Eq)
             .if_else(
                 block_ty,
@@ -2308,25 +2313,28 @@ impl WasmGenerator {
             .local_tee(type_prefix);
 
         // Check for the `none` prefix (0x09)
-        block.i32_const(0x09).binop(BinaryOp::I32Eq).if_else(
-            None,
-            |then| {
-                // Push `(some none)` onto the stack (with a placeholder for
-                // the inner type).
-                then.i32_const(1).i32_const(0);
-                add_placeholder_for_clarity_type(then, value_ty);
+        block
+            .i32_const(TypePrefix::OptionalNone as i32)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                None,
+                |then| {
+                    // Push `(some none)` onto the stack (with a placeholder for
+                    // the inner type).
+                    then.i32_const(1).i32_const(0);
+                    add_placeholder_for_clarity_type(then, value_ty);
 
-                // Increment the offset by 1.
-                then.local_get(offset_local)
-                    .i32_const(1)
-                    .binop(BinaryOp::I32Add)
-                    .local_set(offset_local);
+                    // Increment the offset by 1.
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
 
-                // Break out of the block
-                then.br(block_id);
-            },
-            |_| {},
-        );
+                    // Break out of the block
+                    then.br(block_id);
+                },
+                |_| {},
+            );
 
         // Check for the `some` prefix (0x0a)
 
@@ -2377,14 +2385,153 @@ impl WasmGenerator {
         invalid_block.i32_const(0).i32_const(0);
         add_placeholder_for_clarity_type(&mut invalid_block, value_ty);
 
+        // Check for the `some` prefix (0x0a)
         block
             .local_get(type_prefix)
-            .i32_const(0x0a)
+            .i32_const(TypePrefix::OptionalSome as i32)
             .binop(BinaryOp::I32Eq)
             .instr(IfElse {
                 consequent: some_block_id,
                 alternative: invalid_block_id,
             });
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
+    /// Deserialize a `buffer` from memory using consensus serialization.
+    /// Leaves an `(optional buffer)` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///  | 0x02 | length: 4-bytes (big-endian) | data: variable length |
+    fn deserialize_buffer(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        type_length: u32,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        let block_ty = InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32, ValType::I32, ValType::I32],
+        );
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 5 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        block.local_get(offset_local).load(
+            memory,
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Check for the buffer prefix (0x02)
+        block
+            .i32_const(TypePrefix::Buffer as i32)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                block_ty,
+                |then| {
+                    // Read the buffer length
+                    let buffer_length = self.module.locals.add(ValType::I32);
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .call(
+                            self.module
+                                .funcs
+                                .by_name("stdlib.load-i32-be")
+                                .expect("load-i32-be not found"),
+                        )
+                        .local_tee(buffer_length);
+
+                    // Verify that the buffer length is within the
+                    // buffer type size.
+                    then.i32_const(type_length as i32)
+                        .binop(BinaryOp::I32GtU)
+                        .if_else(
+                            None,
+                            |inner| {
+                                // Return none
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
+                            },
+                            |_| {},
+                        );
+
+                    // Verify that the buffer length is within the
+                    // buffer.
+                    let computed_end = self.module.locals.add(ValType::I32);
+                    then.local_get(buffer_length)
+                        .local_get(offset_local)
+                        .binop(BinaryOp::I32Add)
+                        .i32_const(5)
+                        .binop(BinaryOp::I32Add)
+                        .local_tee(computed_end)
+                        .local_get(end_local)
+                        .binop(BinaryOp::I32GtU)
+                        .if_else(
+                            None,
+                            |inner| {
+                                // Return none
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
+                            },
+                            |_| {},
+                        );
+
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // The serialized buffer is represented in the same
+                    // way that Clarity-Wasm expects, after the type prefix
+                    // and size, so just return a pointer to the corresponding
+                    // part of the serialized buffer.
+                    then.local_get(offset_local)
+                        .i32_const(5)
+                        .binop(BinaryOp::I32Add);
+
+                    // Push the buffer length onto the stack
+                    then.local_get(buffer_length);
+
+                    // Increment the offset by the length of the serialized
+                    // buffer.
+                    then.local_get(computed_end).local_set(offset_local);
+                },
+                |else_| {
+                    // Invalid prefix, return `none`.
+                    else_.i32_const(0).i32_const(0).i32_const(0);
+                },
+            );
 
         // Add our main block to the builder.
         builder.instr(walrus::ir::Block { seq: block_id });
@@ -2423,7 +2570,13 @@ impl WasmGenerator {
                 self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
             }
             SequenceType(SequenceSubtype::ListType(list_ty)) => Ok(()),
-            SequenceType(SequenceSubtype::BufferType(_)) => Ok(()),
+            SequenceType(SequenceSubtype::BufferType(type_length)) => self.deserialize_buffer(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                type_length.into(),
+            ),
             SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => Ok(()),
             SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => Ok(()),
             TupleType(tuple_ty) => Ok(()),

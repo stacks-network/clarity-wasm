@@ -553,4 +553,60 @@ mod tests {
             Some(Value::none())
         );
     }
+
+    #[test]
+    fn from_consensus_buff_buffer_exact_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (buff 16) 0x0200000010000102030405060708090a0b0c0d0e0f)"#
+            ),
+            Some(
+                Value::some(
+                    Value::buff_from(vec![
+                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+                        0x0c, 0x0d, 0x0e, 0x0f
+                    ])
+                    .unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_buffer_smaller_than_type() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (buff 16) 0x02000000080001020304050607)"#),
+            Some(
+                Value::some(
+                    Value::buff_from(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]).unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_buffer_smaller_than_size() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (buff 16) 0x020000000800010203040506)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_buffer_larger_than_size() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (buff 16) 0x0200000008000102030405060708)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_buffer_larger_than_type() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (buff 8) 0x0200000009000102030405060708)"#),
+            Some(Value::none())
+        );
+    }
 }
