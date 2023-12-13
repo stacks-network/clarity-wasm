@@ -1414,9 +1414,39 @@
     )
 
     (func $stdlib.sha256-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
-        (local $i i32)
-        ;; see this for an explanation: https://sha256algorithm.com/
+        ;; For binary representation, you can take a look at https://sha256algorithm.com/
+        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this Rust implementation
+        ;; https://github.com/dandyvica/sha/blob/master/src/sha256.rs
+        ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
 
+
+        ;; High Level Overview
+        ;; 1. Params
+        ;;      a. We need $offset where we stored/wrote the data to be hashed.  
+        ;;      b. We need $length of the data to be hashed.  
+        ;;      c. We need $offset-result where we're going to store/write the final hash. 
+        ;;         Typically greater than $stack-pointer + total number of bytes used in the whole process
+        ;; 2. Properties
+        ;;      a. SHA-256 processes the data in 64-byte chunks, no matter how large the data is.
+        ;;      b. SHA-256 uses total 8 words (single word is of 4 bytes) as its initial values. These are pre-determined
+        ;;          1. In this module, from 0 index to 31 index, intial values are stored
+        ;;      c. SHA-256 uses 64 k-constants (single constant is of 4 bytes) to calculate final hash. These are also pre-determined
+        ;;          1. From 32 to 288, indices are reserved for k-constants
+        ;;      d. Take a look at initial values and k-constants here https://github.com/dandyvica/sha/blob/master/src/sha256.rs
+        ;;      g. SHA-256 requires its data to be in specific format, before processing. 
+        ;;      h. SHA-256
+        ;; 3. To perform any calculation, sha256 requires the data to be in specific format. This process is called padding
+        ;;      a. Length of the padded data should always be divisible by 64 (i.e. $length%64==0), regardless of input size. 
+        ;;      b. For this purpose, it's essential to follow the following steps
+        ;;          1. Add '1' immediately after the last byte of the data
+        ;;          2. 
+              
+
+
+        ;; Index to track sha256 blocks
+        (local $i i32)
+
+        ;; This function is responsible to add padding and length to the data
         (call $extend-data (local.get $offset) (local.get $length))
         (local.set $length)
 
@@ -2537,7 +2567,7 @@
         ;; For binary representation, you can take a look at https://sha256algorithm.com/
         ;; Keep in mind that SHA-256 handles 4-byte words, but SHA-512 handles 8-byte words
         ;; SHA-256 block is of 512-bits(64 bytes) but SHA-512 block is of 1024-bits(128 bytes)
-        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this rust implementation
+        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this Rust implementation
         ;; https://github.com/dandyvica/sha/blob/master/src/sha512.rs
         ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
 
