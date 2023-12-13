@@ -967,4 +967,16 @@ mod tests {
             Some(Value::Int(11))
         );
     }
+
+    #[test]
+    fn asserts_top_level_true() {
+        assert_eq!(eval("(asserts! true (err u1))"), Some(Value::Bool(true)));
+    }
+
+    #[test]
+    fn asserts_top_level_false() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet("snippet", "(asserts! false (err u1))")
+            .expect_err("should panic");
+    }
 }
