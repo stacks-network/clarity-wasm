@@ -458,7 +458,6 @@ impl Word for UnwrapErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
-
         let throw = args.get_expr(1)?;
 
         generator.traverse_expr(builder, input)?;
@@ -526,6 +525,71 @@ impl Word for UnwrapErr {
                 consequent: unwrap_branch_id,
                 alternative: throw_branch_id,
             });
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Asserts;
+
+impl Word for Asserts {
+    fn name(&self) -> ClarityName {
+        "asserts!".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let input = args.get_expr(0)?;
+        let throw = args.get_expr(1)?;
+
+        generator.traverse_expr(builder, input)?;
+
+        let input_type = clar2wasm_ty(generator.get_expr_type(input).expect("Input must be typed"));
+        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+
+        let mut success_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &input_type,
+        ));
+
+        // always returns true
+        success_branch.i32_const(1);
+        let succ_branch_id = success_branch.id();
+
+        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &throw_type,
+        ));
+
+        // The type-checker does not fill in the complete type for the throw
+        // expression, so we need to manually update it here.
+        generator.set_expr_type(
+            throw,
+            generator
+                .return_type
+                .as_ref()
+                .ok_or_else(|| GeneratorError::InternalError("Return type not set".to_string()))?
+                .clone(),
+        );
+        generator.traverse_expr(&mut throw_branch, throw)?;
+        generator.return_early(&mut throw_branch)?;
+
+        let throw_branch_id = throw_branch.id();
+
+        // stack [ discriminant ]
+
+        builder.instr(ir::IfElse {
+            consequent: succ_branch_id,
+            alternative: throw_branch_id,
+        });
 
         Ok(())
     }
@@ -884,6 +948,32 @@ mod tests {
         assert_eq!(
             eval(&format!("{TRY_FN_OPT} (tryharder none)")),
             Some(Value::none())
+        );
+    }
+
+    const ASSERT: &str = "
+      (define-private (is-even (x int))
+        (is-eq (* (/ x 2) 2) x))
+
+      (define-private (assert-even (x int))
+        (begin
+          (asserts! (is-even x) (+ x 10))
+          99))
+    ";
+
+    #[test]
+    fn asserts_a() {
+        assert_eq!(
+            eval(&format!("{ASSERT} (assert-even 2)")),
+            Some(Value::Int(99))
+        );
+    }
+
+    #[test]
+    fn asserts_b() {
+        assert_eq!(
+            eval(&format!("{ASSERT} (assert-even 1)")),
+            Some(Value::Int(11))
         );
     }
 }
