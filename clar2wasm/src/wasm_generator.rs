@@ -2146,6 +2146,108 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Deserialize a `bool` from memory using consensus serialization.
+    /// Leaves an `(optional bool)` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///   True:
+    ///    | 0x03 |
+    ///   False:
+    ///    | 0x04 |
+    fn deserialize_bool(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        let block_ty =
+            InstrSeqType::new(&mut self.module.types, &[], &[ValType::I32, ValType::I32]);
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 1 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        let type_prefix = self.module.locals.add(ValType::I32);
+        block
+            .local_get(offset_local)
+            .load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            )
+            .local_tee(type_prefix);
+
+        // Check for the `true` prefix (0x03)
+        block.i32_const(3).binop(BinaryOp::I32Eq).if_else(
+            None,
+            |then| {
+                // Push `(some true)` onto the stack
+                then.i32_const(1).i32_const(1);
+
+                // Increment the offset by 1.
+                then.local_get(offset_local)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(offset_local);
+
+                // Break out of the block
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Check for the `false` prefix (0x04)
+        block
+            .local_get(type_prefix)
+            .i32_const(4)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                block_ty,
+                |then| {
+                    // Push `(some false)` onto the stack
+                    then.i32_const(1).i32_const(0);
+
+                    // Increment the offset by 1.
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
+                },
+                |else_| {
+                    // Invalid prefix, return `none`.
+                    else_.i32_const(0).i32_const(0);
+                },
+            );
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
     /// Deserialize a buffer in memory using the consensus serialization rules.
     /// The offset and length of the buffer are on the top of the data stack.
     /// Leaves `(some value)` on the top of the stack, or `none` if
@@ -2172,7 +2274,7 @@ impl WasmGenerator {
                 self.deserialize_principal(builder, memory, offset_local, end_local)
             }
             ResponseType(types) => Ok(()),
-            BoolType => Ok(()),
+            BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
             OptionalType(value_ty) => Ok(()),
             SequenceType(SequenceSubtype::ListType(list_ty)) => Ok(()),
             SequenceType(SequenceSubtype::BufferType(_)) => Ok(()),

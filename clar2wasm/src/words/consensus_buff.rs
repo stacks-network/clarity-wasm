@@ -306,6 +306,14 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_int_bad_prefix() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? int 0x0100000000000000000000000001e240)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_int_short() {
         assert_eq!(
             evaluate(r#"(from-consensus-buff? int 0x0000000000000000000000000001e240)"#),
@@ -326,6 +334,14 @@ mod tests {
         assert_eq!(
             evaluate(r#"(from-consensus-buff? uint 0x010000000000000000000000000001e240)"#),
             Some(Value::some(Value::UInt(123456)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_uint_bad_prefix() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? uint 0x0000000000000000000000000001e240)"#),
+            Some(Value::none())
         );
     }
 
@@ -361,6 +377,16 @@ mod tests {
                 ))
                 .unwrap()
             )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_principal_bad_prefix() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x071a7321b74e2b6a7e949e6c4ad313035b1665095017)"#
+            ),
+            Some(Value::none())
         );
     }
 
@@ -418,6 +444,46 @@ mod tests {
             evaluate(
                 r#"(from-consensus-buff? principal 0x061a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd230d66756e6374696f6e2d6e616d6565)"#
             ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_bool_true() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? bool 0x03)"#),
+            Some(Value::some(Value::Bool(true)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_bool_false() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? bool 0x04)"#),
+            Some(Value::some(Value::Bool(false)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_bool_bad_prefix() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? bool 0x02)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_bool_short() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? bool 0x)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_bool_long() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? bool 0x0404)"#),
             Some(Value::none())
         );
     }
