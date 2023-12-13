@@ -1,8 +1,11 @@
 use clarity::vm::types::{TypeSignature, MAX_VALUE_SIZE};
-use walrus::ir::InstrSeqType;
+use walrus::ir::{BinaryOp, InstrSeqType};
 
 use super::Word;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{
+    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
+    WasmGenerator,
+};
 
 #[derive(Debug)]
 pub struct To;
@@ -92,8 +95,9 @@ impl Word for From {
             .get_expr_type(_expr)
             .expect("from-consensus-buff? value expression must be typed")
             .clone();
-        let value_ty = if let TypeSignature::OptionalType(inner) = ty {
-            *inner
+        let wasm_result_ty = clar2wasm_ty(&ty);
+        let value_ty = if let TypeSignature::OptionalType(ref inner) = ty {
+            *inner.clone()
         } else {
             return Err(GeneratorError::TypeError(
                 "from-consensus-buff? value expression must be an optional type".to_string(),
@@ -104,11 +108,36 @@ impl Word for From {
         generator.traverse_expr(builder, args.get_expr(1)?)?;
 
         let offset = generator.module.locals.add(walrus::ValType::I32);
-        let length = generator.module.locals.add(walrus::ValType::I32);
-        builder.local_set(length);
-        builder.local_set(offset);
+        let end = generator.module.locals.add(walrus::ValType::I32);
+        builder
+            .local_set(end)
+            .local_tee(offset)
+            .local_get(end)
+            .binop(BinaryOp::I32Add)
+            .local_set(end);
 
-        generator.deserialize_from_memory(builder, offset, length, 0, &value_ty)?;
+        generator.deserialize_from_memory(builder, offset, end, &value_ty)?;
+
+        // If the entire buffer was not consumed, return none.
+        builder
+            .local_get(end)
+            .local_get(offset)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                InstrSeqType::new(
+                    &mut generator.module.types,
+                    &wasm_result_ty,
+                    &wasm_result_ty,
+                ),
+                |_| {
+                    // Do nothing, leave the result as-is
+                },
+                |else_| {
+                    // Drop the result and return none
+                    drop_value(else_, &ty);
+                    add_placeholder_for_clarity_type(else_, &ty);
+                },
+            );
 
         Ok(())
     }
@@ -116,7 +145,7 @@ impl Word for From {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{BuffData, SequenceData};
+    use clarity::vm::types::{BuffData, PrincipalData, SequenceData};
     use clarity::vm::Value;
     use hex::FromHex as _;
 
@@ -277,10 +306,119 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_int_short() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? int 0x0000000000000000000000000001e240)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_int_long() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? int 0x000000000000000000000000000001e24000)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_uint() {
         assert_eq!(
             evaluate(r#"(from-consensus-buff? uint 0x010000000000000000000000000001e240)"#),
             Some(Value::some(Value::UInt(123456)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_uint_short() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? uint 0x0100000000000000000000000001e240)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_uint_long() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? uint 0x010000000000000000000000000001e24000)"#),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_standard_principal() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x051a7321b74e2b6a7e949e6c4ad313035b1665095017)"#
+            ),
+            Some(
+                Value::some(Value::Principal(
+                    PrincipalData::parse_standard_principal(
+                        "ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5"
+                    )
+                    .unwrap()
+                    .into()
+                ))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_standard_principal_short() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x051a7321b74e2b6a7e949e6c4ad313035b16650950)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_standard_principal_long() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x051a7321b74e2b6a7e949e6c4ad313035b1665095017ff)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_contract_principal() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x061a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd230d66756e6374696f6e2d6e616d65)"#
+            ),
+            Some(
+                Value::some(Value::Principal(
+                    PrincipalData::parse_qualified_contract_principal(
+                        "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG.function-name"
+                    )
+                    .unwrap()
+                ))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_contract_principal_short() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x061a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd230d66756e6374696f6e2d6e616d)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_contract_principal_long() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? principal 0x061a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd230d66756e6374696f6e2d6e616d6565)"#
+            ),
+            Some(Value::none())
         );
     }
 }

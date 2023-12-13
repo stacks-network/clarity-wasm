@@ -1865,27 +1865,25 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         memory: MemoryId,
         offset_local: LocalId,
-        length_local: LocalId,
-        offset: u32,
+        end_local: LocalId,
         signed: bool,
     ) -> Result<(), GeneratorError> {
-        // Create a block that returns `none` if the length is not 17 bytes
-        let mut none_block = builder.dangling_instr_seq(InstrSeqType::new(
+        // Create a block that returns `none` if 17 bytes from offset is
+        // beyond the end of the buffer.
+        let block_ty = InstrSeqType::new(
             &mut self.module.types,
             &[],
             &[ValType::I32, ValType::I64, ValType::I64],
-        ));
+        );
+        let mut none_block = builder.dangling_instr_seq(block_ty);
+
         // Return `none`
         none_block.i32_const(0).i64_const(0).i64_const(0);
         let none_block_id = none_block.id();
 
         // Create a block that continues to process the buffer if the length is
         // 17 bytes.
-        let mut continue_block = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut self.module.types,
-            &[],
-            &[ValType::I32, ValType::I64, ValType::I64],
-        ));
+        let mut continue_block = builder.dangling_instr_seq(block_ty);
         let continue_block_id = continue_block.id();
 
         // Read the prefix byte
@@ -1894,7 +1892,10 @@ impl WasmGenerator {
             LoadKind::I32_8 {
                 kind: ExtendedLoad::ZeroExtend,
             },
-            MemArg { align: 1, offset },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
         );
 
         // Verify the prefix byte
@@ -1902,11 +1903,7 @@ impl WasmGenerator {
             .i32_const(if signed { 0 } else { 1 })
             .binop(BinaryOp::I32Eq)
             .if_else(
-                InstrSeqType::new(
-                    &mut self.module.types,
-                    &[],
-                    &[ValType::I32, ValType::I64, ValType::I64],
-                ),
+                block_ty,
                 |then| {
                     // Push the `some` indicator onto the stack
                     then.i32_const(1);
@@ -1917,7 +1914,7 @@ impl WasmGenerator {
                         LoadKind::V128 {},
                         MemArg {
                             align: 1,
-                            offset: offset + 1,
+                            offset: 1,
                         },
                     );
                     // Convert from big-endian to little
@@ -1932,6 +1929,12 @@ impl WasmGenerator {
                     then.unop(UnaryOp::I64x2ExtractLane { idx: 0 });
                     then.local_get(tmp_v128)
                         .unop(UnaryOp::I64x2ExtractLane { idx: 1 });
+
+                    // Increment the offset by 17
+                    then.local_get(offset_local)
+                        .i32_const(17)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
                 },
                 |else_| {
                     // Return `none`
@@ -1939,11 +1942,13 @@ impl WasmGenerator {
                 },
             );
 
-        // Check the length of the buffer to ensure it is 17 bytes
+        // Verify that reading 17 bytes from the offset is within the buffer
         builder
-            .local_get(length_local)
+            .local_get(offset_local)
             .i32_const(17)
-            .binop(BinaryOp::I32Ne)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GtU)
             .instr(IfElse {
                 consequent: none_block_id,
                 alternative: continue_block_id,
@@ -1952,33 +1957,230 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Deserialize a `principal` from memory using consensus serialization.
+    /// Leaves an `(optional principal)` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///   Standard:
+    ///    | 0x05 | version: 1 byte | public key(s)' hash160: 20-bytes |
+    ///   Contract:
+    ///    | 0x06 | version: 1 byte | public key(s)' hash160: 20-bytes
+    ///      | contract name length: 1 byte | contract name: variable length |
+    fn deserialize_principal(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        let block_ty = InstrSeqType::new(
+            &mut self.module.types,
+            &[],
+            &[ValType::I32, ValType::I32, ValType::I32],
+        );
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 17 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GtU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        let type_prefix = self.module.locals.add(ValType::I32);
+        block
+            .local_get(offset_local)
+            .load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            )
+            .local_tee(type_prefix);
+
+        // Check for the standard principal prefix (0x05)
+        block.i32_const(5).binop(BinaryOp::I32Eq).if_else(
+            None,
+            |then| {
+                // Push the `some` indicator onto the stack
+                then.i32_const(1);
+
+                // Allocate space for the principal on the call stack
+                let result_offset = self.module.locals.add(ValType::I32);
+                then.global_get(self.stack_pointer).local_tee(result_offset);
+                then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                    .binop(BinaryOp::I32Add)
+                    .global_set(self.stack_pointer);
+
+                // Copy the principal to the destination
+                then.local_get(result_offset)
+                    .local_get(offset_local)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .i32_const(PRINCIPAL_BYTES as i32)
+                    .memory_copy(memory, memory);
+
+                // Write the contract name length (0)
+                then.local_get(result_offset).i32_const(0).store(
+                    memory,
+                    StoreKind::I32_8 { atomic: false },
+                    MemArg {
+                        align: 1,
+                        offset: PRINCIPAL_BYTES as u32,
+                    },
+                );
+
+                // Increment the offset by the length of the serialized
+                // principal.
+                then.local_get(offset_local)
+                    .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(offset_local);
+
+                // Push the offset and length onto the stack
+                then.local_get(result_offset)
+                    .i32_const(PRINCIPAL_BYTES as i32);
+
+                // Break out of the block
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Check for the contract principal prefix (0x06)
+        block
+            .local_get(type_prefix)
+            .i32_const(6)
+            .binop(BinaryOp::I32Eq)
+            .if_else(
+                block_ty,
+                |then| {
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // The serialized principal is represented in the same
+                    // way that Clarity-Wasm expects, after the type prefix
+                    // so just return a pointer to the serialized principal.
+                    then.local_get(offset_local)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add);
+
+                    // Read the contract name length
+                    let contract_length = self.module.locals.add(ValType::I32);
+                    then.local_get(offset_local)
+                        .load(
+                            memory,
+                            LoadKind::I32_8 {
+                                kind: ExtendedLoad::ZeroExtend,
+                            },
+                            MemArg {
+                                align: 1,
+                                offset: STANDARD_PRINCIPAL_BYTES as u32,
+                            },
+                        )
+                        .local_tee(contract_length);
+
+                    // Verify that the contract name length is within the
+                    // buffer
+                    then.local_get(offset_local)
+                        .binop(BinaryOp::I32Add)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_get(end_local)
+                        .binop(BinaryOp::I32GtU)
+                        .if_else(
+                            None,
+                            |then| {
+                                // Return none
+                                then.i32_const(0).i32_const(0).i32_const(0);
+                                then.br(block_id);
+                            },
+                            |_| {},
+                        );
+
+                    // The total length is the contract name length plus
+                    // the standard principal length.
+                    then.local_get(contract_length)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add);
+
+                    // Increment the offset by the length of the serialized
+                    // principal.
+                    then.local_get(offset_local)
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_get(contract_length)
+                        .binop(BinaryOp::I32Add)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(offset_local);
+                },
+                |else_| {
+                    // Invalid prefix, return `none`.
+                    else_.i32_const(0).i32_const(0).i32_const(0);
+                },
+            );
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
     /// Deserialize a buffer in memory using the consensus serialization rules.
     /// The offset and length of the buffer are on the top of the data stack.
     /// Leaves `(some value)` on the top of the stack, or `none` if
-    /// deserialization fails. See SIP-005 for details.
+    /// deserialization fails. It also updates `offset_local` to point to the
+    /// next byte after the bytes used for deserialization. The top-level
+    /// caller of this function should verify that the entire buffer was used
+    /// in deserialization.
+    /// See SIP-005 for deserialization details.
     pub(crate) fn deserialize_from_memory(
         &mut self,
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
-        length_local: LocalId,
-        offset: u32,
+        end_local: LocalId,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let memory = self.get_memory();
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {
-            IntType | UIntType => self.deserialize_integer(
-                builder,
-                memory,
-                offset_local,
-                length_local,
-                offset,
-                ty == &IntType,
-            ),
+            IntType | UIntType => {
+                self.deserialize_integer(builder, memory, offset_local, end_local, ty == &IntType)
+            }
+            PrincipalType | CallableType(_) | TraitReferenceType(_) => {
+                self.deserialize_principal(builder, memory, offset_local, end_local)
+            }
+            ResponseType(types) => Ok(()),
+            BoolType => Ok(()),
+            OptionalType(value_ty) => Ok(()),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => Ok(()),
+            SequenceType(SequenceSubtype::BufferType(_)) => Ok(()),
+            SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => Ok(()),
+            SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => Ok(()),
+            TupleType(tuple_ty) => Ok(()),
             NoType => unreachable!("NoType should not be deserialized"),
             ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
-            _ => unimplemented!("deserialization for type {:?}", ty),
         }
     }
 
