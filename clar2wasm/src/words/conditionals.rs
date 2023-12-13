@@ -563,8 +563,6 @@ impl Word for Asserts {
         success_branch.i32_const(1);
         let succ_branch_id = success_branch.id();
 
-        //
-
         let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
             &mut generator.module.types,
             &[],
