@@ -3591,6 +3591,71 @@ fn uint_to_utf8() {
 }
 
 #[test]
+fn int_to_utf8() {
+    let (instance, mut store) = load_stdlib().unwrap();
+
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let conv = instance.get_func(&mut store, "stdlib.int-to-utf8").unwrap();
+    let mut result = [Val::I32(0), Val::I32(0)];
+
+    let mut test_num = |num: i128| {
+        let expected = num.to_string();
+        let expected_len = 4 * expected.len();
+
+        let num = num as u128;
+        let lo = num as i64;
+        let hi = (num >> 64) as i64;
+
+        // This algo needs space on the stack,
+        // we move the initial value of $stack-pointer
+        // to a random one where it wouldn't matter
+        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
+            .expect("call to uint-to-string failed");
+        assert_eq!(result[0].unwrap_i32(), 1500);
+        assert_eq!(result[1].unwrap_i32(), expected_len as i32);
+
+        let mut buffer = vec![0u8; expected_len];
+        memory
+            .read(&mut store, 1500, &mut buffer)
+            .expect("could not read string answer from memory");
+
+        let buffer: Option<String> = buffer
+            .chunks_exact(4)
+            .map(|c| u32::from_be_bytes(c.try_into().unwrap()))
+            .map(char::from_u32)
+            .collect();
+
+        assert_eq!(buffer, Some(expected));
+    };
+
+    // test basic numbers
+    test_num(0);
+    test_num(1);
+    test_num(42);
+    test_num(1024);
+
+    // Basic tests with big numbers
+    test_num(184467440737095516156789);
+    test_num(374467440737095681245698132);
+
+    // Tests with negative numbers
+    test_num(-1);
+    test_num(-1024);
+    test_num(-184467440737095516156789);
+    test_num(-374467440737095681245698133);
+
+    // Test with biggest ints
+    test_num(i128::MIN);
+    test_num(i128::MAX);
+}
+
+#[test]
 fn sha512_buf() {
     let (instance, mut store) = load_stdlib().unwrap();
     let memory = instance
