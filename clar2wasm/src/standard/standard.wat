@@ -2493,6 +2493,119 @@
         (local.get $len)
     )
 
+    (func $stdlib.uint-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
+        (local $i i32) (local $j i32)
+        (local.set $j (local.tee $i (global.get $stack-pointer)))
+
+        ;; slow loop while $hi > 0
+        (if (i64.ne (local.get $hi) (i64.const 0))
+            (then
+                (loop $loop
+                    (call $stdlib.div-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                    ;; remainder on the stack
+                    drop ;; drop remainder_hi
+                    (local.set $lo (i64.add (i64.const 48))) ;; to ascii
+                    ;; store as 4 bytes in big-endian
+                    (i64.store32 (local.get $i) (i64.shl (local.get $lo) (i64.const 24)))
+
+                    ;; quotient on the stack
+                    (local.set $hi)
+                    (local.set $lo)
+
+                    (local.set $i (i32.add (local.get $i) (i32.const 4)))
+                    (br_if $loop (i64.ne (local.get $hi) (i64.const 0)))
+                )
+            )
+        )
+
+        ;; faster loop while $lo > 0 (or at least once in case the number was 0)
+        (loop $loop
+            (local.get $i)
+
+            ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n
+            (i64.add
+                (local.get $lo)
+                (i64.mul
+                    (local.tee $lo (i64.div_u (local.get $lo) (i64.const 10)))
+                    (i64.const -10)
+                )
+            )
+            ;; to ascii
+            (i64.add (i64.const 48))
+            ;; to be on 4 bytes
+            (i64.shl (i64.const 24))
+
+            i64.store32
+
+            (local.set $i (i32.add (local.get $i) (i32.const 4)))
+            (br_if $loop (i64.ne (local.get $lo) (i64.const 0)))
+        )
+
+        ;; final result offset and length on the stack
+        (local.get $j)
+        (i32.sub (local.get $i) (local.get $j))
+        ;; update stack-pointer
+        (global.set $stack-pointer (local.get $i))
+
+        ;; reverse answer in memory
+        (local.set $i (i32.sub (local.get $i) (i32.const 4)))
+        (loop $loop
+            (local.get $j)
+            (i32.load (local.get $i))
+
+            (local.get $i)
+            (i32.load (local.get $j))
+
+            i32.store
+            i32.store
+
+            (br_if $loop
+                (i32.lt_u
+                    (local.tee $j (i32.add (local.get $j) (i32.const 4)))
+                    (local.tee $i (i32.sub (local.get $i) (i32.const 4)))
+                )
+            )
+        )
+
+        ;; final result is already on the stack
+    )
+
+    (func $stdlib.int-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
+        (local $negative i32) (local $len i32)
+        (local.set $negative (i32.shl (i64.lt_s (local.get $hi) (i64.const 0)) (i32.const 2)))
+        ;; add a '-' if n < 0
+        (if (local.get $negative)
+            (then
+                ;; store "-" in big-endian
+                (i32.store (global.get $stack-pointer) (i32.const 754974720))
+                (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const 4)))
+            )
+        )
+
+        ;; if (n >= 0 or n == i128::MIN) { uint-to-utf8(n) } else { uint-to-utf8(-n) }
+        (if (result i32 i32)
+            (select
+                (i64.eqz (local.get $lo))
+                (i64.ge_s (local.get $hi) (i64.const 0))
+                (i64.eq (local.get $hi) (i64.const 0x8000000000000000))
+            )
+            (then (call $stdlib.uint-to-utf8 (local.get $lo) (local.get $hi)))
+            (else
+                (call $stdlib.uint-to-utf8
+                    (i64.sub (i64.const 0) (local.get $lo))
+                    (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+                )
+            )
+        )
+
+        ;; we adjust offset and length to account for the '-'
+        ;; we save the length to pop it from the stack and so that we can update the offset
+        ;; and return it in the right order after the offset
+        (local.set $len (i32.add (local.get $negative)))
+        (i32.sub (local.get $negative))
+        (local.get $len)
+    )
+
     ;;
     ;; -- 'to-uint' implementation
     ;;
@@ -3036,7 +3149,9 @@
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
     (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
+    (export "stdlib.uint-to-utf8" (func $stdlib.uint-to-utf8))
     (export "stdlib.int-to-string" (func $stdlib.int-to-string))
+    (export "stdlib.int-to-utf8" (func $stdlib.int-to-utf8))
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
