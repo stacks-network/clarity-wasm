@@ -555,6 +555,79 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_response_simple_ok() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response int int) 0x07000000000000000000000000000000007b)"#
+            ),
+            Some(Value::some(Value::okay(Value::Int(123)).unwrap()).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_response_simple_err() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response int uint) 0x0801000000000000000000000000000001c8)"#
+            ),
+            Some(Value::some(Value::err_uint(456)).unwrap())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_response_bad_prefix() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response int int) 0x000000000000000000000000000000007b)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_response_short() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response int int) 0x070000000000000000000000000000007b)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_response_long() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response int bool) 0x07000000000000000000000000000000007b03)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_response_ok() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (response (string-ascii 128) uint) 0x070d000000455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73)"#
+            ),
+            Some(
+                Value::some(
+                    Value::okay(
+                        Value::string_ascii_from_bytes(
+                            "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
+                                .to_string()
+                                .into_bytes()
+                        )
+                        .unwrap()
+                    )
+                    .unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_buffer_exact_size() {
         assert_eq!(
             evaluate(

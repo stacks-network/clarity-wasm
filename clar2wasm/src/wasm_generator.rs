@@ -2401,6 +2401,195 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Deserialize a `response` from memory using consensus serialization.
+    /// Leaves an `(optional (response O E))` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///   Ok:
+    ///    | 0x07 | serialized ok value |
+    ///   Err:
+    ///    | 0x08 | serialized err value |
+    fn deserialize_response(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        ok_ty: &TypeSignature,
+        err_ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        // These two I32's are the some indicators for the outer and inner
+        // optionals.
+        let mut wasm_val_ty = vec![ValType::I32, ValType::I32];
+        wasm_val_ty.append(&mut clar2wasm_ty(ok_ty));
+        wasm_val_ty.append(&mut clar2wasm_ty(err_ty));
+        let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 1 bytes from the offset is within the buffer
+        block
+            .local_get(offset_local)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0);
+                    add_placeholder_for_clarity_type(then, ok_ty);
+                    add_placeholder_for_clarity_type(then, err_ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        let type_prefix = self.module.locals.add(ValType::I32);
+        block
+            .local_get(offset_local)
+            .load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            )
+            .local_tee(type_prefix);
+
+        // Build the block for the case where the prefix is `ok`
+        let mut ok_block = block.dangling_instr_seq(block_ty);
+        let ok_block_id = ok_block.id();
+
+        // Increment offset by 1
+        ok_block
+            .local_get(offset_local)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Deserialize the inner value
+        self.deserialize_from_memory(&mut ok_block, offset_local, end_local, ok_ty)?;
+
+        // Check if the deserialization failed:
+        // - Store the value in locals
+        // - Check the inidicator now on top of the stack
+        let inner_locals = self.save_to_locals(&mut ok_block, ok_ty, true);
+        ok_block.unop(UnaryOp::I32Eqz).if_else(
+            None,
+            |then| {
+                // Return none
+                then.i32_const(0).i32_const(0);
+                add_placeholder_for_clarity_type(then, ok_ty);
+                add_placeholder_for_clarity_type(then, err_ty);
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Push the `some` indicator onto the stack, for the result of this
+        // operation, then push the `ok` indicator for the actual value
+        // we deserialized.
+        ok_block.i32_const(1).i32_const(1);
+
+        // Push the inner value back onto the stack
+        for local in inner_locals {
+            ok_block.local_get(local);
+        }
+
+        // Push a placeholder for the err value
+        add_placeholder_for_clarity_type(&mut ok_block, err_ty);
+
+        // Build the block for the case where the prefix is `err`
+        let mut err_block = block.dangling_instr_seq(block_ty);
+        let err_block_id = err_block.id();
+
+        // Check for the `err` prefix (0x08)
+        err_block
+            .local_get(type_prefix)
+            .i32_const(TypePrefix::ResponseErr as i32)
+            .binop(BinaryOp::I32Ne)
+            .if_else(
+                None,
+                |then| {
+                    // Return none, since this is not an 'ok' or 'err' prefix
+                    then.i32_const(0).i32_const(0);
+                    add_placeholder_for_clarity_type(then, ok_ty);
+                    add_placeholder_for_clarity_type(then, err_ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Increment offset by 1
+        err_block
+            .local_get(offset_local)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Deserialize the inner value
+        self.deserialize_from_memory(&mut err_block, offset_local, end_local, err_ty)?;
+
+        // Check if the deserialization failed:
+        // - Store the value in locals
+        // - Check the inidicator now on top of the stack
+        let inner_locals = self.save_to_locals(&mut err_block, err_ty, true);
+        err_block.unop(UnaryOp::I32Eqz).if_else(
+            None,
+            |then| {
+                // Return none
+                then.i32_const(0).i32_const(0);
+                add_placeholder_for_clarity_type(then, ok_ty);
+                add_placeholder_for_clarity_type(then, err_ty);
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Push the `some` indicator onto the stack, for the result of this
+        // operation, then push the `err` indicator for the actual value
+        // we deserialized.
+        err_block.i32_const(1).i32_const(0);
+
+        // Push a placeholder for the ok value
+        add_placeholder_for_clarity_type(&mut err_block, ok_ty);
+
+        // Push the inner value back onto the stack
+        for local in inner_locals {
+            err_block.local_get(local);
+        }
+
+        // Build the block for the case of an invalid type prefix
+        let mut invalid_block = block.dangling_instr_seq(block_ty);
+        let invalid_block_id = invalid_block.id();
+
+        // Invalid prefix, return `none`.
+        invalid_block.i32_const(0).i32_const(0);
+        add_placeholder_for_clarity_type(&mut invalid_block, ok_ty);
+        add_placeholder_for_clarity_type(&mut invalid_block, err_ty);
+
+        // Check for the `ok` prefix (0x0a)
+        block
+            .i32_const(TypePrefix::ResponseOk as i32)
+            .binop(BinaryOp::I32Eq)
+            .instr(IfElse {
+                consequent: ok_block_id,
+                alternative: err_block_id,
+            });
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
     /// Deserialize a `buffer` from memory using consensus serialization.
     /// Leaves an `(optional buffer)` on the top of the data stack. See
     /// SIP-005 for details.
@@ -2854,7 +3043,14 @@ impl WasmGenerator {
             PrincipalType | CallableType(_) | TraitReferenceType(_) => {
                 self.deserialize_principal(builder, memory, offset_local, end_local)
             }
-            ResponseType(types) => Ok(()),
+            ResponseType(types) => self.deserialize_response(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                &types.0,
+                &types.1,
+            ),
             BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
             OptionalType(value_ty) => {
                 self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
