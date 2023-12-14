@@ -1414,7 +1414,6 @@
         ;; https://github.com/dandyvica/sha/blob/master/src/sha256.rs
         ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
 
-
         ;; High Level Overview
         ;; 1. Params
         ;;      a. We need $offset where we stored/wrote the data to be hashed.  
@@ -1445,7 +1444,7 @@
         ;;          5. Calculate length in bits (i.e. 13x8=104)
         ;; 4. Before calculating hash and after padding sha256 data, algorithm needs to calculate total 64 words. 16 words are
         ;;    obtained directly from the first 64 bytes of padded data. As each word is of 4 bytes, 16 words will require 64 bytes.
-        ;; 5. Next word will be calculated as w16 = w0 + σ0 + w9 + σ1 (w15 would be the 16th word as we are starting from 20). 
+        ;; 5. Next word will be calculated as w16 = w0 + σ0 + w9 + σ1 (w15 would be the 16th word as we are starting from 0). 
         ;;    To take a look at how these are working, please visit https://sha256algorithm.com/
         ;; 6. After calculating w63 (64th word), data is ready to perform hashing rounds.
         ;; 7. Hashing rounds involve 8 variables, a,b,c,d,e,f,g and h. Each variable is of 4 bytes, hence sha256 will produce 32 bytes
@@ -1453,21 +1452,21 @@
         ;; 8. To take a look at how these words are being calculated, take a look at https://sha256algorithm.com
         ;; 9. Finally result is being stored at specific location.
               
-
-
         ;; Index to track sha256 blocks
         (local $i i32)
 
         ;; This function is responsible to add padding and length to the data, it returns total length divisible by 64
         (call $extend-data (local.get $offset) (local.get $length))
         (local.set $length)
-
+        
+        ;; Index to track all blocks
         (local.set $i (i32.const 0))
+        ;; Iterations on SHA-256 data (in 64 byte chunks/blocks)
         (loop
             ;; Calculates next 48 words
             (call $block64 (local.get $i))
 
-            ;; Calculates hash in 64 rounds
+            ;; Calculate hash using initial values and k-constants (64 rounds total)
             (call $working-vars)
             (br_if 0
                 (i32.lt_u
@@ -1478,12 +1477,13 @@
             )
         )
 
-        ;; Reversing each word (4 bytes) because i32.store uses little-endian format but we want it in big-endian format
-        ;; v128.store can only store 16 bytes, so for 32 bytes two blocks with offsets are needed
+        ;; Reversing each word (4 bytes) because v128.store uses little-endian format but we want it in big-endian format
+        ;; v128.store can only store 16 bytes, so for 32 bytes, two operations with proper offsets are needed
         (v128.store
             (local.get $offset-result)
             (i8x16.swizzle
                 (v128.load (global.get $stack-pointer))
+                ;; Reversing 4 words (total 16 bytes)
                 (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
             )
         )
@@ -1528,7 +1528,7 @@
         (call $working-vars)
 
         ;; Reversing each word (4 bytes) because i32.store uses little-endian format but we want it in big-endian format
-        ;; v128.store can only store 16 bytes, so for 32 bytes two blocks with offsets are needed
+        ;; v128.store can only store 16 bytes, so for 32 bytes, two blocks with offsets are needed
         (v128.store
             (local.get $offset-result)
             (i8x16.swizzle
@@ -1555,7 +1555,6 @@
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W (result of $block64)
         ;;   288..$length+288 -> shifted data
-
 
         ;; Copying SHA-256's intial values to $stack-pointer
         (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
@@ -1679,15 +1678,16 @@
             (i32.rotr (local.get $tmp) (i32.const 7))
             (i32.xor (i32.rotr (local.get $tmp) (i32.const 18)))
             (i32.xor (i32.shr_u (local.get $tmp) (i32.const 3)))
-            i32.add
+            i32.add ;; w(current) + σ0
             ;; w(current+9)
-            (i32.add (i32.load offset=68 (local.get $data))) ;; offset = 32+36
+            ;; offset = 32+36
+            (i32.add (i32.load offset=68 (local.get $data)))  ;; w(current) + σ0 + w(current+9)
             ;; σ1
             (local.set $tmp (i32.load offset=88 (local.get $data))) ;; offset = 32+56
             (i32.rotr (local.get $tmp) (i32.const 17))
             (i32.xor (i32.rotr (local.get $tmp) (i32.const 19)))
             (i32.xor (i32.shr_u (local.get $tmp) (i32.const 10)))
-            i32.add
+            i32.add ;; w(current) + σ0 + w(current+9) + σ1
             ;; save
             i32.store offset=32
 
@@ -1695,7 +1695,6 @@
                 (i32.lt_u
                     ;; Each word is of 4-bytes, so incrementing by 4
                     (local.tee $i (i32.add (local.get $i) (i32.const 4)))
-
                     ;; need to calculate w16..w63, total 48 words. 4x48=192
                     (i32.const 192)
                 )
@@ -1724,8 +1723,6 @@
 
         (local.set $i (i32.const 0))
         (loop
-            
-            
             ;; compute temp1 = h + Σ1 + Choice + k(current) + w(current)
             ;; compute temp2 = Σ0 + Majority
             ;; for more details, please visit https://sha256algorithm.com/
@@ -1734,11 +1731,11 @@
 
             (i32.rotr (local.get $e) (i32.const 6))
             (i32.xor (i32.rotr (local.get $e) (i32.const 11)))
-            (i32.xor (i32.rotr (local.get $e) (i32.const 25)))
+            (i32.xor (i32.rotr (local.get $e) (i32.const 25))) ;; Σ1
             i32.add ;; h + Σ1
 
             (i32.and (local.get $e) (local.get $f))
-            (i32.xor (i32.and (i32.xor (local.get $e) (i32.const -1)) (local.get $g)))
+            (i32.xor (i32.and (i32.xor (local.get $e) (i32.const -1)) (local.get $g)));; Choice
             i32.add ;; h + Σ1 + Choice
 
             (i32.add (i32.load offset=32 (local.get $i))) ;; h + Σ1 + Choice + k(current)
@@ -1753,10 +1750,9 @@
 
             (i32.and (local.get $a) (local.get $b))
             (i32.xor (i32.and (local.get $a) (local.get $c)))
-            (i32.xor (i32.and (local.get $b) (local.get $c)))
+            (i32.xor (i32.and (local.get $b) (local.get $c))) ;; majority
             i32.add ;; Σ0 + majority
             (local.set $temp2)
-
 
             ;; Update working variables as:
             ;; h = g
@@ -2650,24 +2646,67 @@
         ;; https://github.com/dandyvica/sha/blob/master/src/sha512.rs
         ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
 
+        ;; High Level Overview
+        ;; 1. Params
+        ;;      a. We need $offset where we stored/wrote the data to be hashed.  
+        ;;      b. We need $length of the data to be hashed.  
+        ;;      c. We need $offset-result where we're going to store/write the final hash. 
+        ;;         Typically greater than $stack-pointer + total number of bytes used in the whole process
+        ;; 2. Properties
+        ;;      a. SHA-512 processes the data in 128-byte chunks, regardless of how large the data is.
+        ;;      b. SHA-512 uses total 8 words (single word is of 8 bytes) as its initial values. These are pre-determined
+        ;;          1. In this module, from 648 index to 711 index, intial values are stored
+        ;;      c. SHA-512 uses 80 k-constants (single constant is of 8 bytes) to calculate final hash. These are also pre-determined
+        ;;          1. From 712 to 1351, indices are reserved for k-constants
+        ;;      d. Take a look at initial values and k-constants here https://github.com/dandyvica/sha/blob/master/src/sha512.rs
+        ;;      g. SHA-512 requires its data to be in specific format (divisible by 128), before processing. 
+        ;;      h. SHA-512 performs 80 rounds (it's equal to the number of k-constants, and is also equal to total words calculated,
+        ;;         before calculating the actual hash)
+        ;; 3. To perform any calculation, SHA-512 requires the data to be in specific format. This process is called padding
+        ;;      a. Length of the padded data should always be divisible by 128 (i.e. $length % 128 == 0), regardless of input size. 
+        ;;      b. For this purpose, it's essential to follow the following steps
+        ;;          1. Add '1' immediately after the last byte of the data
+        ;;          2. Leave last 8 bytes to store the length 
+        ;;             a. Standard SHA-512 stores its length in 16 bytes, but it's difficult to manage 16 bytes length in WASM
+        ;;             b. Also we don't need length to be in 16 bytes. 8 bytes will be more than enough in our case 
+        ;;          3. Fill the remaining space with zeros
+        ;;          4. Consider following 
+        ;;              a. if length=13 bytes, 1 byte to add after data, last 8 bytes for length, 128-(13+1+8)= 106 bytes of zeros
+        ;;              b. if length=123 bytes, 1 byte to add after data, last 8 bytes for length, 123+1+8 = 132, which is obviously 
+        ;;                 greater than 128, so next number which is divisible by 128 is 256. So 256-(123+1+8) = 124 bytes of zeros
+        ;;                 between 1 added after the data and last 8 bytes of length
+        ;;          5. Calculate length in bits (i.e. 13x8=104)
+        ;; 4. Before calculating hash and after padding sha512 data, algorithm needs to calculate total 80 words. 16 words are
+        ;;    obtained directly from the first 128 bytes of padded data. As each word is of 8 bytes, 16 words will require 128 bytes.
+        ;; 5. Next word will be calculated as w16 = w0 + σ0 + w9 + σ1 (w15 would be the 16th word as we are starting from 0). 
+        ;;    To take a look at how these are working, please visit https://sha256algorithm.com/
+        ;; 6. After calculating w79 (80th word), data is ready to perform hashing rounds.
+        ;; 7. Hashing rounds involve 8 variables, a,b,c,d,e,f,g and h. Each variable is of 8 bytes, hence sha256 will produce 64 bytes
+        ;;    result.
+        ;;      a. Just Keep in mind that constant values used to calculate σ0, σ1, Σ1 and Σ0 are different than those of SHA-256
+        ;; 8. To take a look at how these words are being calculated, take a look at https://sha256algorithm.com
+        ;; 9. Finally result is being stored at specific location.
+
         ;; Length of the data after adding padding and length to it
         (local $length_after_padding i32)
         ;; Index to track all blocks
         (local $index i32) 
 
+        ;; This function is responsible to add padding and length to the data, it returns total length divisible by 128
         (call $pad-sha512-data (local.get $offset) (local.get $length))
         (local.set $length_after_padding)
         
         (local.set $index (i32.const 0))
-        ;; Iterations on blocks
+        ;; Iterations on SHA-512 data (in 128 byte chunks)
         (loop
-            ;; Process a block
+            ;; Calculates next 64 words
             (call $process-sha512-block (local.get $index))
             ;; Calculate hash using initial values and k-constants (80 rounds total)
             (call $calculate-sha512)
 
             (br_if 0
                 (i32.lt_u
+                    ;; As each block is of 128 bytes, we'll increment by 128
                     (local.tee $index (i32.add (local.get $index) (i32.const 128)))
                     (local.get $length_after_padding)
                 )
@@ -2685,14 +2724,24 @@
         ;;   0..64 -> Initial hash vals (will be the result hash in the end)
         ;;   64..704 -> Space to store W
         ;;   704..831 -> extended int
+
+        ;; Copying SHA-256's initial values to $stack-pointer
         (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
+        
+        ;; offset=704 because 64 for initial values and 640 to store w0..w80
         (i64.store offset=704 (global.get $stack-pointer) (local.get $lo))
+        ;; $lo would take 8 bytes
         (i64.store offset=712 (global.get $stack-pointer) (local.get $hi)) ;; offset = 704 + 8
+        ;; $lo+$hi = 8+8 = 16
         (i32.store offset=720 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 704 + 16
+        ;; $lo+$hi+4 (i32.store will store 4 bytes) = 20
         (memory.fill (i32.add (global.get $stack-pointer) (i32.const 724)) (i32.const 0) (i32.const 110)) ;; offset = 704+20
+        ;; Last byte (length) will be at 127 index (starting from 0, so 704+127 = 831)
         (i32.store8 offset=831 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 704+127
 
+        ;; Calculates next 64 words. We won't have another block, so for only 1 block, we're passing 0
         (call $process-sha512-block (i32.const 0))
+        ;; Calculate hash using initial values and k-constants (80 rounds total)
         (call $calculate-sha512)
 
         ;; store at result position with correct endianness
@@ -2712,15 +2761,29 @@
         (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
 
         ;; Copying the data from the offset to isolated environment (i.e. target-index = $stack-pointer+(initial-values+(80 rounds * 8)))
+        ;; Leaving some space to store 64 words, then storing actual data
+        ;; 80 words of 80 bytes = 640 + 64 (bytes for intial values) = 704
         (memory.copy (i32.add (global.get $stack-pointer) (i32.const 704)) (local.get $offset) (local.get $length))
 
+        ;; Making sure that $res_len is divisible by 128 ($res_len%128==0)
         (local.set $length_after_padding ;; total size of data with expansion divisible by 128
             (i32.add
                 (i32.or
                     ;; len + 16 bytes for the size
+                    ;; Note that even if we're handling length in 8 bytes, but it's important that we calculate final length, 
+                    ;; considering that length will be stored in 16 bytes. For example if we consider length here as 8 bytes instead 
+                    ;; of 16, the input with length of 119 would cause the problem. SHA-512 should create another block if length of
+                    ;; data to be hashed is greater than 111, because it expects last 16 bytes to be length, and there is one byte for
+                    ;; '1' added after data. 111+1+16 is exactly 128. If we don't put 16 here, it will consider length to be 8 byte,
+                    ;; and won't create another block even if data length is 119. If we're not calculating the length in 16 bytes, it
+                    ;; doesn't mean that we should put data in those 8 bytes we're ignoring. It should be filled with zeros instead
+
+                    ;; $length + 16 bytes for the size
                     (i32.add (local.get $length) (i32.const 16))
+                    ;; 0x7f=127=1111111 to make it divisible by 128
                     (i32.const 0x7f)
                 )
+                ;; 1 byte for '1' to add at the end of the data
                 (i32.const 1)
             )
         )
@@ -2728,26 +2791,29 @@
         ;; Add "1" at the end of the data
         (i32.store offset=704
             (i32.add (global.get $stack-pointer) (local.get $length))
+            ;; 0x80=128=10000000
             (i32.const 0x80)
         )
 
         ;; Fill the remaining part before the size with 0s
         (memory.fill
+                ;; 704 + 1 ('1' added after the data) = 705
                 (i32.add (i32.add (global.get $stack-pointer) (local.get $length)) (i32.const 705))
                 (i32.const 0)
                 ;; Leave the last 8 bytes for the length
-                ;; Not handling 16 bytes length here
+                ;; We're subtracting 8 because all other bytes will be filled with zeros, including ignored 8 bytes from 16 byte
+                ;; length
                 (i32.sub (i32.sub (local.get $length_after_padding) (local.get $length)) (i32.const 8))
         )
 
-        ;; Add the length, as a 64bits big-endian integer
+        ;; Convert length to bits, (i.e. 13 bytes = 104 bits)
         (local.set $message_length_64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
 
-        ;; Length is being handled as i64 (8 bytes), because we don't need to handle it in 16 bytes, it will be complex
         ;; This is the location where reversed length is going to be stored
         (i32.sub (i32.add (global.get $stack-pointer) (local.get $length_after_padding)) (i32.const 8))
 
-        ;; i64.store values in little-endian format, so to convert the length to big-endian, we need to reverse the 8 bits of length
+        ;; Converting length into little-endian format, because when i64.store will store it in little-endian format,
+        ;; it will be converted to big-endian format, as required.
         (i64.or
                 (i64.or
                     (i64.or
@@ -2780,7 +2846,7 @@
         ;; Basically is the $stack-pointer, but accessing global variables can be slower
         (local $origin i32)
 
-        ;; Temporary block data, in an iteration
+        ;; This is just the offset(index) of the current block. For 1st block, it should be 0, for 2nd, it should be 128, and so on.
         (local $temp-block-data i32)
 
         ;; Temporary block data (a word of 8 bytes) in current block iteration
@@ -2794,7 +2860,9 @@
         (local.set $index (i32.const 0))
         ;; Reverse each word in the block (8 bytes for sha-512) to convert it to little-endian format
         (loop
+            ;; Location to store the 2 words of (each of 8 bytes)
             (i32.add (local.get $origin) (local.get $index))
+            ;; Reversing each word in the block because v128.store will convert it in big-endian format.
             (i8x16.swizzle
                 (v128.load offset=704 (i32.add (local.get $temp-block-data) (local.get $index)))
                 (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
@@ -2803,6 +2871,7 @@
 
             (br_if 0
                 (i32.lt_u
+                    ;; 2 words = 2 * 8 (each word is of 8 bytes) = 16 bytes processed in one iteration
                     (local.tee $index (i32.add (local.get $index) (i32.const 16)))
                     (i32.const 128)
                 )
@@ -2811,31 +2880,38 @@
             
         (local.set $index (i32.const 0))
         (loop
+            ;; w(next) or w(current+16) = w0 + σ0 + w9 + σ1
+            ;; for more details, please visit https://sha256algorithm.com/
+            
+            ;; location of w(current)
             (local.set $temp-block-data (i32.add (local.get $origin) (local.get $index)))
-            ;; Location to store the calculated word in current iteration (current-word + 16) 
+            ;; store address: w(current+16) or w(next) 
             (i32.add (local.get $temp-block-data) (i32.const 128))
             ;; w(current)
             (i64.load offset=64 (local.get $temp-block-data))
-            ;; sigma 0
+            ;; σ0
             (local.set $block-iteration-temp (i64.load offset=72 (local.get $temp-block-data))) ;; offset (w+1) = 64 + 8 
             (i64.rotr (local.get $block-iteration-temp) (i64.const 1))
             (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 8)))
             (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 7)))
-            i64.add
+            i64.add ;; w(current) + σ0
             ;; w(current+9)
-            (i64.add (i64.load offset=136 (local.get $temp-block-data))) ;; offset = 64+72
-            ;; sigma 1
+            ;; offset = 64+72
+            (i64.add (i64.load offset=136 (local.get $temp-block-data))) ;; w(current) + σ0 + w(current+9)
+            ;; σ1
             (local.set $block-iteration-temp (i64.load offset=176 (local.get $temp-block-data))) ;; offset = 64 + 112 w(current+14)
             (i64.rotr (local.get $block-iteration-temp) (i64.const 19))
             (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 61)))
             (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 6)))
-            i64.add
+            i64.add ;; w(current) + σ0 + w(current+9) + σ1
             ;; save
             i64.store offset=64
 
             (br_if 0
                 (i32.lt_u
+                    ;; Each word is of 8-bytes, so incrementing by 8
                     (local.tee $index (i32.add (local.get $index) (i32.const 8)))
+                    ;; need to calculate w16..w79, total 64 words. 8x64=512
                     (i32.const 512)
                 )
             )
@@ -2843,7 +2919,6 @@
     )
 
     (func $calculate-sha512
-
         (local $origin i32)
         (local $index i32)
 
@@ -2852,9 +2927,10 @@
         (local $e i64) (local $f i64) (local $g i64) (local $h i64)
         (local $temp1 i64) (local $temp2 i64)
 
+        ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
         (local.set $origin (global.get $stack-pointer))
 
-        ;; Calculating variables
+        ;; Setting SHA-512 initial values to variables
         (local.set $a (i64.load offset=0 (local.get $origin)))
         (local.set $b (i64.load offset=8 (local.get $origin)))
         (local.set $c (i64.load offset=16 (local.get $origin)))
@@ -2865,39 +2941,47 @@
         (local.set $h (i64.load offset=56 (local.get $origin)))
 
         (local.set $index (i32.const 0))
-
         (loop
-            ;; compute $temp1: h + sigma1 + choice + k0 + w0
+            ;; compute temp1 = h + Σ1 + Choice + k(current) + w(current)
+            ;; compute temp2 = Σ0 + Majority
+            ;; for more details, please visit https://sha256algorithm.com/
+
             (local.get $h) ;; h
 
             (i64.rotr (local.get $e) (i64.const 14))
             (i64.xor (i64.rotr (local.get $e) (i64.const 18)))
-            (i64.xor (i64.rotr (local.get $e) (i64.const 41)))
-            i64.add ;; + sigma1
+            (i64.xor (i64.rotr (local.get $e) (i64.const 41))) ;; Σ1
+            i64.add ;; h + Σ1
 
             (i64.and (local.get $e) (local.get $f))
-            (i64.xor (i64.and (i64.xor (local.get $e) (i64.const -1)) (local.get $g)))
-            i64.add ;; + choice
+            (i64.xor (i64.and (i64.xor (local.get $e) (i64.const -1)) (local.get $g))) ;; Choice
+            i64.add ;; h + Σ1 + Choice
 
-            (i64.add (i64.load offset=712 (local.get $index))) ;; + k(current)
+            (i64.add (i64.load offset=712 (local.get $index))) ;; h + Σ1 + Choice + k(current)
             
-            (i64.add (i64.load offset=64 (i32.add (local.get $origin) (local.get $index)))) ;; + w(current)
-
+            (i64.add (i64.load offset=64 (i32.add (local.get $origin) (local.get $index)))) ;; h + Σ1 + Choice + k(current) + w(current)
             (local.set $temp1)
 
-            ;; compute temp2: sigma0 + majority
+            ;; compute temp2: Σ0 + majority
             (i64.rotr (local.get $a) (i64.const 28))
             (i64.xor (i64.rotr (local.get $a) (i64.const 34)))
-            (i64.xor (i64.rotr (local.get $a) (i64.const 39))) ;; sigma0
+            (i64.xor (i64.rotr (local.get $a) (i64.const 39))) ;; Σ0
 
             (i64.and (local.get $a) (local.get $b))
             (i64.xor (i64.and (local.get $a) (local.get $c)))
-            (i64.xor (i64.and (local.get $b) (local.get $c)))
-            i64.add ;; + majority
-
+            (i64.xor (i64.and (local.get $b) (local.get $c))) ;; majority
+            i64.add ;; Σ0 + majority
             (local.set $temp2)
 
-            ;; assign new variables
+            ;; Update working variables as:
+            ;; h = g
+            ;; g = f
+            ;; f = e
+            ;; e = d + temp1
+            ;; d = c
+            ;; c = b
+            ;; b = a
+            ;; a = temp1 + temp2
             (local.set $h (local.get $g))
             (local.set $g (local.get $f))
             (local.set $f (local.get $e))
@@ -2927,10 +3011,13 @@
     )
 
     (func $store-calculated-sha512 (param $offset-result i32)
+        ;; Reversing each word (8 bytes) because v128.store uses little-endian format but we want it in big-endian format
+        ;; v128.store can only store 16 bytes, so for 64 bytes, four operations with proper offsets are needed
         (v128.store
             (local.get $offset-result)
             (i8x16.swizzle
                 (v128.load (global.get $stack-pointer))
+                ;; will reverse two words of total 16 bytes 
                 (v128.const i8x16 7 6 5 4 3 2 1 0 15 14 13 12 11 10 9 8)
             )
         )
