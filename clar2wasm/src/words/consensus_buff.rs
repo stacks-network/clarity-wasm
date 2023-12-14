@@ -647,6 +647,14 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_buffer_empty() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (buff 16) 0x0200000000)"#),
+            Some(Value::some(Value::buff_from(vec![]).unwrap()).unwrap())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_buffer_smaller_than_type() {
         assert_eq!(
             evaluate(r#"(from-consensus-buff? (buff 16) 0x02000000080001020304050607)"#),
@@ -696,6 +704,14 @@ mod tests {
                 )
                 .unwrap()
             )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_empty() {
+        assert_eq!(
+            evaluate(r#"(from-consensus-buff? (string-ascii 16) 0x0d00000000)"#),
+            Some(Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap())
         );
     }
 

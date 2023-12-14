@@ -3056,7 +3056,7 @@ impl WasmGenerator {
             .i32_const(5)
             .binop(BinaryOp::I32Add)
             .local_get(end_local)
-            .binop(BinaryOp::I32GeU)
+            .binop(BinaryOp::I32GtU)
             .if_else(
                 None,
                 |then| {
@@ -3194,7 +3194,7 @@ impl WasmGenerator {
             .i32_const(5)
             .binop(BinaryOp::I32Add)
             .local_get(end_local)
-            .binop(BinaryOp::I32GeU)
+            .binop(BinaryOp::I32GtU)
             .if_else(
                 None,
                 |then| {
@@ -3349,7 +3349,7 @@ impl WasmGenerator {
             .i32_const(5)
             .binop(BinaryOp::I32Add)
             .local_get(end_local)
-            .binop(BinaryOp::I32GeU)
+            .binop(BinaryOp::I32GtU)
             .if_else(
                 None,
                 |then| {
