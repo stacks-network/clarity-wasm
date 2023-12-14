@@ -145,7 +145,7 @@ impl Word for From {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{BuffData, PrincipalData, SequenceData};
+    use clarity::vm::types::{BuffData, PrincipalData, SequenceData, TupleData};
     use clarity::vm::Value;
     use hex::FromHex as _;
 
@@ -803,6 +803,46 @@ mod tests {
                     ])
                     .unwrap()
                 )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_tuple_simple() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? {n: int} 0x0c00000001016e000000000000000000000000000000002a)"#
+            ),
+            Some(
+                Value::some(Value::Tuple(
+                    TupleData::from_data(vec![("n".into(), Value::Int(42))]).unwrap()
+                ))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_tuple_multiple() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? {my-number: int, a-string: (string-ascii 16), an-optional: (optional uint)} 0x0c0000000308612d737472696e670d0000000a7975702c2069742069730b616e2d6f7074696f6e616c09096d792d6e756d62657200ffffffffffffffffffffffffffffff85)"#
+            ),
+            Some(
+                Value::some(Value::Tuple(
+                    // {my-number: -123, a-string: "yup, it is", an-optional: none}
+                    TupleData::from_data(vec![
+                        ("my-number".into(), Value::Int(-123)),
+                        (
+                            "a-string".into(),
+                            Value::string_ascii_from_bytes("yup, it is".to_string().into_bytes())
+                                .unwrap()
+                        ),
+                        ("an-optional".into(), Value::none())
+                    ])
+                    .unwrap()
+                ))
                 .unwrap()
             )
         );

@@ -2733,7 +2733,7 @@ impl WasmGenerator {
                 |_| {},
             );
 
-        // Deserialize the element. Note, this will update the offseet to point
+        // Deserialize the element. Note, this will update the offset to point
         // to the next element.
         self.deserialize_from_memory(&mut loop_block, offset_local, end_local, element_ty)?;
 
@@ -2780,6 +2780,245 @@ impl WasmGenerator {
 
         // Add the loop block to the builder
         block.instr(Loop { seq: loop_block_id });
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
+    /// Deserialize a `tuple` from memory using consensus serialization.
+    /// Leaves an `(optional (tuple ...))` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///  | 0x0c | number of keys: 4-bytes (big-endian)
+    ///    | key 0 length: 1-byte | key 0: variable length | serialized value 0
+    ///    ...
+    ///    | key N length: 1-byte | key N: variable length | serialized value N
+    fn deserialize_tuple(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        tuple_ty: &TupleTypeSignature,
+    ) -> Result<(), GeneratorError> {
+        let ty = TypeSignature::TupleType(tuple_ty.clone());
+
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        let mut wasm_val_ty = vec![ValType::I32];
+        wasm_val_ty.extend(clar2wasm_ty(&ty));
+        let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 5 bytes (prefix + number of keys) from the
+        // offset is within the buffer.
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GtU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0);
+                    add_placeholder_for_clarity_type(then, &ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        block.local_get(offset_local).load(
+            memory,
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Verify the prefix byte
+        block
+            .i32_const(TypePrefix::Tuple as i32)
+            .binop(BinaryOp::I32Ne)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0);
+                    add_placeholder_for_clarity_type(then, &ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the number of keys
+        block
+            .local_get(offset_local)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.load-i32-be")
+                    .expect("load-i32-be not found"),
+            );
+
+        // Verify that the number of keys matches the specified type
+        block
+            .i32_const(tuple_ty.get_type_map().len() as i32)
+            .binop(BinaryOp::I32Ne)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0);
+                    add_placeholder_for_clarity_type(then, &ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Update the offset to point to the key
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // For each key in the type, verify that the key matches the type,
+        // and deserialize the value.
+        for (key, value_ty) in tuple_ty.get_type_map() {
+            // The key is a 1-byte length followed by the string bytes.
+            // First, verify that the key is within the buffer.
+            block
+                .local_get(offset_local)
+                .i32_const(key.len() as i32 + 1)
+                .binop(BinaryOp::I32Add)
+                .local_get(end_local)
+                .binop(BinaryOp::I32GtU)
+                .if_else(
+                    None,
+                    |then| {
+                        // Return none
+                        then.i32_const(0);
+                        add_placeholder_for_clarity_type(then, &ty);
+                        then.br(block_id);
+                    },
+                    |_| {},
+                );
+
+            // Then, grab the length of the key.
+            block.local_get(offset_local).load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            );
+
+            // Compare the key length to the expected length
+            block
+                .i32_const(key.len() as i32)
+                .binop(BinaryOp::I32Ne)
+                .if_else(
+                    None,
+                    |then| {
+                        // Return none
+                        then.i32_const(0);
+                        add_placeholder_for_clarity_type(then, &ty);
+                        then.br(block_id);
+                    },
+                    |_| {},
+                );
+
+            // Compare the key to the expected key
+            let key_bytes = key.as_bytes();
+            for (i, byte) in key_bytes.iter().enumerate() {
+                block
+                    .local_get(offset_local)
+                    .load(
+                        memory,
+                        LoadKind::I32_8 {
+                            kind: ExtendedLoad::ZeroExtend,
+                        },
+                        MemArg {
+                            align: 1,
+                            offset: i as u32 + 1,
+                        },
+                    )
+                    .i32_const(*byte as i32)
+                    .binop(BinaryOp::I32Ne)
+                    .if_else(
+                        None,
+                        |then| {
+                            // Return none
+                            then.i32_const(0);
+                            add_placeholder_for_clarity_type(then, &ty);
+                            then.br(block_id);
+                        },
+                        |_| {},
+                    );
+            }
+
+            // Increment the offset by the key length and its size
+            block
+                .local_get(offset_local)
+                .i32_const(key.len() as i32 + 1)
+                .binop(BinaryOp::I32Add)
+                .local_set(offset_local);
+
+            // Deserialize the value. Note, this will update the offset to
+            // point to the next key.
+            self.deserialize_from_memory(&mut block, offset_local, end_local, value_ty)?;
+
+            // Check if the deserialization failed:
+            // - Store the value in locals
+            // - Check the inidicator now on top of the stack
+            let inner_locals = self.save_to_locals(&mut block, value_ty, true);
+
+            block.unop(UnaryOp::I32Eqz).if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0);
+                    add_placeholder_for_clarity_type(then, &ty);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+            // Deserializing the element was successful, so push the value back
+            // onto the stack.
+            for local in inner_locals {
+                block.local_get(local);
+            }
+        }
+
+        // If we've reached here, then the tuple is valid, so return it.
+        // But first we need to push the `some` indicator onto the stack.
+
+        // Save the tuple (on the stack) to locals
+        let tuple_locals = self.save_to_locals(&mut block, &ty, true);
+
+        // Push the `some` indicator onto the stack
+        block.i32_const(1);
+
+        // Push the tuple back onto the stack
+        for local in tuple_locals {
+            block.local_get(local);
+        }
 
         // Add our main block to the builder.
         builder.instr(walrus::ir::Block { seq: block_id });
@@ -3278,7 +3517,9 @@ impl WasmGenerator {
                     end_local,
                     type_length.into(),
                 ),
-            TupleType(tuple_ty) => Ok(()),
+            TupleType(tuple_ty) => {
+                self.deserialize_tuple(builder, memory, offset_local, end_local, tuple_ty)
+            }
             NoType => unreachable!("NoType should not be deserialized"),
             ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
         }
