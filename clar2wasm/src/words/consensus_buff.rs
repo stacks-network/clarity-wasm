@@ -847,4 +847,24 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn from_consensus_buff_tuple_extra_pair() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? {n: int} 0x0c000000020565787472610100000000000000000000000000000020016e000000000000000000000000000000002a)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_tuple_missing_pair() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? {my-number: int, a-string: (string-ascii 16), an-optional: (optional uint)} 0x0c000000020b616e2d6f7074696f6e616c09096d792d6e756d62657200ffffffffffffffffffffffffffffff85)"#
+            ),
+            Some(Value::none())
+        );
+    }
 }
