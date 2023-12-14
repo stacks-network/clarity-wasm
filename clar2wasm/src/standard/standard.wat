@@ -3105,6 +3105,39 @@
         (i32.sub (local.get $output-offset) (local.get $initial-output-offset))
     )
 
+    ;; Validates that the bytes at the specified offset and length form a valid
+    ;; Clarity string-ascii value.
+    (func $stdlib.is-valid-string-ascii (param $offset i32) (param $length i32) (result i32)
+        (local $end i32)
+        (local $byte i32)
+
+        ;; If the length is 0, just return true
+        (if (i32.eqz (local.get $length))
+            (then (return (i32.const 1)))
+        )
+
+        ;; Calculate the end offset
+        (local.set $end (i32.add (local.get $offset) (local.get $length)))
+
+        (loop $loop
+            ;; Read in the next byte
+            (local.set $byte (i32.load8_u (local.get $offset)))
+            ;; Valid characters are between 32 (' ') and 126 ('~')
+            (if (i32.or
+                    (i32.lt_u (local.get $byte) (i32.const 32))
+                    (i32.gt_u (local.get $byte) (i32.const 126))
+                )
+                (then (return (i32.const 0)))
+            )
+            ;; Increment the offset, then loop if we haven't reached the end
+            (br_if $loop (i32.lt_u
+                (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
+                (local.get $end)
+            ))
+        )
+        (i32.const 1)
+    )
+
     ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
     (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
         ;; FIXME: Implement this function
@@ -3179,4 +3212,6 @@
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
     (export "stdlib.sha512-int" (func $stdlib.sha512-int))  
+    (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
+    (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
 )

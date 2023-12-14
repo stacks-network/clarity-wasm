@@ -3275,6 +3275,23 @@ impl WasmGenerator {
                     // Push the `some` indicator onto the stack
                     then.i32_const(1);
 
+                    // Validate the characters in the string
+                    then.local_get(offset_local)
+                        .i32_const(5)
+                        .binop(BinaryOp::I32Add)
+                        .local_get(string_length)
+                        .call(self.func_by_name("stdlib.is-valid-string-ascii"))
+                        .unop(UnaryOp::I32Eqz)
+                        .if_else(
+                            None,
+                            |inner| {
+                                // Return none
+                                inner.i32_const(0).i32_const(0).i32_const(0);
+                                inner.br(block_id);
+                            },
+                            |_| {},
+                        );
+
                     // The serialized string is represented in the same
                     // way that Clarity-Wasm expects, after the type prefix
                     // and size, so just return a pointer to the corresponding

@@ -743,6 +743,16 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_string_ascii_invalid_char() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-ascii 13) 0x0d0000000d48656c6c6f2c20776f726c6401)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_list_int() {
         assert_eq!(
             evaluate(
