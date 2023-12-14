@@ -943,11 +943,10 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::types::{ListData, ListTypeData, SequenceData};
+    use clarity::vm::Value::{self, Int};
+
     use crate::tools::{evaluate as eval, TestEnvironment};
-    use clarity::vm::{
-        types::{ListData, ListTypeData, SequenceData},
-        Value::{self, Int},
-    };
 
     #[test]
     fn index_of_list_not_present() {
