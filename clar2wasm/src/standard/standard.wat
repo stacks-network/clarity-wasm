@@ -2467,6 +2467,49 @@
         )
     )
 
+    (func $stdlib.utf8-to-int (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $neg i32) (local $lo i64) (local $hi i64)
+
+        ;; Save in neg if the number starts with "-" (as 4 for the number of bytes)
+        (local.set $neg (i32.shl (i32.eq (i32.load (local.get $offset)) (i32.const 754974720)) (i32.const 2)))
+
+        (call $stdlib.utf8-to-uint
+            (i32.add (local.get $offset) (local.get $neg))
+            (i32.sub (local.get $len) (local.get $neg))
+        )
+        (local.set $hi)
+        (local.set $lo)
+
+        ;; edge case i127::MIN
+        (if (i32.and (i32.ne (local.get $neg) (i32.const 0)) (i32.and (i64.eqz (local.get $lo)) (i64.eq (local.get $hi) (i64.const -9223372036854775808))))
+            (then
+                (i32.const 1)
+                (i64.const 0)
+                (i64.const -9223372036854775808)
+                return
+            )
+        )
+
+        ;; if result is none or $hi < 0 (number too big to be a i128), return none
+        i32.eqz ;; is-none
+        (if (i32.or (i64.lt_s (local.get $hi) (i64.const 0)))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+
+        ;; result is some
+        (i32.const 1)
+
+        ;; if !neg { current_result } else { -current_result }
+        (if (result i64 i64)
+            (i32.eqz (local.get $neg))
+            (then (local.get $lo) (local.get $hi))
+            (else
+                (i64.sub (i64.const 0) (local.get $lo))
+                (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+            )
+        )
+    )
+
     (func $stdlib.uint-to-string (param $lo i64) (param $hi i64) (result i32 i32)
         (local $i i32) (local $j i32)
         (local.set $j (local.tee $i (global.get $stack-pointer)))
@@ -3232,6 +3275,7 @@
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
     (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.utf8-to-uint" (func $stdlib.utf8-to-uint))
+    (export "stdlib.utf8-to-int" (func $stdlib.utf8-to-int))
     (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
     (export "stdlib.uint-to-utf8" (func $stdlib.uint-to-utf8))
     (export "stdlib.int-to-string" (func $stdlib.int-to-string))
