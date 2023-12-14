@@ -212,6 +212,46 @@ mod tests {
     }
 
     #[test]
+    fn valid_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"1234567")"#),
+            Some(Value::some(Value::Int(1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn valid_negative_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"-1234567")"#),
+            Some(Value::some(Value::Int(-1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+
+    #[test]
+    fn valid_utf8_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? u"98765")"#),
+            Some(Value::some(Value::UInt(98765)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_utf8_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? u"0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+
+    #[test]
     fn uint_to_string() {
         assert_eq!(
             evaluate(r#"(int-to-ascii u42)"#),
