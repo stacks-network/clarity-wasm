@@ -2520,10 +2520,6 @@
 
         ;; faster loop while $lo > 0 (or at least once in case the number was 0)
         (loop $loop
-            ;; to store a digit on 32 bits in big-endian, we write 4bytes of 0
-            ;; and we replace the last one by the correct value
-            (i32.store (local.get $i) (i32.const 0))
-
             (local.get $i)
 
             ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n
