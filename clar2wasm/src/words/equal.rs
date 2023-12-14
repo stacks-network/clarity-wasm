@@ -943,10 +943,11 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
-    use clarity::vm::Value::Bool;
-
     use crate::tools::{evaluate as eval, TestEnvironment};
+    use clarity::vm::{
+        types::{ListData, ListTypeData, SequenceData},
+        Value::{self, Int},
+    };
 
     #[test]
     fn index_of_list_not_present() {
@@ -1011,13 +1012,11 @@ mod tests {
         assert_eq!(val.unwrap(), Some(Value::none()));
     }
 
-    // TODO [chris]
-    #[ignore = "need asserts! function to be implemented"]
     #[test]
     fn index_of_list_check_stack() {
         let mut env = TestEnvironment::default();
         let val = env.init_contract_with_snippet(
-            "index_of",
+            "snippet",
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
   (is-eq (index-of? haystack needle) none))
@@ -1026,7 +1025,17 @@ mod tests {
 "#,
         );
 
-        assert_eq!(val.unwrap(), Some(Bool(true)));
+        assert_eq!(
+            val.unwrap(),
+            Some(Value::Sequence(SequenceData::List(ListData {
+                data: vec![Int(4), Int(5), Int(6)],
+                type_signature: ListTypeData::new_list(
+                    clarity::vm::types::TypeSignature::IntType,
+                    3
+                )
+                .unwrap()
+            })))
+        );
     }
 
     #[test]
