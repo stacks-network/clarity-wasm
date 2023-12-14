@@ -1,4 +1,4 @@
-use clarity::vm::types::TypeSignature;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
 use super::Word;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError};
@@ -20,7 +20,24 @@ impl Word for StringToInt {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        let func = generator.func_by_name("stdlib.string-to-int");
+        let func_prefix = match generator
+            .get_expr_type(args.get_expr(0)?)
+            .expect("string-to-int? argument should have a type")
+        {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "string"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                "utf8"
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "impossible type for string-to-int?".to_owned(),
+                ))
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-int"));
         builder.call(func);
 
         Ok(())
@@ -44,7 +61,25 @@ impl Word for StringToUint {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        let func = generator.func_by_name("stdlib.string-to-uint");
+        let func_prefix = match generator
+            .get_expr_type(args.get_expr(0)?)
+            .expect("string-to-int? argument should have a type")
+        {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "string"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                "utf8"
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "impossible type for string-to-int?".to_owned(),
+                ))
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-uint"));
+
         builder.call(func);
 
         Ok(())
