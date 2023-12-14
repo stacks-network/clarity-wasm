@@ -1428,36 +1428,58 @@
         ;;      c. SHA-256 uses 64 k-constants (single constant is of 4 bytes) to calculate final hash. These are also pre-determined
         ;;          1. From 32 to 288, indices are reserved for k-constants
         ;;      d. Take a look at initial values and k-constants here https://github.com/dandyvica/sha/blob/master/src/sha256.rs
-        ;;      g. SHA-256 requires its data to be in specific format, before processing. 
-        ;;      h. SHA-256
+        ;;      g. SHA-256 requires its data to be in specific format (divisible by 64), before processing. 
+        ;;      h. SHA-256 performs 64 rounds (it's equal to the number of k-constants, and is also equal to total words calculated,
+        ;;         before calculating the actual hash)
         ;; 3. To perform any calculation, sha256 requires the data to be in specific format. This process is called padding
         ;;      a. Length of the padded data should always be divisible by 64 (i.e. $length%64==0), regardless of input size. 
         ;;      b. For this purpose, it's essential to follow the following steps
         ;;          1. Add '1' immediately after the last byte of the data
-        ;;          2. 
+        ;;          2. Leave last 8 bytes to store the length 
+        ;;          3. Fill the remaining space with zeros
+        ;;          4. Consider following 
+        ;;              a. if length=13 bytes, 1 byte to add after data, last 8 bytes for length, 64-(13+1+8)= 42 bytes of zeros
+        ;;              b. if length=123 bytes, 1 byte to add after data, last 8 bytes for length, 123+1+8 = 132, which is obviously 
+        ;;                 greater than 128, so next number which is divisible by 64 is 192. So 192-(123+1+8) = 60 bytes of zeros
+        ;;                 between 1 added after the data and last 8 bytes of length
+        ;;          5. Calculate length in bits (i.e. 13x8=104)
+        ;; 4. Before calculating hash and after padding sha256 data, algorithm needs to calculate total 64 words. 16 words are
+        ;;    obtained directly from the first 64 bytes of padded data. As each word is of 4 bytes, 16 words will require 64 bytes.
+        ;; 5. Next word will be calculated as w16 = w0 + σ0 + w9 + σ1 (w15 would be the 16th word as we are starting from 20). 
+        ;;    To take a look at how these are working, please visit https://sha256algorithm.com/
+        ;; 6. After calculating w63 (64th word), data is ready to perform hashing rounds.
+        ;; 7. Hashing rounds involve 8 variables, a,b,c,d,e,f,g and h. Each variable is of 4 bytes, hence sha256 will produce 32 bytes
+        ;;    result.
+        ;; 8. To take a look at how these words are being calculated, take a look at https://sha256algorithm.com
+        ;; 9. Finally result is being stored at specific location.
               
 
 
         ;; Index to track sha256 blocks
         (local $i i32)
 
-        ;; This function is responsible to add padding and length to the data
+        ;; This function is responsible to add padding and length to the data, it returns total length divisible by 64
         (call $extend-data (local.get $offset) (local.get $length))
         (local.set $length)
 
         (local.set $i (i32.const 0))
         (loop
+            ;; Calculates words
             (call $block64 (local.get $i))
+
+            ;; Calculates hash in 64 rounds
             (call $working-vars)
             (br_if 0
                 (i32.lt_u
+                    ;; As each block is of 64 bytes, we'll increment by 64
                     (local.tee $i (i32.add (local.get $i) (i32.const 64)))
                     (local.get $length)
                 )
             )
         )
 
-        ;; store at result position with correct endianness
+        ;; Reversing each word (4 bytes) because i32.store uses little-endian format but we want it in big-endian format
+        ;; v128.store can only store 16 bytes, so for 32 bytes two blocks with offsets are needed
         (v128.store
             (local.get $offset-result)
             (i8x16.swizzle
@@ -1477,21 +1499,32 @@
     )
 
     (func $stdlib.sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
+        ;; This function calculates SHA-256 hash for 16-byte integer
+        ;; We can't store 16 byte integer in WASM, so we're using two variables, $lo and $hi
+        
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
         ;;   288..352 -> extended int
-        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
 
+        ;; Copying SHA-256's initial values to $stack-pointer
+        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
+        
+        ;; offset=288 because 32 for initial values and 256 to store w0..w63
         (i64.store offset=288 (global.get $stack-pointer) (local.get $lo))
         (i64.store offset=296 (global.get $stack-pointer) (local.get $hi)) ;; offset = 288 + 8
         (i32.store offset=304 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+16
         (memory.fill (i32.add (global.get $stack-pointer) (i32.const 308)) (i32.const 0) (i32.const 46)) ;; offset = 288+20
         (i32.store8 offset=351 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+63
 
+        ;; Calculates words
         (call $block64 (i32.const 0))
+
+        ;; Calculates hash in 64 rounds
         (call $working-vars)
 
+        ;; Reversing each word (4 bytes) because i32.store uses little-endian format but we want it in big-endian format
+        ;; v128.store can only store 16 bytes, so for 32 bytes two blocks with offsets are needed
         (v128.store
             (local.get $offset-result)
             (i8x16.swizzle
@@ -1518,16 +1551,25 @@
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W (result of $block64)
         ;;   288..$length+288 -> shifted data
+
+
+        ;; Copying SHA-256's intial values to $stack-pointer
         (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
+        
+        ;; Leaving some space to store 64 words, then storing actual data
+        ;; 64 words of 4 bytes = 256 + 32 (bytes for intial values) = 288
         (memory.copy (i32.add (global.get $stack-pointer) (i32.const 288)) (local.get $offset) (local.get $length))
 
+        ;; Making sure that $res_len is divisible by 64 ($res_len%64==0)
         (local.set $res_len ;; total size of data with expansion
             (i32.add
                 (i32.or
                     ;; len + 8 bytes for the size
                     (i32.add (local.get $length) (i32.const 8))
+                    ;; 0x3f=63=111111 to make it divisible by 64
                     (i32.const 0x3f)
                 )
+                ;; 1 byte for '1' to add at the end of the data
                 (i32.const 1)
             )
         )
@@ -1535,19 +1577,26 @@
         ;; Add "1" at the end of the data
         (i32.store offset=288
             (i32.add (global.get $stack-pointer) (local.get $length))
+            ;; 0x80=128=10000000
             (i32.const 0x80)
         )
         
         ;; Fill the remaining part before the size with 0s
         (memory.fill
+            ;; 288+1('1' added after the data)=289
             (i32.add (i32.add (global.get $stack-pointer) (local.get $length)) (i32.const 289))
             (i32.const 0)
+            ;; Leave last 8 bytes for length as they are
             (i32.sub (i32.sub (local.get $res_len) (local.get $length)) (i32.const 8))
         )
 
-        ;; Add the size, as a 64bits big-endian integer
+        ;; Convert length to bits, (i.e. 13 bytes = 104 bits)
         (local.set $len64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
+        
+        ;; Location to store the 64-bit length
         (i32.sub (i32.add (global.get $stack-pointer) (local.get $res_len)) (i32.const 8))
+        ;; Converting length into little-endian format, because when i64.store will store it in little-endian format,
+        ;; it will be converted to big-endian format, as required. 
         (i64.or
             (i64.or
                 (i64.or
@@ -1571,7 +1620,7 @@
             )
         )
         i64.store offset=288
-
+        
         (local.get $res_len)
     )
 
@@ -1579,7 +1628,11 @@
         (local $origin i32)
         (local $i i32) (local $tmp i32)
 
+
+        ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
         (local.set $origin (global.get $stack-pointer))
+
+        ;; This is just the offset(index) of the current block. For 1st block, it should be 0, for 2nd, it should be 64, and so on.
         (local.set $data (i32.add (local.get $origin) (local.get $data)))
 
         (local.set $i (i32.const 0))
@@ -1587,7 +1640,10 @@
         ;; Using v128 to process more bytes at a time
         ;; TODO? : unroll this loop, since it's one instruction 4 times?
         (loop
+            ;; Location to store the 4 words of (each of 4 bytes)
             (i32.add (local.get $origin) (local.get $i))
+
+            ;; Reversing each word in the block because v128.store will convert it in big-endian format.
             (i8x16.swizzle
                 (v128.load offset=288 (i32.add (local.get $data) (local.get $i)))
                 (v128.const i8x16 3 2 1 0 7 6 5 4 11 10 9 8 15 14 13 12)
@@ -1596,6 +1652,7 @@
 
             (br_if 0
                 (i32.lt_u
+                    ;; 4 words = 4*4 = 16 bytes processed in one iteration
                     (local.tee $i (i32.add (local.get $i) (i32.const 16)))
                     (i32.const 64)
                 )
@@ -1604,12 +1661,17 @@
 
         (local.set $i (i32.const 0))
         (loop
+            ;; w(next) or w(current+16) = w0 + σ0 + w9 + σ1
+            ;; for more details, please visit https://sha256algorithm.com/
+            
+            ;; location of w(current)
             (local.set $data (i32.add (local.get $origin) (local.get $i)))
-            ;; store address: w(current+16)
+            
+            ;; store address: w(current+16) or w(next)
             (i32.add (local.get $data) (i32.const 64))
             ;; w(current)
             (i32.load offset=32 (local.get $data))
-            ;; sigma 0
+            ;; σ0
             (local.set $tmp (i32.load offset=36 (local.get $data))) ;; offset = 32 + 4
             (i32.rotr (local.get $tmp) (i32.const 7))
             (i32.xor (i32.rotr (local.get $tmp) (i32.const 18)))
@@ -1617,7 +1679,7 @@
             i32.add
             ;; w(current+9)
             (i32.add (i32.load offset=68 (local.get $data))) ;; offset = 32+36
-            ;; sigma 1
+            ;; σ1
             (local.set $tmp (i32.load offset=88 (local.get $data))) ;; offset = 32+56
             (i32.rotr (local.get $tmp) (i32.const 17))
             (i32.xor (i32.rotr (local.get $tmp) (i32.const 19)))
@@ -1628,7 +1690,10 @@
 
             (br_if 0
                 (i32.lt_u
+                    ;; Each word is of 4-bytes, so incrementing by 4
                     (local.tee $i (i32.add (local.get $i) (i32.const 4)))
+
+                    ;; need to calculate w16..w63, total 48 words. 4x48=192
                     (i32.const 192)
                 )
             )
@@ -1641,8 +1706,10 @@
         (local $e i32) (local $f i32) (local $g i32) (local $h i32)
         (local $temp1 i32) (local $temp2 i32) (local $i i32)
 
+        ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
         (local.set $origin (global.get $stack-pointer))
 
+        ;; Setting SHA-256 initial values to variables
         (local.set $a (i32.load offset=0 (local.get $origin)))
         (local.set $b (i32.load offset=4 (local.get $origin)))
         (local.set $c (i32.load offset=8 (local.get $origin)))
@@ -1654,27 +1721,32 @@
 
         (local.set $i (i32.const 0))
         (loop
-        ;; compute $temp1: h + sigma1 + choice + k0 + w0
+            
+            
+            ;; compute temp1 = h + Σ1 + Choice + k(current) + w(current)
+            ;; compute temp2 = Σ0 + Majority
+            ;; for more details, please visit https://sha256algorithm.com/
+
             (local.get $h) ;; h
 
             (i32.rotr (local.get $e) (i32.const 6))
             (i32.xor (i32.rotr (local.get $e) (i32.const 11)))
             (i32.xor (i32.rotr (local.get $e) (i32.const 25)))
-            i32.add ;; + sigma1
+            i32.add ;; h + Σ1
 
             (i32.and (local.get $e) (local.get $f))
             (i32.xor (i32.and (i32.xor (local.get $e) (i32.const -1)) (local.get $g)))
-            i32.add ;; + choice
+            i32.add ;; h + Σ1 + Choice
 
-            (i32.add (i32.load offset=32 (local.get $i))) ;; + k(current)
+            (i32.add (i32.load offset=32 (local.get $i))) ;; h + Σ1 + Choice + k(current)
 
-            (i32.add (i32.load offset=32 (i32.add (local.get $origin) (local.get $i)))) ;; + w(current)
+            (i32.add (i32.load offset=32 (i32.add (local.get $origin) (local.get $i)))) ;; h + Σ1 + Choice + k(current) + w(current)
             (local.set $temp1)
 
-            ;; compute temp2: sigma0 + majority
+            ;; compute temp2: Σ0 + majority
             (i32.rotr (local.get $a) (i32.const 2))
             (i32.xor (i32.rotr (local.get $a) (i32.const 13)))
-            (i32.xor (i32.rotr (local.get $a) (i32.const 22))) ;; sigma0
+            (i32.xor (i32.rotr (local.get $a) (i32.const 22))) ;; Σ0
 
             (i32.and (local.get $a) (local.get $b))
             (i32.xor (i32.and (local.get $a) (local.get $c)))
@@ -1682,7 +1754,17 @@
             i32.add ;; + majority
             (local.set $temp2)
 
-            ;; assign new variables
+
+            ;; Update working variables as:
+            ;; h = g
+            ;; g = f
+            ;; f = e
+            ;; e = d + temp1
+            ;; d = c
+            ;; c = b
+            ;; b = a
+            ;; a = temp1 + temp2
+            
             (local.set $h (local.get $g))
             (local.set $g (local.get $f))
             (local.set $f (local.get $e))
