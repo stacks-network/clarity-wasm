@@ -1464,7 +1464,7 @@
 
         (local.set $i (i32.const 0))
         (loop
-            ;; Calculates words
+            ;; Calculates next 48 words
             (call $block64 (local.get $i))
 
             ;; Calculates hash in 64 rounds
@@ -1512,12 +1512,16 @@
         
         ;; offset=288 because 32 for initial values and 256 to store w0..w63
         (i64.store offset=288 (global.get $stack-pointer) (local.get $lo))
+        ;; $lo would take 8 bytes
         (i64.store offset=296 (global.get $stack-pointer) (local.get $hi)) ;; offset = 288 + 8
-        (i32.store offset=304 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+16
+        ;; $lo+$hi = 8+8 = 16
+        (i32.store offset=304 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288 + 16
+        ;; $lo+$hi+4 (i32.store will store 4 bytes) = 20
         (memory.fill (i32.add (global.get $stack-pointer) (i32.const 308)) (i32.const 0) (i32.const 46)) ;; offset = 288+20
+        ;; Last byte (length) will be at 63 index (starting from 0, so 288+63 = 351)
         (i32.store8 offset=351 (global.get $stack-pointer) (i32.const 0x80)) ;; offset = 288+63
 
-        ;; Calculates words
+        ;; Calculates next 48 words
         (call $block64 (i32.const 0))
 
         ;; Calculates hash in 64 rounds
@@ -1628,7 +1632,6 @@
         (local $origin i32)
         (local $i i32) (local $tmp i32)
 
-
         ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
         (local.set $origin (global.get $stack-pointer))
 
@@ -1652,7 +1655,7 @@
 
             (br_if 0
                 (i32.lt_u
-                    ;; 4 words = 4*4 = 16 bytes processed in one iteration
+                    ;; 4 words = 4 * 4 (each word is of 4 bytes) = 16 bytes processed in one iteration
                     (local.tee $i (i32.add (local.get $i) (i32.const 16)))
                     (i32.const 64)
                 )
@@ -1751,7 +1754,7 @@
             (i32.and (local.get $a) (local.get $b))
             (i32.xor (i32.and (local.get $a) (local.get $c)))
             (i32.xor (i32.and (local.get $b) (local.get $c)))
-            i32.add ;; + majority
+            i32.add ;; Σ0 + majority
             (local.set $temp2)
 
 
@@ -1764,7 +1767,6 @@
             ;; c = b
             ;; b = a
             ;; a = temp1 + temp2
-            
             (local.set $h (local.get $g))
             (local.set $g (local.get $f))
             (local.set $f (local.get $e))
