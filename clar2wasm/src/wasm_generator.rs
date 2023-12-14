@@ -364,6 +364,9 @@ impl WasmGenerator {
         // Restore the top-level locals map.
         self.bindings = top_level_locals;
 
+        // Reset the return type to None
+        self.return_type = None;
+
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
