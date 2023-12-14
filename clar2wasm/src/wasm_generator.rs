@@ -2421,8 +2421,8 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
         // early exit as needed.
-        // These two I32's are the some indicators for the outer and inner
-        // optionals.
+        // These two I32's are the some indicator for the outer optional and
+        // the ok/err indicator for the inner response.
         let mut wasm_val_ty = vec![ValType::I32, ValType::I32];
         wasm_val_ty.append(&mut clar2wasm_ty(ok_ty));
         wasm_val_ty.append(&mut clar2wasm_ty(err_ty));
@@ -2566,15 +2566,6 @@ impl WasmGenerator {
             err_block.local_get(local);
         }
 
-        // Build the block for the case of an invalid type prefix
-        let mut invalid_block = block.dangling_instr_seq(block_ty);
-        let invalid_block_id = invalid_block.id();
-
-        // Invalid prefix, return `none`.
-        invalid_block.i32_const(0).i32_const(0);
-        add_placeholder_for_clarity_type(&mut invalid_block, ok_ty);
-        add_placeholder_for_clarity_type(&mut invalid_block, err_ty);
-
         // Check for the `ok` prefix (0x0a)
         block
             .i32_const(TypePrefix::ResponseOk as i32)
@@ -2583,6 +2574,212 @@ impl WasmGenerator {
                 consequent: ok_block_id,
                 alternative: err_block_id,
             });
+
+        // Add our main block to the builder.
+        builder.instr(walrus::ir::Block { seq: block_id });
+
+        Ok(())
+    }
+
+    /// Deserialize a `list` from memory using consensus serialization.
+    /// Leaves an `(optional (list n T))` on the top of the data stack. See
+    /// SIP-005 for details.
+    ///
+    /// Representation:
+    ///    | 0x0b | number of elements: 4-bytes (big-endian)
+    ///         | serialized representation of element 0
+    ///         | serialized representation of element 1
+    ///         | ...
+    fn deserialize_list(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        memory: MemoryId,
+        offset_local: LocalId,
+        end_local: LocalId,
+        list_ty: &ListTypeData,
+    ) -> Result<(), GeneratorError> {
+        // Create a block for the body of this operation, so that we can
+        // early exit as needed.
+        // These I32s are the some indicator for the outer optional and
+        // the offset and length of the list.
+        let wasm_val_ty = vec![ValType::I32, ValType::I32, ValType::I32];
+        let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
+        let mut block = builder.dangling_instr_seq(block_ty);
+        let block_id = block.id();
+
+        // Verify that reading 5 bytes (prefix + length) from the offset is
+        // within the buffer.
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_get(end_local)
+            .binop(BinaryOp::I32GtU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the prefix byte
+        block.local_get(offset_local).load(
+            memory,
+            LoadKind::I32_8 {
+                kind: ExtendedLoad::ZeroExtend,
+            },
+            MemArg {
+                align: 1,
+                offset: 0,
+            },
+        );
+
+        // Verify the prefix byte
+        block
+            .i32_const(TypePrefix::List as i32)
+            .binop(BinaryOp::I32Ne)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Read the length of the list
+        let length = self.module.locals.add(ValType::I32);
+        block
+            .local_get(offset_local)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.load-i32-be")
+                    .expect("load-i32-be not found"),
+            )
+            .local_tee(length);
+
+        // Verify that the length is within the specified type
+        block
+            .i32_const(list_ty.get_max_len() as i32)
+            .binop(BinaryOp::I32GtU)
+            .if_else(
+                None,
+                |then| {
+                    // Return none
+                    then.i32_const(0).i32_const(0).i32_const(0);
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Allocate space for the list on the call stack
+        let element_ty = list_ty.get_list_item_type();
+        let result = self.module.locals.add(ValType::I32);
+        let result_offset = self.module.locals.add(ValType::I32);
+        let element_size = get_type_size(element_ty);
+        block
+            .global_get(self.stack_pointer)
+            .local_tee(result)
+            .local_tee(result_offset);
+        block
+            .local_get(length)
+            .i32_const(element_size)
+            .binop(BinaryOp::I32Mul)
+            .binop(BinaryOp::I32Add)
+            .global_set(self.stack_pointer);
+
+        // Update the offset to point to the first element
+        block
+            .local_get(offset_local)
+            .i32_const(5)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Initialize an index variable to 0
+        let index = self.module.locals.add(ValType::I32);
+        block.i32_const(0).local_set(index);
+
+        // Loop and deserialize each element
+        let mut loop_block = block.dangling_instr_seq(block_ty);
+        let loop_block_id = loop_block.id();
+
+        // Check if we've reached the end of the list
+        loop_block
+            .local_get(index)
+            .local_get(length)
+            .binop(BinaryOp::I32GeU)
+            .if_else(
+                None,
+                |then| {
+                    // Push the `some` indicator onto the stack
+                    then.i32_const(1);
+
+                    // Push the offset and length onto the stack
+                    then.local_get(result)
+                        .local_get(length)
+                        .i32_const(element_size)
+                        .binop(BinaryOp::I32Mul);
+
+                    // Break out of the loop
+                    then.br(block_id);
+                },
+                |_| {},
+            );
+
+        // Deserialize the element. Note, this will update the offseet to point
+        // to the next element.
+        self.deserialize_from_memory(&mut loop_block, offset_local, end_local, element_ty)?;
+
+        // Check if the deserialization failed:
+        // - Store the value in locals
+        // - Check the inidicator now on top of the stack
+        let inner_locals = self.save_to_locals(&mut loop_block, element_ty, true);
+
+        loop_block.unop(UnaryOp::I32Eqz).if_else(
+            None,
+            |then| {
+                // Return none
+                then.i32_const(0).i32_const(0).i32_const(0);
+                then.br(block_id);
+            },
+            |_| {},
+        );
+
+        // Deserializing the element was successful, so add it to the list
+        // by storing it in the result buffer:
+        // - Load the element value back to the stack
+        // - Write it into the result buffer
+        for local in inner_locals {
+            loop_block.local_get(local);
+        }
+        let bytes_written = self.write_to_memory(&mut loop_block, result_offset, 0, element_ty);
+
+        // Increment the result offset by the number of bytes written
+        loop_block
+            .local_get(result_offset)
+            .i32_const(bytes_written as i32)
+            .binop(BinaryOp::I32Add)
+            .local_set(result_offset);
+
+        // Increment the index by 1
+        loop_block
+            .local_get(index)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_set(index);
+
+        // Loop back to the start of the loop
+        loop_block.br(loop_block_id);
+
+        // Add the loop block to the builder
+        block.instr(Loop { seq: loop_block_id });
 
         // Add our main block to the builder.
         builder.instr(walrus::ir::Block { seq: block_id });
@@ -3055,7 +3252,9 @@ impl WasmGenerator {
             OptionalType(value_ty) => {
                 self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
             }
-            SequenceType(SequenceSubtype::ListType(list_ty)) => Ok(()),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => {
+                self.deserialize_list(builder, memory, offset_local, end_local, list_ty)
+            }
             SequenceType(SequenceSubtype::BufferType(type_length)) => self.deserialize_buffer(
                 builder,
                 memory,

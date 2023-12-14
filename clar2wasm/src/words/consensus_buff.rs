@@ -741,4 +741,70 @@ mod tests {
             Some(Value::none())
         );
     }
+
+    #[test]
+    fn from_consensus_buff_list_int() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (list 8 int) 0x0b00000003000000000000000000000000000000000100000000000000000000000000000000020000000000000000000000000000000003)"#
+            ),
+            Some(
+                Value::some(
+                    Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                        .unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_list_int_shorter_than_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (list 8 int) 0x0b0000000300000000000000000000000000000000010000000000000000000000000000000002)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_list_int_larger_than_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (list 8 int) 0x0b000000030000000000000000000000000000000001000000000000000000000000000000000200000000000000000000000000000000030000000000000000000000000000000004)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_list_int_larger_than_type() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (list 2 int) 0x0b000000040000000000000000000000000000000001000000000000000000000000000000000200000000000000000000000000000000030000000000000000000000000000000004)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_list_string() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (list 8 (string-ascii 16)) 0x0b000000020d000000075361746f7368690d000000084e616b616d6f746f)"#
+            ),
+            Some(
+                Value::some(
+                    Value::cons_list_unsanitized(vec![
+                        Value::string_ascii_from_bytes("Satoshi".to_string().into_bytes()).unwrap(),
+                        Value::string_ascii_from_bytes("Nakamoto".to_string().into_bytes())
+                            .unwrap()
+                    ])
+                    .unwrap()
+                )
+                .unwrap()
+            )
+        );
+    }
 }
