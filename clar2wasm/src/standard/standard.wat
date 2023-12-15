@@ -1498,7 +1498,7 @@
 
     (func $stdlib.sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; This function calculates SHA-256 hash for 16-byte integer
-                
+
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
@@ -1629,6 +1629,7 @@
         (local $i i32) (local $tmp i32)
 
         ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
+        ;; We don't really want to modify stack-pointer anyway, anything that will be stored there is temporary.
         (local.set $origin (global.get $stack-pointer))
 
         ;; This is just the offset(index) of the current block. For 1st block, it should be 0, for 2nd, it should be 64, and so on.
@@ -1706,6 +1707,7 @@
         (local $temp1 i32) (local $temp2 i32) (local $i i32)
 
         ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
+        ;; We don't really want to modify stack-pointer anyway, anything that will be stored there is temporary.
         (local.set $origin (global.get $stack-pointer))
 
         ;; Setting SHA-256 initial values to variables
@@ -2839,6 +2841,7 @@
 
     (func $process-sha512-block (param $current-block-index i32)
         ;; Basically is the $stack-pointer, but accessing global variables can be slower
+        ;; We don't really want to modify stack-pointer anyway, anything that will be stored there is temporary.
         (local $origin i32)
 
         ;; This is just the offset(index) of the current block. For 1st block, it should be 0, for 2nd, it should be 128, and so on.
@@ -2923,6 +2926,7 @@
         (local $temp1 i64) (local $temp2 i64)
 
         ;; Frequently accessing global variable can cause performance issues, that's why a local one is used
+        ;; We don't really want to modify stack-pointer anyway, anything that will be stored there is temporary.
         (local.set $origin (global.get $stack-pointer))
 
         ;; Setting SHA-512 initial values to variables
