@@ -2803,7 +2803,7 @@
                 (i32.sub (i32.sub (local.get $length_after_padding) (local.get $length)) (i32.const 8))
         )
 
-        ;; Convert length to bits, (i.e. 13 bytes = 104 bits)
+        ;; Add the size, as a 64bits big-endian integer, after converting the length to bits, (i.e. 13 bytes = 104 bits)
         (local.set $message_length_64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
 
         ;; This is the location where reversed length is going to be stored
