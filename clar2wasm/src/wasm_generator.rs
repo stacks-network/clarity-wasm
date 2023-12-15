@@ -364,19 +364,26 @@ impl WasmGenerator {
         // Restore the top-level locals map.
         self.bindings = top_level_locals;
 
+        // Reset the return type and early block to None
+        self.return_type = None;
+        self.early_return_block_id = None;
+
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
     pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
-        let early_return = self
-            .early_return_block_id
-            .ok_or(GeneratorError::InternalError(
-                "No return block avaliable".into(),
-            ))?;
-
-        builder.instr(walrus::ir::Br {
-            block: early_return,
-        });
+        if let Some(block_id) = self.early_return_block_id {
+            builder.instr(walrus::ir::Br { block: block_id });
+        } else {
+            // This must be from a top-leve statement, so it should cause a runtime error
+            builder.i32_const(7).call(
+                self.module
+                    .funcs
+                    .by_name("stdlib.runtime-error")
+                    .expect("stdlib.runtime-error not found"),
+            );
+            builder.unreachable();
+        }
 
         Ok(())
     }
