@@ -769,6 +769,27 @@ impl WasmGenerator {
         }
     }
 
+    pub fn type_size(&self, ty: &TypeSignature) -> i32 {
+        match ty {
+            TypeSignature::IntType | TypeSignature::UIntType => 16,
+            TypeSignature::OptionalType(inner) => 4 + self.type_size(inner),
+            TypeSignature::ResponseType(inner) => {
+                let (ok_type, err_type) = &**inner;
+                4 + self.type_size(ok_type) + self.type_size(err_type)
+            }
+            // Principals and sequence types are stored in-memory and
+            // represented by an offset and length.
+            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => 8,
+            TypeSignature::TupleType(tuple) => {
+                todo!()
+            }
+            // Unknown types just get a placeholder i32 value.
+            TypeSignature::NoType => 4,
+            TypeSignature::BoolType => 4,
+            _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
+        }
+    }
+
     /// Read a value from memory at offset stored in local variable `offset`,
     /// with type `ty`, and push it onto the top of the data stack.
     pub(crate) fn read_from_memory(
@@ -2149,6 +2170,15 @@ impl WasmGenerator {
             .funcs
             .by_name(name)
             .unwrap_or_else(|| panic!("function not found: {name}"))
+    }
+
+    pub fn get_function_type(&self, name: &str) -> Option<&FunctionType> {
+        let analysis = &self.contract_analysis;
+
+        analysis
+            .get_public_function_type(name)
+            .or(analysis.get_read_only_function_type(name))
+            .or(analysis.get_private_function(name))
     }
 
     fn visit_literal_value(
