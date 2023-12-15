@@ -1498,8 +1498,7 @@
 
     (func $stdlib.sha256-int (param $lo i64) (param $hi i64) (param $offset-result i32) (result i32 i32)
         ;; This function calculates SHA-256 hash for 16-byte integer
-        ;; We can't store 16 byte integer in WASM, so we're using two variables, $lo and $hi
-        
+                
         ;; Copy data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W
