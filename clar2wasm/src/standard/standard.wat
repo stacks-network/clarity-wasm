@@ -1418,7 +1418,6 @@
         ;;      a. We need $offset where we stored/wrote the data to be hashed.  
         ;;      b. We need $length of the data to be hashed.  
         ;;      c. We need $offset-result where we're going to store/write the final hash. 
-        ;;         Typically greater than $stack-pointer + total number of bytes used in the whole process
         ;; 2. Properties
         ;;      a. SHA-256 processes the data in 64-byte chunks, no matter how large the data is.
         ;;      b. SHA-256 uses total 8 words (single word is of 4 bytes) as its initial values. These are pre-determined
@@ -2649,7 +2648,6 @@
         ;;      a. We need $offset where we stored/wrote the data to be hashed.  
         ;;      b. We need $length of the data to be hashed.  
         ;;      c. We need $offset-result where we're going to store/write the final hash. 
-        ;;         Typically greater than $stack-pointer + total number of bytes used in the whole process
         ;; 2. Properties
         ;;      a. SHA-512 processes the data in 128-byte chunks, regardless of how large the data is.
         ;;      b. SHA-512 uses total 8 words (single word is of 8 bytes) as its initial values. These are pre-determined
