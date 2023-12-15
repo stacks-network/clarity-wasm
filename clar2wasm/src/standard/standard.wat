@@ -1410,10 +1410,9 @@
 
     (func $stdlib.sha256-buf (param $offset i32) (param $length i32) (param $offset-result i32) (result i32 i32)
         ;; For binary representation, you can take a look at https://sha256algorithm.com/
-        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this Rust implementation
-        ;; https://github.com/dandyvica/sha/blob/master/src/sha256.rs
-        ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
-
+        ;; For initial values, constants and high level understanding of SHA-256, please take a look at this paper
+        ;; https://helix.stormhub.org/papers/SHA-256.pdf
+       
         ;; High Level Overview
         ;; 1. Params
         ;;      a. We need $offset where we stored/wrote the data to be hashed.  
@@ -1426,7 +1425,7 @@
         ;;          1. In this module, from 0 index to 31 index, intial values are stored
         ;;      c. SHA-256 uses 64 k-constants (single constant is of 4 bytes) to calculate final hash. These are also pre-determined
         ;;          1. From 32 to 288, indices are reserved for k-constants
-        ;;      d. Take a look at initial values and k-constants here https://github.com/dandyvica/sha/blob/master/src/sha256.rs
+        ;;      d. Take a look at initial values and k-constants here https://helix.stormhub.org/papers/SHA-256.pdf
         ;;      g. SHA-256 requires its data to be in specific format (divisible by 64), before processing. 
         ;;      h. SHA-256 performs 64 rounds (it's equal to the number of k-constants, and is also equal to total words calculated,
         ;;         before calculating the actual hash)
@@ -1593,7 +1592,7 @@
             (i32.sub (i32.sub (local.get $res_len) (local.get $length)) (i32.const 8))
         )
 
-        ;; Convert length to bits, (i.e. 13 bytes = 104 bits)
+        ;; Add the size, as a 64bits big-endian integer, after converting the length to bits, (i.e. 13 bytes = 104 bits)
         (local.set $len64 (i64.extend_i32_u (i32.shl (local.get $length) (i32.const 3))))
         
         ;; Location to store the 64-bit length
@@ -1623,7 +1622,7 @@
             )
         )
         i64.store offset=288
-        
+
         (local.get $res_len)
     )
 
@@ -2642,9 +2641,8 @@
         ;; For binary representation, you can take a look at https://sha256algorithm.com/
         ;; Keep in mind that SHA-256 handles 4-byte words, but SHA-512 handles 8-byte words
         ;; SHA-256 block is of 512-bits(64 bytes) but SHA-512 block is of 1024-bits(128 bytes)
-        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this Rust implementation
-        ;; https://github.com/dandyvica/sha/blob/master/src/sha512.rs
-        ;; If you're interested in the paper, please take a look at https://eprint.iacr.org/2010/548.pdf
+        ;; For initial values, constants and high level understanding of SHA-512, please take a look at this
+        ;; https://en.wikipedia.org/wiki/SHA-2
 
         ;; High Level Overview
         ;; 1. Params
@@ -2658,7 +2656,7 @@
         ;;          1. In this module, from 648 index to 711 index, intial values are stored
         ;;      c. SHA-512 uses 80 k-constants (single constant is of 8 bytes) to calculate final hash. These are also pre-determined
         ;;          1. From 712 to 1351, indices are reserved for k-constants
-        ;;      d. Take a look at initial values and k-constants here https://github.com/dandyvica/sha/blob/master/src/sha512.rs
+        ;;      d. Take a look at initial values and k-constants here https://en.wikipedia.org/wiki/SHA-2
         ;;      g. SHA-512 requires its data to be in specific format (divisible by 128), before processing. 
         ;;      h. SHA-512 performs 80 rounds (it's equal to the number of k-constants, and is also equal to total words calculated,
         ;;         before calculating the actual hash)
