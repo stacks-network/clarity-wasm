@@ -186,8 +186,8 @@ impl Word for Filter {
             // [ input_end ]
             .local_set(input_end);
         // [ ]
-        // now we have an empty stack, and three initialized locals
 
+        // now we have an empty stack, and three initialized locals
         // reserve space for the length of the output list
 
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);

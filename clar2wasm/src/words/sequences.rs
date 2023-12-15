@@ -1,7 +1,9 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::types::{
+    FixedFunction, FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
+};
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
+use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use super::Word;
@@ -474,6 +476,124 @@ impl Word for Concat {
             .local_get(lhs_length)
             .local_get(rhs_length)
             .binop(BinaryOp::I32Add);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Map;
+
+impl Word for Map {
+    fn name(&self) -> ClarityName {
+        "map".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut crate::wasm_generator::WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[clarity::vm::SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        let fname = args.get_name(0)?;
+        let n_args = args[1..].len();
+
+        let return_list_type =
+            match generator
+                .get_function_type(fname)
+                .ok_or(GeneratorError::InternalError(
+                    "Map function must be typed".to_string(),
+                ))? {
+                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns),
+                _ => Err(GeneratorError::InternalError(
+                    "Map function must be typed".to_string(),
+                )),
+            }?;
+
+        let return_element_size = generator.type_size(return_list_type);
+
+        let min_num_elements = generator.module.locals.add(ValType::I32);
+        builder.i32_const(i32::MAX);
+        builder.local_set(min_num_elements);
+
+        // use a local to duplicate (no dup instruction in wasm)
+        let dup = generator.module.locals.add(ValType::I32);
+
+        let mut input_offsets = vec![];
+        let mut input_element_sizes = vec![];
+
+        for arg in args.iter().skip(1) {
+            // get the type of the seq, and the sizes.
+
+            let element_ty = match generator
+                .get_expr_type(arg)
+                .expect("sequence expression must be typed")
+                .clone()
+            {
+                TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
+                    lt.get_list_item_type().clone()
+                }
+                _ => todo!("sponk"),
+            };
+
+            let element_size = generator.type_size(&element_ty);
+            input_element_sizes.push(element_size);
+
+            generator.traverse_expr(builder, arg)?;
+
+            // [ offset, length ]
+            builder.i32_const(element_size);
+            // [ offset, length, element_size ]
+            builder.binop(ir::BinaryOp::I32DivS);
+
+            // [ offset, num_elements ]
+
+            builder.local_tee(dup);
+            builder.local_get(dup);
+
+            // [ offset, num_elements, num_elements ]
+
+            builder.local_get(min_num_elements);
+            // [ offset, num_elements, num_elements, min_num_elements ]
+
+            builder.binop(ir::BinaryOp::I32LeS);
+
+            // [ offset, num_elements, is_less ]
+
+            builder.if_else(
+                InstrSeqType::new(&mut generator.module.types, &[ValType::I32], &[]),
+                |t| {
+                    t.local_set(min_num_elements);
+                },
+                |e| {
+                    e.drop();
+                },
+            );
+
+            let offset = generator.module.locals.add(ValType::I32);
+            builder.local_set(offset);
+            input_offsets.push(offset);
+        }
+
+        // let (output_offset, _) = generator.create_call_stack_local(builder, &todo!(), false, true);
+        builder.loop_(None, |o| {
+            let loop_id = o.id();
+
+            // Load the sequence elements
+            for ofs in input_offsets.clone() {
+                todo!()
+                // let elem_size = generator.read_from_memory(o, ofs, 0, elem_ty);
+            }
+        });
+
+        let output_offset = input_offsets[0];
+
+        builder
+            .local_get(output_offset)
+            .local_get(min_num_elements)
+            .i32_const(return_element_size)
+            .binop(ir::BinaryOp::I32Mul);
 
         Ok(())
     }
@@ -1353,5 +1473,38 @@ mod tests {
             ),
             Some(Value::buff_from(vec![0x01, 0x02]).unwrap())
         );
+    }
+
+    #[test]
+    fn test_map() {
+        const MAP_FNS: &str = "
+(define-private (addify-1 (a int))
+  (+ a 1))
+
+(define-private (addify-2 (a int) (b int))
+  (+ a b 1))
+";
+
+        // let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
+        // assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+
+        let a = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn test_heterogeneus() {
+        const MAP_HETERO: &str = "
+(define-private (selectron (a int) (b bool) (c int))
+  (if b a c))";
+
+        let a = &format!(
+            "{MAP_HETERO}
+(map selectron
+  (list 1 2 3 4)
+  (list true false false true)
+  (list 10 20 30))"
+        );
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
     }
 }
