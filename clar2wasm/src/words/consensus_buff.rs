@@ -8,9 +8,9 @@ use crate::wasm_generator::{
 };
 
 #[derive(Debug)]
-pub struct To;
+pub struct ToConsensusBuff;
 
-impl Word for To {
+impl Word for ToConsensusBuff {
     fn name(&self) -> clarity::vm::ClarityName {
         "to-consensus-buff?".into()
     }
@@ -75,9 +75,9 @@ impl Word for To {
 }
 
 #[derive(Debug)]
-pub struct From;
+pub struct FromConsensusBuff;
 
-impl Word for From {
+impl Word for FromConsensusBuff {
     fn name(&self) -> clarity::vm::ClarityName {
         "from-consensus-buff?".into()
     }
