@@ -1,6 +1,6 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::{
-    FixedFunction, FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
+    FixedFunction, FunctionType, SequenceSubtype, StringSubtype, TypeSignature,
 };
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
@@ -493,35 +493,33 @@ impl Word for Map {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
-        let n_args = args[1..].len();
 
-        let return_list_type =
+        let return_element_type =
             match generator
                 .get_function_type(fname)
                 .ok_or(GeneratorError::InternalError(
                     "Map function must be typed".to_string(),
                 ))? {
-                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns),
+                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns.clone()),
                 _ => Err(GeneratorError::InternalError(
                     "Map function must be typed".to_string(),
                 )),
             }?;
 
-        let return_element_size = generator.type_size(return_list_type);
+        let return_element_size = get_type_size(&return_element_type);
 
         let min_num_elements = generator.module.locals.add(ValType::I32);
         builder.i32_const(i32::MAX);
         builder.local_set(min_num_elements);
 
-        // use a local to duplicate (no dup instruction in wasm)
-        let dup = generator.module.locals.add(ValType::I32);
-
         let mut input_offsets = vec![];
+        let mut input_element_types = vec![];
         let mut input_element_sizes = vec![];
+        let mut input_num_elements = vec![];
 
         for arg in args.iter().skip(1) {
             // get the type of the seq, and the sizes.
@@ -536,29 +534,28 @@ impl Word for Map {
                 }
                 _ => todo!("sponk"),
             };
+            input_element_types.push(element_ty.clone());
 
-            let element_size = generator.type_size(&element_ty);
+            let element_size = get_type_size(&element_ty);
             input_element_sizes.push(element_size);
 
             generator.traverse_expr(builder, arg)?;
-
             // [ offset, length ]
             builder.i32_const(element_size);
             // [ offset, length, element_size ]
             builder.binop(ir::BinaryOp::I32DivS);
-
             // [ offset, num_elements ]
 
-            builder.local_tee(dup);
-            builder.local_get(dup);
-
+            let num_elements = generator.module.locals.add(ValType::I32);
+            builder.local_tee(num_elements);
+            builder.local_get(num_elements);
             // [ offset, num_elements, num_elements ]
+            input_num_elements.push(num_elements);
 
             builder.local_get(min_num_elements);
             // [ offset, num_elements, num_elements, min_num_elements ]
 
             builder.binop(ir::BinaryOp::I32LeS);
-
             // [ offset, num_elements, is_less ]
 
             builder.if_else(
@@ -570,24 +567,93 @@ impl Word for Map {
                     e.drop();
                 },
             );
+            // [ offset ]
 
             let offset = generator.module.locals.add(ValType::I32);
             builder.local_set(offset);
+            // [ ]
             input_offsets.push(offset);
         }
 
-        // let (output_offset, _) = generator.create_call_stack_local(builder, &todo!(), false, true);
-        builder.loop_(None, |o| {
-            let loop_id = o.id();
+        // Allocate space on the call stack for the output list.
+        let output_offset = generator.module.locals.add(ValType::I32);
+        builder.global_get(generator.stack_pointer);
+        // [ stack_pointer ]
+        builder.local_tee(output_offset);
+        // [ stack_pointer ]
+        builder.local_get(min_num_elements);
+        // [ stack_pointer, min_num_elements ]
+        builder.i32_const(return_element_size);
+        // [ stack_pointer, min_num_elements, return_element_size ]
+        builder.binop(ir::BinaryOp::I32Mul);
+        // [ stack_pointer, output_size ]
+        builder.binop(ir::BinaryOp::I32Add);
+        // [ end_offset ]
+        builder.global_set(generator.stack_pointer);
+        // [ ]
 
-            // Load the sequence elements
-            for ofs in input_offsets.clone() {
-                todo!()
-                // let elem_size = generator.read_from_memory(o, ofs, 0, elem_ty);
-            }
-        });
+        // Create an index to count the number of elements to loop over.
+        let index = generator.module.locals.add(ValType::I32);
+        builder.i32_const(0).local_set(index);
 
-        let output_offset = input_offsets[0];
+        // Loop over the min_num_elements of the input sequences, calling the
+        // function on each set of elements. The result of the function call
+        // will be written to the output sequence. The loop_exit block allows
+        // us to put the condition at the top of the loop.
+        let mut loop_exit = builder.dangling_instr_seq(None);
+        let loop_exit_id = loop_exit.id();
+        let mut loop_ = loop_exit.dangling_instr_seq(None);
+        let loop_id = loop_.id();
+
+        // Check if we've reached the min_num_elements
+        loop_
+            .local_get(index)
+            .local_get(min_num_elements)
+            .binop(BinaryOp::I32GeU)
+            .br_if(loop_exit_id);
+
+        // For each input sequence, load the next element, and adjust the
+        // offset for the next iteration.
+        for (i, offset) in input_offsets.iter().enumerate() {
+            // Load the element from the sequence.
+            generator.read_from_memory(&mut loop_, *offset, 0, &input_element_types[i]);
+
+            // Increment the offset by the size of the element.
+            loop_
+                .local_get(*offset)
+                .i32_const(input_element_sizes[i])
+                .binop(BinaryOp::I32Add)
+                .local_set(*offset);
+        }
+
+        // Call the function.
+        generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+
+        // Write the result to the output sequence.
+        generator.write_to_memory(&mut loop_, output_offset, 0, &return_element_type);
+
+        // Increment the output offset by the size of the element.
+        loop_
+            .local_get(output_offset)
+            .i32_const(return_element_size)
+            .binop(BinaryOp::I32Add)
+            .local_set(output_offset);
+
+        // Increment the index.
+        loop_
+            .local_get(index)
+            .i32_const(1)
+            .binop(BinaryOp::I32Add)
+            .local_tee(index);
+
+        // Loop back to the top.
+        loop_.br(loop_id);
+
+        // Add the loop to the loop_exit block.
+        loop_exit.instr(Loop { seq: loop_id });
+
+        // Add the loop_exit block to the main block.
+        builder.instr(walrus::ir::Block { seq: loop_exit_id });
 
         builder
             .local_get(output_offset)
