@@ -2,8 +2,9 @@ pub mod regression;
 pub mod values;
 
 use clarity::vm::types::{
-    ASCIIData, BuffData, ListData, ListTypeData, OptionalData, ResponseData, SequenceData,
-    SequenceSubtype, StringSubtype, TupleData, TupleTypeSignature, TypeSignature, Value,
+    ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
+    SequenceData, SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+    TypeSignature, Value, MAX_VALUE_SIZE,
 };
 use proptest::prelude::*;
 
@@ -250,4 +251,251 @@ fn tuple(tuple_ty: TupleTypeSignature) -> impl Strategy<Value = Value> {
         }
         .into()
     })
+}
+
+trait TypePrinter {
+    fn type_string(&self) -> String;
+}
+
+impl TypePrinter for PropValue {
+    fn type_string(&self) -> String {
+        self.0.type_string()
+    }
+}
+
+impl TypePrinter for Value {
+    fn type_string(&self) -> String {
+        match &self {
+            Value::Int(_) => type_string(&TypeSignature::IntType),
+            Value::UInt(_) => type_string(&TypeSignature::UIntType),
+            Value::Bool(_) => type_string(&TypeSignature::BoolType),
+            Value::Sequence(SequenceData::Buffer(length)) => type_string(
+                &TypeSignature::SequenceType(SequenceSubtype::BufferType(length.len())),
+            ),
+            Value::Sequence(SequenceData::String(CharType::ASCII(data))) => {
+                type_string(&TypeSignature::SequenceType(SequenceSubtype::StringType(
+                    StringSubtype::ASCII(data.len()),
+                )))
+            }
+            Value::Sequence(SequenceData::String(CharType::UTF8(data))) => type_string(
+                &TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    StringUTF8Length::try_from(u32::from(data.len()))
+                        .unwrap_or(StringUTF8Length::try_from(MAX_VALUE_SIZE / 4).unwrap()),
+                ))),
+            ),
+            Value::Optional(inner) => inner.type_string(),
+            Value::Response(inner) => inner.type_string(),
+            Value::Sequence(SequenceData::List(list_data)) => list_data.type_string(),
+            Value::Tuple(data) => data.type_string(),
+            Value::Principal(_) => type_string(&TypeSignature::PrincipalType),
+            Value::CallableContract(_) => type_string(&TypeSignature::PrincipalType),
+        }
+    }
+}
+
+impl TypePrinter for OptionalData {
+    fn type_string(&self) -> String {
+        let inner = match self.data {
+            Some(ref inner) => inner.type_string(),
+            None => "int".to_owned(), // We need to default to something here
+        };
+        format!("(optional {inner})")
+    }
+}
+
+impl TypePrinter for ResponseData {
+    fn type_string(&self) -> String {
+        let (ok_string, err_string) = if self.committed {
+            (self.data.type_string(), "int".to_owned())
+        } else {
+            ("int".to_owned(), self.data.type_string())
+        };
+        format!("(response {} {})", ok_string, err_string)
+    }
+}
+
+impl TypePrinter for ListData {
+    fn type_string(&self) -> String {
+        format!(
+            "(list {} {})",
+            self.data.len(),
+            type_string(self.type_signature.get_list_item_type())
+        )
+    }
+}
+
+impl TypePrinter for TupleData {
+    fn type_string(&self) -> String {
+        type_string(&TypeSignature::TupleType(self.type_signature.clone()))
+    }
+}
+
+fn type_string(ty: &TypeSignature) -> String {
+    match ty {
+        TypeSignature::IntType => "int".to_owned(),
+        TypeSignature::UIntType => "uint".to_owned(),
+        TypeSignature::BoolType => "bool".to_owned(),
+        TypeSignature::OptionalType(inner) => format!("(optional {})", type_string(inner)),
+        TypeSignature::ResponseType(inner) => format!(
+            "(response {} {})",
+            type_string(&inner.0),
+            type_string(&inner.1)
+        ),
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => format!("(buff {len})"),
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(len))) => {
+            format!("(string-ascii {len})")
+        }
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(len))) => {
+            format!("(string-utf8 {len})")
+        }
+        TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)) => {
+            format!(
+                "(list {} {})",
+                list_type_data.get_max_len(),
+                type_string(list_type_data.get_list_item_type())
+            )
+        }
+        TypeSignature::TupleType(tuple_ty) => {
+            let mut s = String::new();
+            s.push('{');
+            for (key, value) in tuple_ty.get_type_map() {
+                s.push_str(key);
+                s.push(':');
+                s.push_str(&type_string(value));
+                s.push(',');
+            }
+            s.push('}');
+            s
+        }
+        TypeSignature::PrincipalType => "principal".to_owned(),
+        TypeSignature::CallableType(_) => "principal".to_owned(),
+        TypeSignature::TraitReferenceType(_) => "principal".to_owned(),
+        TypeSignature::NoType => "int".to_owned(), // Use "int" as a default type
+        TypeSignature::ListUnionType(_) => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::types::{PrincipalData, UTF8Data};
+
+    use super::*;
+
+    #[test]
+    fn check_type_string() {
+        assert_eq!(Value::Int(0).type_string(), "int");
+        assert_eq!(Value::UInt(0).type_string(), "uint");
+        assert_eq!(Value::Bool(false).type_string(), "bool");
+        assert_eq!(
+            Value::Sequence(SequenceData::Buffer(BuffData { data: vec![] })).type_string(),
+            "(buff 0)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::Buffer(BuffData {
+                data: vec![1, 2, 3, 4, 5]
+            }))
+            .type_string(),
+            "(buff 5)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
+                data: vec![]
+            })))
+            .type_string(),
+            "(string-ascii 0)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
+                data: vec![0x68, 0x65, 0x6c, 0x6c, 0x6f]
+            })))
+            .type_string(),
+            "(string-ascii 5)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
+                data: vec![]
+            })))
+            .type_string(),
+            "(string-utf8 0)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
+                data: vec![vec![0x68], vec![0x65], vec![0x6c], vec![0x6c], vec![0x6f]]
+            })))
+            .type_string(),
+            "(string-utf8 5)"
+        );
+        assert_eq!(
+            Value::Optional(OptionalData { data: None }).type_string(),
+            "(optional int)"
+        );
+        assert_eq!(
+            Value::Optional(OptionalData {
+                data: Some(Box::new(Value::UInt(0)))
+            })
+            .type_string(),
+            "(optional uint)"
+        );
+        assert_eq!(
+            Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(Value::UInt(0))
+            })
+            .type_string(),
+            "(response uint int)"
+        );
+        assert_eq!(
+            Value::Response(ResponseData {
+                committed: false,
+                data: Box::new(Value::UInt(0))
+            })
+            .type_string(),
+            "(response int uint)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::List(ListData {
+                data: vec![],
+                type_signature: ListTypeData::new_list(TypeSignature::IntType, 0).unwrap()
+            }))
+            .type_string(),
+            "(list 0 int)"
+        );
+        assert_eq!(
+            Value::Sequence(SequenceData::List(ListData {
+                data: vec![Value::Int(0), Value::Int(1), Value::Int(2)],
+                type_signature: ListTypeData::new_list(TypeSignature::IntType, 3).unwrap()
+            }))
+            .type_string(),
+            "(list 3 int)"
+        );
+        assert_eq!(
+            Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), Value::Int(42)),
+                    ("b".into(), Value::UInt(42)),
+                    ("c".into(), Value::Bool(true)),
+                ])
+                .unwrap()
+            )
+            .type_string(),
+            "{a:int,b:uint,c:bool,}"
+        );
+        assert_eq!(
+            Value::from(
+                PrincipalData::parse_standard_principal(
+                    "SM2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQVX8X0G"
+                )
+                .unwrap()
+            )
+            .type_string(),
+            "principal"
+        );
+        assert_eq!(
+            // (list (ok 0))
+            Value::cons_list_unsanitized(vec![Value::okay(Value::Int(0)).unwrap()])
+                .unwrap()
+                .type_string(),
+            "(list 1 (response int int))"
+        );
+    }
 }

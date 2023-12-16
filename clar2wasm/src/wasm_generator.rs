@@ -1186,7 +1186,7 @@ impl WasmGenerator {
             err_block.local_get(*local);
         }
 
-        // Now serialize the ok value to memory
+        // Now serialize the err value to memory
         self.serialize_to_memory(&mut err_block, offset_local, offset + 1, &types.1)?;
 
         // The top of the stack is currently the indicator, which is
@@ -1446,6 +1446,8 @@ impl WasmGenerator {
             size_non_zero
                 .local_get(write_ptr)
                 .local_get(offset_local)
+                .i32_const(offset as i32)
+                .binop(BinaryOp::I32Add)
                 .binop(BinaryOp::I32Sub);
 
             size_non_zero.id()
@@ -1794,7 +1796,11 @@ impl WasmGenerator {
         }
 
         // Push the amount written to the data stack
-        builder.local_get(offset_local).binop(BinaryOp::I32Sub);
+        builder
+            .local_get(offset_local)
+            .i32_const(offset as i32)
+            .binop(BinaryOp::I32Add)
+            .binop(BinaryOp::I32Sub);
 
         Ok(())
     }
@@ -4092,5 +4098,19 @@ impl WasmGenerator {
             self.traverse_expr(builder, arg)?;
         }
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    /// Log an i64 that is on top of the stack.
+    fn debug_log_i64(&self, builder: &mut InstrSeqBuilder) {
+        builder.call(self.func_by_name("log"));
+    }
+
+    #[allow(dead_code)]
+    /// Log an i32 that is on top of the stack.
+    fn debug_log_i32(&self, builder: &mut InstrSeqBuilder) {
+        builder
+            .unop(UnaryOp::I64ExtendUI32)
+            .call(self.func_by_name("log"));
     }
 }
