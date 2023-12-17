@@ -576,8 +576,11 @@ impl Word for Map {
         }
 
         // Allocate space on the call stack for the output list.
+        let output_base = generator.module.locals.add(ValType::I32);
         let output_offset = generator.module.locals.add(ValType::I32);
         builder.global_get(generator.stack_pointer);
+        // [ stack_pointer ]
+        builder.local_tee(output_base);
         // [ stack_pointer ]
         builder.local_tee(output_offset);
         // [ stack_pointer ]
@@ -656,7 +659,7 @@ impl Word for Map {
         builder.instr(walrus::ir::Block { seq: loop_exit_id });
 
         builder
-            .local_get(output_offset)
+            .local_get(output_base)
             .local_get(min_num_elements)
             .i32_const(return_element_size)
             .binop(ir::BinaryOp::I32Mul);
@@ -1538,6 +1541,24 @@ mod tests {
 "#,
             ),
             Some(Value::buff_from(vec![0x01, 0x02]).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_map_simple() {
+        assert_eq!(
+            eval(
+                r#"
+        (define-private (addify (a int))
+            (+ a 1)
+        )
+        (map addify (list 1 2 3))
+        "#
+            ),
+            Some(
+                Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
+                    .unwrap()
+            )
         );
     }
 
