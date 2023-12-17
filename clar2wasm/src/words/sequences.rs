@@ -524,19 +524,30 @@ impl Word for Map {
         for arg in args.iter().skip(1) {
             // get the type of the seq, and the sizes.
 
-            let element_ty = match generator
+            let (element_ty, element_size) = match generator
                 .get_expr_type(arg)
                 .expect("sequence expression must be typed")
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
-                    lt.get_list_item_type().clone()
+                    let element_ty = lt.get_list_item_type().clone();
+                    let element_size = get_type_size(&element_ty);
+                    (SequenceElementType::Other(element_ty), element_size)
                 }
-                _ => todo!("sponk"),
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+                | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    _,
+                ))) => (SequenceElementType::Byte, 1),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    _,
+                ))) => (SequenceElementType::UnicodeScalar, 4),
+                _ => {
+                    return Err(GeneratorError::InternalError(
+                        "expected sequence type".to_string(),
+                    ));
+                }
             };
-            input_element_types.push(element_ty.clone());
-
-            let element_size = get_type_size(&element_ty);
+            input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
 
             generator.traverse_expr(builder, arg)?;
@@ -618,8 +629,21 @@ impl Word for Map {
         // For each input sequence, load the next element, and adjust the
         // offset for the next iteration.
         for (i, offset) in input_offsets.iter().enumerate() {
-            // Load the element from the sequence.
-            generator.read_from_memory(&mut loop_, *offset, 0, &input_element_types[i]);
+            match &input_element_types[i] {
+                SequenceElementType::Other(elem_ty) => {
+                    generator.read_from_memory(&mut loop_, *offset, 0, elem_ty);
+                }
+                SequenceElementType::Byte => {
+                    // The element type is a byte, so we can just push the
+                    // offset and length (1) to the stack.
+                    loop_.local_get(*offset).i32_const(1);
+                }
+                SequenceElementType::UnicodeScalar => {
+                    // The element type is a 32-bit unicode scalar, so we can just push the
+                    // offset and length (4) to the stack.
+                    loop_.local_get(*offset).i32_const(4);
+                }
+            }
 
             // Increment the offset by the size of the element.
             loop_
@@ -1545,18 +1569,116 @@ mod tests {
     }
 
     #[test]
-    fn test_map_simple() {
+    fn test_map_simple_list() {
         assert_eq!(
             eval(
                 r#"
-        (define-private (addify (a int))
-            (+ a 1)
-        )
-        (map addify (list 1 2 3))
+(define-private (addify (a int))
+    (+ a 1)
+)
+(map addify (list 1 2 3))
         "#
             ),
             Some(
                 Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_map_simple_buff() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (zero-or-one (char (buff 1))) (if (is-eq char 0x00) 0x00 0x01))
+(map zero-or-one 0x000102) 
+        "#
+            ),
+            Some(
+                Value::cons_list_unsanitized(vec![
+                    Value::buff_from_byte(0),
+                    Value::buff_from_byte(1),
+                    Value::buff_from_byte(1)
+                ])
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_map_simple_string_ascii() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (a-or-b (char (string-ascii 1))) (if (is-eq char "a") "a" "b"))
+(map a-or-b "aca")
+        "#
+            ),
+            Some(
+                Value::cons_list_unsanitized(vec![
+                    Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
+                    Value::string_ascii_from_bytes(vec![0x62]).unwrap(),
+                    Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
+                ])
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_map_simple_string_utf8() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (a-or-b (char (string-utf8 1))) (if (is-eq char u"a") u"a" u"b"))
+(map a-or-b u"aca")
+        "#
+            ),
+            Some(
+                Value::cons_list_unsanitized(vec![
+                    Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
+                    Value::string_utf8_from_bytes(vec![0x62]).unwrap(),
+                    Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
+                ])
+                .unwrap()
+            )
+        );
+    }
+
+    // TODO: The string-utf8 can be uncommented when #216 is merged.
+    #[test]
+    fn test_map_mixed() {
+        assert_eq!(
+            eval(
+                r#"
+(define-private (add-everything
+    (a int)
+    (b uint)
+    (c (string-ascii 1))
+    ;;(d (string-utf8 1))
+    (e (buff 1))
+    )
+    (+
+        a
+        (to-int b)
+        (unwrap-panic (string-to-int? c))
+        ;;(unwrap-panic (string-to-int? d))
+        (buff-to-int-be e)
+    )
+)
+(map add-everything
+    (list 1 2 3)
+    (list u1 u2 u3)
+    "123"
+    ;;u"123"
+    0x010203
+)
+        "#
+            ),
+            Some(
+                Value::cons_list_unsanitized(vec![Value::Int(4), Value::Int(8), Value::Int(12),])
+                // Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15),])
                     .unwrap()
             )
         );
