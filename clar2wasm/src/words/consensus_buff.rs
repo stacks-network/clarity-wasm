@@ -66,6 +66,7 @@ impl Word for ToConsensusBuf {
                     else_.i32_const(0).i32_const(0).i32_const(0);
                 },
             );
+
         Ok(())
     }
 }
