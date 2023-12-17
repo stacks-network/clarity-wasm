@@ -640,10 +640,7 @@ impl WasmGenerator {
                 );
                 16
             }
-            TypeSignature::PrincipalType
-            | TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::ListType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
                 // Data stack: TOP | Length | Offset | ...
                 // Save the offset/length to locals.
                 let seq_offset = self.module.locals.add(ValType::I32);
