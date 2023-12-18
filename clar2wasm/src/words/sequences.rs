@@ -1646,7 +1646,6 @@ mod tests {
         );
     }
 
-    // TODO: The string-utf8 can be uncommented when #216 is merged.
     #[test]
     fn test_map_mixed() {
         assert_eq!(
@@ -1656,14 +1655,14 @@ mod tests {
     (a int)
     (b uint)
     (c (string-ascii 1))
-    ;;(d (string-utf8 1))
+    (d (string-utf8 1))
     (e (buff 1))
     )
     (+
         a
         (to-int b)
         (unwrap-panic (string-to-int? c))
-        ;;(unwrap-panic (string-to-int? d))
+        (unwrap-panic (string-to-int? d))
         (buff-to-int-be e)
     )
 )
@@ -1671,14 +1670,13 @@ mod tests {
     (list 1 2 3)
     (list u1 u2 u3)
     "123"
-    ;;u"123"
+    u"123"
     0x010203
 )
         "#
             ),
             Some(
-                Value::cons_list_unsanitized(vec![Value::Int(4), Value::Int(8), Value::Int(12),])
-                    // Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15),])
+                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15),])
                     .unwrap()
             )
         );
