@@ -3,11 +3,12 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use blockstack_lib::chainstate::stacks::db::ChainstateTx;
+use blockstack_lib::chainstate::stacks::db::{ChainstateTx, ClarityTx, StacksChainState};
 use blockstack_lib::clarity_vm::clarity::{ClarityInstance, ClarityBlockConnection};
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use log::*;
+use stacks_common::types::chainstate::{ConsensusHash, BlockHeaderHash};
 
 use crate::config::Config;
 use crate::context::replay::ChainStateReplayer;
@@ -270,12 +271,21 @@ impl<'ctx> ComparisonContext<'ctx> {
     }
 }
 
-pub enum BlockContext<'a, 'b> {
+pub enum BlockContext<'a> {
     Genesis,
-    Regular(ClarityBlockConnection<'a, 'b>),
+    Regular(RegularBlockContext<'a>),
 }
 
-impl BlockContext<'_, '_> {
+pub struct RegularBlockContext<'a> {
+    pub parent_consensus_hash: ConsensusHash,
+    pub parent_block_hash: BlockHeaderHash,
+    pub new_consensus_hash: ConsensusHash,
+    pub new_block_hash: BlockHeaderHash,
+    pub chainstate: &'a mut StacksChainState,
+    pub burn_db: &'a dyn clarity::BurnStateDB
+}
+
+impl BlockContext<'_> {
     pub fn is_genesis(&self) -> bool {
         matches!(self, BlockContext::Genesis)
     }

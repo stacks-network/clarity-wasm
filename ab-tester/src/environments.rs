@@ -245,7 +245,7 @@ impl ClarityBlockTransactionResult {
 pub trait WriteableEnv: ReadableEnv {
     /// Begins the [Block] from the source environment in the target environment's
     /// chainstate.
-    fn block_begin<'a: 'b, 'b>(&'a mut self, block: &Block) -> Result<BlockContext<'a, 'b>>;
+    fn block_begin<'a: 'b, 'b>(&'a mut self, block: &Block) -> Result<BlockContext>;
 
     /// Commits the currently open [Block] from the source environment to the
     /// target environment's chainstate.

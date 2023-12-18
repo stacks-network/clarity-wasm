@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use blockstack_lib::chainstate::stacks::db::ClarityTx;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::{
@@ -15,7 +16,7 @@ use super::stacks_node::StacksEnvPaths;
 use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv, ClarityBlockTransaction};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
-use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext};
+use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext, RegularBlockContext};
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
@@ -209,7 +210,7 @@ impl AsBurnStateDb for InstrumentedEnv {
 }
 
 /// Implementation of [RuntimeEnv] for [InstrumentedEnv].
-impl RuntimeEnv for InstrumentedEnv {
+impl<'a, 'b> RuntimeEnv for InstrumentedEnv {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -380,7 +381,7 @@ impl WriteableEnv for InstrumentedEnv {
     fn block_begin<'a: 'b, 'b>(
         &'a mut self, 
         block: &crate::context::Block
-    ) -> Result<BlockContext<'a, 'b>>
+    ) -> Result<BlockContext>
     {
         if self.is_readonly() {
             bail!("[{}] environment is read-only.", self.name);
@@ -414,10 +415,10 @@ impl WriteableEnv for InstrumentedEnv {
                     &inner.header.index_block_hash.to_hex()
                 );
 
-                let parent_consensus_hash = &inner.parent_header.consensus_hash;
-                let parent_block_hash = &inner.parent_header.block_hash;
-                let new_consensus_hash = &inner.header.consensus_hash;
-                let new_block_hash = &inner.header.block_hash;
+                let parent_consensus_hash = inner.parent_header.consensus_hash;
+                let parent_block_hash = inner.parent_header.block_hash;
+                let new_consensus_hash = inner.header.consensus_hash;
+                let new_block_hash = inner.header.block_hash;
 
                 debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
                     parent_consensus_hash.to_hex(),
@@ -426,18 +427,30 @@ impl WriteableEnv for InstrumentedEnv {
                     new_block_hash.to_hex()
                 );
 
-                let (chainstate_tx, clarity_instance) = 
+                Ok(BlockContext::Regular(RegularBlockContext {
+                    parent_consensus_hash,
+                    parent_block_hash,
+                    new_consensus_hash,
+                    new_block_hash,
+                    chainstate: &mut state.chainstate,
+                    burn_db: &*state.burnstate_db
+                }))
+
+                /*debug!("beginning chainstate tx");
+                let (_, clarity_instance) = 
                     state.chainstate.chainstate_tx_begin()?;
 
+
+                debug!("chainstate begin tx");
                 let block = clarity_instance.begin_block(
-                    &StacksBlockId::from_bytes(&parent_block_hash.0).unwrap(), 
                     &StacksBlockId::from_bytes(&new_block_hash.0).unwrap(), 
+                    &StacksBlockId::from_bytes(&inner.next_header.as_ref().unwrap().block_hash.0).unwrap(), 
                     &*state.headers_db, 
                     &*state.burnstate_db);
 
                 let block_ctx = BlockContext::Regular(block);
 
-                Ok(block_ctx)
+                Ok(block_ctx)*/
 
                 /*let mut clarity_tx = state.chainstate.block_begin(
                     &*state.burnstate_db,
@@ -447,7 +460,8 @@ impl WriteableEnv for InstrumentedEnv {
                     new_block_hash,
                 );
 
-                let clarity_block_conn = clarity_tx.connection();*/
+                let clarity_block_conn = clarity_tx.connection();
+                Ok(BlockContext::Regular(move || clarity_tx, clarity_block_conn))*/
 
                 // Transaction processing here
                 /*Ok(BlockTransactionContext::Regular(
