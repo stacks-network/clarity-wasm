@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use blockstack_lib::chainstate::stacks::db::ChainstateTx;
-use blockstack_lib::clarity_vm::clarity::ClarityInstance;
+use blockstack_lib::clarity_vm::clarity::{ClarityInstance, ClarityBlockConnection};
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use log::*;
@@ -270,18 +270,18 @@ impl<'ctx> ComparisonContext<'ctx> {
     }
 }
 
-pub enum BlockContext<'a> {
+pub enum BlockContext<'a, 'b> {
     Genesis,
-    Regular(ChainstateTx<'a>, &'a mut ClarityInstance),
+    Regular(ClarityBlockConnection<'a, 'b>),
 }
 
-impl BlockContext<'_> {
+impl BlockContext<'_, '_> {
     pub fn is_genesis(&self) -> bool {
         matches!(self, BlockContext::Genesis)
     }
 
     pub fn is_regular(&self) -> bool {
-        matches!(self, BlockContext::Regular(_, _))
+        matches!(self, BlockContext::Regular(_))
     }
 }
 

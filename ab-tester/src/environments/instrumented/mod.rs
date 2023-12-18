@@ -8,6 +8,7 @@ use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
+use stacks_common::types::chainstate::StacksBlockId;
 
 use super::stacks_node::db::schema::chainstate::block_headers;
 use super::stacks_node::StacksEnvPaths;
@@ -376,10 +377,10 @@ impl ReadableEnv for InstrumentedEnv {
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
 impl WriteableEnv for InstrumentedEnv {
-    fn block_begin<'a>(
+    fn block_begin<'a: 'b, 'b>(
         &'a mut self, 
         block: &crate::context::Block
-    ) -> Result<BlockContext<'a>>
+    ) -> Result<BlockContext<'a, 'b>>
     {
         if self.is_readonly() {
             bail!("[{}] environment is read-only.", self.name);
@@ -428,7 +429,13 @@ impl WriteableEnv for InstrumentedEnv {
                 let (chainstate_tx, clarity_instance) = 
                     state.chainstate.chainstate_tx_begin()?;
 
-                let block_ctx = BlockContext::Regular(chainstate_tx, clarity_instance);
+                let block = clarity_instance.begin_block(
+                    &StacksBlockId::from_bytes(&parent_block_hash.0).unwrap(), 
+                    &StacksBlockId::from_bytes(&new_block_hash.0).unwrap(), 
+                    &*state.headers_db, 
+                    &*state.burnstate_db);
+
+                let block_ctx = BlockContext::Regular(block);
 
                 Ok(block_ctx)
 

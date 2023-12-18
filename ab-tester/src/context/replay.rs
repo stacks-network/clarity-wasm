@@ -170,9 +170,12 @@ impl ChainStateReplayer {
 
         // Begin a new block in `target`.
         match block_tx {
-            BlockContext::Regular(chainstate_tx, clarity_instance) => {
+            BlockContext::Regular(block_conn) => {
+                
                 //ctx.start_transaction_processing()?;
                 //ctx.commit()?;
+                //clarity_instance.begin_block(current, next, header_db, burn_state_db)
+
             },
             BlockContext::Genesis => {},
         }
