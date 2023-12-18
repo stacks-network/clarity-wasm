@@ -3059,7 +3059,7 @@ fn utf8_to_uint() {
     test_str("42", 1, 42, 0);
     test_str("1024", 1, 1024, 0);
 
-    // // Basic tests with big numbers
+    // Basic tests with big numbers
     test_str("184467440737095516156789", 1, -3211, 9999);
     test_str(
         "374467440737095681245698132",
