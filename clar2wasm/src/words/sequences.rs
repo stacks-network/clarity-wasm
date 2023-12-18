@@ -1694,8 +1694,8 @@ mod tests {
   (+ a b 1))
 ";
 
-        // let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
-        // assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
 
         let a = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
         assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
