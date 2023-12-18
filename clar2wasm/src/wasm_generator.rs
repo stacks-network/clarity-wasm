@@ -632,10 +632,7 @@ impl WasmGenerator {
                 );
                 16
             }
-            TypeSignature::PrincipalType
-            | TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::ListType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
                 // Data stack: TOP | Length | Offset | ...
                 // Save the offset/length to locals.
                 let seq_offset = self.module.locals.add(ValType::I32);
@@ -1177,6 +1174,15 @@ impl WasmGenerator {
             .funcs
             .by_name(name)
             .unwrap_or_else(|| panic!("function not found: {name}"))
+    }
+
+    pub fn get_function_type(&self, name: &str) -> Option<&FunctionType> {
+        let analysis = &self.contract_analysis;
+
+        analysis
+            .get_public_function_type(name)
+            .or(analysis.get_read_only_function_type(name))
+            .or(analysis.get_private_function(name))
     }
 
     fn visit_literal_value(

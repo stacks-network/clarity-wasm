@@ -131,6 +131,7 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &sequences::Fold,
     &sequences::Len,
     &sequences::ListCons,
+    &sequences::Map,
     &sequences::ReplaceAt,
     &sequences::Slice,
     &stx::StxBurn,

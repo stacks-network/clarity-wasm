@@ -1,4 +1,4 @@
-use clarity::vm::types::TypeSignature;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
 use super::Word;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError};
@@ -20,7 +20,24 @@ impl Word for StringToInt {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        let func = generator.func_by_name("stdlib.string-to-int");
+        let func_prefix = match generator
+            .get_expr_type(args.get_expr(0)?)
+            .expect("string-to-int? argument should have a type")
+        {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "string"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                "utf8"
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "impossible type for string-to-int?".to_owned(),
+                ))
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-int"));
         builder.call(func);
 
         Ok(())
@@ -44,7 +61,25 @@ impl Word for StringToUint {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        let func = generator.func_by_name("stdlib.string-to-uint");
+        let func_prefix = match generator
+            .get_expr_type(args.get_expr(0)?)
+            .expect("string-to-int? argument should have a type")
+        {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                "string"
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                "utf8"
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "impossible type for string-to-int?".to_owned(),
+                ))
+            }
+        };
+
+        let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-uint"));
+
         builder.call(func);
 
         Ok(())
@@ -172,6 +207,46 @@ mod tests {
     fn invalid_string_to_uint() {
         assert_eq!(
             evaluate(r#"(string-to-uint? "0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+
+    #[test]
+    fn valid_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"1234567")"#),
+            Some(Value::some(Value::Int(1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn valid_negative_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"-1234567")"#),
+            Some(Value::some(Value::Int(-1234567)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_utf8_to_int() {
+        assert_eq!(
+            evaluate(r#"(string-to-int? u"0xabcd")"#),
+            Some(Value::none())
+        )
+    }
+
+    #[test]
+    fn valid_utf8_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? u"98765")"#),
+            Some(Value::some(Value::UInt(98765)).unwrap())
+        )
+    }
+
+    #[test]
+    fn invalid_utf8_to_uint() {
+        assert_eq!(
+            evaluate(r#"(string-to-uint? u"0xabcd")"#),
             Some(Value::none())
         )
     }
