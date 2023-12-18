@@ -1,10 +1,11 @@
-use color_eyre::eyre::ensure;
+use color_eyre::eyre::{ensure, bail};
 use color_eyre::Result;
 use log::*;
 
+use super::BlockContext;
 use super::callbacks::ReplayCallbackHandler;
 use crate::context::Block;
-use crate::environments::{ReadableEnv, WriteableEnv};
+use crate::environments::{ReadableEnv, WriteableEnv, ClarityBlockTransaction};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
 use crate::{clarity, ok, stacks};
@@ -38,11 +39,11 @@ where
 
 /// Validation/assertion helper methods for [ReplayOpts].
 impl<'a, C: ReplayCallbackHandler> ReplayOpts<C> {
-    pub fn with_working_dir(&'a mut self, working_dir: &str) -> &mut Self {
+    pub fn with_working_dir(&mut self, working_dir: &str) -> &mut Self {
         self.working_dir = working_dir.to_string();
         self
     }
-    pub fn with_callbacks(&'a mut self, callbacks: C) -> &mut Self {
+    pub fn with_callbacks(&mut self, callbacks: C) -> &mut Self {
         self.callbacks = callbacks;
         self
     }
@@ -85,9 +86,9 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a, C: ReplayCallbackHandler>(
-        source: &(impl ReadableEnv + ?Sized),
-        target: &mut (impl WriteableEnv + ?Sized),
-        opts: &'a ReplayOpts<C>,
+        source: &'a (impl ReadableEnv + ?Sized),
+        target: &'a mut (impl WriteableEnv + ?Sized),
+        opts: &ReplayOpts<C>,
     ) -> Result<()> {
         info!(
             "aggregating contract calls starting at block height {}...",
@@ -158,60 +159,25 @@ impl ChainStateReplayer {
     }
 
     /// Replays the specified block into `target`.
-    fn replay_block_into<Target: WriteableEnv + ?Sized>(
+    fn replay_block_into<'a, Target: WriteableEnv + ?Sized + 'a>(
         header: &BlockHeader,
         block: &Block,
         stacks_block: &stacks::StacksBlock,
-        target: &mut Target,
+        target: &'a mut Target,
     ) -> Result<()> {
-        let block_id = header.index_block_hash;
+        //let block_id = header.index_block_hash;
+        let block_tx = target.block_begin(block)?;
 
         // Begin a new block in `target`.
-        target.block_begin(block)?;
-
-        for tx in stacks_block.txs.iter() {
-            info!("processing tx: {}", tx.txid());
-
-            let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
-
-            // Begin a new Clarity transaction in `target` and process the source
-            // transaction. This transaction will be automatically committed.
-            /*block_ctx
-                .clarity_block_conn
-                .as_transaction(|_clarity_tx| -> Result<()> {
-                    debug!("IN PROCESS TX SCOPE");
-
-                    #[allow(clippy::single_match)]
-                    match &tx.payload {
-                        stacks::TransactionPayload::ContractCall(call) => {
-                            let contract_id = clarity::QualifiedContractIdentifier::parse(
-                                &format!("{}.{}", call.address, call.contract_name),
-                            )?;
-                            info!(
-                                "contract call at block id: {block_id:?}, contract id: {}",
-                                contract_id.to_string()
-                            );
-                        }
-                        stacks::TransactionPayload::SmartContract(contract, _) => {
-                            let contract_id = clarity::QualifiedContractIdentifier::new(
-                                origin_principal,
-                                contract.name.clone(),
-                            );
-
-                            info!(
-                                "install contract at block id: {block_id:?}, contract id: {}",
-                                contract_id.to_string()
-                            );
-                        }
-                        _ => {}
-                    }
-
-                    ok!()
-                })?;
-            */
+        match block_tx {
+            BlockContext::Regular(chainstate_tx, clarity_instance) => {
+                //ctx.start_transaction_processing()?;
+                //ctx.commit()?;
+            },
+            BlockContext::Genesis => {},
         }
 
-        ok!()
+        Ok(())
     }
 }
 
@@ -220,3 +186,50 @@ pub struct ReplayResult {}
 impl ReplayResult {
     pub fn do_nothing(&self) {}
 }
+
+
+
+
+/*
+for tx in stacks_block.txs.iter() {
+                    
+                
+                    info!("processing tx: {}", tx.txid());
+
+                    //let origin_principal = clarity::StandardPrincipalData::from(tx.origin_address());
+
+                    // Begin a new Clarity transaction in `target` and process the source
+                    // transaction. This transaction will be automatically committed.
+                    block_ctx
+                        .clarity_block_conn
+                        .as_transaction(|_clarity_tx| -> Result<()> {
+                            debug!("IN PROCESS TX SCOPE");
+
+                            #[allow(clippy::single_match)]
+                            match &tx.payload {
+                                stacks::TransactionPayload::ContractCall(call) => {
+                                    let contract_id = clarity::QualifiedContractIdentifier::parse(
+                                        &format!("{}.{}", call.address, call.contract_name),
+                                    )?;
+                                    info!(
+                                        "contract call at block id: {block_id:?}, contract id: {}",
+                                        contract_id.to_string()
+                                    );
+                                }
+                                stacks::TransactionPayload::SmartContract(contract, _) => {
+                                    let contract_id = clarity::QualifiedContractIdentifier::new(
+                                        origin_principal,
+                                        contract.name.clone(),
+                                    );
+
+                                    info!(
+                                        "install contract at block id: {block_id:?}, contract id: {}",
+                                        contract_id.to_string()
+                                    );
+                                }
+                                _ => {}
+                            }
+
+                            ok!()
+                        })?;
+ }                   */

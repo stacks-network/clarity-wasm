@@ -5,7 +5,7 @@
 pub use clarity::vm::{
     analysis::ContractAnalysis,
     ast::ASTRules,
-    clarity::ClarityConnection,
+    clarity::{ClarityConnection, TransactionConnection},
     costs::{ExecutionCost, LimitedCostTracker},
     database::{
         BurnStateDB, ClarityBackingStore, ClarityDatabase, HeadersDB, RollbackWrapper, StoreType,
@@ -14,4 +14,5 @@ pub use clarity::vm::{
     errors::InterpreterResult,
     types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData},
     StacksEpoch, Value,
+    contexts::{OwnedEnvironment, AssetMap}
 };

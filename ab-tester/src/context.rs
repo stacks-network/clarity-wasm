@@ -3,6 +3,8 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use blockstack_lib::chainstate::stacks::db::ChainstateTx;
+use blockstack_lib::clarity_vm::clarity::ClarityInstance;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use log::*;
@@ -22,7 +24,7 @@ pub use blocks::{Block, BlockCursor};
 
 use self::callbacks::ReplayCallbackHandler;
 use self::replay::{ReplayOpts, ReplayResult};
-use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv};
+use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, ClarityBlockTransaction};
 
 pub struct BaselineBuilder<'ctx> {
     app_db: Rc<AppDb>,
@@ -268,32 +270,18 @@ impl<'ctx> ComparisonContext<'ctx> {
     }
 }
 
-pub enum BlockTransactionContext<'a, 'b> {
+pub enum BlockContext<'a> {
     Genesis,
-    Regular(RegularBlockTransactionContext<'b, 'a>),
+    Regular(ChainstateTx<'a>, &'a mut ClarityInstance),
 }
 
-pub struct RegularBlockTransactionContext<'b, 'a: 'b> {
-    pub stacks_block_id: stacks::StacksBlockId,
-    pub clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
-    pub clarity_tx_conn: Option<stacks::ClarityTransactionConnection<'a, 'b>>,
-}
-
-impl<'a, 'b> RegularBlockTransactionContext<'a, 'b> {
-    pub fn new(
-        stacks_block_id: stacks::StacksBlockId,
-        clarity_block_conn: stacks::ClarityBlockConnection<'a, 'b>,
-    ) -> Self {
-        Self {
-            stacks_block_id,
-            clarity_block_conn,
-            clarity_tx_conn: None,
-        }
+impl BlockContext<'_> {
+    pub fn is_genesis(&self) -> bool {
+        matches!(self, BlockContext::Genesis)
     }
 
-    pub fn begin<'c: 'a>(&'c mut self) -> Result<()> {
-        self.clarity_tx_conn = Some(self.clarity_block_conn.start_transaction_processing());
-        Ok(())
+    pub fn is_regular(&self) -> bool {
+        matches!(self, BlockContext::Regular(_, _))
     }
 }
 

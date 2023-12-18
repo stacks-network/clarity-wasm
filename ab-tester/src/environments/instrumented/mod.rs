@@ -11,10 +11,10 @@ use log::*;
 
 use super::stacks_node::db::schema::chainstate::block_headers;
 use super::stacks_node::StacksEnvPaths;
-use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv};
+use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv, ClarityBlockTransaction};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
-use crate::context::{Block, BlockCursor, BlockTransactionContext, Network, Runtime};
+use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext};
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
@@ -310,7 +310,7 @@ impl RuntimeEnv for InstrumentedEnv {
 impl ReadableEnv for InstrumentedEnv {
     fn blocks(&self) -> Result<BlockCursor> {
         let headers = self.block_headers()?;
-        let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir(), headers);
+        let cursor = BlockCursor::new(self.env_config.paths.blocks_dir(), headers);
         Ok(cursor)
     }
 
@@ -376,7 +376,11 @@ impl ReadableEnv for InstrumentedEnv {
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
 impl WriteableEnv for InstrumentedEnv {
-    fn block_begin(&mut self, block: &crate::context::Block) -> Result<()> {
+    fn block_begin<'a>(
+        &'a mut self, 
+        block: &crate::context::Block
+    ) -> Result<BlockContext<'a>>
+    {
         if self.is_readonly() {
             bail!("[{}] environment is read-only.", self.name);
         }
@@ -401,6 +405,7 @@ impl WriteableEnv for InstrumentedEnv {
                     &inner.header.index_block_hash.to_hex()
                 );
                 info!("Genesis block has already been processed as a part of boot init - continuing...");
+                Ok(BlockContext::Genesis)
             }
             Block::Regular(inner) => {
                 info!(
@@ -420,7 +425,14 @@ impl WriteableEnv for InstrumentedEnv {
                     new_block_hash.to_hex()
                 );
 
-                let clarity_tx = state.chainstate.block_begin(
+                let (chainstate_tx, clarity_instance) = 
+                    state.chainstate.chainstate_tx_begin()?;
+
+                let block_ctx = BlockContext::Regular(chainstate_tx, clarity_instance);
+
+                Ok(block_ctx)
+
+                /*let mut clarity_tx = state.chainstate.block_begin(
                     &*state.burnstate_db,
                     parent_consensus_hash,
                     parent_block_hash,
@@ -428,41 +440,36 @@ impl WriteableEnv for InstrumentedEnv {
                     new_block_hash,
                 );
 
+                let clarity_block_conn = clarity_tx.connection();*/
+
                 // Transaction processing here
-
-                info!("committing regular block");
-                clarity_tx.commit_to_block(new_consensus_hash, new_block_hash);
+                /*Ok(BlockTransactionContext::Regular(
+                        ClarityBlockTransaction::new(
+                            //clarity_tx, 
+                            *new_consensus_hash, 
+                            *new_block_hash)))*/
             }
-        };
-
-        ok!()
+        }
     }
 
     fn block_commit(
         &mut self,
-        block_tx_ctx: BlockTransactionContext,
+        ctx: BlockContext,
     ) -> Result<clarity::LimitedCostTracker> {
-        if let BlockTransactionContext::Regular(_ctx) = block_tx_ctx {
-            //clarity_tx_conn.commit();
-            //let cost_tracker = clarity_block_conn.commit_to_block(&stacks_block_id);
-            //chainstate_tx.commit()?;
-        } else {
-            bail!("Cannot commit genesis block as it has already been statically loaded from boot data.")
-        }
-
         todo!()
     }
 
     /// Imports chainstate from the provided source environment into this environment.
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()> {
+        let env_name = self.name();
+
         debug!(
-            "importing block headers from '{}' into '{}'...",
-            source.name(),
-            self.name()
+            "[{env_name}] importing block headers from '{}'...",
+            source.name()
         );
         let src_block_headers_iter = source.block_headers()?;
 
-        let mut headers_db = StacksHeadersDb::new(&self.env_config.paths.index_db_path())?;
+        let mut headers_db = StacksHeadersDb::new(self.env_config.paths.index_db_path())?;
         headers_db.import_block_headers(src_block_headers_iter, Some(self.id()))?;
 
         ok!()
@@ -470,40 +477,42 @@ impl WriteableEnv for InstrumentedEnv {
 
     /// Imports burnstate from the provided source environment into this environment.
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()> {
+        let env_name = self.name();
+
+        // Snapshots
         debug!(
-            "importing snapshots from '{}' into '{}'...",
-            source.name(),
-            self.name()
+            "[{env_name}] importing snapshots from '{}'...",
+            source.name()
         );
         let src_snapshots_iter = source.snapshots()?;
         self.app_db
             .batch()
             .import_snapshots(src_snapshots_iter, Some(self.id()))?;
 
+        // Block commits
         debug!(
-            "importing block commits from '{}' into '{}'...",
-            source.name(),
-            self.name()
+            "[{env_name}] importing block commits from '{}'...",
+            source.name()
         );
         let src_block_commits_iter = source.block_commits()?;
         self.app_db
             .batch()
             .import_block_commits(src_block_commits_iter, Some(self.id()))?;
 
+        // AST rules
         debug!(
-            "importing AST rules from '{}' into '{}'...",
+            "[{env_name}] importing AST rules from '{}'...",
             source.name(),
-            self.name()
         );
         let src_ast_rules_iter = source.ast_rules()?;
         self.app_db
             .batch()
             .import_ast_rules(src_ast_rules_iter, Some(self.id()))?;
 
+        // Epochs
         debug!(
-            "importing epochs from '{}' into '{}'...",
-            source.name(),
-            self.name()
+            "[{env_name}] importing epochs from '{}'...",
+            source.name()
         );
         let src_epochs_iter = source.epochs()?;
         self.app_db

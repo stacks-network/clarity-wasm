@@ -53,30 +53,3 @@ pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<
 
     ok!()
 }
-
-fn mre(config: crate::config::Config) -> Result<()> {
-    let appdb = Rc::new(AppDb::new(SqliteConnection::establish(
-        "some_connection_str",
-    )?));
-
-    let ctx = ComparisonContext::new(&config, appdb.clone())
-        .using_baseline(|from| from.stacks_node("my stacks node", "/tmp/some/path".into()))?
-        .instrument_into(|into| {
-            into.instrumented(
-                "interp-replay",
-                Runtime::Interpreter,
-                Network::Mainnet(1),
-                "/tmp/some/path",
-            )?
-            .instrumented(
-                "interp-wasm",
-                Runtime::Wasm,
-                Network::Mainnet(1),
-                "/tmp/some/path",
-            )
-        })?;
-
-    ctx.finish();
-
-    Ok(())
-}

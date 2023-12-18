@@ -11,7 +11,7 @@ pub use blockstack_lib::{
         db::{
             accounts::MinerReward, ChainStateBootData, ChainstateAccountBalance,
             ChainstateAccountLockup, ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx,
-            StacksChainState,
+            StacksChainState, ClarityTx
         },
         index::marf::{MARFOpenOpts, MarfConnection},
         index::node::{is_backptr, TrieNodeID, TrieNodeType, TriePath},
@@ -30,7 +30,10 @@ pub use blockstack_lib::{
     types::StacksEpoch,
     util::hash::{Hash160, Sha512Trunc256Sum},
     util_lib::db::IndexDBConn,
-    vm::costs::ExecutionCost,
+    vm::{
+        costs::ExecutionCost,
+        events::StacksTransactionEvent
+    },
 };
 pub use stacks_common::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,

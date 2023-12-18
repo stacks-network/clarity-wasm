@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::Network;
-use crate::environments::{ReadableEnv, RuntimeEnv, WriteableEnv};
+use crate::environments::{ReadableEnv, RuntimeEnv};
 
 #[allow(unused_variables)]
 pub trait RuntimeEnvCallbackHandler {
