@@ -680,6 +680,19 @@ fn test_div_int() {
     let div = instance.get_func(&mut store, "stdlib.div-int").unwrap();
     let mut result = [Val::I64(0), Val::I64(0)];
 
+    // i128::MIN / -1 overflows
+    div.call(
+        &mut store,
+        &[
+            Val::I64(0),
+            Val::I64(-9223372036854775808),
+            Val::I64(-1),
+            Val::I64(-1),
+        ],
+        &mut result,
+    )
+    .expect_err("expected overflow");
+
     // 4 / 2 = 2
     div.call(
         &mut store,
