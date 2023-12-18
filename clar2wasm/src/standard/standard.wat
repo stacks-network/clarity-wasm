@@ -2351,6 +2351,89 @@
         )
     )
 
+    (func $stdlib.utf8-to-uint (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $lo i64) (local $hi i64) (local $loaded i64)
+        ;; a string is automatically invalid if its size is 0 or
+        ;; bigger than 39 (*4 bytes), the max number of digits of a u128
+        (if (i32.lt_u (i32.sub (local.get $len) (i32.const 157)) (i32.const -156))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+        
+        ;; loop with simple multiplication, for speed
+        (loop $loop_small
+            ;; valid digit: 24 first bits are 0 and rest is valid ascii char
+            (i32.and
+                (i64.eqz (i64.and (local.tee $loaded (i64.load32_u (local.get $offset))) (i64.const 0xffffff)))
+                (i64.lt_u (local.tee $loaded (i64.sub (i64.shr_u (local.get $loaded) (i64.const 24)) (i64.const 48))) (i64.const 10))
+            )
+            ;; if next digit is valid, $lo * 10 + digit, otherwise we return none
+            (if
+                (then (local.set $lo (i64.add (i64.mul (local.get $lo) (i64.const 10)) (local.get $loaded))))
+                (else (return (i32.const 0) (i64.const 0) (i64.const 0)))
+            )
+            (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+            ;; we branch while we still have digits to add and $lo < (u64::MAX / 10)
+            (br_if $loop_small 
+                (i32.and 
+                    (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 4))) (i32.const 0))
+                    (i64.lt_u (local.get $lo) (i64.const 1844674407370955161))
+                )
+            )
+        )
+
+        ;; we return if no more digits
+        (if (i32.eqz (local.get $len))
+            (then (return (i32.const 1) (local.get $lo) (i64.const 0)))
+        )
+
+        ;; here we keep looping but with our defined mul and add instead of i64.mul and i64.add
+        (loop $loop_big
+            (i32.and
+                (i64.eqz (i64.and (local.tee $loaded (i64.load32_u (local.get $offset))) (i64.const 0xffffff)))
+                (i64.lt_u (local.tee $loaded (i64.sub (i64.shr_u (local.get $loaded) (i64.const 24)) (i64.const 48))) (i64.const 10))
+            )
+            (if
+                (then 
+                    (call $stdlib.add-int128 
+                      (call $stdlib.mul-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                      (local.get $loaded) (i64.const 0)
+                    )
+                    (local.set $hi)
+                    (local.set $lo)
+                )
+                (else (return (i32.const 0) (i64.const 0) (i64.const 0)))
+            )
+            (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+            ;; we branch while we still have digits and $result < (u128::MAX / 10)
+            (br_if $loop_big
+                (i32.and 
+                    (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 4))) (i32.const 0))
+                    (select
+                        (i64.lt_u (local.get $lo) (i64.const -7378697629483820647))
+                        (i64.lt_u (local.get $hi) (i64.const 1844674407370955161))
+                        (i64.eq (local.get $hi) (i64.const 1844674407370955161))
+                    )
+                )
+            )
+        )
+        ;; we have to return if we have no more digits, otherwise it means that we have 
+        ;; a result between (u128::MAX - 5)..u128::MAX or an overflow
+        (if (result i32 i64 i64)
+            (i32.eqz (local.get $len))
+            (then (i32.const 1) (local.get $lo) (local.get $hi))
+            (else
+                (i32.and
+                    (i64.eqz (i64.and (local.tee $loaded (i64.load32_u (local.get $offset))) (i64.const 0xffffff)))
+                    (i64.le_u (local.tee $loaded (i64.sub (i64.shr_u (local.get $loaded) (i64.const 24)) (i64.const 48))) (i64.const 5))
+                )
+                (if (result i32 i64 i64)
+                    (then (i32.const 1) (i64.add (i64.const -6) (local.get $loaded)) (i64.const -1))
+                    (else (i32.const 0) (i64.const 0) (i64.const 0))
+                )
+            )
+        )
+    )
+
     (func $stdlib.string-to-int (param $offset i32) (param $len i32) (result i32 i64 i64)
         (local $neg i32) (local $lo i64) (local $hi i64)
 
@@ -2388,6 +2471,49 @@
             (i32.eqz (local.get $neg))
             (then (local.get $lo) (local.get $hi))
             (else 
+                (i64.sub (i64.const 0) (local.get $lo))
+                (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+            )
+        )
+    )
+
+    (func $stdlib.utf8-to-int (param $offset i32) (param $len i32) (result i32 i64 i64)
+        (local $neg i32) (local $lo i64) (local $hi i64)
+
+        ;; Save in neg if the number starts with "-" (as 4 for the number of bytes)
+        (local.set $neg (i32.shl (i32.eq (i32.load (local.get $offset)) (i32.const 754974720)) (i32.const 2)))
+
+        (call $stdlib.utf8-to-uint
+            (i32.add (local.get $offset) (local.get $neg))
+            (i32.sub (local.get $len) (local.get $neg))
+        )
+        (local.set $hi)
+        (local.set $lo)
+
+        ;; edge case i127::MIN
+        (if (i32.and (i32.ne (local.get $neg) (i32.const 0)) (i32.and (i64.eqz (local.get $lo)) (i64.eq (local.get $hi) (i64.const -9223372036854775808))))
+            (then
+                (i32.const 1)
+                (i64.const 0)
+                (i64.const -9223372036854775808)
+                return
+            )
+        )
+
+        ;; if result is none or $hi < 0 (number too big to be a i128), return none
+        i32.eqz ;; is-none
+        (if (i32.or (i64.lt_s (local.get $hi) (i64.const 0)))
+            (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
+        )
+
+        ;; result is some
+        (i32.const 1)
+
+        ;; if !neg { current_result } else { -current_result }
+        (if (result i64 i64)
+            (i32.eqz (local.get $neg))
+            (then (local.get $lo) (local.get $hi))
+            (else
                 (i64.sub (i64.const 0) (local.get $lo))
                 (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
             )
@@ -3156,8 +3282,10 @@
     (export "stdlib.is-valid-char" (func $stdlib.is-valid-char))
     (export "stdlib.is-transient" (func $stdlib.is-transient))
     (export "stdlib.is-version-valid" (func $stdlib.is-version-valid))
-    (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
     (export "stdlib.string-to-int" (func $stdlib.string-to-int))
+    (export "stdlib.string-to-uint" (func $stdlib.string-to-uint))
+    (export "stdlib.utf8-to-uint" (func $stdlib.utf8-to-uint))
+    (export "stdlib.utf8-to-int" (func $stdlib.utf8-to-int))
     (export "stdlib.uint-to-string" (func $stdlib.uint-to-string))
     (export "stdlib.uint-to-utf8" (func $stdlib.uint-to-utf8))
     (export "stdlib.int-to-string" (func $stdlib.int-to-string))
@@ -3165,5 +3293,5 @@
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
-    (export "stdlib.sha512-int" (func $stdlib.sha512-int))  
+    (export "stdlib.sha512-int" (func $stdlib.sha512-int))
 )
