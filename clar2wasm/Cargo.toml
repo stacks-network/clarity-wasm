@@ -21,7 +21,7 @@ rusqlite = { version = "0.28.0", optional = true }
 wat = "1.0.74"
 
 [features]
-developer-mode = ["sha2", "chrono", "rusqlite"]
+developer-mode = ["sha2", "chrono", "rusqlite", "clarity/testing"]
 flamegraph = []
 pb = []
 

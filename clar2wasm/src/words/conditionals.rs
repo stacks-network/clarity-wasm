@@ -189,7 +189,6 @@ impl Word for Filter {
         // now we have an empty stack, and three initialized locals
 
         // reserve space for the length of the output list
-
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
         let memory = generator.get_memory();
