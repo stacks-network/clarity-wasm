@@ -4,10 +4,7 @@ use std::collections::HashMap;
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type};
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::{
-    CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
-    TypeSignature,
-};
+use clarity::vm::types::{CharType, FunctionType, PrincipalData, SequenceData, TypeSignature};
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{BinaryOp, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp};
