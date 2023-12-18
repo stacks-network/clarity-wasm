@@ -1,3 +1,8 @@
+use blockstack_lib::chainstate::stacks::TransactionPayload;
+use ::clarity::vm::ast::ASTRules;
+use ::clarity::vm::{ContractContext, ClarityVersion};
+use ::clarity::vm::clarity::TransactionConnection;
+use ::clarity::vm::types::{QualifiedContractIdentifier, PrincipalData, StandardPrincipalData};
 use color_eyre::eyre::{ensure, bail};
 use color_eyre::Result;
 use log::*;
@@ -170,12 +175,58 @@ impl ChainStateReplayer {
 
         // Begin a new block in `target`.
         match block_tx {
-            BlockContext::Regular(block_conn) => {
-                
-                //ctx.start_transaction_processing()?;
-                //ctx.commit()?;
-                //clarity_instance.begin_block(current, next, header_db, burn_state_db)
+            BlockContext::Regular(mut block_conn) => {
+                for block_tx in stacks_block.txs {
+                    match block_tx.payload {
+                        TransactionPayload::SmartContract(contract, clarity_version) => {
+                            block_conn.as_transaction(|tx| {
+                                tx.with_abort_callback(|env| {
+                                    let contract_id = QualifiedContractIdentifier::new(
+                                        block_tx.origin_address().into(), 
+                                        contract.name);
 
+                                    let mut contract_context = ContractContext::new(
+                                        contract_id, 
+                                        clarity_version.unwrap_or(ClarityVersion::latest()));
+
+                                    let sponsor_addr = if let Some(addr) = block_tx.sponsor_address() {
+                                        Some(PrincipalData::Standard(StandardPrincipalData::from(addr)))
+                                    } else {
+                                        None
+                                    };
+
+                                    let exec = env.get_exec_environment(
+                                        Some(PrincipalData::Contract(contract_id)), 
+                                        sponsor_addr, 
+                                        &mut contract_context);
+
+                                    let exec_result = exec.initialize_contract(
+                                        contract_id, 
+                                        &contract.code_body.to_string(), 
+                                        ASTRules::PrecheckSize)?;
+
+                                    Ok(())
+                                },
+                                |assets, db| {
+                                    todo!()
+                                })
+                            });
+                        },
+                        TransactionPayload::ContractCall(call) => {
+
+                        },
+                        TransactionPayload::Coinbase(coinbase, principal) => {
+
+                        },
+                        TransactionPayload::TokenTransfer(address, stx , memo) => {
+
+                        },
+                        TransactionPayload::PoisonMicroblock(_, _) => {
+                            
+                        }
+                        
+                    }
+                }
             },
             BlockContext::Genesis => {},
         }
