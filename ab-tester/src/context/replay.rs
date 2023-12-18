@@ -3,17 +3,17 @@ use ::clarity::vm::ast::ASTRules;
 use ::clarity::vm::{ContractContext, ClarityVersion};
 use ::clarity::vm::clarity::TransactionConnection;
 use ::clarity::vm::types::{QualifiedContractIdentifier, PrincipalData, StandardPrincipalData};
-use color_eyre::eyre::{ensure, bail};
+use color_eyre::eyre::ensure;
 use color_eyre::Result;
 use log::*;
 
 use super::BlockContext;
 use super::callbacks::ReplayCallbackHandler;
 use crate::context::Block;
-use crate::environments::{ReadableEnv, WriteableEnv, ClarityBlockTransaction};
+use crate::environments::{ReadableEnv, WriteableEnv};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
-use crate::{clarity, ok, stacks};
+use crate::{ok, stacks};
 
 /// Options for replaying an environment's chain into another environment.
 pub struct ReplayOpts<C>
@@ -43,7 +43,7 @@ where
 }
 
 /// Validation/assertion helper methods for [ReplayOpts].
-impl<'a, C: ReplayCallbackHandler> ReplayOpts<C> {
+impl<C: ReplayCallbackHandler> ReplayOpts<C> {
     pub fn with_working_dir(&mut self, working_dir: &str) -> &mut Self {
         self.working_dir = working_dir.to_string();
         self
@@ -165,7 +165,7 @@ impl ChainStateReplayer {
 
     /// Replays the specified block into `target`.
     fn replay_block_into<'a, Target: WriteableEnv + ?Sized + 'a>(
-        header: &BlockHeader,
+        _header: &BlockHeader,
         block: &Block,
         stacks_block: &stacks::StacksBlock,
         target: &'a mut Target,
@@ -176,49 +176,71 @@ impl ChainStateReplayer {
         // Begin a new block in `target`.
         match block_tx {
             BlockContext::Regular(mut block_conn) => {
-                for block_tx in stacks_block.txs {
-                    match block_tx.payload {
-                        TransactionPayload::SmartContract(contract, clarity_version) => {
+                for block_tx in stacks_block.txs.iter() {
+                    match &block_tx.payload {
+                        TransactionPayload::SmartContract(ref contract, clarity_version) => {
+                            // Use the provided Clarity version, if supplied, otherwise use latest.
+                            let clarity_version = clarity_version
+                                .unwrap_or(ClarityVersion::latest());
+                                
+                            // Construct a `QualifiedContractIdentifier` from the contract details.
+                            let contract_id = QualifiedContractIdentifier::new(
+                                block_tx.origin_address().into(), 
+                                contract.name.clone());
+
+                                debug!("installing contract: {}", &contract_id);
+
+                            // Construct a new `ContractContext` for this smart-contract transaction.
+                            /*let contract_context = ContractContext::new(
+                                contract_id.clone(), 
+                                clarity_version);*/
+
+                            // If a sponsor has been provided, convert it to a `PrincipalData`.
+                            let sponsor_addr = block_tx.sponsor_address()
+                                .map(|addr| PrincipalData::Standard(StandardPrincipalData::from(addr)));
+                            if sponsor_addr.is_some() {
+                                debug!("a sponsor address has been provided: {:?}", &sponsor_addr);
+                            }
+
+                            // Begin a new Clarity transaction in `target` and process the
+                            // source transaction.
                             block_conn.as_transaction(|tx| {
-                                tx.with_abort_callback(|env| {
-                                    let contract_id = QualifiedContractIdentifier::new(
-                                        block_tx.origin_address().into(), 
-                                        contract.name);
+                                let (contract_ast, _contract_analysis) = tx.analyze_smart_contract(
+                                    &contract_id, 
+                                    clarity_version, 
+                                    &contract.code_body.to_string(),
+                                    ASTRules::PrecheckSize
+                                ).expect("failed to analyze smart contract");
 
-                                    let mut contract_context = ContractContext::new(
-                                        contract_id, 
-                                        clarity_version.unwrap_or(ClarityVersion::latest()));
-
-                                    let sponsor_addr = if let Some(addr) = block_tx.sponsor_address() {
-                                        Some(PrincipalData::Standard(StandardPrincipalData::from(addr)))
-                                    } else {
-                                        None
-                                    };
-
-                                    let exec = env.get_exec_environment(
-                                        Some(PrincipalData::Contract(contract_id)), 
-                                        sponsor_addr, 
-                                        &mut contract_context);
-
-                                    let exec_result = exec.initialize_contract(
-                                        contract_id, 
-                                        &contract.code_body.to_string(), 
-                                        ASTRules::PrecheckSize)?;
-
-                                    Ok(())
-                                },
-                                |assets, db| {
-                                    todo!()
-                                })
+                                tx.initialize_smart_contract(
+                                    &contract_id, 
+                                    clarity_version, 
+                                    &contract_ast, 
+                                    &contract.code_body.to_string(), 
+                                    sponsor_addr, 
+                                    |_assets, _db| {
+                                        todo!()
+                                    }).expect("failed to initialize smart contract");
                             });
                         },
-                        TransactionPayload::ContractCall(call) => {
+                        TransactionPayload::ContractCall(_call) => {
+                            /*let exec = env.get_exec_environment(
+                                Some(PrincipalData::Contract(contract_id)), 
+                                sponsor_addr, 
+                                &mut contract_context);
+
+                            let exec_result = exec.initialize_contract(
+                                contract_id, 
+                                &contract.code_body.to_string(), 
+                                ASTRules::PrecheckSize)?;
+
+                            Ok(())*/
+                            todo!()
+                        },
+                        TransactionPayload::Coinbase(_coinbase, _principal) => {
 
                         },
-                        TransactionPayload::Coinbase(coinbase, principal) => {
-
-                        },
-                        TransactionPayload::TokenTransfer(address, stx , memo) => {
+                        TransactionPayload::TokenTransfer(_address, _stx , _memo) => {
 
                         },
                         TransactionPayload::PoisonMicroblock(_, _) => {
