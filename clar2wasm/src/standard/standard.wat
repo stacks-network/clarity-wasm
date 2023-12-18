@@ -680,6 +680,15 @@
         (local $sign_divisor i64)
         (local $expected_sign i64)
 
+        ;; overflow if i128::MIN / -1
+        (if 
+            (i32.and
+                (i32.and (i64.eqz (local.get $dividend_lo)) (i64.eq (local.get $dividend_hi) (i64.const 0x8000000000000000)))
+                (i64.eq (i64.and (local.get $divisor_lo) (local.get $divisor_hi)) (i64.const -1))
+            )
+            (then (call $stdlib.runtime-error (i32.const 0)))
+        )
+
         ;; Compute the expected sign of the result
         (local.set $sign_dividend (i64.shr_s (local.get $dividend_hi) (i64.const 63)))
         (local.set $sign_divisor (i64.shr_s (local.get $divisor_hi) (i64.const 63)))
