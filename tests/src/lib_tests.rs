@@ -81,7 +81,7 @@ macro_rules! test_multi_contract_init {
                 let mut contract_context =
                     ContractContext::new(contract_id.clone(), ClarityVersion::latest());
                 // compile_result.module.emit_wasm_file("test.wasm").unwrap();
-                contract_context.set_wasm_module(compile_result.module.emit_wasm());
+                contract_context.set_wasm_module(compile_result.to_wasm());
 
                 let mut global_context = GlobalContext::new(
                     false,

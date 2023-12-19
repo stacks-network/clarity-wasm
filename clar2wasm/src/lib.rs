@@ -1,5 +1,7 @@
 extern crate lazy_static;
 
+use std::path::Path;
+
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::ast::{build_ast_with_diagnostics, ContractAST};
@@ -36,6 +38,16 @@ pub struct CompileResult {
     pub diagnostics: Vec<Diagnostic>,
     pub module: Module,
     pub contract_analysis: ContractAnalysis,
+}
+
+impl CompileResult {
+    pub fn to_wasm(&mut self) -> Vec<u8> {
+        self.module.emit_wasm()
+    }
+
+    pub fn to_wasm_file(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        std::fs::write(path, self.to_wasm())
+    }
 }
 
 #[derive(Debug)]

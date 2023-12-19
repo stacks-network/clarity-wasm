@@ -44,7 +44,7 @@ fn wasm_fold_add_square(c: &mut Criterion) {
         })
         .expect("Failed to compile contract.");
 
-    contract_context.set_wasm_module(compile_result.module.emit_wasm());
+    contract_context.set_wasm_module(compile_result.to_wasm());
 
     let mut global_context = GlobalContext::new(
         false,

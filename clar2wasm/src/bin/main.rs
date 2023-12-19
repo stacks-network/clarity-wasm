@@ -47,7 +47,7 @@ fn main() {
     let cost_track = LimitedCostTracker::new_free();
 
     // Pass the source code to the compiler.
-    let result = clar2wasm::compile(
+    let mut result = clar2wasm::compile(
         &source,
         &contract_id,
         cost_track,
@@ -68,8 +68,6 @@ fn main() {
         }
     });
 
-    let mut module = result.module;
-
     // Write the compiled WebAssembly to a file.
     let output = args.output.unwrap_or_else(|| {
         // Use the input file name with a .wasm extension
@@ -80,7 +78,7 @@ fn main() {
         output
     });
 
-    if let Err(error) = module.emit_wasm_file(output.as_str()) {
+    if let Err(error) = result.to_wasm_file(output.as_str()) {
         eprintln!("Error writing Wasm file, {}: {}", output, error);
         std::process::exit(1);
     }
