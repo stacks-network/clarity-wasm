@@ -276,7 +276,8 @@ mod tests {
             evaluate(r#"(to-consensus-buff? u"hel\u{0141}o world \u{611b}\u{1f98a}")"#),
             Some(
                 Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
-                    data: Vec::from_hex("0e0000001468656cc5816f20776f726c6420e6849bf09fa68a").unwrap()
+                    data: Vec::from_hex("0e0000001468656cc5816f20776f726c6420e6849bf09fa68a")
+                        .unwrap()
                 })))
                 .unwrap()
             )
@@ -887,7 +888,7 @@ mod tests {
 
     #[test]
     fn from_consensus_buff_string_utf8_incomplete_sequence() {
-        Test buffer size validation where initial bytes indcate a longer sequence than is present in the buffer
+        // Test buffer size validation where initial bytes indcate a longer sequence than is present in the buffer
         assert_eq!(
             evaluate(
                 // Incomplete 2-byte sequence: string starts a 2-byte sequence but is only 1 byte long `C2`
