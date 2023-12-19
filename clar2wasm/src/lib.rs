@@ -11,6 +11,7 @@ use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::ClarityVersion;
 pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
+use wasm_opt::{Feature, OptimizationOptions, Pass};
 
 mod deserialize;
 mod serialize;
@@ -42,7 +43,22 @@ pub struct CompileResult {
 
 impl CompileResult {
     pub fn to_wasm(&mut self) -> Vec<u8> {
-        self.module.emit_wasm()
+        if let Ok(tmpfile) = tempfile::NamedTempFile::new() {
+            self.module
+                .emit_wasm_file(tmpfile.path())
+                .expect("Error in writing temporary wasm file");
+            OptimizationOptions::new_opt_level_4()
+                .enable_feature(Feature::Multivalue)
+                .enable_feature(Feature::Simd)
+                .enable_feature(Feature::BulkMemory)
+                .add_pass(Pass::RemoveUnusedModuleElements)
+                .run(tmpfile.path(), tmpfile.path())
+                .expect("error while optimizing");
+            std::fs::read(tmpfile.path()).expect("error reading resulting optimized wasm")
+        } else {
+            eprintln!("Could not optimize wasm");
+            self.module.emit_wasm()
+        }
     }
 
     pub fn to_wasm_file(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
