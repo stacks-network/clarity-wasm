@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
+use std::sync::OnceLock;
 
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::ToHex;
@@ -9,24 +10,6 @@ use wasmtime::{Caller, Engine, Instance, Linker, Module, Store, Val};
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.
 pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
-    // create a standard lib with all functions exported
-    let standard_lib: Vec<u8> = {
-        let standard_lib_wasm: &[u8] = include_bytes!("../../src/standard/standard.wasm");
-        let mut module = walrus::Module::from_buffer(standard_lib_wasm)
-            .expect("failed to load standard library");
-        for f in module.funcs.iter() {
-            match f.name.as_ref() {
-                Some(name) if name.starts_with("stdlib.") => {
-                    module
-                        .exports
-                        .add(name, walrus::ExportItem::Function(f.id()));
-                }
-                _ => continue,
-            }
-        }
-        module.emit_wasm()
-    };
-
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
 
@@ -608,7 +591,29 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         })
         .unwrap();
 
-    let module = Module::new(&engine, standard_lib).unwrap();
+    static STANDARD_LIB: OnceLock<Vec<u8>> = OnceLock::new();
+    let module = Module::new(
+        &engine,
+        STANDARD_LIB.get_or_init(|| {
+            // create a standard lib with all functions exported
+            println!("ONLY ONCE");
+            let standard_lib_wasm: &[u8] = include_bytes!("../../src/standard/standard.wasm");
+            let mut module = walrus::Module::from_buffer(standard_lib_wasm)
+                .expect("failed to load standard library");
+            for f in module.funcs.iter() {
+                match f.name.as_ref() {
+                    Some(name) if name.starts_with("stdlib.") => {
+                        module
+                            .exports
+                            .add(name, walrus::ExportItem::Function(f.id()));
+                    }
+                    _ => continue,
+                }
+            }
+            module.emit_wasm()
+        }),
+    )
+    .unwrap();
     let instance = linker.instantiate(&mut store, &module)?;
     Ok((instance, store))
 }
