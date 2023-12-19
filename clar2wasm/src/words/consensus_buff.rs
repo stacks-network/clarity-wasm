@@ -270,6 +270,20 @@ mod tests {
     }
 
     #[test]
+    fn to_consensus_buff_string_utf8_b() {
+        assert_eq!(
+            // helŁo world 愛🦊
+            evaluate(r#"(to-consensus-buff? u"hel\u{0141}o world \u{611b}\u{1f98a}")"#),
+            Some(
+                Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                    data: Vec::from_hex("0e0000001468656cc5816f20776f726c6420e6849bf09fa68a").unwrap()
+                })))
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
     fn to_consensus_buff_string_ascii() {
         assert_eq!(
             evaluate(r#"(to-consensus-buff? "Hello, World!")"#),
@@ -718,6 +732,19 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_string_utf8_b_exact_size() {
+        assert_eq!(
+            evaluate(
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e0000001468656cc5816f20776f726c6420e6849bf09fa68a)"#
+            ),
+            Some(
+                Value::some(Value::string_utf8_from_bytes("helŁo world 愛🦊".into()).unwrap())
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_string_utf8_invalid_initial_byte_pattern() {
         // Bytes in the range 0x80 to 0xBF are continuation bytes and should not appear as the initial byte in a UTF-8 sequence.
         // Bytes 0xF5 to 0xFF are not valid initial bytes in UTF-8.
@@ -853,6 +880,32 @@ mod tests {
             evaluate(
                 // `F4908080`
                 r#"(from-consensus-buff? (string-utf8 20) 0x0e00000004f4908080)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_utf8_incomplete_sequence() {
+        Test buffer size validation where initial bytes indcate a longer sequence than is present in the buffer
+        assert_eq!(
+            evaluate(
+                // Incomplete 2-byte sequence: string starts a 2-byte sequence but is only 1 byte long `C2`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000001c2)"#
+            ),
+            Some(Value::none())
+        );
+        assert_eq!(
+            evaluate(
+                // Incomplete 3-byte sequence: string starts a 3-byte sequence but is only 2 bytes long `E0A0`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000002e0a0)"#
+            ),
+            Some(Value::none())
+        );
+        assert_eq!(
+            evaluate(
+                // Incomplete 4-byte sequence: string starts a 4-byte sequence but is only 3 bytes long `F09080`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000003f09080)"#
             ),
             Some(Value::none())
         );

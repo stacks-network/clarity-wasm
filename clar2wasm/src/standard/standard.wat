@@ -3291,7 +3291,6 @@
 
         (loop $loop
             (local.set $byte1 (i32.load8_u (i32.add (local.get $offset) (local.get $i))))
-
             ;; Check for 1-byte sequence (0xxx xxxx)
             (if (i32.lt_u (local.get $byte1) (i32.const 0x80)) ;; 1-byte sequence
                 (then
@@ -3299,6 +3298,12 @@
                     (local.set $i (i32.add (local.get $i) (i32.const 1))) ;; Increment for 1-byte
                 )
                 (else
+                    (if (i32.ge_u (i32.add (local.get $i) (i32.const 1)) (local.get $length))
+                        ;; Not enough bytes for 2-byte sequence, return error
+                        (then
+                            (return (i32.const 0))
+                        )
+                    )
                     (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
                     (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC0))
                                  (i32.lt_u (local.get $byte1) (i32.const 0xE0))) ;; 2-byte sequence
@@ -3329,6 +3334,12 @@
                             )
                         )
                         (else
+                            (if (i32.ge_u (i32.add (local.get $i) (i32.const 2)) (local.get $length))
+                                ;; Not enough bytes for 3-byte sequence, return error
+                                (then
+                                    (return (i32.const 0))
+                                )
+                            )
                             (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
                             (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xE0))
                                          (i32.lt_u (local.get $byte1) (i32.const 0xF0))) ;; 3-byte sequence
@@ -3368,6 +3379,12 @@
                                     )
                                 )
                                 (else ;; 4-byte sequence
+                                    (if (i32.ge_u (i32.add (local.get $i) (i32.const 3)) (local.get $length))
+                                        ;; Not enough bytes for 4-byte sequence, return error
+                                        (then
+                                            (return (i32.const 0))
+                                        )
+                                    )
                                     (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
                                     (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xF0))
                                                  (i32.le_u (local.get $byte1) (i32.const 0xF4))) ;; 4-byte sequence
