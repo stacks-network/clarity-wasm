@@ -12,7 +12,7 @@ use clarity::vm::contexts::GlobalContext;
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
-use clarity::vm::errors::Error;
+use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{ClarityVersion, ContractContext, Value};
 
@@ -85,7 +85,7 @@ impl TestEnvironment {
                     analysis_db,
                 )
             })
-            .expect("Failed to compile contract.");
+            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
 
         self.datastore
             .as_analysis_db()

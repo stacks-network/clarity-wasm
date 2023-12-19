@@ -1894,6 +1894,21 @@
             )
         )
     )
+
+    (func $stdlib.load-i32-be (param $address i32) (result i32)
+        (local $value i32)
+        (local.set $value (i32.load (local.get $address)))
+        (i32.or
+            (i32.or
+                (i32.shl (local.get $value) (i32.const 24))
+                (i32.shl (i32.and (local.get $value) (i32.const 0xff00)) (i32.const 8))
+            )
+            (i32.or
+                (i32.and (i32.shr_u (local.get $value) (i32.const 8)) (i32.const 0xff00))
+                (i32.shr_u (local.get $value) (i32.const 24))
+            )
+        )
+    )
     
     (func $stdlib.store-i64-be (param $address i32) (param $value i64)
         (i64.store 
@@ -2099,7 +2114,7 @@
             (i32.const 20)
         )
         ;; Write the size of the contract name
-        (i32.store offset=21 (global.get $stack-pointer) (local.get $contract_length))
+        (i32.store8 offset=21 (global.get $stack-pointer) (local.get $contract_length))
 
         ;; If a contract name is specified, check if it is valid. If so,
         ;; append it to the principal
@@ -2123,14 +2138,14 @@
 
                 ;; Copy the contract name to the stack
                 (memory.copy
-                    (i32.add (global.get $stack-pointer) (i32.const 25))
+                    (i32.add (global.get $stack-pointer) (i32.const 22))
                     (local.get $contract_offset)
                     (local.get $contract_length)
                 )
             )
         )
 
-        (local.set $result_length (i32.add (local.get $contract_length) (i32.const 25)))
+        (local.set $result_length (i32.add (local.get $contract_length) (i32.const 22)))
 
         ;; If the version was valid, return an ok value
         (if (result i32 i32 i32 i64 i64 i32 i32 i32) (local.get $valid)
@@ -3225,6 +3240,45 @@
         (i32.sub (local.get $output-offset) (local.get $initial-output-offset))
     )
 
+    ;; Validates that the bytes at the specified offset and length form a valid
+    ;; Clarity string-ascii value.
+    (func $stdlib.is-valid-string-ascii (param $offset i32) (param $length i32) (result i32)
+        (local $end i32)
+        (local $byte i32)
+
+        ;; If the length is 0, just return true
+        (if (i32.eqz (local.get $length))
+            (then (return (i32.const 1)))
+        )
+
+        ;; Calculate the end offset
+        (local.set $end (i32.add (local.get $offset) (local.get $length)))
+
+        (loop $loop
+            ;; Read in the next byte
+            (local.set $byte (i32.load8_u (local.get $offset)))
+            ;; Valid characters are between 32 (' ') and 126 ('~')
+            (if (i32.or
+                    (i32.lt_u (local.get $byte) (i32.const 32))
+                    (i32.gt_u (local.get $byte) (i32.const 126))
+                )
+                (then (return (i32.const 0)))
+            )
+            ;; Increment the offset, then loop if we haven't reached the end
+            (br_if $loop (i32.lt_u
+                (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
+                (local.get $end)
+            ))
+        )
+        (i32.const 1)
+    )
+
+    ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
+    (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
+        ;; FIXME: Implement this function
+        (i32.const 0)
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -3271,6 +3325,7 @@
     (export "stdlib.hash160-int" (func $stdlib.hash160-int))
     (export "stdlib.store-i32-be" (func $stdlib.store-i32-be))
     (export "stdlib.store-i64-be" (func $stdlib.store-i64-be))
+    (export "stdlib.load-i32-be" (func $stdlib.load-i32-be))
     (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
@@ -3293,5 +3348,8 @@
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
-    (export "stdlib.sha512-int" (func $stdlib.sha512-int))
+    (export "stdlib.sha512-int" (func $stdlib.sha512-int))  
+    (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
+    (export "stdlib.convert-utf8-to-scalars" (func $stdlib.convert-utf8-to-scalars))
+    (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
 )
