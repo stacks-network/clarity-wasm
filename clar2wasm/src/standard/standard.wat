@@ -3303,48 +3303,95 @@
                     (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC2))
                                  (i32.lt_u (local.get $byte1) (i32.const 0xE0))) ;; 2-byte sequence
                         (then
-                            (local.set $scalar
-                                (i32.or
-                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x1F)) (i32.const 6))
-                                    (i32.and (local.get $byte2) (i32.const 0x3F))
+                            ;; Check if second byte is a continuation byte
+                            (if (i32.and (i32.ge_u (local.get $byte2) (i32.const 0x80))
+                                         (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
+                                (then
+                                    (local.set $scalar
+                                        (i32.or
+                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x1F)) (i32.const 6))
+                                            (i32.and (local.get $byte2) (i32.const 0x3F))
+                                        )
+                                    )
+                                    (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
+                                )
+                                (else
+                                    ;; Second byte is not a valid continuation byte, exit with error
+                                    (return (i32.const 0))
                                 )
                             )
-                            (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
                         )
                         (else
                             (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
                             (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xE0))
                                          (i32.lt_u (local.get $byte1) (i32.const 0xF0))) ;; 3-byte sequence
                                 (then
-                                    (local.set $scalar
-                                        (i32.or
-                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x0F)) (i32.const 12))
-                                            (i32.or
-                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 6))
-                                                (i32.and (local.get $byte3) (i32.const 0x3F))
+                                    ;; Check if second and third bytes are a continuation byte
+                                    (if (i32.and
+                                        (i32.and
+                                            (i32.ge_u (local.get $byte2) (i32.const 0x80))
+                                            (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
+                                        (i32.and
+                                            (i32.ge_u (local.get $byte3) (i32.const 0x80))
+                                            (i32.lt_u (local.get $byte3) (i32.const 0xC0)))
+                                        )
+                                        (then
+                                            (local.set $scalar
+                                                (i32.or
+                                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x0F)) (i32.const 12))
+                                                    (i32.or
+                                                        (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 6))
+                                                        (i32.and (local.get $byte3) (i32.const 0x3F))
+                                                    )
+                                                )
                                             )
+                                            (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
+                                        )
+                                        (else
+                                            ;; Second or third bytes are not a valid continuation byte, exit with error
+                                            (return (i32.const 0))
                                         )
                                     )
-                                    (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
                                 )
                                 (else ;; 4-byte sequence
                                     (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
                                     (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xF0))
                                                  (i32.le_u (local.get $byte1) (i32.const 0xF4))) ;; 4-byte sequence
                                         (then
-                                            (local.set $scalar
-                                                (i32.or
-                                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
-                                                    (i32.or
-                                                        (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
+                                            ;; Check if second, third, and forth bytes are a continuation byte
+                                            (if (i32.and
+                                                (i32.and
+                                                    (i32.and
+                                                        (i32.ge_u (local.get $byte2) (i32.const 0x80))
+                                                        (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
+                                                    (i32.and
+                                                        (i32.ge_u (local.get $byte3) (i32.const 0x80))
+                                                        (i32.lt_u (local.get $byte3) (i32.const 0xC0)))
+                                                )
+                                                (i32.and
+                                                    (i32.ge_u (local.get $byte4) (i32.const 0x80))
+                                                    (i32.lt_u (local.get $byte4) (i32.const 0xC0)))
+                                                )
+                                                (then
+                                                    (local.set $scalar
                                                         (i32.or
-                                                            (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
-                                                            (i32.and (local.get $byte4) (i32.const 0x3F))
+                                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
+                                                            (i32.or
+                                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
+                                                                (i32.or
+                                                                    (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
+                                                                    (i32.and (local.get $byte4) (i32.const 0x3F))
+                                                                )
+                                                            )
                                                         )
                                                     )
+                                                    (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
+                                                )
+                                                (else
+                                                    ;; Second, third, or forth bytes are not a valid continuation byte, exit with error
+                                                    (return (i32.const 0))
                                                 )
                                             )
-                                            (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
                                         )
                                         (else
                                             ;; Invalid initial byte, exit with error

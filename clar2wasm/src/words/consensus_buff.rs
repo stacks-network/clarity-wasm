@@ -760,7 +760,7 @@ mod tests {
         assert_eq!(
             evaluate(
                 // invalid surrogate code point U+D800 (EDA080)
-                r#"(from-consensus-buff? (string-utf8 20) 0x0e0000000deda08048656c6c6f2c20776f726c64)"#
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e0000000feda08048656c6c6f2c20776f726c64)"#
             ),
             Some(Value::none())
         );
@@ -768,7 +768,51 @@ mod tests {
         assert_eq!(
             evaluate(
                 // invalid surrogate code point U+DFFF (EDBFBF)
-                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000dedbfbf48656c6c6f2c20776f726c64)"#
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000fedbfbf48656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_utf8_invalid_continuation_bytes() {
+        // Test invalid utf-8 where continuation bytes do not conform to the 10xx xxxx pattern (i.e., they should not be in the range 0x80 to 0xBF)
+        assert_eq!(
+            evaluate(
+                // 2-byte sequence `C2 7F` (second byte is not a continuation byte)
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000002c27f)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // 3-byte sequence `E0 A0 7F` (third byte is not a continuation byte)
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e00000003e0a07f)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // 3-byte sequence `E0 7F 80` (second byte is not a continuation byte)
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e00000003e07f80)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // 4-byte sequence `F0 90 7F 80` (third byte is not a continuation byte)
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e00000004f0907f80)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // 4-byte sequence `F0 90 80 7F` (fourth byte is not a continuation byte)
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e00000004f090807f)"#
             ),
             Some(Value::none())
         );
