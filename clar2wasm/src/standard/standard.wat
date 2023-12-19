@@ -3292,7 +3292,7 @@
         (loop $loop
             (local.set $byte1 (i32.load8_u (i32.add (local.get $offset) (local.get $i))))
 
-            ;; Check first byte to determine the number of bytes in the UTF-8 character
+            ;; Check for 1-byte sequence (0xxx xxxx)
             (if (i32.lt_u (local.get $byte1) (i32.const 0x80)) ;; 1-byte sequence
                 (then
                     (local.set $scalar (local.get $byte1))
@@ -3300,7 +3300,8 @@
                 )
                 (else
                     (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
-                    (if (i32.lt_u (local.get $byte1) (i32.const 0xE0)) ;; 2-byte sequence
+                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC2))
+                                 (i32.lt_u (local.get $byte1) (i32.const 0xE0))) ;; 2-byte sequence
                         (then
                             (local.set $scalar
                                 (i32.or
@@ -3312,7 +3313,8 @@
                         )
                         (else
                             (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
-                            (if (i32.lt_u (local.get $byte1) (i32.const 0xF0)) ;; 3-byte sequence
+                            (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xE0))
+                                         (i32.lt_u (local.get $byte1) (i32.const 0xF0))) ;; 3-byte sequence
                                 (then
                                     (local.set $scalar
                                         (i32.or
@@ -3327,23 +3329,41 @@
                                 )
                                 (else ;; 4-byte sequence
                                     (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
-                                    (local.set $scalar
-                                        (i32.or
-                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
-                                            (i32.or
-                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
+                                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xF0))
+                                                 (i32.le_u (local.get $byte1) (i32.const 0xF4))) ;; 4-byte sequence
+                                        (then
+                                            (local.set $scalar
                                                 (i32.or
-                                                    (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
-                                                    (i32.and (local.get $byte4) (i32.const 0x3F))
+                                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
+                                                    (i32.or
+                                                        (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
+                                                        (i32.or
+                                                            (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
+                                                            (i32.and (local.get $byte4) (i32.const 0x3F))
+                                                        )
+                                                    )
                                                 )
                                             )
+                                            (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
+                                        )
+                                        (else
+                                            ;; Invalid initial byte, exit with error
+                                            (return (i32.const 0))
                                         )
                                     )
-                                    (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
                                 )
                             )
                         )
                     )
+                )
+            )
+
+            ;; Check if the decoded scalar is a surrogate (U+D800 to U+DFFF)
+            (if (i32.and (i32.ge_u (local.get $scalar) (i32.const 0xD800))
+                         (i32.le_u (local.get $scalar) (i32.const 0xDFFF)))
+                (then
+                    ;; Surrogate pair detected, return error
+                    (return (i32.const 0))
                 )
             )
 

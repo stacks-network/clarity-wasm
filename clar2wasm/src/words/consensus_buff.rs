@@ -718,6 +718,63 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_string_utf8_invalid_initial_byte_pattern() {
+        // Bytes in the range 0x80 to 0xBF are continuation bytes and should not appear as the initial byte in a UTF-8 sequence.
+        // Bytes 0xF5 to 0xFF are not valid initial bytes in UTF-8.
+        assert_eq!(
+            evaluate(
+                // invalid initial byte 0x80
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000d8048656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // invalid initial byte 0xBF
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000dbf48656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // invalid initial byte 0xF5
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000d80f5656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // invalid initial byte 0xFF
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000d80ff656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
+    fn from_consensus_buff_string_utf8_invalid_surrogate_code_point() {
+        // Unicode surrogate halves (U+D800 to U+DFFF) are not valid code points themselves and should not appear in UTF-8 encoded data.
+        assert_eq!(
+            evaluate(
+                // invalid surrogate code point U+D800 (EDA080)
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e0000000deda08048656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // invalid surrogate code point U+DFFF (EDBFBF)
+                r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000dedbfbf48656c6c6f2c20776f726c64)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_string_ascii_exact_size() {
         assert_eq!(
             evaluate(
