@@ -151,47 +151,47 @@ fn prop_sqrti_int() {
 
 #[test]
 fn prop_bit_and_uint() {
-    utils::test_export_two_unsigned_args("stdlib.bit-and-uint", |a: u128, b: u128| a & b)
+    utils::test_export_two_unsigned_args("stdlib.bit-and", |a: u128, b: u128| a & b)
 }
 
 #[test]
 fn prop_bit_and_int() {
-    utils::test_export_two_signed_args("stdlib.bit-and-int", |a: i128, b: i128| a & b)
+    utils::test_export_two_signed_args("stdlib.bit-and", |a: i128, b: i128| a & b)
 }
 
 #[test]
 fn prop_bit_or_uint() {
-    utils::test_export_two_unsigned_args("stdlib.bit-or-uint", |a: u128, b: u128| a | b)
+    utils::test_export_two_unsigned_args("stdlib.bit-or", |a: u128, b: u128| a | b)
 }
 
 #[test]
 fn prop_bit_or_int() {
-    utils::test_export_two_signed_args("stdlib.bit-or-int", |a: i128, b: i128| a | b)
+    utils::test_export_two_signed_args("stdlib.bit-or", |a: i128, b: i128| a | b)
 }
 
 #[test]
 fn prop_bit_not_uint() {
-    utils::test_export_one_unsigned_arg("stdlib.bit-not-uint", |a: u128| !a)
+    utils::test_export_one_unsigned_arg("stdlib.bit-not", |a: u128| !a)
 }
 
 #[test]
 fn prop_bit_not_int() {
-    utils::test_export_one_signed_arg("stdlib.bit-not-int", |a: i128| !a)
+    utils::test_export_one_signed_arg("stdlib.bit-not", |a: i128| !a)
 }
 
 #[test]
 fn prop_bit_xor_uint() {
-    utils::test_export_two_unsigned_args("stdlib.bit-xor-uint", |a: u128, b: u128| a ^ b)
+    utils::test_export_two_unsigned_args("stdlib.bit-xor", |a: u128, b: u128| a ^ b)
 }
 
 #[test]
 fn prop_bit_xor_int() {
-    utils::test_export_two_signed_args("stdlib.bit-xor-int", |a: i128, b: i128| a ^ b)
+    utils::test_export_two_signed_args("stdlib.bit-xor", |a: i128, b: i128| a ^ b)
 }
 
 #[test]
 fn prop_bit_shift_left_uint() {
-    utils::test_export_two_unsigned_args("stdlib.bit-shift-left-uint", |a: u128, b: u128| {
+    utils::test_export_two_unsigned_args("stdlib.bit-shift-left", |a: u128, b: u128| {
         a.wrapping_shl((b % 128) as u32)
     })
 }
@@ -199,7 +199,7 @@ fn prop_bit_shift_left_uint() {
 #[test]
 fn prop_bit_shift_left_int() {
     // NOTE that the two arguments differ in type
-    utils::test_export_two_signed_args("stdlib.bit-shift-left-int", |a: i128, b: u128| {
+    utils::test_export_two_signed_args("stdlib.bit-shift-left", |a: i128, b: u128| {
         a.wrapping_shl((b % 128) as u32)
     })
 }

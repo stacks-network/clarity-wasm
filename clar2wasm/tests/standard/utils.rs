@@ -9,7 +9,24 @@ use wasmtime::{Caller, Engine, Instance, Linker, Module, Store, Val};
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.
 pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
-    let standard_lib = include_str!("../../src/standard/standard.wat");
+    // create a standard lib with all functions exported
+    let standard_lib: Vec<u8> = {
+        let standard_lib_wasm: &[u8] = include_bytes!("../../src/standard/standard.wasm");
+        let mut module = walrus::Module::from_buffer(standard_lib_wasm)
+            .expect("failed to load standard library");
+        for f in module.funcs.iter() {
+            match f.name.as_ref() {
+                Some(name) if name.starts_with("stdlib.") => {
+                    module
+                        .exports
+                        .add(name, walrus::ExportItem::Function(f.id()));
+                }
+                _ => continue,
+            }
+        }
+        module.emit_wasm()
+    };
+
     let engine = Engine::default();
     let mut store = Store::new(&engine, ());
 
