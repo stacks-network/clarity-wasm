@@ -3300,7 +3300,7 @@
                 )
                 (else
                     (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
-                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC2))
+                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC0))
                                  (i32.lt_u (local.get $byte1) (i32.const 0xE0))) ;; 2-byte sequence
                         (then
                             ;; Check if second byte is a continuation byte
@@ -3311,6 +3311,13 @@
                                         (i32.or
                                             (i32.shl (i32.and (local.get $byte1) (i32.const 0x1F)) (i32.const 6))
                                             (i32.and (local.get $byte2) (i32.const 0x3F))
+                                        )
+                                    )
+                                    ;; Overlong encoding check for 2-byte sequence
+                                    (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
+                                        (then
+                                            ;; Overlong encoding detected, return error
+                                            (return (i32.const 0))
                                         )
                                     )
                                     (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
@@ -3343,6 +3350,13 @@
                                                         (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 6))
                                                         (i32.and (local.get $byte3) (i32.const 0x3F))
                                                     )
+                                                )
+                                            )
+                                            ;; 3-byte sequence overlong check
+                                            (if (i32.lt_u (local.get $scalar) (i32.const 0x800))
+                                                (then
+                                                    ;; Overlong encoding detected, return error
+                                                    (return (i32.const 0))
                                                 )
                                             )
                                             (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
@@ -3383,6 +3397,13 @@
                                                                     (i32.and (local.get $byte4) (i32.const 0x3F))
                                                                 )
                                                             )
+                                                        )
+                                                    )
+                                                    ;; 4-byte sequence overlong check
+                                                    (if (i32.lt_u (local.get $scalar) (i32.const 0x10000))
+                                                        (then
+                                                            ;; Overlong encoding detected, return error
+                                                            (return (i32.const 0))
                                                         )
                                                     )
                                                     (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte

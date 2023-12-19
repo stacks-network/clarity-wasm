@@ -819,6 +819,34 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_string_utf8_overlong_encoding() {
+        // Test invalid utf-8 where code points are encoded using more bytes than required
+        assert_eq!(
+            evaluate(
+                // ASCII 'A' (U+0041) is normally `41` in hex, overlong 2-byte encoding could be `C1 81`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000002c181)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // Character '¢' (U+00A2) is normally `C2 A2` in hex, overlong 3-byte encoding could be `E0 82 A2`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000003e082a2)"#
+            ),
+            Some(Value::none())
+        );
+
+        assert_eq!(
+            evaluate(
+                // Character '€' (U+20AC) is normally `E2 82 AC` in hex, overlong 4-byte encoding could be `F0 82 82 AC`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000004f08282ac)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_string_ascii_exact_size() {
         assert_eq!(
             evaluate(
