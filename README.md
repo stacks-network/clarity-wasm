@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![Introduction](https://img.shields.io/badge/%23-%20Introduction%20-orange?labelColor=gray)](#introduction) [![Features](https://img.shields.io/badge/%23-Features-orange?labelColor=gray)](#features) [![Quick Start](https://img.shields.io/badge/%23-Quick%20Start-orange?labelColor=gray)](#quick-start) [![Documentation](https://img.shields.io/badge/%23-Documentation-orange?labelColor=gray)](#documentation) [![Contribute](https://img.shields.io/badge/%23-Contribute-orange?labelColor=gray)](#contribute)
+[![Introduction](https://img.shields.io/badge/%23-%20Introduction%20-orange?labelColor=gray)](#introduction) [![Features](https://img.shields.io/badge/%23-Features-orange?labelColor=gray)](#features) [![Quick Start](https://img.shields.io/badge/%23-Quick%20Start-orange?labelColor=gray)](#quick-start) [![Documentation](https://img.shields.io/badge/%23-Documentation-orange?labelColor=gray)](#documentation) [![Contribute](https://img.shields.io/badge/%23-Contribute-orange?labelColor=gray)](#contribute) [![codecov](https://codecov.io/gh/stacks-network/clarity-wasm/graph/badge.svg?token=WtR78mrRYT)](https://codecov.io/gh/stacks-network/clarity-wasm)
 
 </div>
 
