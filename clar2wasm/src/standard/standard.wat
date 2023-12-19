@@ -3275,8 +3275,94 @@
 
     ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
     (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
-        ;; FIXME: Implement this function
-        (i32.const 0)
+        (local $i i32)          ;; Input loop counter
+        (local $j i32)          ;; Output loop counter
+        (local $byte1 i32)      ;; Current byte and following bytes
+        (local $byte2 i32)
+        (local $byte3 i32)
+        (local $byte4 i32)
+        (local $scalar i32)     ;; Scalar value
+
+        (call $log (i64.extend_i32_u (local.get $length)))
+
+        ;; Initialize loop counters
+        (local.set $i (i32.const 0))
+        (local.set $j (i32.const 0))
+
+        (loop $loop
+            (local.set $byte1 (i32.load8_u (i32.add (local.get $offset) (local.get $i))))
+
+            ;; Check first byte to determine the number of bytes in the UTF-8 character
+            (if (i32.lt_u (local.get $byte1) (i32.const 0x80)) ;; 1-byte sequence
+                (then
+                    (local.set $scalar (local.get $byte1))
+                    (local.set $i (i32.add (local.get $i) (i32.const 1))) ;; Increment for 1-byte
+                )
+                (else
+                    (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
+                    (if (i32.lt_u (local.get $byte1) (i32.const 0xE0)) ;; 2-byte sequence
+                        (then
+                            (local.set $scalar
+                                (i32.or
+                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x1F)) (i32.const 6))
+                                    (i32.and (local.get $byte2) (i32.const 0x3F))
+                                )
+                            )
+                            (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
+                        )
+                        (else
+                            (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
+                            (if (i32.lt_u (local.get $byte1) (i32.const 0xF0)) ;; 3-byte sequence
+                                (then
+                                    (local.set $scalar
+                                        (i32.or
+                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x0F)) (i32.const 12))
+                                            (i32.or
+                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 6))
+                                                (i32.and (local.get $byte3) (i32.const 0x3F))
+                                            )
+                                        )
+                                    )
+                                    (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
+                                )
+                                (else ;; 4-byte sequence
+                                    (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
+                                    (local.set $scalar
+                                        (i32.or
+                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
+                                            (i32.or
+                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
+                                                (i32.or
+                                                    (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
+                                                    (i32.and (local.get $byte4) (i32.const 0x3F))
+                                                )
+                                            )
+                                        )
+                                    )
+                                    (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+
+            ;; Store the scalar value in the output array in big-endian format
+            (call $stdlib.store-i32-be
+                (i32.add (local.get $output-offset) (local.get $j))
+                (local.get $scalar)
+            )
+            (local.set $j (i32.add (local.get $j) (i32.const 4)))
+
+            ;; Check if we have processed all input bytes
+            (if (i32.ge_u (local.get $i) (local.get $length))
+                (then (return (local.get $j)))  ;; Return the number of bytes written
+            )
+            (br $loop)
+        )
+
+        ;; Return the number of bytes written to the output array
+        (local.get $j)
     )
 
     (export "stdlib.add-uint" (func $stdlib.add-uint))
