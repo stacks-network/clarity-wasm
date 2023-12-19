@@ -3435,6 +3435,14 @@
                 )
             )
 
+            ;; Unicode Range Check for all sequences, value within the Unicode range (U+0000 to U+10FFFF)
+            (if (i32.gt_u (local.get $scalar) (i32.const 0x10FFFF))
+                (then
+                    ;; Scalar value out of Unicode range, return error
+                    (return (i32.const 0))
+                )
+            )
+
             ;; Store the scalar value in the output array in big-endian format
             (call $stdlib.store-i32-be
                 (i32.add (local.get $output-offset) (local.get $j))

@@ -847,6 +847,18 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_string_utf8_unicode_range_check() {
+        // Test invalid utf-8 where code points is above U+10FFFF (invalid in Unicode)
+        assert_eq!(
+            evaluate(
+                // `F4908080`
+                r#"(from-consensus-buff? (string-utf8 20) 0x0e00000004f4908080)"#
+            ),
+            Some(Value::none())
+        );
+    }
+
+    #[test]
     fn from_consensus_buff_string_ascii_exact_size() {
         assert_eq!(
             evaluate(
