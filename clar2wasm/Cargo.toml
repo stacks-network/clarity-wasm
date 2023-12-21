@@ -6,7 +6,7 @@ build = "build.rs"
 
 [dependencies]
 # clarity = { path = "../stacks-core/clarity" }
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next" }
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", rev = "f2d97191663a9bcdc739e4012a09eb9909554458" }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"
@@ -32,7 +32,12 @@ proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
 clar2wasm-tests = { path = "../tests" }
 hex = "0.4.3"
-pprof = { version = "0.13", features = ["flamegraph", "protobuf-codec", "criterion", "frame-pointer"] }
+pprof = { version = "0.13", features = [
+  "flamegraph",
+  "protobuf-codec",
+  "criterion",
+  "frame-pointer",
+] }
 
 [lib]
 path = "src/lib.rs"
