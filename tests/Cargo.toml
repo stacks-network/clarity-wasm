@@ -8,7 +8,7 @@ path = "./src/lib.rs"
 
 [dependencies]
 # clarity = { path = "../stacks-core/clarity" }
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next" }
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next"}
 clar2wasm = { path = "../clar2wasm", features = ["developer-mode"] }
 wasmtime = "15.0.0"
 
