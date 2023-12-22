@@ -40,6 +40,15 @@ pub struct Cli {
         global = true
     )]
     pub sql_trace: bool,
+
+    #[arg(
+        short = None,
+        long = "disable-stacks-logging",
+        help = "Disables logging of Stacks node output to the console.",
+        default_value = "false",
+        global = true,
+    )]
+    pub disable_stacks_logging: bool,
 }
 
 impl Cli {
@@ -213,6 +222,13 @@ pub struct DataArgs {
         help = "Filter all processing to only the specified qualified contract id."
     )]
     pub contract_id: Option<String>,
+
+    #[arg(
+        short = 'r',
+        long = "snapshot-restore",
+        help = "Restores the target environment to the specified snapshot before processing."
+    )]
+    pub snapshot_restore: bool
 }
 
 impl<C: ReplayCallbackHandler + Default> From<DataArgs> for ReplayOpts<C> {
@@ -223,6 +239,7 @@ impl<C: ReplayCallbackHandler + Default> From<DataArgs> for ReplayOpts<C> {
             max_blocks: value.max_block_count,
             callbacks: C::default(),
             working_dir: Default::default(),
+            snapshot_restore: value.snapshot_restore
         }
     }
 }

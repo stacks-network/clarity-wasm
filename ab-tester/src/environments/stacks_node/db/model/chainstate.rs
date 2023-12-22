@@ -6,7 +6,7 @@ use diesel::prelude::*;
 
 use super::super::schema::chainstate::*;
 use crate::clarity;
-use crate::stacks::{self, Address};
+use crate::stacks::{self, Address, StacksAddress, BlockHeaderHash};
 
 #[derive(
     Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
@@ -72,8 +72,73 @@ impl From<&MaturedReward> for stacks::MinerReward {
 pub struct Payment {
     pub address: String,
     pub block_hash: String,
+    pub consensus_hash: String,
+    pub parent_block_hash: String,
+    pub parent_consensus_hash: String,
+    pub coinbase: String,
+    pub tx_fees_anchored: String,
+    pub tx_fees_streamed: String,
+    pub stx_burns: String,
     pub burnchain_commit_burn: i32,
     pub burnchain_sortition_burn: i32,
+    pub miner: i32,
+    pub stacks_block_height: i32,
+    pub index_block_hash: String,
+    pub vtxindex: i32,
+    pub recipient: String,
+}
+
+impl TryFrom<Payment> for crate::types::Payment {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Payment) -> Result<Self> {
+        Ok(Self {
+            environment_id: 0,
+            address: StacksAddress::from_string(&value.address)
+                .ok_or(anyhow!("failed to convert address to StacksAddress"))?,
+            block_hash: BlockHeaderHash::from_hex(&value.block_hash)?,
+            consensus_hash: stacks::ConsensusHash::from_hex(&value.consensus_hash)?,
+            parent_block_hash: BlockHeaderHash::from_hex(&value.parent_block_hash)?,
+            parent_consensus_hash: stacks::ConsensusHash::from_hex(&value.parent_consensus_hash)?,
+            coinbase: value.coinbase.parse()?,
+            tx_fees_anchored: value.tx_fees_anchored.parse()?,
+            tx_fees_streamed: value.tx_fees_streamed.parse()?,
+            stx_burns: value.stx_burns.parse()?,
+            burnchain_commit_burn: value.burnchain_commit_burn as u32,
+            burnchain_sortition_burn: value.burnchain_sortition_burn as u32,
+            miner: value.miner != 0,
+            stacks_block_height: value.stacks_block_height as u32,
+            index_block_hash: stacks::StacksBlockId::from_hex(&value.index_block_hash)?,
+            vtxindex: value.vtxindex as u32,
+            recipient: Address::from_string(&value.recipient)
+                .ok_or(anyhow!("failed to convert recipient to Address"))?,
+        })
+    }
+}
+
+impl TryFrom<crate::types::Payment> for Payment {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::Payment) -> Result<Self> {
+        Ok(Self {
+            address: value.address.to_string(),
+            block_hash: value.block_hash.to_hex(),
+            consensus_hash: value.consensus_hash.to_hex(),
+            parent_block_hash: value.parent_block_hash.to_hex(),
+            parent_consensus_hash: value.parent_consensus_hash.to_hex(),
+            coinbase: value.coinbase.to_string(),
+            tx_fees_anchored: value.tx_fees_anchored.to_string(),
+            tx_fees_streamed: value.tx_fees_streamed.to_string(),
+            stx_burns: value.stx_burns.to_string(),
+            burnchain_commit_burn: value.burnchain_commit_burn as i32,
+            burnchain_sortition_burn: value.burnchain_sortition_burn as i32,
+            miner: value.miner as i32,
+            stacks_block_height: value.stacks_block_height as i32,
+            index_block_hash: value.index_block_hash.to_hex(),
+            vtxindex: value.vtxindex as i32,
+            recipient: value.recipient.to_string(),
+        })
+    }
 }
 
 #[derive(

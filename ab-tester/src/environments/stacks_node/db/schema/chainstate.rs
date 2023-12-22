@@ -50,8 +50,20 @@ table! {
     payments (address, block_hash) {
         address -> Text,
         block_hash -> Text,
+        consensus_hash -> Text,
+        parent_block_hash -> Text,
+        parent_consensus_hash -> Text,
+        coinbase -> Text,
+        tx_fees_anchored -> Text,
+        tx_fees_streamed -> Text,
+        stx_burns -> Text,
         burnchain_commit_burn -> Integer,
         burnchain_sortition_burn -> Integer,
+        miner -> Integer,
+        stacks_block_height -> Integer,
+        index_block_hash -> Text,
+        vtxindex -> Integer,
+        recipient -> Text,
     }
 }
 

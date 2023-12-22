@@ -42,6 +42,58 @@ impl<'a> AppDbBatchContext<'a> {
         Self { conn }
     }
 
+    pub fn import_payments(
+        &mut self,
+        payments: Box<dyn Iterator<Item = Result<crate::types::Payment>>>,
+        environment_id: Option<i32>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn;
+
+        conn.transaction(|tx| -> Result<()> {
+            for payment in payments {
+                let payment = payment
+                    .map_err(|e| error!("{:?}", e))
+                    .expect("failed to load payment");
+
+                trace!("inserting payment {{address:  {:?}, block hash: {:?}}}", 
+                    &payment.address,
+                    &payment.block_hash);
+
+                let mut payment: super::model::Payment = payment.try_into()?;
+
+                if let Some(id) = environment_id {
+                    payment.environment_id = id;
+                }
+
+                let insert_stmt = insert_into(_payments::table)
+                    .values(payment)
+                    .on_conflict((
+                        _payments::environment_id,
+                        _payments::address,
+                        _payments::block_hash
+                    ))
+                    .do_update()
+                    .set((
+                        _payments::environment_id.eq(excluded(_payments::environment_id)),
+                        _payments::address.eq(excluded(_payments::address)),
+                        _payments::block_hash.eq(excluded(_payments::block_hash))
+                    ));
+
+                trace_sql!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one payment, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
+    }
+
     pub fn import_block_headers(
         &mut self,
         headers: Box<dyn Iterator<Item = Result<crate::types::BlockHeader>>>,
@@ -372,6 +424,14 @@ impl AppDb {
         }
     }
 
+    pub fn delete_blocks_for_environment(&self, environment_id: i32) -> Result<u32> {
+        let result = diesel::delete(block::table)
+            .filter(block::environment_id.eq(environment_id))
+            .execute(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as u32)
+    }
+
     pub fn snapshot_count(&self, environment_id: i32) -> Result<usize> {
         let result = _snapshots::table
             .filter(_snapshots::environment_id.eq(environment_id))
@@ -402,6 +462,15 @@ impl AppDb {
     pub fn epoch_count(&self, environment_id: i32) -> Result<usize> {
         let result = _epochs::table
             .filter(_epochs::environment_id.eq(environment_id))
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as usize)
+    }
+
+    pub fn payment_count(&self, environment_id: i32) -> Result<usize> {
+        let result = _payments::table
+            .filter(_payments::environment_id.eq(environment_id))
             .count()
             .get_result::<i64>(&mut *self.conn.borrow_mut())?;
 

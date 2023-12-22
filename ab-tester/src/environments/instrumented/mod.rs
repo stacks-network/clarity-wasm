@@ -2,18 +2,16 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use blockstack_lib::chainstate::stacks::db::ClarityTx;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
-use stacks_common::types::chainstate::StacksBlockId;
 
 use super::stacks_node::db::schema::chainstate::block_headers;
 use super::stacks_node::StacksEnvPaths;
-use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv, ClarityBlockTransaction};
+use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
 use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext, RegularBlockContext};
@@ -21,7 +19,7 @@ use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::db::schema::{self, _block_commits, _snapshots};
+use crate::db::schema::{self, _block_commits, _snapshots, _payments};
 use crate::environments::stacks_node::db::stacks_headers_db::StacksHeadersDb;
 use crate::types::BlockHeader;
 use crate::{clarity, ok, stacks};
@@ -62,6 +60,10 @@ impl EnvConfig for InstrumentedEnvConfig {
 
     fn is_clarity_db_app_indexed(&self) -> bool {
         true
+    }
+
+    fn blocks_dir(&self) -> &std::path::Path {
+        self.paths.blocks_dir()
     }
 }
 
@@ -146,7 +148,7 @@ impl InstrumentedEnv {
     }
 
     /// Retrieve all block headers from the underlying storage.
-    fn block_headers(&self) -> Result<Vec<BlockHeader>> {
+    fn block_headers(&self, max_blocks: Option<u32>) -> Result<Vec<BlockHeader>> {
         // Get our state
         let state = self
             .env_state
@@ -185,8 +187,16 @@ impl InstrumentedEnv {
         // Reverse the vec so that it is in block-ascending order.
         headers.reverse();
 
-        debug!("first block: {:?}", headers[0]);
-        debug!("tip: {:?}", headers[headers.len() - 1]);
+        // If we have a max-block limit, avoid returning more than necessary.
+        if let Some(max_blocks) = max_blocks {
+            headers = headers
+                .into_iter()
+                .take(max_blocks as usize)
+                .collect();
+        }
+
+        //debug!("first block: {:?}", headers[0]);
+        //debug!("tip: {:?}", headers[headers.len() - 1]);
         debug!("retrieved {} block headers", headers.len());
 
         self.callbacks
@@ -210,7 +220,7 @@ impl AsBurnStateDb for InstrumentedEnv {
 }
 
 /// Implementation of [RuntimeEnv] for [InstrumentedEnv].
-impl<'a, 'b> RuntimeEnv for InstrumentedEnv {
+impl RuntimeEnv for InstrumentedEnv {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -310,16 +320,19 @@ impl<'a, 'b> RuntimeEnv for InstrumentedEnv {
 
 /// Implementation of [ReadableEnv] for [InstrumentedEnv].
 impl ReadableEnv for InstrumentedEnv {
-    fn blocks(&self) -> Result<BlockCursor> {
-        let headers = self.block_headers()?;
+    fn blocks(&self, max_blocks: Option<u32>) -> Result<BlockCursor> {
+        let headers = self.block_headers(max_blocks)?;
         let cursor = BlockCursor::new(self.env_config.paths.blocks_dir(), headers);
         Ok(cursor)
     }
 
-    fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
+    fn snapshots(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Snapshot> {
         let result = self
             .app_db
-            .stream_results::<model::Snapshot, crate::types::Snapshot, _>(_snapshots::table, 100);
+            .stream_results::<model::Snapshot, crate::types::Snapshot, _>(
+                _snapshots::table, 
+                prefetch_limit as usize
+            );
 
         Ok(Box::new(result))
     }
@@ -328,7 +341,7 @@ impl ReadableEnv for InstrumentedEnv {
         self.app_db.snapshot_count(self.id)
     }
 
-    fn block_commits(&self) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
+    fn block_commits(&self, _prefetch_limit: u32) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
         let result = self
             .app_db
             .stream_results::<model::BlockCommit, crate::types::BlockCommit, _>(
@@ -359,7 +372,7 @@ impl ReadableEnv for InstrumentedEnv {
         self.app_db.epoch_count(self.id)
     }
 
-    fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
+    fn block_headers(&self, _prefetch_limit: u32) -> BoxedDbIterResult<crate::types::BlockHeader> {
         todo!()
     }
 
@@ -374,6 +387,21 @@ impl ReadableEnv for InstrumentedEnv {
     fn cfg(&self) -> &dyn EnvConfig {
         &self.env_config
     }
+
+    fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Payment> {
+        let result = self
+            .app_db
+            .stream_results::<model::Payment, crate::types::Payment, _>(
+                _payments::table,
+                prefetch_limit as usize,
+            );
+
+        Ok(Box::new(result))
+    }
+
+    fn payment_count(&self) -> Result<usize> {
+        self.app_db.payment_count(self.id)
+    }
 }
 
 /// Implementation of [WriteableEnv] for [InstrumentedEnv].
@@ -387,7 +415,7 @@ impl WriteableEnv for InstrumentedEnv {
             bail!("[{}] environment is read-only.", self.name);
         }
 
-        debug!("block: {block:?}");
+        trace!("block: {block:?}");
 
         // Insert this block into the app database.
         debug!("creating block in app datastore");
@@ -433,7 +461,8 @@ impl WriteableEnv for InstrumentedEnv {
                     new_consensus_hash,
                     new_block_hash,
                     chainstate: &mut state.chainstate,
-                    burn_db: &*state.burnstate_db
+                    burn_db: &*state.burnstate_db,
+                    headers_db: &*state.headers_db
                 }))
 
                 /*debug!("beginning chainstate tx");
@@ -483,15 +512,21 @@ impl WriteableEnv for InstrumentedEnv {
     /// Imports chainstate from the provided source environment into this environment.
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()> {
         let env_name = self.name();
+        let mut headers_db = StacksHeadersDb::new(self.env_config.paths.index_db_path())?;
 
+        // Import block headers
         debug!(
             "[{env_name}] importing block headers from '{}'...",
             source.name()
         );
-        let src_block_headers_iter = source.block_headers()?;
-
-        let mut headers_db = StacksHeadersDb::new(self.env_config.paths.index_db_path())?;
+        let src_block_headers_iter = source.block_headers(5000)?;
         headers_db.import_block_headers(src_block_headers_iter, Some(self.id()))?;
+
+        // Payments
+        debug!("[{env_name}] importing payments from '{}'...", source.name());
+        let src_payments_iter = source.payments(5000)?;
+        headers_db
+            .import_payments(src_payments_iter, Some(self.id()))?;
 
         ok!()
     }
@@ -505,7 +540,7 @@ impl WriteableEnv for InstrumentedEnv {
             "[{env_name}] importing snapshots from '{}'...",
             source.name()
         );
-        let src_snapshots_iter = source.snapshots()?;
+        let src_snapshots_iter = source.snapshots(5000)?;
         self.app_db
             .batch()
             .import_snapshots(src_snapshots_iter, Some(self.id()))?;
@@ -515,7 +550,7 @@ impl WriteableEnv for InstrumentedEnv {
             "[{env_name}] importing block commits from '{}'...",
             source.name()
         );
-        let src_block_commits_iter = source.block_commits()?;
+        let src_block_commits_iter = source.block_commits(5000)?;
         self.app_db
             .batch()
             .import_block_commits(src_block_commits_iter, Some(self.id()))?;
@@ -541,5 +576,12 @@ impl WriteableEnv for InstrumentedEnv {
             .import_epochs(src_epochs_iter, Some(self.id()))?;
 
         ok!()
+    }
+
+    fn clear_blocks(&self) -> Result<u32> {
+        let result = self.app_db
+            .delete_blocks_for_environment(self.id)?;
+
+        Ok(result)
     }
 }

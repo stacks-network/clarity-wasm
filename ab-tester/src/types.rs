@@ -5,8 +5,20 @@ pub struct Payment {
     pub environment_id: i32,
     pub address: stacks::StacksAddress,
     pub block_hash: stacks::BlockHeaderHash,
+    pub consensus_hash: stacks::ConsensusHash,
+    pub parent_block_hash: stacks::BlockHeaderHash,
+    pub parent_consensus_hash: stacks::ConsensusHash,
+    pub coinbase: u64,
+    pub tx_fees_anchored: u64,
+    pub tx_fees_streamed: u64,
+    pub stx_burns: u64,
     pub burnchain_commit_burn: u32,
     pub burnchain_sortition_burn: u32,
+    pub miner: bool,
+    pub stacks_block_height: u32,
+    pub index_block_hash: stacks::StacksBlockId,
+    pub vtxindex: u32,
+    pub recipient: stacks::StacksAddress,
 }
 
 #[derive(Debug, Clone)]

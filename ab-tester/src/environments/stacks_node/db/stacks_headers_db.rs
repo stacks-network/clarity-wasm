@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::path::Path;
 
@@ -66,6 +67,44 @@ impl StacksHeadersDb {
 
                 if affected_rows != 1 {
                     bail!("expected insert of one block header, but got {affected_rows} affected rows");
+                }
+            }
+            ok!()
+        })
+    }
+
+    pub fn import_payments(
+        &mut self,
+        payments: Box<dyn Iterator<Item = Result<crate::types::Payment>>>,
+        environment_id: Option<i32>,
+    ) -> Result<()> {
+        let conn = &mut *self.conn.borrow_mut();
+
+        conn.transaction(|tx| -> Result<()> {
+            for payment in payments {
+                let payment = payment
+                    .map_err(|e| error!("{:?}", e))
+                    .expect("failed to load payment");
+
+                trace!("inserting payment {{address:  {:?}, block hash: {:?}}}", 
+                    &payment.address,
+                    &payment.block_hash);
+
+                let payment: super::model::chainstate::Payment = payment.try_into()?;
+
+                let insert_stmt = insert_into(payments::table)
+                    .values(payment)
+                    .on_conflict_do_nothing();
+
+                trace_sql!(
+                    "SQL: {}",
+                    debug_query::<diesel::sqlite::Sqlite, _>(&insert_stmt)
+                );
+
+                let affected_rows = insert_stmt.execute(tx)?;
+
+                if affected_rows != 1 {
+                    bail!("expected insert of one payment, but got {affected_rows} affected rows");
                 }
             }
             ok!()
@@ -180,12 +219,28 @@ impl clarity::HeadersDB for StacksHeadersDb {
     }
 
     fn get_miner_address(&self, id_bhh: &stacks::StacksBlockId) -> Option<stacks::StacksAddress> {
-        self.get_payment_by_stacks_block_id(id_bhh)
+        eprintln!("getting miner address for block {:?}", id_bhh);
+
+        let result = payments::table
+            .filter(payments::index_block_hash.eq(id_bhh.to_hex()))
+            .first::<Payment>(&mut *self.conn.borrow_mut())
+            .optional()
+            .expect("sql query execution failed")
+            .map(|payment| {
+                stacks::Address::from_string(&payment.address)
+                    .expect("failed to convert the payment address to a StacksAddress")
+            });
+        eprintln!("result: {:?}", result);
+        
+        result
+
+
+        /*self.get_payment_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|payment| {
                 stacks::Address::from_string(&payment.address)
                     .expect("failed to convert the payment address to a StacksAddress")
-            })
+            })*/
     }
 
     fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<u128> {

@@ -164,10 +164,45 @@ table! {
         environment_id -> Integer,
         address -> Text,
         block_hash -> Binary,
+        consensus_hash -> Binary,
+        parent_block_hash -> Binary,
+        parent_consensus_hash -> Binary,
+        coinbase -> BigInt,
+        tx_fees_anchored -> BigInt,
+        tx_fees_streamed -> BigInt,
+        stx_burns -> BigInt,
         burnchain_commit_burn -> Integer,
         burnchain_sortition_burn -> Integer,
+        miner -> Bool,
+        stacks_block_height -> Integer,
+        index_block_hash -> Binary,
+        vtxindex -> Integer,
+        recipient -> Text,
     }
 }
+
+/*CREATE TABLE payments(
+        address TEXT NOT NULL,              -- miner that produced this block and microblock stream
+        block_hash TEXT NOT NULL,
+        consensus_hash TEXT NOT NULL,
+        parent_block_hash TEXT NOT NULL,
+        parent_consensus_hash TEXT NOT NULL,
+        coinbase TEXT NOT NULL,             -- encodes u128
+        tx_fees_anchored TEXT NOT NULL,     -- encodes u128
+        tx_fees_streamed TEXT NOT NULL,     -- encodes u128
+        stx_burns TEXT NOT NULL,            -- encodes u128
+        burnchain_commit_burn INT NOT NULL,
+        burnchain_sortition_burn INT NOT NULL,
+        miner INT NOT NULL,
+        
+        -- internal use
+        stacks_block_height INTEGER NOT NULL,
+        index_block_hash TEXT NOT NULL,     -- NOTE: can't enforce UNIQUE here, because there will be multiple entries per block
+        vtxindex INT NOT NULL               -- user burn support vtxindex
+    , recipient TEXT);
+CREATE INDEX index_payments_block_hash_consensus_hash_vtxindex ON payments(block_hash,consensus_hash,vtxindex ASC);
+CREATE INDEX index_payments_index_block_hash_vtxindex ON payments(index_block_hash,vtxindex ASC);
+ */
 
 // Table which represents the MARF index database's `matured_rewards` table.
 // Note that in this table schema we are using more optimized storage using

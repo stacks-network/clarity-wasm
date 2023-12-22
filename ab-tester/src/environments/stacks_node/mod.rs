@@ -59,6 +59,10 @@ impl EnvConfig for StacksNodeEnvConfig {
     fn is_clarity_db_app_indexed(&self) -> bool {
         false
     }
+
+    fn blocks_dir(&self) -> &Path {
+        &self.paths.blocks_dir
+    }
 }
 
 /// Holds state for a [StacksNodeEnv].
@@ -128,7 +132,7 @@ impl StacksNodeEnv {
     }
 
     /// Retrieve all block headers from the underlying storage.
-    fn block_headers(&self) -> Result<Vec<BlockHeader>> {
+    fn block_headers(&self, max_blocks: Option<u32>) -> Result<Vec<BlockHeader>> {
         let name = &self.name;
         let state = self.get_env_state()?;
 
@@ -172,8 +176,16 @@ impl StacksNodeEnv {
         // Reverse the vec so that it is in block-ascending order.
         headers.reverse();
 
-        debug!("[{name}] first block: {:?}", headers[0]);
-        debug!("[{name}] tip: {:?}", headers[headers.len() - 1]);
+        // If we have a max-block limit, avoid returning more than necessary.
+        if let Some(max_blocks) = max_blocks {
+            headers = headers
+                .into_iter()
+                .take(max_blocks as usize)
+                .collect();
+        }
+
+        debug!("[{name}] first block: {:?}", headers[0].index_block_hash);
+        //debug!("[{name}] tip: {:?}", headers[headers.len() - 1]);
         debug!("[{name}] retrieved {} block headers", headers.len());
 
         self.callbacks
@@ -380,19 +392,19 @@ impl RuntimeEnv for StacksNodeEnv {
 /// Implementation of [ReadableEnv] for [StacksNodeEnv].
 impl ReadableEnv for StacksNodeEnv {
     /// Retrieve a cursor over all blocks.
-    fn blocks(&self) -> Result<BlockCursor> {
-        let headers = self.block_headers()?;
+    fn blocks(&self, max_blocks: Option<u32>) -> Result<BlockCursor> {
+        let headers = self.block_headers(max_blocks)?;
         let cursor = BlockCursor::new(&self.env_config.paths.blocks_dir, headers);
         Ok(cursor)
     }
 
-    fn snapshots(&self) -> BoxedDbIterResult<crate::types::Snapshot> {
+    fn snapshots(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Snapshot> {
         let state = self.get_env_state()?;
 
         let result = stream_results::<db::model::sortition::Snapshot, crate::types::Snapshot, _, _>(
             snapshots::table.order_by(snapshots::block_height.asc()),
             state.sortition_db_conn.clone(),
-            1000,
+            prefetch_limit as usize,
         );
 
         Ok(Box::new(result))
@@ -407,7 +419,7 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(result as usize)
     }
 
-    fn block_commits(&self) -> BoxedDbIterResult<crate::types::BlockCommit> {
+    fn block_commits(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::BlockCommit> {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
@@ -415,7 +427,7 @@ impl ReadableEnv for StacksNodeEnv {
             crate::types::BlockCommit,
             _,
             _,
-        >(block_commits::table, state.sortition_db_conn.clone(), 1000);
+        >(block_commits::table, state.sortition_db_conn.clone(), prefetch_limit as usize);
 
         Ok(Box::new(result))
     }
@@ -476,7 +488,7 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(result as usize)
     }
 
-    fn block_headers(&self) -> BoxedDbIterResult<crate::types::BlockHeader> {
+    fn block_headers(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::BlockHeader> {
         let state = self.get_env_state()?;
 
         let result = stream_results::<
@@ -484,7 +496,7 @@ impl ReadableEnv for StacksNodeEnv {
             crate::types::BlockHeader,
             _,
             _,
-        >(block_headers::table, state.index_db_conn.clone(), 1000);
+        >(block_headers::table, state.index_db_conn.clone(), prefetch_limit as usize);
 
         Ok(Box::new(result))
     }
@@ -500,6 +512,28 @@ impl ReadableEnv for StacksNodeEnv {
 
     fn cfg(&self) -> &dyn EnvConfig {
         &self.env_config
+    }
+
+    fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Payment> {
+        let state = self.get_env_state()?;
+
+        let result = stream_results::<
+            self::db::model::chainstate::Payment,
+            crate::types::Payment,
+            _,
+            _,
+        >(self::db::schema::chainstate::payments::table, state.index_db_conn.clone(), prefetch_limit as usize);
+
+        Ok(Box::new(result))
+    }
+
+    fn payment_count(&self) -> Result<usize> {
+        let state = self.get_env_state()?;
+        let result: i64 = self::db::schema::chainstate::payments::table
+            .count()
+            .get_result(&mut *state.index_db_conn.borrow_mut())?;
+
+        Ok(result as usize)
     }
 }
 

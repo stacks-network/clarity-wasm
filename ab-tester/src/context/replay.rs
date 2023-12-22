@@ -1,12 +1,6 @@
-use blockstack_lib::chainstate::stacks::TransactionPayload;
-use ::clarity::vm::ast::ASTRules;
-use ::clarity::vm::{ContractContext, ClarityVersion};
-use ::clarity::vm::clarity::TransactionConnection;
-use ::clarity::vm::types::{QualifiedContractIdentifier, PrincipalData, StandardPrincipalData};
-use color_eyre::eyre::ensure;
+use color_eyre::eyre::{ensure, bail};
 use color_eyre::Result;
 use log::*;
-use stacks_common::types::StacksEpochId;
 
 use super::BlockContext;
 use super::callbacks::ReplayCallbackHandler;
@@ -14,7 +8,17 @@ use crate::context::Block;
 use crate::environments::{ReadableEnv, WriteableEnv};
 use crate::errors::AppError;
 use crate::types::BlockHeader;
-use crate::{ok, stacks};
+use crate::{ok, 
+    clarity::{
+        ContractContext, ClarityVersion, TransactionConnection,
+        BuffData, QualifiedContractIdentifier, PrincipalData, StandardPrincipalData,
+        ASTRules
+    }, 
+    stacks:: {
+        StacksAccount, StacksChainState, StacksEpochId, TransactionPayload,
+        StacksBlock, StacksAddress, StacksAddressExtensions, StacksBlockId
+    }
+};
 
 /// Options for replaying an environment's chain into another environment.
 pub struct ReplayOpts<C>
@@ -26,6 +30,7 @@ where
     pub max_blocks: Option<u32>,
     pub callbacks: C,
     pub working_dir: String,
+    pub snapshot_restore: bool
 }
 
 impl<C> Default for ReplayOpts<C>
@@ -39,6 +44,7 @@ where
             max_blocks: Default::default(),
             callbacks: C::default(),
             working_dir: Default::default(),
+            snapshot_restore: false
         }
     }
 }
@@ -103,10 +109,10 @@ impl ChainStateReplayer {
 
         let mut processed_block_count = 0;
 
-        let blocks = source.blocks()?;
+        let blocks = source.blocks(opts.max_blocks)?;
         opts.callbacks.replay_start(source, target, blocks.len());
 
-        for block in source.blocks()?.into_iter() {
+        for block in blocks.into_iter() {
             opts.callbacks
                 .replay_block_start(source, target, block.block_height()?);
 
@@ -168,27 +174,39 @@ impl ChainStateReplayer {
     fn replay_block_into<'a, Target: WriteableEnv + ?Sized + 'a>(
         _header: &BlockHeader,
         block: &Block,
-        stacks_block: &stacks::StacksBlock,
+        stacks_block: &StacksBlock,
         target: &'a mut Target,
     ) -> Result<()> {
         //let block_id = header.index_block_hash;
         debug!("beginning block in target");
+        let blocks_dir = target.cfg().blocks_dir().to_path_buf();
         let block_tx = target.block_begin(block)?;
 
         // Begin a new block in `target`.
         match block_tx {
             BlockContext::Regular(ctx) => {
                 debug!("beginning chainstate transaction/clarity tx");
-                let mut clarity_tx = ctx.chainstate.block_begin(
+                let chainstate_tx = ctx.chainstate.chainstate_tx_begin()?;
+
+                debug!("beginning block");
+                let mut block_conn = chainstate_tx.1.begin_block(
+                    &StacksBlockId::new(&ctx.parent_consensus_hash, &ctx.parent_block_hash),
+                    &StacksBlockId::new(&ctx.new_consensus_hash, &ctx.new_block_hash), 
+                    ctx.headers_db, 
+                    ctx.burn_db
+                );
+
+                
+                /*let mut clarity_tx = ctx.chainstate.block_begin(
                     ctx.burn_db,
                     &ctx.parent_consensus_hash,
                     &ctx.parent_block_hash,
                     &ctx.new_consensus_hash,
                     &ctx.new_block_hash,
-                );
+                );*/
 
-                debug!("fetching clarity block connection");
-                let block_conn = clarity_tx.connection();
+                
+                //let block_conn = clarity_tx.connection();
 
                 for block_tx in stacks_block.txs.iter() {
                     // If a sponsor has been provided, convert it to a `PrincipalData`.
@@ -220,7 +238,7 @@ impl ChainStateReplayer {
 
                             // Begin a new Clarity transaction in `target` and process the
                             // source transaction.
-                            block_conn.as_transaction(|tx| {
+                            let result = block_conn.as_transaction(|tx| -> Result<()> {
                                 // Perform a contract analysis so that we can get ahold of the
                                 // contract's parsed AST, which is needed for the install/init
                                 // phase below.
@@ -230,7 +248,7 @@ impl ChainStateReplayer {
                                     clarity_version, 
                                     &contract.code_body.to_string(),
                                     ASTRules::PrecheckSize
-                                ).expect("failed to analyze smart contract");
+                                )?;
 
                                 // Initialize the smart contract.
                                 debug!("initializing smart contract");
@@ -241,16 +259,24 @@ impl ChainStateReplayer {
                                     &contract.code_body.to_string(), 
                                     sponsor_addr, 
                                     |assets, _db| {
-                                        warn!("entered abort callback");
-                                        warn!("assets: {:?}", assets);
                                         false
                                     }).expect("failed to initialize smart contract");
 
-                                debug!("contract initialized");
+                                debug!("contract initialized; committing");
+                                ok!()
                             });
+
+                            match result {
+                                Ok(result) => {
+                                    trace!("contract install result: {:?}", result);
+                                },
+                                Err(err) => {
+                                    error!("contract install error: {:?}", err);
+                                }
+                            }
                         },
                         TransactionPayload::ContractCall(call) => {
-                            info!("contract call");
+                            info!("contract call: {:?}", call);
                                 
                             // Construct a `QualifiedContractIdentifier` from the contract details.
                             let contract_id = call.to_clarity_contract_id();
@@ -258,39 +284,112 @@ impl ChainStateReplayer {
                             let sender_addr = PrincipalData::Standard(
                                 StandardPrincipalData::from(block_tx.origin_address()));
 
-                            // Begin a new Clarity transaction in `target` and process the
-                            // source transaction.
+                            // origin balance may have changed (e.g. if the origin paid the tx fee), so reload the account
+                            let origin_account =
+                                StacksChainState::get_account(&mut block_conn, &block_tx.origin_address().into());
+
+                            // Begin a new Clarity transaction in `target` and replay the 
+                            // contract call from `source`.
                             block_conn.as_transaction(|tx| {
-                                tx.run_contract_call(
+                                let contract_call_result = tx.run_contract_call(
                                     &sender_addr,
                                     sponsor_addr.as_ref(), 
                                     &contract_id, 
                                     &call.function_name, 
                                     &call.function_args, 
-                                    |assets, db| {
-                                        warn!("entered abort callback");
-                                        warn!("assets: {:?}", assets);
-                                        false
+                                    |asset_map, db| {
+                                        
+                                        // Check the post-conditions of the contract call, and
+                                        // roll-back if they are not met.
+                                        !StacksChainState::check_transaction_postconditions(
+                                            &block_tx.post_conditions,
+                                            &block_tx.post_condition_mode,
+                                            &origin_account,
+                                            asset_map,
+                                        )
+                                    });
+
+                                match contract_call_result {
+                                    Ok(result) => {
+                                        trace!("contract call result: {:?}", result);
+                                    },
+                                    Err(err) => {
+                                        error!("contract call error: {:?}", err);
                                     }
-                                ).expect("failed to execute contract call");
+                                }
                             });
                         },
                         TransactionPayload::Coinbase(_coinbase, _principal) => {
+                            
                             warn!("coinbase");
                         },
-                        TransactionPayload::TokenTransfer(_address, _stx , _memo) => {
-                            warn!("token transfer");
+                        TransactionPayload::TokenTransfer(address, amount , memo) => {
+                            use crate::stacks::ClarityError;
+                            use crate::clarity::{VmError, InterpreterError};
+
+                            
+                            let result = block_conn.as_transaction(|tx| {
+                                tx.run_stx_transfer(
+                                    &PrincipalData::Standard(block_tx.origin_address().into()), 
+                                    address, 
+                                    *amount as u128, 
+                                    &BuffData { data: memo.0.to_vec() }
+                                )
+                            });
+
+                            let to_principal = if let PrincipalData::Standard(principal) = address {
+                                principal.to_string()
+                            } else if let PrincipalData::Contract(contract) = address {
+                                contract.to_string()
+                            } else {
+                                bail!("could not resolve to-principal")
+                            };
+
+                            match result {
+                                Ok(result) => {
+                                    info!("token transfer: {:?} -> {:?} ({:?})", block_tx.origin_address().to_string(), to_principal, amount);
+                                    trace!("token transfer result: {:?}", result);
+                                },
+                                Err(err) => {
+                                    match err {
+                                        ClarityError::Interpreter(VmError::Interpreter(InterpreterError::InsufficientBalance)) => {
+                                            warn!("token transfer: {:?} -> {:?} ({:?}): insufficient balance", block_tx.origin_address(), address, amount);
+                                        },
+                                        _ => error!("token transfer failed: {err:?}")
+                                    }
+                                    error!("token transfer error: {:?}", err);
+                                }
+                            }
+
+                            //warn!("token transfer");
                         },
                         TransactionPayload::PoisonMicroblock(_, _) => {
                             warn!("poison microblock");
                         }
-                        
                     }
                 }
 
-                clarity_tx.commit_to_block(&ctx.new_consensus_hash, &ctx.new_block_hash);
+
+                info!("block processed, committing");
+                block_conn.seal();
+                block_conn.commit_to_block(&StacksBlockId::new(&ctx.new_consensus_hash, &ctx.new_block_hash));
+                //block_conn.commit_mined_block(&StacksBlockId::new(&ctx.new_consensus_hash, &ctx.new_block_hash));
+                chainstate_tx.0.commit()?;
+
+                let blocks_dir = blocks_dir
+                    .to_str()
+                    .expect("failed to convert blocks_dir to string");
+
+                info!("writing block to blocks directory");
+                StacksChainState::store_block(blocks_dir, &ctx.new_consensus_hash, stacks_block)?;
+                
+                //clarity_tx.commit_to_block(&ctx.new_consensus_hash, &ctx.new_block_hash);
+                //let cost = clarity_tx.commit_mined_block(&block.stacks_block_id()?);
+                //info!("committed block; cost: {}", cost);
+
             },
-            BlockContext::Genesis => {},
+            BlockContext::Genesis => {
+            },
         }
 
         Ok(())

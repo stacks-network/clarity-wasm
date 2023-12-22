@@ -13,7 +13,7 @@ use stacks_common::types::chainstate::{ConsensusHash, BlockHeaderHash};
 use crate::config::Config;
 use crate::context::replay::ChainStateReplayer;
 use crate::db::appdb::AppDb;
-use crate::utils::append_to_path;
+use crate::utils::{append_to_path, zstd_compress, zstd_decompress};
 use crate::{clarity, ok, stacks};
 
 pub mod blocks;
@@ -151,7 +151,22 @@ impl<'ctx> ComparisonContext<'ctx> {
             let baseline_readable: &dyn ReadableEnv = &**baseline_env as &dyn ReadableEnv;
             let target_writeable: &dyn WriteableEnv = &**target as &dyn WriteableEnv;
 
+            if opts.snapshot_restore {
+                // Only restore from snapshot if the `snapshot-restore` option
+                // is set.
+                info!("[{target_name}] restoring environment from snapshot...");
+                Self::restore_environment(&**target)?;
+
+                info!("[{target_name}] clearing any already-processed blocks...");
+                let cleared_block_count = target.clear_blocks()?;
+                info!("[{target_name}] removed {cleared_block_count} blocks");
+            }
+
             if Self::is_environment_import_needed(baseline_readable, target_writeable)? {
+                info!("[{target_name}] clearing any already-processed blocks...");
+                let cleared_block_count = target.clear_blocks()?;
+                info!("[{target_name}] removed {cleared_block_count} blocks");
+                
                 info!(
                     "[{target_name}] migrating burnstate from '{}'...",
                     baseline_env.name(),
@@ -169,9 +184,12 @@ impl<'ctx> ComparisonContext<'ctx> {
                 info!("finished");
             }
 
-            // Move this into the if-statement above when it works
-            info!("[{target_name} preparing to snapshot environment....");
-            Self::snapshot_environment(&**target)?;
+            if !opts.snapshot_restore {
+                // Only snapshot the environment if we are not restoring from
+                // an existing snapshot.
+                info!("[{target_name} preparing to snapshot environment....");
+                Self::snapshot_environment(&**target)?;
+            }
 
             // Replay from source into target.
             ChainStateReplayer::replay(&**baseline_env, &mut **target, opts)?;
@@ -201,6 +219,10 @@ impl<'ctx> ComparisonContext<'ctx> {
             debug!("epoch counts differ");
             return Ok(true);
         }
+        if source.payment_count()? != target.payment_count()? {
+            debug!("payment counts differ");
+            return Ok(true)
+        }
         if source.block_header_count()? != target.block_header_count()? {
             debug!("block header counts differ");
             return Ok(true);
@@ -208,6 +230,63 @@ impl<'ctx> ComparisonContext<'ctx> {
 
         info!("found no differences between environments; continuing...");
         Ok(false)
+    }
+
+    fn restore_environment<Target: ReadableEnv + ?Sized>(target: &Target) -> Result<()> {
+        let name = target.name();
+
+        // TODO: Load environment from src-target.backup if exists and --reset-env
+        // is set.
+        let chainstate_snapshot_path =
+            append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
+        let chainstate_snapshot_exists =
+            std::fs::metadata(chainstate_snapshot_path).is_ok();
+        let burnstate_snapshot_path =
+            append_to_path(target.cfg().sortition_db_path(), ".zstd");
+        let burnstate_snapshot_exists =
+            std::fs::metadata(&burnstate_snapshot_path).is_ok();
+
+        let chainstate_index_path = target.cfg().chainstate_index_db_path().parent().unwrap().to_path_buf();
+
+        let chainstate_index_sqlite_path = &chainstate_index_path.join("index.sqlite.zstd");
+        let chainstate_index_blobs_path = &chainstate_index_path.join("index.sqlite.blobs.zstd");
+        let chainstate_clarity_sqlite_path = &chainstate_index_path.join("clarity/marf.sqlite.zstd");
+        let chainstate_clarity_blobs_path = &chainstate_index_path.join("clarity/marf.sqlite.blobs.zstd");
+        
+        if chainstate_snapshot_exists {
+            debug!("[{name}] restoring {:?}...", &chainstate_index_sqlite_path);
+            zstd_decompress(chainstate_index_sqlite_path)?;
+            debug!("[{name}] restoring {:?}...", &chainstate_index_blobs_path);
+            zstd_decompress(chainstate_index_blobs_path)?;
+            debug!("[{name}] restoring {:?}...", &chainstate_clarity_sqlite_path);
+            zstd_decompress(chainstate_clarity_sqlite_path)?;
+            debug!("[{name}] restoring {:?}...", &chainstate_clarity_blobs_path);
+            zstd_decompress(chainstate_clarity_blobs_path)?;
+            info!("chainstate snapshot restored");
+        }
+
+        if burnstate_snapshot_exists {
+            debug!("[{name}] burnstate snapshot exists, restoring it...");
+            let burnstate_path = target.cfg().sortition_db_path();
+            debug!("[{name}] opening db file for read '{:?}'", burnstate_snapshot_path);
+            let snapshot_file = File::open(burnstate_snapshot_path)?;
+            let snapshot_reader = BufReader::new(snapshot_file);
+
+            debug!("[{name}] opening db file for write '{:?}'", burnstate_path);
+            let db_file = File::options()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(burnstate_path)?;
+            let db_writer = BufWriter::new(db_file);
+
+            debug!("[{name}] decompressing snapshot...");
+            zstd::stream::copy_decode(snapshot_reader, db_writer)?;
+            
+            info!("[{name}] burnstate snapshot restored");
+        }
+
+        ok!()
     }
 
     fn snapshot_environment<Target: ReadableEnv + ?Sized>(target: &Target) -> Result<()> {
@@ -218,7 +297,7 @@ impl<'ctx> ComparisonContext<'ctx> {
         let init_chainstate_snapshot_path =
             append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
         let init_chainstate_snapshot_exists =
-            std::fs::metadata(&init_chainstate_snapshot_path).is_ok();
+            std::fs::metadata(init_chainstate_snapshot_path).is_ok();
         let init_burnstate_snapshot_path =
             append_to_path(target.cfg().sortition_db_path(), ".zstd");
         let init_burnstate_snapshot_exists =
@@ -226,30 +305,18 @@ impl<'ctx> ComparisonContext<'ctx> {
 
         // TODO: Backup environment
         if !init_chainstate_snapshot_exists {
+            let chainstate_index_path = target.cfg().chainstate_index_db_path().parent().unwrap().to_path_buf();
+            let chainstate_index_sqlite_path = &chainstate_index_path.join("index.sqlite");
+            let chainstate_index_blobs_path = &chainstate_index_path.join("index.sqlite.blobs");
+            let chainstate_clarity_sqlite_path = &chainstate_index_path.join("clarity/marf.sqlite");
+            let chainstate_clarity_blobs_path = &chainstate_index_path.join("clarity/marf.sqlite.blobs");
+
             // Chainstate Index DB
             info!("[{name}] chainstate index snapshot does not exist, creating it...");
-            debug!(
-                "[{name}] source file: '{:?}'",
-                target.cfg().chainstate_index_db_path()
-            );
-            debug!(
-                "[{name}] target file: '{:?}'",
-                &init_chainstate_snapshot_path
-            );
-            debug!("[{name}] opening db file for read");
-            let db_file = File::open(target.cfg().chainstate_index_db_path())?;
-            let db_reader = BufReader::new(db_file);
-            debug!("[{name}] creating target file");
-            let file = File::options()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&init_chainstate_snapshot_path)?;
-            debug!("[{name}] creating buffered writer for target");
-            let file_writer = BufWriter::new(file);
-            debug!("[{name}] creating compressed snapshot...");
-            zstd::stream::copy_encode(db_reader, file_writer, 5)?;
-            debug!("[{name}] finished");
+            zstd_compress(chainstate_index_sqlite_path)?;
+            zstd_compress(chainstate_index_blobs_path)?;
+            zstd_compress(chainstate_clarity_sqlite_path)?;
+            zstd_compress(chainstate_clarity_blobs_path)?;
         }
 
         if !init_burnstate_snapshot_exists && !target.cfg().is_sortition_app_indexed() {
@@ -282,7 +349,8 @@ pub struct RegularBlockContext<'a> {
     pub new_consensus_hash: ConsensusHash,
     pub new_block_hash: BlockHeaderHash,
     pub chainstate: &'a mut StacksChainState,
-    pub burn_db: &'a dyn clarity::BurnStateDB
+    pub burn_db: &'a dyn clarity::BurnStateDB,
+    pub headers_db: &'a dyn clarity::HeadersDB
 }
 
 impl BlockContext<'_> {

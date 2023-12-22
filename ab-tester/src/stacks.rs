@@ -11,7 +11,7 @@ pub use blockstack_lib::{
         db::{
             accounts::MinerReward, ChainStateBootData, ChainstateAccountBalance,
             ChainstateAccountLockup, ChainstateBNSName, ChainstateBNSNamespace, ChainstateTx,
-            StacksChainState, ClarityTx
+            StacksChainState, ClarityTx, StacksAccount
         },
         index::marf::{MARFOpenOpts, MarfConnection},
         index::node::{is_backptr, TrieNodeID, TrieNodeType, TriePath},
@@ -32,12 +32,14 @@ pub use blockstack_lib::{
     util_lib::db::IndexDBConn,
     vm::{
         costs::ExecutionCost,
-        events::StacksTransactionEvent
+        events::StacksTransactionEvent,
+        types::StacksAddressExtensions
     },
+    clarity_vm::clarity::Error as ClarityError
 };
 pub use stacks_common::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
-    TrieHash, VRFSeed,
+    TrieHash, VRFSeed
 };
 pub use stacks_common::types::StacksEpochId;
 pub use stacks_common::util::vrf::VRFProof;

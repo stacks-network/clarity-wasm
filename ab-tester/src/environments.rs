@@ -122,16 +122,16 @@ impl Display for &mut dyn RuntimeEnv {
 pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
-    fn blocks(&self) -> Result<BlockCursor>;
+    fn blocks(&self, max_blocks: Option<u32>) -> Result<BlockCursor>;
 
     // TODO: Move environment data export methods to their own trait.
 
     /// Retrieves all [Snapshot]s from the burnchain sortition datastore.
-    fn snapshots(&self) -> BoxedDbIterResult<Snapshot>;
+    fn snapshots(&self, prefetch_limit: u32) -> BoxedDbIterResult<Snapshot>;
     fn snapshot_count(&self) -> Result<usize>;
 
     /// Retrieves all [BlockCommit]s from the burnchain sortition datastore.
-    fn block_commits(&self) -> BoxedDbIterResult<BlockCommit>;
+    fn block_commits(&self, prefetch_limit: u32) -> BoxedDbIterResult<BlockCommit>;
     fn block_commit_count(&self) -> Result<usize>;
 
     /// Retrieves all [AstRuleHeight]s from the burnchain sortition datastore.
@@ -143,8 +143,11 @@ pub trait ReadableEnv: RuntimeEnv {
     fn epoch_count(&self) -> Result<usize>;
 
     /// Retrieves all [BlockHeader]s from the chainstate index.
-    fn block_headers(&self) -> BoxedDbIterResult<BlockHeader>;
+    fn block_headers(&self, prefetch_limit: u32) -> BoxedDbIterResult<BlockHeader>;
     fn block_header_count(&self) -> Result<usize>;
+
+    fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<Payment>;
+    fn payment_count(&self) -> Result<usize>;
 
     /// Retrieves the paths used by this [RuntimeEnv].
     fn cfg(&self) -> &dyn EnvConfig;
@@ -258,6 +261,8 @@ pub trait WriteableEnv: ReadableEnv {
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;
     fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()>;
 
+    fn clear_blocks(&self) -> Result<u32>;
+
     fn as_readable_env(&self) -> &dyn ReadableEnv
     where
         Self: Sized,
@@ -314,6 +319,7 @@ pub trait EnvPaths {
 pub trait EnvConfig {
     fn chainstate_index_db_path(&self) -> &Path;
     fn is_chainstate_app_indexed(&self) -> bool;
+    fn blocks_dir(&self) -> &Path;
 
     fn sortition_dir(&self) -> &Path;
     fn sortition_db_path(&self) -> &Path;

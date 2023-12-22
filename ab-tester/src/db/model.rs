@@ -6,6 +6,7 @@ use diesel::prelude::*;
 
 use super::schema::*;
 use crate::stacks::Address;
+use crate::stacks::StacksAddress;
 use crate::{clarity, stacks};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName)]
@@ -27,7 +28,8 @@ pub struct Environment {
 }
 
 #[derive(
-    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, 
+    Insertable
 )]
 #[diesel(table_name = block)]
 pub struct Block {
@@ -256,8 +258,85 @@ pub struct Payment {
     pub environment_id: i32,
     pub address: String,
     pub block_hash: Vec<u8>,
+    pub consensus_hash: Vec<u8>,
+    pub parent_block_hash: Vec<u8>,
+    pub parent_consensus_hash: Vec<u8>,
+    pub coinbase: i64,
+    pub tx_fees_anchored: i64,
+    pub tx_fees_streamed: i64,
+    pub stx_burns: i64,
     pub burnchain_commit_burn: i32,
     pub burnchain_sortition_burn: i32,
+    pub miner: bool,
+    pub stacks_block_height: i32,
+    pub index_block_hash: Vec<u8>,
+    pub vtxindex: i32,
+    pub recipient: String,
+}
+
+impl TryFrom<Payment> for crate::types::Payment {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: Payment) -> Result<crate::types::Payment> {
+        Ok(Self {
+            environment_id: value.environment_id,
+            address: StacksAddress::from_string(&value.address)
+                .ok_or(anyhow!("failed to convert address string to StacksAddress"))?,
+            block_hash: stacks::BlockHeaderHash::from_bytes(&value.block_hash)
+                .ok_or(anyhow!("failed to convert block hash bytes to BlockHeaderHash"))?,
+            consensus_hash: stacks::ConsensusHash::from_bytes(&value.block_hash)
+                .ok_or(anyhow!("failed to convert consensus hash bytes to ConsensusHash"))?,
+            parent_block_hash: stacks::BlockHeaderHash::from_bytes(&value.block_hash)
+                .ok_or(anyhow!("failed to convert parent block hash bytes to BlockHeaderHash"))?,
+            parent_consensus_hash: stacks::ConsensusHash::from_bytes(&value.block_hash)
+                .ok_or(anyhow!(
+                    "failed to convert parent consensus hash bytes to ConsensusHash"
+                ))?,
+            coinbase: value.coinbase as u64,
+            tx_fees_anchored: value.tx_fees_anchored as u64,
+            tx_fees_streamed: value.tx_fees_streamed as u64,
+            stx_burns: value.stx_burns as u64,
+            burnchain_commit_burn: value.burnchain_commit_burn as u32,
+            burnchain_sortition_burn: value.burnchain_sortition_burn as u32,
+            miner: value.miner,
+            stacks_block_height: value.stacks_block_height as u32,
+            index_block_hash: stacks::StacksBlockId::from_bytes(&value.index_block_hash)
+                .ok_or(anyhow!(
+                    "failed to convert index block hash bytes to StacksBlockId"
+                ))?,
+            vtxindex: value.vtxindex as u32,
+            recipient: StacksAddress::from_string(&value.recipient)
+                .ok_or(anyhow!("failed to convert recipient string to StacksAddress"))?,
+        })
+    }
+}
+
+
+
+impl TryFrom<crate::types::Payment> for Payment {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: crate::types::Payment) -> Result<Self> {
+        Ok(Self {
+            environment_id: value.environment_id,
+            address: value.address.to_string(),
+            block_hash: value.block_hash.0.to_vec(),
+            consensus_hash: value.consensus_hash.0.to_vec(),
+            parent_block_hash: value.parent_block_hash.0.to_vec(),
+            parent_consensus_hash: value.parent_consensus_hash.0.to_vec(),
+            coinbase: value.coinbase as i64,
+            tx_fees_anchored: value.tx_fees_anchored as i64,
+            tx_fees_streamed: value.tx_fees_streamed as i64,
+            stx_burns: value.stx_burns as i64,
+            burnchain_commit_burn: value.burnchain_commit_burn as i32,
+            burnchain_sortition_burn: value.burnchain_sortition_burn as i32,
+            miner: value.miner,
+            stacks_block_height: value.stacks_block_height as i32,
+            index_block_hash: value.index_block_hash.0.to_vec(),
+            vtxindex: value.vtxindex as i32,
+            recipient: value.recipient.to_string(),
+        })
+    }
 }
 
 /// Represents the `matured_rewards` table in a Stacks node's chainstate index db.

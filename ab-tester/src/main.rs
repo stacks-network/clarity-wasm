@@ -116,27 +116,29 @@ fn configure_logging(cli: &Cli) {
         std::env::set_var("sql_trace", "1");
     }
 
-    if let Some(level) = cli.verbosity.log_level() {
-        match level {
-            Level::Trace => {
-                std::env::set_var("BLOCKSTACK_TRACE", "1");
-                std::env::set_var("STACKS_LOG_TRACE", "1");
-            }
-            Level::Debug => {
-                std::env::set_var("BLOCKSTACK_DEBUG", "1");
-                std::env::set_var("STACKS_LOG_DEBUG", "1");
-            }
-            Level::Info => {
-                std::env::set_var("BLOCKSTACK_INFO", "1");
-                std::env::set_var("STACKS_LOG_INFO", "1");
-            }
-            Level::Warn => {
-                std::env::set_var("BLOCKSTACK_WARN", "1");
-                std::env::set_var("STACKS_LOG_WARN", "1");
-            }
-            Level::Error => {
-                std::env::set_var("BLOCKSTACK_ERROR", "1");
-                std::env::set_var("STACKS_LOG_ERROR", "1");
+    if !cli.disable_stacks_logging {
+        if let Some(level) = cli.verbosity.log_level() {
+            match level {
+                Level::Trace => {
+                    std::env::set_var("BLOCKSTACK_TRACE", "1");
+                    std::env::set_var("STACKS_LOG_TRACE", "1");
+                }
+                Level::Debug => {
+                    std::env::set_var("BLOCKSTACK_DEBUG", "1");
+                    std::env::set_var("STACKS_LOG_DEBUG", "1");
+                }
+                Level::Info => {
+                    std::env::set_var("BLOCKSTACK_INFO", "1");
+                    std::env::set_var("STACKS_LOG_INFO", "1");
+                }
+                Level::Warn => {
+                    std::env::set_var("BLOCKSTACK_WARN", "1");
+                    std::env::set_var("STACKS_LOG_WARN", "1");
+                }
+                Level::Error => {
+                    std::env::set_var("BLOCKSTACK_ERROR", "1");
+                    std::env::set_var("STACKS_LOG_ERROR", "1");
+                }
             }
         }
     }

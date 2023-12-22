@@ -11,8 +11,12 @@ pub use clarity::vm::{
         BurnStateDB, ClarityBackingStore, ClarityDatabase, HeadersDB, RollbackWrapper, StoreType,
         NULL_BURN_STATE_DB, NULL_HEADER_DB,
     },
-    errors::InterpreterResult,
-    types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData},
+    errors::{InterpreterResult, Error as VmError, InterpreterError, CheckErrors, RuntimeErrorType},
+    types::{
+        PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, TupleData,
+        BuffData
+    },
     StacksEpoch, Value,
-    contexts::{OwnedEnvironment, AssetMap}
+    contexts::{OwnedEnvironment, AssetMap},
+    ContractContext, ContractName, ClarityVersion
 };
