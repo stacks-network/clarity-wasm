@@ -25,14 +25,14 @@ pub use blocks::{Block, BlockCursor};
 
 use self::callbacks::ReplayCallbackHandler;
 use self::replay::{ReplayOpts, ReplayResult};
-use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, ClarityBlockTransaction};
+use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, ClarityBlockTransaction, RuntimeEnv};
 
-pub struct BaselineBuilder<'ctx> {
+pub struct BaselineBuilder {
     app_db: Rc<AppDb>,
-    baseline_env: Option<Box<dyn ReadableEnv + 'ctx>>,
+    baseline_env: Option<Box<dyn ReadableEnv>>,
 }
 
-impl<'ctx> BaselineBuilder<'ctx> {
+impl BaselineBuilder {
     fn new(app_db: Rc<AppDb>) -> Self {
         Self {
             app_db,
@@ -48,12 +48,12 @@ impl<'ctx> BaselineBuilder<'ctx> {
     }
 }
 
-pub struct InstrumentIntoBuilder<'ctx> {
+pub struct InstrumentIntoBuilder {
     app_db: Rc<AppDb>,
-    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>,
+    instrumented_envs: Vec<Box<dyn WriteableEnv>>,
 }
 
-impl<'ctx> InstrumentIntoBuilder<'ctx> {
+impl InstrumentIntoBuilder {
     fn new(app_db: Rc<AppDb>) -> Self {
         Self {
             app_db,
@@ -63,11 +63,11 @@ impl<'ctx> InstrumentIntoBuilder<'ctx> {
 
     pub fn instrumented(
         mut self,
-        name: &'ctx str,
+        name: &str,
         runtime: Runtime,
         network: Network,
-        working_dir: &'ctx str,
-    ) -> Result<InstrumentIntoBuilder<'ctx>> {
+        working_dir: &str,
+    ) -> Result<InstrumentIntoBuilder> {
         let env_builder = RuntimeEnvBuilder::new(self.app_db.clone());
         let env = env_builder.instrumented(
             name.to_string(),
@@ -84,8 +84,8 @@ pub struct ComparisonContext<'ctx> {
     app_db: Rc<AppDb>,
     app_config: &'ctx Config,
     env_builder: RuntimeEnvBuilder,
-    baseline_env: Option<Box<dyn ReadableEnv + 'ctx>>,
-    instrumented_envs: Vec<Box<dyn WriteableEnv + 'ctx>>,
+    baseline_env: Option<Box<dyn ReadableEnv>>,
+    instrumented_envs: Vec<Box<dyn WriteableEnv>>,
 }
 
 impl<'ctx> ComparisonContext<'ctx> {
@@ -103,7 +103,7 @@ impl<'ctx> ComparisonContext<'ctx> {
     /// Sets the baseline environment to use for comparison.
     pub fn using_baseline<F>(mut self, f: F) -> Result<Self>
     where
-        F: FnOnce(BaselineBuilder<'ctx>) -> Result<BaselineBuilder<'ctx>>,
+        F: FnOnce(BaselineBuilder) -> Result<BaselineBuilder> + 'ctx,
     {
         let mut builder = BaselineBuilder::new(self.app_db.clone());
         builder = f(builder)?;
@@ -115,7 +115,7 @@ impl<'ctx> ComparisonContext<'ctx> {
     /// environments will be replayed into and then compared against eachother.
     pub fn instrument_into<F>(mut self, f: F) -> Result<Self>
     where
-        F: FnOnce(InstrumentIntoBuilder<'ctx>) -> Result<InstrumentIntoBuilder<'ctx>>,
+        F: FnOnce(InstrumentIntoBuilder) -> Result<InstrumentIntoBuilder> + 'ctx,
     {
         let mut builder = InstrumentIntoBuilder::new(self.app_db.clone());
         builder = f(builder)?;
@@ -130,9 +130,9 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay<C: ReplayCallbackHandler>(
+    pub fn replay<'a, C: ReplayCallbackHandler>(
         mut self,
-        opts: &ReplayOpts<C>,
+        opts: &'a ReplayOpts<C>,
     ) -> Result<ReplayResult> {
         let mut baseline_env_taken = self.baseline_env.take();
         let baseline_env = baseline_env_taken
@@ -192,7 +192,10 @@ impl<'ctx> ComparisonContext<'ctx> {
             }
 
             // Replay from source into target.
-            ChainStateReplayer::replay(&**baseline_env, &mut **target, opts)?;
+            ChainStateReplayer::replay(
+                baseline_env, 
+                target, 
+                opts)?;
         }
 
         todo!()
@@ -350,7 +353,8 @@ pub struct RegularBlockContext<'a> {
     pub new_block_hash: BlockHeaderHash,
     pub chainstate: &'a mut StacksChainState,
     pub burn_db: &'a dyn clarity::BurnStateDB,
-    pub headers_db: &'a dyn clarity::HeadersDB
+    pub headers_db: &'a dyn clarity::HeadersDB,
+    pub commit_callback: &'a (dyn Fn(&mut Box<dyn WriteableEnv>, BlockContext) -> Result<()> + 'a)
 }
 
 impl BlockContext<'_> {
@@ -360,6 +364,18 @@ impl BlockContext<'_> {
 
     pub fn is_regular(&self) -> bool {
         matches!(self, BlockContext::Regular(_))
+    }
+
+    pub fn commit(self, env: &mut Box<dyn WriteableEnv>) -> Result<()> {
+        match self {
+            BlockContext::Genesis => {
+                todo!()
+            }
+            BlockContext::Regular(ctx) => {
+                (ctx.commit_callback)(env, BlockContext::Regular(ctx))?;
+                ok!()
+            }
+        }
     }
 }
 

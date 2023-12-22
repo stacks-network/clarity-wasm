@@ -15,7 +15,18 @@ table! {
         id -> Integer,
         name -> Text,
         runtime_id -> Integer,
-        path -> Text,
+        last_block_height -> Integer,
+        base_path -> Text,
+    }
+}
+
+table! {
+    environment_snapshot (id) {
+        id -> Integer,
+        environment_id -> Integer,
+        name -> Text,
+        block_height -> Integer,
+        file_path -> Text
     }
 }
 

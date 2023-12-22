@@ -24,7 +24,20 @@ pub struct Environment {
     pub id: i32,
     pub name: String,
     pub runtime_id: i32,
-    pub path: String,
+    pub last_block_height: i32,
+    pub base_path: String,
+}
+
+#[derive(
+    Queryable, Selectable, Identifiable, PartialEq, Eq, Debug, Clone, QueryableByName, Insertable,
+)]
+#[diesel(table_name = environment_snapshot)]
+pub struct EnvironmentSnapshot {
+    pub id: i32,
+    pub environment_id: i32,
+    pub name: String,
+    pub block_height: i32,
+    pub file_path: String,
 }
 
 #[derive(

@@ -77,7 +77,7 @@ async fn exec_list(config: &Config, _args: &ListEnvArgs) -> Result<()> {
             env.id.to_string(),
             env.name,
             runtime.to_string(),
-            env.path,
+            env.base_path,
         ]);
 
         table.add_row(row);

@@ -98,9 +98,9 @@ pub struct ChainStateReplayer {}
 
 impl ChainStateReplayer {
     pub fn replay<'a, C: ReplayCallbackHandler>(
-        source: &'a (impl ReadableEnv + ?Sized),
-        target: &'a mut (impl WriteableEnv + ?Sized),
-        opts: &ReplayOpts<C>,
+        source: &'a Box<dyn ReadableEnv>,
+        target: &'a mut Box<dyn WriteableEnv>,
+        opts: &'a ReplayOpts<C>,
     ) -> Result<()> {
         info!(
             "aggregating contract calls starting at block height {}...",
@@ -171,20 +171,20 @@ impl ChainStateReplayer {
     }
 
     /// Replays the specified block into `target`.
-    fn replay_block_into<'a, Target: WriteableEnv + ?Sized + 'a>(
+    fn replay_block_into<'a>(
         _header: &BlockHeader,
         block: &Block,
         stacks_block: &StacksBlock,
-        target: &'a mut Target,
+        target: &mut Box<dyn WriteableEnv>,
     ) -> Result<()> {
         //let block_id = header.index_block_hash;
         debug!("beginning block in target");
         let blocks_dir = target.cfg().blocks_dir().to_path_buf();
-        let block_tx = target.block_begin(block)?;
+        let mut block_tx = target.block_begin(block)?;
 
         // Begin a new block in `target`.
         match block_tx {
-            BlockContext::Regular(ctx) => {
+            BlockContext::Regular(ref mut ctx) => {
                 debug!("beginning chainstate transaction/clarity tx");
                 let chainstate_tx = ctx.chainstate.chainstate_tx_begin()?;
 
@@ -258,7 +258,7 @@ impl ChainStateReplayer {
                                     &contract_ast, 
                                     &contract.code_body.to_string(), 
                                     sponsor_addr, 
-                                    |assets, _db| {
+                                    |_, _| {
                                         false
                                     }).expect("failed to initialize smart contract");
 
@@ -297,7 +297,7 @@ impl ChainStateReplayer {
                                     &contract_id, 
                                     &call.function_name, 
                                     &call.function_args, 
-                                    |asset_map, db| {
+                                    |asset_map, _| {
                                         
                                         // Check the post-conditions of the contract call, and
                                         // roll-back if they are not met.
@@ -357,7 +357,6 @@ impl ChainStateReplayer {
                                         },
                                         _ => error!("token transfer failed: {err:?}")
                                     }
-                                    error!("token transfer error: {:?}", err);
                                 }
                             }
 
@@ -392,6 +391,7 @@ impl ChainStateReplayer {
             },
         }
 
+        //block_tx.commit(target)?;
         Ok(())
     }
 }

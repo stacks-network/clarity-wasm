@@ -183,7 +183,6 @@ impl clarity::HeadersDB for AppDbHeadersWrapper {
         &self,
         id_bhh: &stacks_common::types::chainstate::StacksBlockId,
     ) -> Option<stacks_common::types::chainstate::StacksAddress> {
-        eprintln!("HELLO!");
         self.get_payment_by_stacks_block_id(id_bhh)
             .unwrap()
             .map(|payment| {

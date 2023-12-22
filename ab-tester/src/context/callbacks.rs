@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::Network;
-use crate::environments::{ReadableEnv, RuntimeEnv};
+use crate::environments::{ReadableEnv, RuntimeEnv, WriteableEnv};
 
 #[allow(unused_variables)]
 pub trait RuntimeEnvCallbackHandler {
@@ -33,34 +33,38 @@ impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 
 #[allow(unused_variables)]
 pub trait ReplayCallbackHandler {
-    fn replay_start<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+    fn replay_start(
         &self,
-        source: &S,
-        target: &T,
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
         block_count: usize,
-    ) {
-    }
-    fn replay_finish<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+    ) {}
+    fn replay_finish(
         &self,
-        source: &S,
-        target: &T,
-    ) {
-    }
-    fn replay_block_start<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
+    ) {}
+    fn replay_block_start(
         &self,
-        source: &S,
-        target: &T,
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
         height: u32,
-    ) {
-    }
-    fn replay_block_finish<S: ReadableEnv + ?Sized, T: ReadableEnv + ?Sized>(
+    ) {}
+    fn replay_block_finish(
         &self,
-        source: &S,
-        target: &T,
-    ) {
-    }
-    fn replay_tx_start<E: ReadableEnv + ?Sized>(&self, source: &E, target: &E) {}
-    fn replay_tx_finish<E: ReadableEnv + ?Sized>(&self, source: &E, target: &E) {}
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
+    ) {}
+    fn replay_tx_start(
+        &self, 
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
+    ) {}
+    fn replay_tx_finish(
+        &self, 
+        source: &Box<dyn ReadableEnv>,
+        target: &Box<dyn WriteableEnv>,
+    ) {}
 }
 
 #[derive(Clone, Default)]

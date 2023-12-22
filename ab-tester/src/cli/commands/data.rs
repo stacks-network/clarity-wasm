@@ -30,7 +30,7 @@ pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<
     let mut replay_opts: ReplayOpts<DefaultReplayCallbacks> = data_args.into();
     replay_opts.with_working_dir(&config.app.working_dir);
 
-    let ctx = ComparisonContext::new(&config, app_db.clone())
+    let mut ctx = ComparisonContext::new(&config, app_db.clone())
         .using_baseline(|from| from.stacks_node("baseline", "/home/cylwit/stacks/mainnet".into()))?
         .instrument_into(|into| {
             into.instrumented(

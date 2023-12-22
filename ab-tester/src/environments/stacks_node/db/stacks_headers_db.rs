@@ -219,8 +219,6 @@ impl clarity::HeadersDB for StacksHeadersDb {
     }
 
     fn get_miner_address(&self, id_bhh: &stacks::StacksBlockId) -> Option<stacks::StacksAddress> {
-        eprintln!("getting miner address for block {:?}", id_bhh);
-
         let result = payments::table
             .filter(payments::index_block_hash.eq(id_bhh.to_hex()))
             .first::<Payment>(&mut *self.conn.borrow_mut())
@@ -230,7 +228,6 @@ impl clarity::HeadersDB for StacksHeadersDb {
                 stacks::Address::from_string(&payment.address)
                     .expect("failed to convert the payment address to a StacksAddress")
             });
-        eprintln!("result: {:?}", result);
         
         result
 

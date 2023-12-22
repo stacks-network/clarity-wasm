@@ -10,7 +10,7 @@ use std::rc::Rc;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::helper_types::{Limit, Offset};
-use diesel::prelude::*;
+use diesel::{prelude::*, update};
 use diesel::query_dsl::methods::{LimitDsl, LoadQuery, OffsetDsl};
 use diesel::upsert::excluded;
 use diesel::{debug_query, insert_into, OptionalExtension, QueryDsl, SqliteConnection};
@@ -623,7 +623,7 @@ impl AppDb {
             block::marf_trie_root_hash.eq(marf_trie_root_hash),
         ));
 
-        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
+        info!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<Block>(&mut *self.conn.borrow_mut())
@@ -644,7 +644,7 @@ impl AppDb {
         let query = insert_into(environment::table).values((
             environment::runtime_id.eq(runtime_id),
             environment::name.eq(name),
-            environment::path.eq(path),
+            environment::base_path.eq(path),
         ));
 
         trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
@@ -654,6 +654,21 @@ impl AppDb {
             .unwrap();
 
         Ok(result)
+    }
+
+    /// Updates an environment's last-processed block height, which enables
+    /// resume-processing functionality.
+    pub fn set_environment_last_block_height(
+        &self, 
+        environment_id: i32, 
+        last_block_height: i32
+    ) -> Result<()> {
+        update(environment::table)
+            .filter(environment::id.eq(environment_id))
+            .set(environment::last_block_height.eq(last_block_height))
+            .execute(&mut *self.conn.borrow_mut())?;
+
+        Ok(())
     }
 
     /// Inserts a Clarity contract into the application-specific database and

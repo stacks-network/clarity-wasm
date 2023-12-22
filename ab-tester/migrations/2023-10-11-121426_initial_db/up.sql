@@ -11,19 +11,28 @@ CREATE TABLE IF NOT EXISTS environment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     runtime_id INTEGER NOT NULL,
-    path TEXT NOT NULL,
+    last_block_height INTEGER NOT NULL,
+    base_path TEXT NOT NULL,
 
     CONSTRAINT fk_runtime
     FOREIGN KEY (runtime_id)
     REFERENCES runtime (id)
 );
 
+CREATE TABLE IF NOT EXISTS environment_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    environment_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    block_height INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+)
+
 CREATE TABLE IF NOT EXISTS block (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     environment_id INTEGER NOT NULL,
     --stacks_block_id INTEGER NOT NULL UNIQUE,
-    height INTEGER UNIQUE NOT NULL,
-    index_hash BINARY UNIQUE NOT NULL,
+    height INTEGER NOT NULL,
+    index_hash BINARY NOT NULL,
     marf_trie_root_hash BINARY NOT NULL,
 
     UNIQUE (environment_id, index_hash),
@@ -171,8 +180,20 @@ CREATE TABLE IF NOT EXISTS _payments (
     environment_id INTEGER NOT NULL,
     "address" TEXT NOT NULL,
     block_hash BINARY NOT NULL,
+    consensus_hash BINARY NOT NULL,
+    parent_block_hash BINARY NOT NULL,
+    parent_consensus_hash BINARY NOT NULL,
+    coinbase BIGINT NOT NULL,
+    tx_fees_anchored BIGINT NOT NULL,
+    tx_fees_streamed BIGINT NOT NULL,
+    stx_burns BIGINT NOT NULL,
     burnchain_commit_burn INTEGER NOT NULL,
     burnchain_sortition_burn INTEGER NOT NULL,
+    miner BOOLEAN NOT NULL,
+    stacks_block_height INTEGER NOT NULL,
+    index_block_hash BINARY NOT NULL,
+    vtxindex INTEGER NOT NULL,
+    recipient TEXT NOT NULL,
 
     PRIMARY KEY (environment_id, "address", block_hash),
 
@@ -180,6 +201,28 @@ CREATE TABLE IF NOT EXISTS _payments (
     FOREIGN KEY (environment_id)
     REFERENCES environment (id)
 );
+
+table! {
+    _payments (environment_id, address, block_hash) {
+        environment_id -> Integer,
+        address -> Text,
+        block_hash -> Binary,
+        consensus_hash -> Binary,
+        parent_block_hash -> Binary,
+        parent_consensus_hash -> Binary,
+        coinbase -> BigInt,
+        tx_fees_anchored -> BigInt,
+        tx_fees_streamed -> BigInt,
+        stx_burns -> BigInt,
+        burnchain_commit_burn -> Integer,
+        burnchain_sortition_burn -> Integer,
+        miner -> Bool,
+        stacks_block_height -> Integer,
+        index_block_hash -> Binary,
+        vtxindex -> Integer,
+        recipient -> Text,
+    }
+}
 
 CREATE INDEX IF NOT EXISTS ix__payments_block_hash 
     ON _payments (environment_id, block_hash);

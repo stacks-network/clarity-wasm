@@ -411,6 +411,8 @@ impl WriteableEnv for InstrumentedEnv {
         block: &crate::context::Block
     ) -> Result<BlockContext>
     {
+        let env_id = self.id().clone();
+
         if self.is_readonly() {
             bail!("[{}] environment is read-only.", self.name);
         }
@@ -455,49 +457,22 @@ impl WriteableEnv for InstrumentedEnv {
                     new_block_hash.to_hex()
                 );
 
-                Ok(BlockContext::Regular(RegularBlockContext {
+                
+                let ctx = BlockContext::Regular(RegularBlockContext {
                     parent_consensus_hash,
                     parent_block_hash,
                     new_consensus_hash,
                     new_block_hash,
                     chainstate: &mut state.chainstate,
                     burn_db: &*state.burnstate_db,
-                    headers_db: &*state.headers_db
-                }))
+                    headers_db: &*state.headers_db,
+                    commit_callback: &|env, ctx| -> Result<()> {
+                        let cost_tracker = env.block_commit(ctx)?;
+                        Ok(())
+                    }
+                });
 
-                /*debug!("beginning chainstate tx");
-                let (_, clarity_instance) = 
-                    state.chainstate.chainstate_tx_begin()?;
-
-
-                debug!("chainstate begin tx");
-                let block = clarity_instance.begin_block(
-                    &StacksBlockId::from_bytes(&new_block_hash.0).unwrap(), 
-                    &StacksBlockId::from_bytes(&inner.next_header.as_ref().unwrap().block_hash.0).unwrap(), 
-                    &*state.headers_db, 
-                    &*state.burnstate_db);
-
-                let block_ctx = BlockContext::Regular(block);
-
-                Ok(block_ctx)*/
-
-                /*let mut clarity_tx = state.chainstate.block_begin(
-                    &*state.burnstate_db,
-                    parent_consensus_hash,
-                    parent_block_hash,
-                    new_consensus_hash,
-                    new_block_hash,
-                );
-
-                let clarity_block_conn = clarity_tx.connection();
-                Ok(BlockContext::Regular(move || clarity_tx, clarity_block_conn))*/
-
-                // Transaction processing here
-                /*Ok(BlockTransactionContext::Regular(
-                        ClarityBlockTransaction::new(
-                            //clarity_tx, 
-                            *new_consensus_hash, 
-                            *new_block_hash)))*/
+                Ok(ctx)
             }
         }
     }
@@ -506,6 +481,11 @@ impl WriteableEnv for InstrumentedEnv {
         &mut self,
         ctx: BlockContext,
     ) -> Result<clarity::LimitedCostTracker> {
+        self.app_db.set_environment_last_block_height(
+            self.id(), 
+            5 //block.block_height()? as i32
+        )?;
+        
         todo!()
     }
 
