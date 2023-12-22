@@ -581,7 +581,7 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.2.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#f2d97191663a9bcdc739e4012a09eb9909554458"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next-devnet#15f7c7203b96c285c8baba893f46d50b5aba6cd2"
 dependencies = [
  "integer-sqrt",
  "lazy_static",
