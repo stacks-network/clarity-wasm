@@ -9,6 +9,7 @@ use color_eyre::Result;
 use db::schema::sortition::*;
 use db::stacks_burnstate_db::StacksBurnStateDb;
 use db::stacks_headers_db::StacksHeadersDb;
+use diesel::dsl::max;
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
@@ -287,6 +288,10 @@ impl RuntimeEnv for StacksNodeEnv {
         self.env_state.is_some()
     }
 
+    fn cfg(&self) -> &dyn EnvConfig {
+        &self.env_config
+    }
+
     fn open(&mut self) -> Result<()> {
         let paths = &self.env_config.paths;
         let name = &self.name;
@@ -510,10 +515,6 @@ impl ReadableEnv for StacksNodeEnv {
         Ok(result as usize)
     }
 
-    fn cfg(&self) -> &dyn EnvConfig {
-        &self.env_config
-    }
-
     fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Payment> {
         let state = self.get_env_state()?;
 
@@ -534,6 +535,16 @@ impl ReadableEnv for StacksNodeEnv {
             .get_result(&mut *state.index_db_conn.borrow_mut())?;
 
         Ok(result as usize)
+    }
+
+    fn last_block_height(&self) -> Result<u32> {
+        let state = self.get_env_state()?;
+        let result: Option<i32> = block_headers::table
+            .select(max(block_headers::block_height))
+            .get_result::<Option<i32>>(&mut *state.index_db_conn.borrow_mut())?;
+
+        let max_block_height = result.unwrap_or_default();
+        Ok(max_block_height as u32)
     }
 }
 

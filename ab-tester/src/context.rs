@@ -3,8 +3,8 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use blockstack_lib::chainstate::stacks::db::{ChainstateTx, ClarityTx, StacksChainState};
-use blockstack_lib::clarity_vm::clarity::{ClarityInstance, ClarityBlockConnection};
+use blockstack_lib::chainstate::stacks::db::StacksChainState;
+
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use log::*;
@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::context::replay::ChainStateReplayer;
 use crate::db::appdb::AppDb;
 use crate::utils::{append_to_path, zstd_compress, zstd_decompress};
-use crate::{clarity, ok, stacks};
+use crate::{clarity, ok};
 
 pub mod blocks;
 pub mod boot_data;
@@ -25,7 +25,8 @@ pub use blocks::{Block, BlockCursor};
 
 use self::callbacks::ReplayCallbackHandler;
 use self::replay::{ReplayOpts, ReplayResult};
-use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, ClarityBlockTransaction, RuntimeEnv};
+use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, RuntimeEnv, EnvConfig};
+
 
 pub struct BaselineBuilder {
     app_db: Rc<AppDb>,
@@ -42,7 +43,8 @@ impl BaselineBuilder {
 
     pub fn stacks_node(mut self, name: &'_ str, node_dir: PathBuf) -> Result<Self> {
         let env =
-            RuntimeEnvBuilder::new(self.app_db.clone()).stacks_node(name.to_string(), node_dir)?;
+            RuntimeEnvBuilder::new(self.app_db.clone())
+                .stacks_node(name.to_string(), node_dir)?;
         self.baseline_env = Some(Box::new(env));
         Ok(self)
     }
@@ -50,7 +52,7 @@ impl BaselineBuilder {
 
 pub struct InstrumentIntoBuilder {
     app_db: Rc<AppDb>,
-    instrumented_envs: Vec<Box<dyn WriteableEnv>>,
+    instrumented_envs: Vec<Box<dyn WriteableEnv>>
 }
 
 impl InstrumentIntoBuilder {
@@ -130,9 +132,9 @@ impl<'ctx> ComparisonContext<'ctx> {
 
     /// Executes the replay process from the baseline environment into the
     /// environments specified to instrument into.
-    pub fn replay<'a, C: ReplayCallbackHandler>(
+    pub fn replay<C: ReplayCallbackHandler>(
         mut self,
-        opts: &'a ReplayOpts<C>,
+        opts: &ReplayOpts<C>,
     ) -> Result<ReplayResult> {
         let mut baseline_env_taken = self.baseline_env.take();
         let baseline_env = baseline_env_taken
@@ -162,7 +164,7 @@ impl<'ctx> ComparisonContext<'ctx> {
                 info!("[{target_name}] removed {cleared_block_count} blocks");
             }
 
-            if Self::is_environment_import_needed(baseline_readable, target_writeable)? {
+            if Self::is_environment_import_needed(opts, baseline_readable, target_writeable)? {
                 info!("[{target_name}] clearing any already-processed blocks...");
                 let cleared_block_count = target.clear_blocks()?;
                 info!("[{target_name}] removed {cleared_block_count} blocks");
@@ -193,19 +195,27 @@ impl<'ctx> ComparisonContext<'ctx> {
 
             // Replay from source into target.
             ChainStateReplayer::replay(
-                baseline_env, 
-                target, 
+                &**baseline_env, 
+                &mut **target, 
                 opts)?;
         }
 
         todo!()
     }
 
-    fn is_environment_import_needed<Source: ReadableEnv + ?Sized, Target: ReadableEnv + ?Sized>(
-        source: &Source,
-        target: &Target,
+    fn is_environment_import_needed<C: ReplayCallbackHandler>(
+        opts: &ReplayOpts<C>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
     ) -> Result<bool> {
         info!("checking import data equality between source and target environments...");
+
+        if let Some(from_height) = opts.from_height {
+            if from_height > target.last_block_height()? {
+                return Ok(true)
+            }
+        }
+
         if source.snapshot_count()? != target.snapshot_count()? {
             debug!("environment snapshot counts differ");
             return Ok(true);
@@ -235,7 +245,9 @@ impl<'ctx> ComparisonContext<'ctx> {
         Ok(false)
     }
 
-    fn restore_environment<Target: ReadableEnv + ?Sized>(target: &Target) -> Result<()> {
+    fn restore_environment(
+        target: &dyn WriteableEnv,
+    ) -> Result<()> {
         let name = target.name();
 
         // TODO: Load environment from src-target.backup if exists and --reset-env
@@ -292,7 +304,9 @@ impl<'ctx> ComparisonContext<'ctx> {
         ok!()
     }
 
-    fn snapshot_environment<Target: ReadableEnv + ?Sized>(target: &Target) -> Result<()> {
+    fn snapshot_environment(
+        target: &dyn WriteableEnv,
+    ) -> Result<()> {
         let name = target.name();
 
         // TODO: Load environment from src-target.backup if exists and --reset-env
@@ -347,6 +361,9 @@ pub enum BlockContext<'a> {
 }
 
 pub struct RegularBlockContext<'a> {
+    pub block_height: u32,
+    pub environment_id: i32,
+    pub app_db: Rc<AppDb>,
     pub parent_consensus_hash: ConsensusHash,
     pub parent_block_hash: BlockHeaderHash,
     pub new_consensus_hash: ConsensusHash,
@@ -354,7 +371,6 @@ pub struct RegularBlockContext<'a> {
     pub chainstate: &'a mut StacksChainState,
     pub burn_db: &'a dyn clarity::BurnStateDB,
     pub headers_db: &'a dyn clarity::HeadersDB,
-    pub commit_callback: &'a (dyn Fn(&mut Box<dyn WriteableEnv>, BlockContext) -> Result<()> + 'a)
 }
 
 impl BlockContext<'_> {
@@ -364,18 +380,6 @@ impl BlockContext<'_> {
 
     pub fn is_regular(&self) -> bool {
         matches!(self, BlockContext::Regular(_))
-    }
-
-    pub fn commit(self, env: &mut Box<dyn WriteableEnv>) -> Result<()> {
-        match self {
-            BlockContext::Genesis => {
-                todo!()
-            }
-            BlockContext::Regular(ctx) => {
-                (ctx.commit_callback)(env, BlockContext::Regular(ctx))?;
-                ok!()
-            }
-        }
     }
 }
 

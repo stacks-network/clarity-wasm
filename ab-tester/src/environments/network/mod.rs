@@ -1,6 +1,6 @@
 use color_eyre::Result;
 
-use super::RuntimeEnv;
+use super::{RuntimeEnv, EnvConfig};
 use crate::context::{Network, Runtime};
 
 /// This environment type is read-only and can be used to sync from the Stacks
@@ -13,6 +13,42 @@ pub struct NetworkEnv {
     working_dir: String,
     runtime: Runtime,
     network: Network,
+}
+
+pub struct NetworkEnvConfig {}
+
+impl EnvConfig for NetworkEnvConfig {
+    fn chainstate_index_db_path(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn is_chainstate_app_indexed(&self) -> bool {
+        todo!()
+    }
+
+    fn blocks_dir(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn sortition_dir(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn sortition_db_path(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn is_sortition_app_indexed(&self) -> bool {
+        todo!()
+    }
+
+    fn clarity_db_path(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn is_clarity_db_app_indexed(&self) -> bool {
+        todo!()
+    }
 }
 
 impl RuntimeEnv for NetworkEnv {
@@ -33,6 +69,10 @@ impl RuntimeEnv for NetworkEnv {
     }
 
     fn id(&self) -> i32 {
+        todo!()
+    }
+
+    fn cfg(&self) -> &dyn EnvConfig {
         todo!()
     }
 }

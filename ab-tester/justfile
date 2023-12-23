@@ -1,7 +1,7 @@
 set dotenv-load
 
 run *args:
-    RUST_BACKTRACE=full RUST_LOG="debug" cargo run -- {{args}}
+    RUST_BACKTRACE=full cargo run -- {{args}}
 
 fmt:
     cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module

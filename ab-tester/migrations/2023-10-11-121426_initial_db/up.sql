@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS environment_snapshot (
     environment_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     block_height INTEGER NOT NULL,
-    file_path TEXT NOT NULL,
-)
+    file_path TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS block (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,28 +201,6 @@ CREATE TABLE IF NOT EXISTS _payments (
     FOREIGN KEY (environment_id)
     REFERENCES environment (id)
 );
-
-table! {
-    _payments (environment_id, address, block_hash) {
-        environment_id -> Integer,
-        address -> Text,
-        block_hash -> Binary,
-        consensus_hash -> Binary,
-        parent_block_hash -> Binary,
-        parent_consensus_hash -> Binary,
-        coinbase -> BigInt,
-        tx_fees_anchored -> BigInt,
-        tx_fees_streamed -> BigInt,
-        stx_burns -> BigInt,
-        burnchain_commit_burn -> Integer,
-        burnchain_sortition_burn -> Integer,
-        miner -> Bool,
-        stacks_block_height -> Integer,
-        index_block_hash -> Binary,
-        vtxindex -> Integer,
-        recipient -> Text,
-    }
-}
 
 CREATE INDEX IF NOT EXISTS ix__payments_block_hash 
     ON _payments (environment_id, block_hash);

@@ -1,6 +1,6 @@
-mod instrumented;
-mod network;
-mod stacks_node;
+pub mod instrumented;
+pub mod network;
+pub mod stacks_node;
 
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
@@ -64,7 +64,7 @@ impl RuntimeEnvBuilder {
     /// Creates and returns a new [InstrumentedEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn instrumented(
+    pub fn instrumented<'a>(
         &self,
         name: String,
         runtime: Runtime,
@@ -104,6 +104,8 @@ pub trait RuntimeEnv {
     fn is_open(&self) -> bool;
     /// Opens the environment and initializes it if needed (and writeable).
     fn open(&mut self) -> Result<()>;
+    /// Retrieves the paths used by this [RuntimeEnv].
+    fn cfg(&self) -> &dyn EnvConfig;
 }
 
 impl Display for &dyn RuntimeEnv {
@@ -123,6 +125,8 @@ pub trait ReadableEnv: RuntimeEnv {
     /// Provides a [BlockCursor] over the Stacks blocks contained within this
     /// environment.
     fn blocks(&self, max_blocks: Option<u32>) -> Result<BlockCursor>;
+
+    fn last_block_height(&self) -> Result<u32>;
 
     // TODO: Move environment data export methods to their own trait.
 
@@ -148,9 +152,6 @@ pub trait ReadableEnv: RuntimeEnv {
 
     fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<Payment>;
     fn payment_count(&self) -> Result<usize>;
-
-    /// Retrieves the paths used by this [RuntimeEnv].
-    fn cfg(&self) -> &dyn EnvConfig;
 }
 
 pub struct ClarityBlockTransaction<'a, 'b> {
@@ -248,14 +249,9 @@ impl ClarityBlockTransactionResult {
 pub trait WriteableEnv: ReadableEnv {
     /// Begins the [Block] from the source environment in the target environment's
     /// chainstate.
-    fn block_begin<'a: 'b, 'b>(&'a mut self, block: &Block) -> Result<BlockContext>;
+    //fn block_begin(&mut self, block: &Block) -> Result<&mut BlockContext>;
 
-    /// Commits the currently open [Block] from the source environment to the
-    /// target environment's chainstate.
-    fn block_commit(
-        &mut self,
-        block_tx_ctx: BlockContext,
-    ) -> Result<clarity::LimitedCostTracker>;
+    fn process_block(&mut self, block: &Block) -> Result<()>;
 
     // TODO: Move environment data import methods to their own trait.
     fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()>;

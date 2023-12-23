@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::path::Path;
 
@@ -76,7 +75,7 @@ impl StacksHeadersDb {
     pub fn import_payments(
         &mut self,
         payments: Box<dyn Iterator<Item = Result<crate::types::Payment>>>,
-        environment_id: Option<i32>,
+        _environment_id: Option<i32>,
     ) -> Result<()> {
         let conn = &mut *self.conn.borrow_mut();
 
@@ -230,14 +229,6 @@ impl clarity::HeadersDB for StacksHeadersDb {
             });
         
         result
-
-
-        /*self.get_payment_by_stacks_block_id(id_bhh)
-            .unwrap()
-            .map(|payment| {
-                stacks::Address::from_string(&payment.address)
-                    .expect("failed to convert the payment address to a StacksAddress")
-            })*/
     }
 
     fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &stacks::StacksBlockId) -> Option<u128> {

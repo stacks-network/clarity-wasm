@@ -35,35 +35,35 @@ impl RuntimeEnvCallbackHandler for DefaultEnvCallbacks {}
 pub trait ReplayCallbackHandler {
     fn replay_start(
         &self,
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
         block_count: usize,
     ) {}
     fn replay_finish(
         &self,
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
     ) {}
     fn replay_block_start(
         &self,
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
         height: u32,
     ) {}
     fn replay_block_finish(
         &self,
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
     ) {}
     fn replay_tx_start(
         &self, 
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
     ) {}
     fn replay_tx_finish(
         &self, 
-        source: &Box<dyn ReadableEnv>,
-        target: &Box<dyn WriteableEnv>,
+        source: &dyn ReadableEnv,
+        target: &dyn WriteableEnv,
     ) {}
 }
 

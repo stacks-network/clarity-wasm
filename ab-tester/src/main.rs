@@ -107,11 +107,6 @@ fn apply_db_migrations(config: &Config) -> Result<()> {
 }
 
 fn configure_logging(cli: &Cli) {
-    // Initialize logging.
-    env_logger::Builder::new()
-        .filter_level(cli.verbosity.log_level_filter())
-        .init();
-
     if cli.sql_trace {
         std::env::set_var("sql_trace", "1");
     }
@@ -120,26 +115,36 @@ fn configure_logging(cli: &Cli) {
         if let Some(level) = cli.verbosity.log_level() {
             match level {
                 Level::Trace => {
+                    std::env::set_var("RUST_LOG", "trace");
                     std::env::set_var("BLOCKSTACK_TRACE", "1");
                     std::env::set_var("STACKS_LOG_TRACE", "1");
                 }
                 Level::Debug => {
+                    std::env::set_var("RUST_LOG", "debug");
                     std::env::set_var("BLOCKSTACK_DEBUG", "1");
                     std::env::set_var("STACKS_LOG_DEBUG", "1");
                 }
                 Level::Info => {
+                    std::env::set_var("RUST_LOG", "info");
                     std::env::set_var("BLOCKSTACK_INFO", "1");
                     std::env::set_var("STACKS_LOG_INFO", "1");
                 }
                 Level::Warn => {
+                    std::env::set_var("RUST_LOG", "warn");
                     std::env::set_var("BLOCKSTACK_WARN", "1");
                     std::env::set_var("STACKS_LOG_WARN", "1");
                 }
                 Level::Error => {
+                    std::env::set_var("RUST_LOG", "error");
                     std::env::set_var("BLOCKSTACK_ERROR", "1");
                     std::env::set_var("STACKS_LOG_ERROR", "1");
                 }
             }
         }
     }
+
+    // Initialize logging.
+    env_logger::Builder::new()
+        .filter_level(cli.verbosity.log_level_filter())
+        .init();
 }

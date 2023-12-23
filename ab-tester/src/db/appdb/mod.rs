@@ -432,6 +432,16 @@ impl AppDb {
         Ok(result as u32)
     }
 
+    pub fn last_block_height(&self, environment_id: i32) -> Result<u32> {
+        environment::table
+            .filter(environment::id.eq(environment_id))
+            .select(environment::last_block_height)
+            .get_result::<i32>(&mut *self.conn.borrow_mut())
+            .optional()?
+            .ok_or(anyhow!("failed"))
+            .map(|x| x as u32)
+    }
+
     pub fn snapshot_count(&self, environment_id: i32) -> Result<usize> {
         let result = _snapshots::table
             .filter(_snapshots::environment_id.eq(environment_id))
@@ -644,6 +654,7 @@ impl AppDb {
         let query = insert_into(environment::table).values((
             environment::runtime_id.eq(runtime_id),
             environment::name.eq(name),
+            environment::last_block_height.eq(0),
             environment::base_path.eq(path),
         ));
 

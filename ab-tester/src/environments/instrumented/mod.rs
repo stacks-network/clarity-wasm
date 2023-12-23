@@ -2,27 +2,29 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use color_eyre::eyre::{anyhow, bail};
+use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 use diesel::{
     Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use log::*;
 
-use super::stacks_node::db::schema::chainstate::block_headers;
 use super::stacks_node::StacksEnvPaths;
-use super::{BoxedDbIterResult, EnvConfig, EnvPaths, ReadableEnv, RuntimeEnv, WriteableEnv};
+use super::{EnvConfig, EnvPaths, RuntimeEnv};
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::callbacks::{DefaultEnvCallbacks, RuntimeEnvCallbackHandler};
-use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext, RegularBlockContext};
+use crate::context::{Network, Runtime};
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
 use crate::db::model;
-use crate::db::schema::{self, _block_commits, _snapshots, _payments};
+use crate::db::schema::{self};
 use crate::environments::stacks_node::db::stacks_headers_db::StacksHeadersDb;
 use crate::types::BlockHeader;
 use crate::{clarity, ok, stacks};
+
+pub mod readable_env;
+pub mod writeable_env;
 
 /// Holds the configuration of an [InstrumentedEnv].
 pub struct InstrumentedEnvConfig {
@@ -316,252 +318,8 @@ impl RuntimeEnv for InstrumentedEnv {
     fn id(&self) -> i32 {
         self.id
     }
-}
-
-/// Implementation of [ReadableEnv] for [InstrumentedEnv].
-impl ReadableEnv for InstrumentedEnv {
-    fn blocks(&self, max_blocks: Option<u32>) -> Result<BlockCursor> {
-        let headers = self.block_headers(max_blocks)?;
-        let cursor = BlockCursor::new(self.env_config.paths.blocks_dir(), headers);
-        Ok(cursor)
-    }
-
-    fn snapshots(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Snapshot> {
-        let result = self
-            .app_db
-            .stream_results::<model::Snapshot, crate::types::Snapshot, _>(
-                _snapshots::table, 
-                prefetch_limit as usize
-            );
-
-        Ok(Box::new(result))
-    }
-
-    fn snapshot_count(&self) -> Result<usize> {
-        self.app_db.snapshot_count(self.id)
-    }
-
-    fn block_commits(&self, _prefetch_limit: u32) -> Result<Box<dyn Iterator<Item = Result<crate::types::BlockCommit>>>> {
-        let result = self
-            .app_db
-            .stream_results::<model::BlockCommit, crate::types::BlockCommit, _>(
-                _block_commits::table,
-                1000,
-            );
-
-        Ok(Box::new(result))
-    }
-
-    fn block_commit_count(&self) -> Result<usize> {
-        self.app_db.block_commit_count(self.id)
-    }
-
-    fn ast_rules(&self) -> BoxedDbIterResult<crate::types::AstRuleHeight> {
-        todo!()
-    }
-
-    fn ast_rule_count(&self) -> Result<usize> {
-        self.app_db.ast_rule_count(self.id)
-    }
-
-    fn epochs(&self) -> BoxedDbIterResult<crate::types::Epoch> {
-        todo!()
-    }
-
-    fn epoch_count(&self) -> Result<usize> {
-        self.app_db.epoch_count(self.id)
-    }
-
-    fn block_headers(&self, _prefetch_limit: u32) -> BoxedDbIterResult<crate::types::BlockHeader> {
-        todo!()
-    }
-
-    fn block_header_count(&self) -> Result<usize> {
-        let result: i64 = block_headers::table
-            .count()
-            .get_result(&mut *self.get_env_state()?.index_db_conn.borrow_mut())?;
-
-        Ok(result as usize)
-    }
 
     fn cfg(&self) -> &dyn EnvConfig {
         &self.env_config
-    }
-
-    fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<crate::types::Payment> {
-        let result = self
-            .app_db
-            .stream_results::<model::Payment, crate::types::Payment, _>(
-                _payments::table,
-                prefetch_limit as usize,
-            );
-
-        Ok(Box::new(result))
-    }
-
-    fn payment_count(&self) -> Result<usize> {
-        self.app_db.payment_count(self.id)
-    }
-}
-
-/// Implementation of [WriteableEnv] for [InstrumentedEnv].
-impl WriteableEnv for InstrumentedEnv {
-    fn block_begin<'a: 'b, 'b>(
-        &'a mut self, 
-        block: &crate::context::Block
-    ) -> Result<BlockContext>
-    {
-        let env_id = self.id().clone();
-
-        if self.is_readonly() {
-            bail!("[{}] environment is read-only.", self.name);
-        }
-
-        trace!("block: {block:?}");
-
-        // Insert this block into the app database.
-        debug!("creating block in app datastore");
-        self.app_db.insert_block(
-            self.id,
-            block.block_height()? as i32,
-            block.block_hash()?.as_bytes(),
-            block.index_block_hash()?,
-        )?;
-
-        let state = self.get_env_state_mut()?;
-
-        match block {
-            Block::Genesis(inner) => {
-                info!(
-                    "Reached GENESIS block: {}",
-                    &inner.header.index_block_hash.to_hex()
-                );
-                info!("Genesis block has already been processed as a part of boot init - continuing...");
-                Ok(BlockContext::Genesis)
-            }
-            Block::Regular(inner) => {
-                info!(
-                    "beginning regular block: {}",
-                    &inner.header.index_block_hash.to_hex()
-                );
-
-                let parent_consensus_hash = inner.parent_header.consensus_hash;
-                let parent_block_hash = inner.parent_header.block_hash;
-                let new_consensus_hash = inner.header.consensus_hash;
-                let new_block_hash = inner.header.block_hash;
-
-                debug!("parent_consensus_hash: {}, parent_block: {}, new_consensus_hash: {}, new_block: {}",
-                    parent_consensus_hash.to_hex(),
-                    parent_block_hash.to_hex(),
-                    new_consensus_hash.to_hex(),
-                    new_block_hash.to_hex()
-                );
-
-                
-                let ctx = BlockContext::Regular(RegularBlockContext {
-                    parent_consensus_hash,
-                    parent_block_hash,
-                    new_consensus_hash,
-                    new_block_hash,
-                    chainstate: &mut state.chainstate,
-                    burn_db: &*state.burnstate_db,
-                    headers_db: &*state.headers_db,
-                    commit_callback: &|env, ctx| -> Result<()> {
-                        let cost_tracker = env.block_commit(ctx)?;
-                        Ok(())
-                    }
-                });
-
-                Ok(ctx)
-            }
-        }
-    }
-
-    fn block_commit(
-        &mut self,
-        ctx: BlockContext,
-    ) -> Result<clarity::LimitedCostTracker> {
-        self.app_db.set_environment_last_block_height(
-            self.id(), 
-            5 //block.block_height()? as i32
-        )?;
-        
-        todo!()
-    }
-
-    /// Imports chainstate from the provided source environment into this environment.
-    fn import_chainstate(&self, source: &dyn ReadableEnv) -> Result<()> {
-        let env_name = self.name();
-        let mut headers_db = StacksHeadersDb::new(self.env_config.paths.index_db_path())?;
-
-        // Import block headers
-        debug!(
-            "[{env_name}] importing block headers from '{}'...",
-            source.name()
-        );
-        let src_block_headers_iter = source.block_headers(5000)?;
-        headers_db.import_block_headers(src_block_headers_iter, Some(self.id()))?;
-
-        // Payments
-        debug!("[{env_name}] importing payments from '{}'...", source.name());
-        let src_payments_iter = source.payments(5000)?;
-        headers_db
-            .import_payments(src_payments_iter, Some(self.id()))?;
-
-        ok!()
-    }
-
-    /// Imports burnstate from the provided source environment into this environment.
-    fn import_burnstate(&self, source: &dyn ReadableEnv) -> Result<()> {
-        let env_name = self.name();
-
-        // Snapshots
-        debug!(
-            "[{env_name}] importing snapshots from '{}'...",
-            source.name()
-        );
-        let src_snapshots_iter = source.snapshots(5000)?;
-        self.app_db
-            .batch()
-            .import_snapshots(src_snapshots_iter, Some(self.id()))?;
-
-        // Block commits
-        debug!(
-            "[{env_name}] importing block commits from '{}'...",
-            source.name()
-        );
-        let src_block_commits_iter = source.block_commits(5000)?;
-        self.app_db
-            .batch()
-            .import_block_commits(src_block_commits_iter, Some(self.id()))?;
-
-        // AST rules
-        debug!(
-            "[{env_name}] importing AST rules from '{}'...",
-            source.name(),
-        );
-        let src_ast_rules_iter = source.ast_rules()?;
-        self.app_db
-            .batch()
-            .import_ast_rules(src_ast_rules_iter, Some(self.id()))?;
-
-        // Epochs
-        debug!(
-            "[{env_name}] importing epochs from '{}'...",
-            source.name()
-        );
-        let src_epochs_iter = source.epochs()?;
-        self.app_db
-            .batch()
-            .import_epochs(src_epochs_iter, Some(self.id()))?;
-
-        ok!()
-    }
-
-    fn clear_blocks(&self) -> Result<u32> {
-        let result = self.app_db
-            .delete_blocks_for_environment(self.id)?;
-
-        Ok(result)
     }
 }
