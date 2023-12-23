@@ -25,7 +25,7 @@ pub use blocks::{Block, BlockCursor};
 
 use self::callbacks::ReplayCallbackHandler;
 use self::replay::{ReplayOpts, ReplayResult};
-use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv, RuntimeEnv, EnvConfig};
+use crate::environments::{ReadableEnv, RuntimeEnvBuilder, WriteableEnv};
 
 
 pub struct BaselineBuilder {

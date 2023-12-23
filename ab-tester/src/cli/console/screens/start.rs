@@ -28,8 +28,8 @@ impl Component for StartScreen {
             .constraints([Constraint::Length(20), Constraint::Min(10)].as_ref())
             .split(area);
 
-        let left_pane = rects[0];
-        let right_pane = rects[1];
+        let _left_pane = rects[0];
+        let _right_pane = rects[1];
 
         self.draw_environments_pane(f, rects[0], theme)?;
 
@@ -54,8 +54,8 @@ impl StartScreen {
         Ok(())
     }
 
-    fn draw_config_pane(&mut self, f: &mut Frame<'_>, area: Rect, theme: &Theme) -> Result<()> {
-        let widget = Block::new();
+    fn draw_config_pane(&mut self, _f: &mut Frame<'_>, _area: Rect, _theme: &Theme) -> Result<()> {
+        let _widget = Block::new();
         Ok(())
     }
 }

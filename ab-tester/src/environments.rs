@@ -6,7 +6,7 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use color_eyre::eyre::{anyhow, Error, bail};
+use color_eyre::eyre::anyhow;
 use color_eyre::Result;
 use log::*;
 
@@ -14,10 +14,10 @@ use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
 use crate::context::boot_data::mainnet_boot_data;
-use crate::context::{Block, BlockCursor, Network, Runtime, BlockContext};
+use crate::context::{Block, BlockCursor, Network, Runtime};
 use crate::db::appdb::AppDb;
 use crate::types::*;
-use crate::{clarity, stacks, clarity::TransactionConnection, clarity::OwnedEnvironment};
+use crate::{clarity, stacks};
 
 pub type BoxedDbIterResult<Model> = Result<Box<dyn Iterator<Item = Result<Model>>>>;
 
@@ -64,7 +64,7 @@ impl RuntimeEnvBuilder {
     /// Creates and returns a new [InstrumentedEnv] with the provided configuration.
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
-    pub fn instrumented<'a>(
+    pub fn instrumented(
         &self,
         name: String,
         runtime: Runtime,
@@ -152,77 +152,6 @@ pub trait ReadableEnv: RuntimeEnv {
 
     fn payments(&self, prefetch_limit: u32) -> BoxedDbIterResult<Payment>;
     fn payment_count(&self) -> Result<usize>;
-}
-
-pub struct ClarityBlockTransaction<'a, 'b> {
-    clarity_tx: Option<stacks::ClarityTx<'a, 'b>>,
-    consensus_hash: stacks::ConsensusHash,
-    block_hash: stacks::BlockHeaderHash,
-    clarity_tx_conn: Option<stacks::ClarityTransactionConnection<'a, 'b>>,
-}
-
-impl<'a: 'b, 'b> ClarityBlockTransaction<'a, 'b> {
-    pub fn new(
-        clarity_tx: stacks::ClarityTx<'a, 'a>,
-        consensus_hash: stacks::ConsensusHash,
-        block_hash: stacks::BlockHeaderHash
-    ) -> Self {
-        Self { 
-            clarity_tx: Some(clarity_tx),
-            consensus_hash,
-            block_hash,
-            clarity_tx_conn: None
-        }
-    }
-
-    pub fn commit(&mut self) -> Result<()> {
-        /*if let Some(tx) = self.clarity_tx.take() {
-            tx.commit_to_block(&self.consensus_hash, &self.block_hash);
-            Ok(())
-        } else {
-            bail!("failed to commit transaction")
-        }*/
-        todo!()
-    }
-
-    pub fn start_transaction_processing(&'a mut self) -> Result<()> {
-        let clarity_tx = self.clarity_tx.as_mut().unwrap();
-        //let tx = clarity_tx;
-        let block_conn = clarity_tx.connection();
-        let tx_conn = block_conn.start_transaction_processing();
-
-        self.clarity_tx_conn = Some(tx_conn);
-        //self.clarity_tx = Some(clarity_tx);
-        /*if let Some(tx: &'a mut ClarityTx<'a, 'a>) = self.clarity_tx {
-            let tx_conn = tx
-                .connection()
-                .start_transaction_processing();
-            self.clarity_tx_conn = Some(tx_conn);
-            Ok(())
-        } else {
-            bail!("failed to start transaction processing")
-        }*/
-        todo!()
-    }
-
-    fn foo(&mut self) -> Result<ClarityBlockTransactionResult> {
-        if let Some(ref mut tx_conn) = self.clarity_tx_conn {
-            let (_, asset_map, events, aborted): ((), _, _, _) = tx_conn.with_abort_callback(
-                |vm_env| -> Result<_> {
-                    
-                    // Your code here
-                    //Ok(())
-                    todo!()
-                },
-                |asset_map, db| {
-                    true
-                })?;
-
-            Ok(ClarityBlockTransactionResult::new(asset_map, events, aborted))
-        } else {
-            bail!("failed to process transaction")
-        }
-    }
 }
 
 pub struct ClarityBlockTransactionResult {

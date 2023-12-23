@@ -7,7 +7,7 @@ use clap::{Args, Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use color_eyre::eyre::{bail, Result};
 
-use crate::context::callbacks::{DefaultReplayCallbacks, ReplayCallbackHandler};
+use crate::context::callbacks::ReplayCallbackHandler;
 use crate::context::replay::ReplayOpts;
 use crate::context::Runtime;
 use crate::ok;
