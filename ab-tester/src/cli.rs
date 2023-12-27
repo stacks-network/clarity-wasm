@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand, ArgGroup};
+use clap::{Args, Parser, Subcommand, ArgGroup, ValueEnum};
 use clap_verbosity_flag::Verbosity;
 use color_eyre::eyre::{bail, Result};
 
@@ -121,7 +121,7 @@ pub struct NewStacksNodeEnvArgs {
         help = "The Stacks node's root path, e.g. `xx/mainnet/`.",
         required = true
     )]
-    pub path: String,
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -135,12 +135,39 @@ pub struct NewInstrumentedEnvArgs {
     pub runtime: Runtime,
 
     #[arg(
+        short = None,
+        long = "read-only",
+        help = "Whether or not this environment should be read-only, i.e. can only be used as a source",
+        required = false,
+        default_value = "true"
+    )]
+    pub is_read_only: bool,
+
+    #[arg(
+        short = None,
+        long = "network",
+        help = "The network which the environment runs on.",
+        required = true
+    )]
+    pub network: NetworkChoice,
+
+    #[arg(
+        short = None,
+        long = "chain-id",
+        help = "The chain-id which the environment runs on.",
+        required = false,
+        default_value = "1"
+    )]
+    pub chain_id: u32,
+
+    #[arg(
         short = 'p',
         long = "path",
         help = "The working directory for the environment where chainstate, burnstate and blocks will be stored.",
-        required = true
+        required = false,
+        default_value = None
     )]
-    pub path: String,
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -148,6 +175,12 @@ pub struct NewNetworkEnvArgs {
     pub peer_host: String,
     pub peer_port: u16,
     pub peer_key: String,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum NetworkChoice {
+    Mainnet,
+    Testnet
 }
 
 #[derive(Debug, Args)]

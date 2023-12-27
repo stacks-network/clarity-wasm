@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use color_eyre::Result;
@@ -11,16 +12,19 @@ use log::*;
 
 use crate::cli::{
     EnvArgs, EnvSubCommands, ListEnvArgs, NewEnvArgs, NewEnvSubCommands, NewInstrumentedEnvArgs,
-    NewNetworkEnvArgs, NewStacksNodeEnvArgs, SnapshotEnvArgs,
+    NewNetworkEnvArgs, NewStacksNodeEnvArgs, SnapshotEnvArgs, NetworkChoice,
 };
 use crate::config::Config;
 use crate::context::{Runtime, Network};
 use crate::db::appdb::AppDb;
-use crate::environments::{WriteableEnv, RuntimeEnvBuilder};
+use crate::environments::{WriteableEnv, RuntimeEnvBuilder, ReadableEnv};
 use crate::ok;
 use crate::utils::{zstd_compress, append_to_path};
 
-pub async fn exec(config: &Config, env_args: EnvArgs) -> Result<()> {
+pub async fn exec(
+    config: &Config, 
+    env_args: EnvArgs
+) -> Result<()> {
     let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
     let app_db = AppDb::new(app_db_conn);
 
@@ -31,9 +35,12 @@ pub async fn exec(config: &Config, env_args: EnvArgs) -> Result<()> {
     }
 }
 
-async fn exec_snapshot(app_db: AppDb, config: &Config, args: &SnapshotEnvArgs) -> Result<()> {
-    let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
-    let app_db = Rc::new(AppDb::new(app_db_conn));
+async fn exec_snapshot(
+    app_db: AppDb, 
+    config: &Config, 
+    args: &SnapshotEnvArgs
+) -> Result<()> {
+    let app_db = Rc::new(app_db);
 
     let env = if let Some(id) = args.env_id {
             app_db.get_env_by_id(id)?
@@ -60,29 +67,100 @@ async fn exec_snapshot(app_db: AppDb, config: &Config, args: &SnapshotEnvArgs) -
     todo!()
 }
 
-async fn exec_new(app_db: AppDb, config: &Config, env_args: &NewEnvArgs) -> Result<()> {
+async fn exec_new(
+    app_db: AppDb, 
+    config: &Config, 
+    env_args: &NewEnvArgs
+) -> Result<()> {
     match &env_args.commands {
-        NewEnvSubCommands::StacksNode(args) => exec_new_from_stacks_node(app_db, config, args).await,
-        NewEnvSubCommands::Instrumented(args) => exec_new_instrumented(app_db, config, args).await,
-        NewEnvSubCommands::Network(args) => exec_new_network(app_db, config, args).await,
+        NewEnvSubCommands::StacksNode(args) => exec_new_from_stacks_node(
+            app_db, 
+            config, 
+            args, 
+            &env_args.name).await,
+        NewEnvSubCommands::Instrumented(args) => exec_new_instrumented(
+            app_db, 
+            config, 
+            args, 
+            &env_args.name
+        ).await,
+        NewEnvSubCommands::Network(args) => exec_new_network(
+            app_db, 
+            config, 
+            args, 
+            &env_args.name).await,
     }
 }
 
-async fn exec_new_from_stacks_node(app_db: AppDb, _config: &Config, _args: &NewStacksNodeEnvArgs) -> Result<()> {
-    println!(
-        "{} the specified stacks-node path does not exist",
-        console::style("error:").bold().fg(Color::Red)
-    );
+async fn exec_new_from_stacks_node(
+    app_db: AppDb,  
+    _config: &Config, 
+    args: &NewStacksNodeEnvArgs, 
+    name: &str
+) -> Result<()> {
+    if !args.path.exists() {
+        bail!("the specified stacks-node path does not exist")
+    } else if !args.path.is_dir() {
+        bail!("the specified stacks-node path is not a directory")
+    }
+
+    let app_db = Rc::new(app_db);
+
+    let builder = RuntimeEnvBuilder::new(app_db);
+    let mut env = builder.stacks_node(
+        name.to_string(), 
+        args.path.clone())?;
+
+    let x: &mut dyn ReadableEnv = &mut env;
+    x.open()?;
+
     ok!()
 }
 
-async fn exec_new_instrumented(app_db: AppDb, _config: &Config, _args: &NewInstrumentedEnvArgs) -> Result<()> {
+async fn exec_new_instrumented(
+    app_db: AppDb, 
+    config: &Config, 
+    args: &NewInstrumentedEnvArgs, 
+    name: &str
+) -> Result<()> {
     let app_db = Rc::new(app_db);
     let builder = RuntimeEnvBuilder::new(app_db);
+
+    let network = match args.network {
+        NetworkChoice::Testnet => Network::Testnet(args.chain_id),
+        NetworkChoice::Mainnet => Network::Mainnet(args.chain_id)
+    };
+
+    let working_dir = if let Some(dir) = &args.path {
+        dir.display().to_string()
+    } else {
+        PathBuf::try_from(&config.app.working_dir)?
+            .join("environments")
+            .join(name)
+            .display()
+            .to_string()
+    };
+
+    let mut env = builder.instrumented(
+        name.to_string(), 
+        args.runtime, 
+        network,
+        args.is_read_only, 
+        working_dir
+    )?;
+
+    let x: &mut dyn ReadableEnv = &mut env;
+    x.open()?;
+
     ok!()
 }
 
-async fn exec_new_network(app_db: AppDb, _config: &Config, _args: &NewNetworkEnvArgs) -> Result<()> {
+async fn exec_new_network(
+    app_db: AppDb, 
+    _config: &Config, 
+    _args: &NewNetworkEnvArgs, 
+    name: &str
+) -> Result<()> {
     ok!()
 }
 
@@ -103,6 +181,7 @@ async fn exec_list(app_db: AppDb, config: &Config, _args: &ListEnvArgs) -> Resul
             console::style("runtime").bold(),
             console::style("network").bold(),
             console::style("chain-id").bold(),
+            console::style("read-only").bold(),
             console::style("path").bold(),
         ]))
         .set_width(80);
@@ -110,18 +189,21 @@ async fn exec_list(app_db: AppDb, config: &Config, _args: &ListEnvArgs) -> Resul
     if envs.is_empty() {
         println!("No environments have been created yet.");
         println!("Use the `env new` command to create a new environment.");
+
         return ok!();
     }
 
     for env in envs {
         let runtime: Runtime = env.runtime_id.try_into()?;
+        let network = Network::new(env.network_id as u32, env.chain_id as u32)?;
 
         let row = Row::from(vec![
             env.id.to_string(),
             env.name,
             runtime.to_string(),
-            env.network_id.to_string(),
+            network.to_string(),
             env.chain_id.to_string(),
+            env.is_read_only.to_string(),
             env.base_path,
         ]);
 
