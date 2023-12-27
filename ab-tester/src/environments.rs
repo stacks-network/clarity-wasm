@@ -31,17 +31,34 @@ impl RuntimeEnvBuilder {
         Self { app_db }
     }
 
+    fn get_env_by_name(
+        &self,
+        name: &str
+    ) -> Result<Option<super::db::model::Environment>> {
+        let result = self.app_db
+            .get_env_by_name(name)?;
+        Ok(result)
+    }
+
     fn get_or_create_env(
         &self,
         name: &str,
         runtime: &Runtime,
+        network: &Network,
+        readonly: bool,
         path: &str,
     ) -> Result<super::db::model::Environment> {
         self.app_db
-            .get_env(name)?
+            .get_env_by_name(name)?
             .or_else(|| {
                 self.app_db
-                    .insert_environment(runtime.into(), name, path)
+                    .insert_environment(
+                        runtime.into(), 
+                        network.network_id() as i32,
+                        network.chain_id() as i32,
+                        readonly, 
+                        name, 
+                        path)
                     .ok()
             })
             .ok_or(anyhow!("failed to get or create runtime environment"))
@@ -51,9 +68,13 @@ impl RuntimeEnvBuilder {
     /// Note that [RuntimeEnv::open] must be called on the environment prior to
     /// using it.
     pub fn stacks_node(&self, name: String, node_dir: PathBuf) -> Result<StacksNodeEnv> {
+        let network = StacksNodeEnv::read_network_from_db_config(&node_dir)?;
+
         let env = self.get_or_create_env(
             &name,
             &Runtime::None,
+            &network,
+            true,
             node_dir
                 .to_str()
                 .ok_or(anyhow!("failed to convert node dir to path"))?,
@@ -69,9 +90,17 @@ impl RuntimeEnvBuilder {
         name: String,
         runtime: Runtime,
         network: Network,
+        readonly: bool,
         working_dir: String,
     ) -> Result<InstrumentedEnv> {
-        let env = self.get_or_create_env(&name, &runtime, &working_dir)?;
+        let env = self.get_or_create_env(
+            &name, 
+            &runtime, 
+            &network, 
+            readonly, 
+            &working_dir
+        )?;
+
         Ok(InstrumentedEnv::new(
             env.id,
             name,

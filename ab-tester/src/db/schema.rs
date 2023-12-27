@@ -14,7 +14,10 @@ table! {
     environment (id) {
         id -> Integer,
         name -> Text,
+        is_read_only -> Bool,
         runtime_id -> Integer,
+        network_id -> Integer,
+        chain_id -> Integer,
         last_block_height -> Integer,
         base_path -> Text,
     }

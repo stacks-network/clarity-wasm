@@ -3,7 +3,7 @@ mod console;
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ArgGroup};
 use clap_verbosity_flag::Verbosity;
 use color_eyre::eyre::{bail, Result};
 
@@ -96,6 +96,7 @@ pub struct EnvArgs {
 pub enum EnvSubCommands {
     New(NewEnvArgs),
     List(ListEnvArgs),
+    Snapshot(SnapshotEnvArgs)
 }
 
 #[derive(Debug, Subcommand)]
@@ -163,6 +164,25 @@ pub struct NewEnvArgs {
     pub name: String,
 }
 
+#[derive(Debug, Args)]
+#[clap(group(
+    ArgGroup::new("env")
+        .required(true)
+        .multiple(false)
+        .args(&["env_name", "env_id"]),
+))]
+
+pub struct SnapshotEnvArgs {
+    #[arg(
+        long = "env-name"
+    )]
+    pub env_name: Option<String>,
+    #[arg(
+        long = "env-id"
+    )]
+    pub env_id: Option<i32>,
+}
+
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum EnvType {
     StacksNode,
@@ -228,7 +248,15 @@ pub struct DataArgs {
         long = "snapshot-restore",
         help = "Restores the target environment to the specified snapshot before processing."
     )]
-    pub snapshot_restore: bool
+    pub snapshot_restore: bool,
+
+    #[arg(
+        short = None,
+        long = "resume",
+        help = "Resumes an import from the last processed block height",
+        default_value = "true"
+    )]
+    pub resume: bool
 }
 
 impl<C: ReplayCallbackHandler + Default> From<DataArgs> for ReplayOpts<C> {

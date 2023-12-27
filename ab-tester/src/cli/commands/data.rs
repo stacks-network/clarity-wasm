@@ -37,12 +37,14 @@ pub async fn exec(config: crate::config::Config, data_args: DataArgs) -> Result<
                 "interp-replay",
                 Runtime::Interpreter,
                 Network::Mainnet(1),
+                true,
                 "/home/cylwit/clarity-ab/interp-replay",
             )?
             .instrumented(
                 "wasm-replay",
                 Runtime::Wasm,
                 Network::Mainnet(1),
+                true,
                 "/home/cylwit/clarity-ab/wasm-replay",
             )
         })?;

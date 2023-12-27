@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS environment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     runtime_id INTEGER NOT NULL,
+    network_id INTEGER NOT NULL,
+    chain_id INTEGER NOT NULL,
+    is_read_only BOOLEAN NOT NULL,
     last_block_height INTEGER NOT NULL,
     base_path TEXT NOT NULL,
 

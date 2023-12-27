@@ -110,6 +110,29 @@ impl StacksNodeEnv {
         }
     }
 
+    /// Reads the `db_config` chainstate table of a Stacks node to retrieve
+    /// information about the network/chain.
+    pub fn read_network_from_db_config(node_dir: &Path) -> Result<Network> {
+        let paths = StacksEnvPaths::new(node_dir.to_path_buf());
+
+        let mut db = SqliteConnection::establish(
+            paths.index_db_path().to_str()
+                .ok_or(anyhow!("failed to parse index db path"))?
+        )?;
+
+        let db_config = self::db::schema::chainstate::db_config::table
+            .select((
+                self::db::schema::chainstate::db_config::mainnet,
+                self::db::schema::chainstate::db_config::chain_id
+            ))
+            .first::<(bool, i32)>(&mut db)?;
+
+        // TODO: This construct only supports mainnet + testnet
+        let network_id = if db_config.0 { 0 } else { 1 };
+
+        Network::new(network_id, db_config.1 as u32)
+    }
+
     /// Attempts to retrieve the [StacksNodeEnvState] for this environment. Will
     /// return an error if [RuntimeEnv::open] has not been called.
     fn get_env_state(&self) -> Result<&StacksNodeEnvState> {

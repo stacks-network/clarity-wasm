@@ -23,7 +23,10 @@ pub struct Runtime {
 pub struct Environment {
     pub id: i32,
     pub name: String,
+    pub is_read_only: bool,
     pub runtime_id: i32,
+    pub network_id: i32,
+    pub chain_id: i32,
     pub last_block_height: i32,
     pub base_path: String,
 }

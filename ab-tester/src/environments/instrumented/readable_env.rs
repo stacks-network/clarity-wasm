@@ -3,11 +3,11 @@ use diesel::{QueryDsl, RunQueryDsl};
 
 use crate::{
     environments::{
-        BoxedDbIterResult, stacks_node::db::schema::chainstate::block_headers, ReadableEnv
+        BoxedDbIterResult, stacks_node::db::{schema::chainstate::block_headers, stacks_headers_db::StacksHeadersDb}, ReadableEnv
     }, 
     db::{
         model, 
-        schema::{_payments, _snapshots, _block_commits}
+        schema::{_payments, _snapshots, _block_commits}, appdb::headers_db::AsHeadersDb
     }, 
     context::BlockCursor
 };
@@ -96,6 +96,8 @@ impl ReadableEnv for InstrumentedEnv {
     }
 
     fn payment_count(&self) -> Result<usize> {
-        self.app_db.payment_count(self.id)
+        let headers_db = StacksHeadersDb::new(self.env_config.paths.index_db_path())?;
+        let count = headers_db.payments_count()?;
+        Ok(count as usize)
     }
 }

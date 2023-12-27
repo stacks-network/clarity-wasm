@@ -1,33 +1,74 @@
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
+use std::rc::Rc;
+
 use color_eyre::Result;
+use color_eyre::eyre::{bail, anyhow};
 use comfy_table::{Row, Table};
 use console::Color;
 use diesel::{Connection, SqliteConnection};
+use log::*;
 
 use crate::cli::{
     EnvArgs, EnvSubCommands, ListEnvArgs, NewEnvArgs, NewEnvSubCommands, NewInstrumentedEnvArgs,
-    NewNetworkEnvArgs, NewStacksNodeEnvArgs,
+    NewNetworkEnvArgs, NewStacksNodeEnvArgs, SnapshotEnvArgs,
 };
 use crate::config::Config;
-use crate::context::Runtime;
+use crate::context::{Runtime, Network};
 use crate::db::appdb::AppDb;
+use crate::environments::{WriteableEnv, RuntimeEnvBuilder};
 use crate::ok;
+use crate::utils::{zstd_compress, append_to_path};
 
 pub async fn exec(config: &Config, env_args: EnvArgs) -> Result<()> {
+    let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
+    let app_db = AppDb::new(app_db_conn);
+
     match &env_args.commands {
-        EnvSubCommands::List(args) => exec_list(config, args).await,
-        EnvSubCommands::New(args) => exec_new(config, args).await,
+        EnvSubCommands::List(args) => exec_list(app_db, config, args).await,
+        EnvSubCommands::New(args) => exec_new(app_db, config, args).await,
+        EnvSubCommands::Snapshot(args) => exec_snapshot(app_db, config, args).await,
     }
 }
 
-async fn exec_new(config: &Config, env_args: &NewEnvArgs) -> Result<()> {
+async fn exec_snapshot(app_db: AppDb, config: &Config, args: &SnapshotEnvArgs) -> Result<()> {
+    let app_db_conn = SqliteConnection::establish(&config.app.db_path)?;
+    let app_db = Rc::new(AppDb::new(app_db_conn));
+
+    let env = if let Some(id) = args.env_id {
+            app_db.get_env_by_id(id)?
+                .ok_or(anyhow!("environment could not be found"))
+        } else if let Some(name) = &args.env_name {
+            app_db.get_env_by_name(name)?
+                .ok_or(anyhow!("environment could not be found"))
+        } else {
+            bail!("one of env-id or env-name must be provided.")
+        }?;
+
+    //Here we need to load-up the environment
+
+    let builder = RuntimeEnvBuilder::new(app_db);
+    builder.instrumented(
+        env.name, 
+        env.runtime_id.try_into()?, 
+        Network::new(env.network_id as u32, env.chain_id as u32)?, 
+        env.is_read_only, 
+        env.base_path)?;
+    
+    //snapshot_environment(target)?;
+
+    todo!()
+}
+
+async fn exec_new(app_db: AppDb, config: &Config, env_args: &NewEnvArgs) -> Result<()> {
     match &env_args.commands {
-        NewEnvSubCommands::StacksNode(args) => exec_new_from_stacks_node(config, args).await,
-        NewEnvSubCommands::Instrumented(args) => exec_new_instrumented(config, args).await,
-        NewEnvSubCommands::Network(args) => exec_new_network(config, args).await,
+        NewEnvSubCommands::StacksNode(args) => exec_new_from_stacks_node(app_db, config, args).await,
+        NewEnvSubCommands::Instrumented(args) => exec_new_instrumented(app_db, config, args).await,
+        NewEnvSubCommands::Network(args) => exec_new_network(app_db, config, args).await,
     }
 }
 
-async fn exec_new_from_stacks_node(_config: &Config, _args: &NewStacksNodeEnvArgs) -> Result<()> {
+async fn exec_new_from_stacks_node(app_db: AppDb, _config: &Config, _args: &NewStacksNodeEnvArgs) -> Result<()> {
     println!(
         "{} the specified stacks-node path does not exist",
         console::style("error:").bold().fg(Color::Red)
@@ -35,23 +76,23 @@ async fn exec_new_from_stacks_node(_config: &Config, _args: &NewStacksNodeEnvArg
     ok!()
 }
 
-async fn exec_new_instrumented(_config: &Config, _args: &NewInstrumentedEnvArgs) -> Result<()> {
+async fn exec_new_instrumented(app_db: AppDb, _config: &Config, _args: &NewInstrumentedEnvArgs) -> Result<()> {
+    let app_db = Rc::new(app_db);
+    let builder = RuntimeEnvBuilder::new(app_db);
     ok!()
 }
 
-async fn exec_new_network(_config: &Config, _args: &NewNetworkEnvArgs) -> Result<()> {
+async fn exec_new_network(app_db: AppDb, _config: &Config, _args: &NewNetworkEnvArgs) -> Result<()> {
     ok!()
 }
 
-async fn exec_list(config: &Config, _args: &ListEnvArgs) -> Result<()> {
+async fn exec_list(app_db: AppDb, config: &Config, _args: &ListEnvArgs) -> Result<()> {
     println!();
     println!("Listing environments...");
     println!();
 
-    let conn = SqliteConnection::establish(&config.app.db_path)?;
-    let db = AppDb::new(conn);
 
-    let envs = db.list_envs()?;
+    let envs = app_db.list_envs()?;
 
     let mut table = Table::new();
 
@@ -60,6 +101,8 @@ async fn exec_list(config: &Config, _args: &ListEnvArgs) -> Result<()> {
             console::style("id").bold(),
             console::style("name").bold(),
             console::style("runtime").bold(),
+            console::style("network").bold(),
+            console::style("chain-id").bold(),
             console::style("path").bold(),
         ]))
         .set_width(80);
@@ -77,6 +120,8 @@ async fn exec_list(config: &Config, _args: &ListEnvArgs) -> Result<()> {
             env.id.to_string(),
             env.name,
             runtime.to_string(),
+            env.network_id.to_string(),
+            env.chain_id.to_string(),
             env.base_path,
         ]);
 
@@ -84,6 +129,56 @@ async fn exec_list(config: &Config, _args: &ListEnvArgs) -> Result<()> {
     }
 
     println!("{table}");
+
+    ok!()
+}
+
+fn snapshot_environment(
+    target: &dyn WriteableEnv,
+) -> Result<()> {
+    let name = target.name();
+
+    // TODO: Load environment from src-target.backup if exists and --reset-env
+    // is set.
+    let init_chainstate_snapshot_path =
+        append_to_path(target.cfg().chainstate_index_db_path(), ".zstd");
+    let init_chainstate_snapshot_exists =
+        std::fs::metadata(init_chainstate_snapshot_path).is_ok();
+    let init_burnstate_snapshot_path =
+        append_to_path(target.cfg().sortition_db_path(), ".zstd");
+    let init_burnstate_snapshot_exists =
+        std::fs::metadata(&init_burnstate_snapshot_path).is_ok();
+
+    // TODO: Backup environment
+    if !init_chainstate_snapshot_exists {
+        let chainstate_index_path = target.cfg().chainstate_index_db_path().parent().unwrap().to_path_buf();
+        let chainstate_index_sqlite_path = &chainstate_index_path.join("index.sqlite");
+        let chainstate_index_blobs_path = &chainstate_index_path.join("index.sqlite.blobs");
+        let chainstate_clarity_sqlite_path = &chainstate_index_path.join("clarity/marf.sqlite");
+        let chainstate_clarity_blobs_path = &chainstate_index_path.join("clarity/marf.sqlite.blobs");
+
+        // Chainstate Index DB
+        info!("[{name}] chainstate index snapshot does not exist, creating it...");
+        zstd_compress(chainstate_index_sqlite_path)?;
+        zstd_compress(chainstate_index_blobs_path)?;
+        zstd_compress(chainstate_clarity_sqlite_path)?;
+        zstd_compress(chainstate_clarity_blobs_path)?;
+    }
+
+    if !init_burnstate_snapshot_exists && !target.cfg().is_sortition_app_indexed() {
+        // Sortition DB
+        std::fs::create_dir_all(target.cfg().sortition_dir())?;
+        let db_file = File::open(target.cfg().sortition_db_path())?;
+        let db_reader = BufReader::new(db_file);
+        std::fs::create_dir_all(&init_burnstate_snapshot_path)?;
+        let file = File::options()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&init_burnstate_snapshot_path)?;
+        let file_writer = BufWriter::new(file);
+        zstd::stream::copy_encode(db_reader, file_writer, 5)?;
+    }
 
     ok!()
 }

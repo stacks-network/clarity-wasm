@@ -489,8 +489,18 @@ impl AppDb {
 
     /// Retrieves an existing runtime environment by name. Returns [None] if
     /// the environment was not found.
-    pub fn get_env(&self, name: &str) -> Result<Option<Environment>> {
+    pub fn get_env_by_name(&self, name: &str) -> Result<Option<Environment>> {
         let query = environment::table.filter(environment::name.like(name));
+
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
+
+        let result = query.first(&mut *self.conn.borrow_mut()).optional()?;
+
+        Ok(result)
+    }
+
+    pub fn get_env_by_id(&self, id: i32) -> Result<Option<Environment>> {
+        let query = environment::table.filter(environment::id.eq(id));
 
         trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
@@ -648,12 +658,18 @@ impl AppDb {
     pub fn insert_environment(
         &self,
         runtime_id: i32,
+        network_id: i32,
+        chain_id: i32,
+        is_read_only: bool,
         name: &str,
         path: &str,
     ) -> Result<Environment> {
         let query = insert_into(environment::table).values((
             environment::runtime_id.eq(runtime_id),
+            environment::network_id.eq(network_id),
+            environment::chain_id.eq(chain_id),
             environment::name.eq(name),
+            environment::is_read_only.eq(is_read_only),
             environment::last_block_height.eq(0),
             environment::base_path.eq(path),
         ));

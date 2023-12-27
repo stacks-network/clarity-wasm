@@ -68,6 +68,7 @@ impl InstrumentIntoBuilder {
         name: &str,
         runtime: Runtime,
         network: Network,
+        readonly: bool,
         working_dir: &str,
     ) -> Result<InstrumentIntoBuilder> {
         let env_builder = RuntimeEnvBuilder::new(self.app_db.clone());
@@ -75,6 +76,7 @@ impl InstrumentIntoBuilder {
             name.to_string(),
             runtime,
             network,
+            readonly,
             working_dir.to_string(),
         )?;
         self.instrumented_envs.push(Box::new(env));
@@ -208,10 +210,13 @@ impl<'ctx> ComparisonContext<'ctx> {
         source: &dyn ReadableEnv,
         target: &dyn WriteableEnv,
     ) -> Result<bool> {
-        info!("checking import data equality between source and target environments...");
+        let source_name = source.name();
+        let target_name = target.name();
+        info!("checking import data equality between {source_name} (source) and {target_name} (target) environments...");
 
         if let Some(from_height) = opts.from_height {
             if from_height > target.last_block_height()? {
+                warn!("the specified 'from height' is higher than the last processed block in the target environment.");
                 return Ok(true)
             }
         }
@@ -477,5 +482,20 @@ impl Network {
 
     pub fn testnet(chain_id: u32) -> Network {
         Network::Testnet(chain_id)
+    }
+
+    pub fn new(network_id: u32, chain_id: u32) -> Result<Network> {
+        match network_id {
+            0 => Ok(Network::Testnet(chain_id)),
+            1 => Ok(Network::Mainnet(chain_id)),
+            _ => bail!("failed to create Network for network id {}", network_id)
+        }
+    }
+
+    pub fn network_id(&self) -> u32 {
+        match self {
+            Network::Testnet(_) => 0,
+            Network::Mainnet(_) => 1,
+        }
     }
 }

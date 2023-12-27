@@ -72,6 +72,16 @@ impl StacksHeadersDb {
         })
     }
 
+    pub fn payments_count(
+        &self
+    ) -> Result<u32> {
+        let result = payments::table
+            .count()
+            .get_result::<i64>(&mut *self.conn.borrow_mut())?;
+
+        Ok(result as u32)
+    }
+
     pub fn import_payments(
         &mut self,
         payments: Box<dyn Iterator<Item = Result<crate::types::Payment>>>,
