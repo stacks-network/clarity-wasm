@@ -1,5 +1,6 @@
 pub mod regression;
 pub mod values;
+pub mod equal;
 
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
