@@ -94,11 +94,50 @@ pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         .unwrap();
 
     linker
+        .func_wrap("clarity", "begin_public_call", || {
+            println!("begin_public_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "begin_read_only_call", || {
+            println!("begin_read_only_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "commit_call", || {
+            println!("commit_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
+        .func_wrap("clarity", "roll_back_call", || {
+            println!("roll_back_call");
+            Ok(())
+        })
+        .unwrap();
+
+    linker
         .func_wrap(
             "clarity",
             "impl_trait",
             |_name_offset: i32, _name_length: i32| {
                 println!("impl-trait");
+            },
+        )
+        .unwrap();
+
+    linker
+        .func_wrap(
+            "clarity",
+            "principal_of",
+            |_key_offset: i32, _key_length: i32, _principal_offset: i32| {
+                println!("secp256k1_verify");
+                Ok((0i32, 0i32, 0i32, 0i64, 0i64))
             },
         )
         .unwrap();
