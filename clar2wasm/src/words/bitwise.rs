@@ -2,13 +2,13 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::InstrSeqBuilder;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct BitwiseNot;
 
-impl Word for BitwiseNot {
+impl ComplexWord for BitwiseNot {
     fn name(&self) -> ClarityName {
         "bit-not".into()
     }
@@ -54,7 +54,7 @@ fn traverse_bitwise(
 #[derive(Debug)]
 pub struct BitwiseOr;
 
-impl Word for BitwiseOr {
+impl ComplexWord for BitwiseOr {
     fn name(&self) -> ClarityName {
         "bit-or".into()
     }
@@ -73,7 +73,7 @@ impl Word for BitwiseOr {
 #[derive(Debug)]
 pub struct BitwiseAnd;
 
-impl Word for BitwiseAnd {
+impl ComplexWord for BitwiseAnd {
     fn name(&self) -> ClarityName {
         "bit-and".into()
     }
@@ -92,7 +92,7 @@ impl Word for BitwiseAnd {
 #[derive(Debug)]
 pub struct BitwiseXor;
 
-impl Word for BitwiseXor {
+impl ComplexWord for BitwiseXor {
     fn name(&self) -> ClarityName {
         "bit-xor".into()
     }
@@ -111,7 +111,7 @@ impl Word for BitwiseXor {
 #[derive(Debug)]
 pub struct BitwiseLShift;
 
-impl Word for BitwiseLShift {
+impl ComplexWord for BitwiseLShift {
     fn name(&self) -> ClarityName {
         "bit-shift-left".into()
     }
@@ -137,7 +137,7 @@ impl Word for BitwiseLShift {
 #[derive(Debug)]
 pub struct BitwiseRShift;
 
-impl Word for BitwiseRShift {
+impl ComplexWord for BitwiseRShift {
     fn name(&self) -> ClarityName {
         "bit-shift-right".into()
     }
@@ -179,7 +179,7 @@ impl Word for BitwiseRShift {
 #[derive(Debug)]
 pub struct Xor;
 
-impl Word for Xor {
+impl ComplexWord for Xor {
     fn name(&self) -> ClarityName {
         "xor".into()
     }

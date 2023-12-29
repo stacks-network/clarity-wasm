@@ -5,7 +5,7 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::sequences::SequenceElementType;
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -13,7 +13,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct IsEq;
 
-impl Word for IsEq {
+impl ComplexWord for IsEq {
     fn name(&self) -> ClarityName {
         "is-eq".into()
     }
@@ -95,7 +95,7 @@ pub enum IndexOf {
     Alias,
 }
 
-impl Word for IndexOf {
+impl ComplexWord for IndexOf {
     fn name(&self) -> ClarityName {
         match self {
             IndexOf::Original => "index-of".into(),

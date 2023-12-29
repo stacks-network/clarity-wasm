@@ -231,7 +231,20 @@ impl WasmGenerator {
                 },
                 args,
             )) => {
-                if let Some(word) = words::lookup(function_name) {
+                if let Some(simpleword) = words::lookup_simple(function_name) {
+                    // traverse arguments
+                    for arg in args {
+                        self.traverse_expr(builder, arg)?;
+                    }
+                    simpleword.traverse(self, builder, expr)?;
+                } else if let Some(varword) = words::lookup_simple_variadic(function_name) {
+                    // traverse arguments
+                    for arg in args {
+                        self.traverse_expr(builder, arg)?;
+                    }
+                    varword.traverse(self, builder, expr, args.len())?;
+                } else if let Some(word) = words::lookup_complex(function_name) {
+                    // Complex words handle their own argument traversal
                     word.traverse(self, builder, expr, args)?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;

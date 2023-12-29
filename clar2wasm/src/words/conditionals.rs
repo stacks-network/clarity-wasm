@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -12,7 +12,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct If;
 
-impl Word for If {
+impl ComplexWord for If {
     fn name(&self) -> ClarityName {
         "if".into()
     }
@@ -45,7 +45,7 @@ impl Word for If {
 #[derive(Debug)]
 pub struct Match;
 
-impl Word for Match {
+impl ComplexWord for Match {
     fn name(&self) -> ClarityName {
         "match".into()
     }
@@ -130,7 +130,7 @@ impl Word for Match {
 #[derive(Debug)]
 pub struct Filter;
 
-impl Word for Filter {
+impl ComplexWord for Filter {
     fn name(&self) -> ClarityName {
         "filter".into()
     }
@@ -326,7 +326,7 @@ fn traverse_short_circuiting_list(
 #[derive(Debug)]
 pub struct And;
 
-impl Word for And {
+impl ComplexWord for And {
     fn name(&self) -> ClarityName {
         "and".into()
     }
@@ -345,7 +345,7 @@ impl Word for And {
 #[derive(Debug)]
 pub struct Or;
 
-impl Word for Or {
+impl ComplexWord for Or {
     fn name(&self) -> ClarityName {
         "or".into()
     }
@@ -364,7 +364,7 @@ impl Word for Or {
 #[derive(Debug)]
 pub struct Unwrap;
 
-impl Word for Unwrap {
+impl ComplexWord for Unwrap {
     fn name(&self) -> ClarityName {
         "unwrap!".into()
     }
@@ -441,7 +441,7 @@ impl Word for Unwrap {
 #[derive(Debug)]
 pub struct UnwrapErr;
 
-impl Word for UnwrapErr {
+impl ComplexWord for UnwrapErr {
     fn name(&self) -> ClarityName {
         "unwrap-err!".into()
     }
@@ -526,7 +526,7 @@ impl Word for UnwrapErr {
 #[derive(Debug)]
 pub struct Asserts;
 
-impl Word for Asserts {
+impl ComplexWord for Asserts {
     fn name(&self) -> ClarityName {
         "asserts!".into()
     }
@@ -588,7 +588,7 @@ impl Word for Asserts {
 #[derive(Debug)]
 pub struct Try;
 
-impl Word for Try {
+impl ComplexWord for Try {
     fn name(&self) -> ClarityName {
         "try!".into()
     }

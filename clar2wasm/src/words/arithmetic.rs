@@ -1,15 +1,14 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::SimpleVariadicWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
-// Wrapper function for multi-value typed functions, such as +, - etc
-pub fn traverse_typed_multi_value(
+fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     expr: &SymbolicExpression,
-    args: &[SymbolicExpression],
+    n_args: usize,
     name: &str,
 ) -> Result<(), GeneratorError> {
     let ty = generator
@@ -28,9 +27,8 @@ pub fn traverse_typed_multi_value(
 
     let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
-    generator.traverse_expr(builder, &args[0])?;
-    for operand in args.iter().skip(1) {
-        generator.traverse_expr(builder, operand)?;
+    // call one time less than the number of args
+    for _ in 1..n_args {
         builder.call(func);
     }
 
@@ -40,7 +38,7 @@ pub fn traverse_typed_multi_value(
 #[derive(Debug)]
 pub struct Add;
 
-impl Word for Add {
+impl SimpleVariadicWord for Add {
     fn name(&self) -> ClarityName {
         "+".into()
     }
@@ -50,16 +48,16 @@ impl Word for Add {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "add")
+        simple_typed_multi_value(generator, builder, expr, n_args, "add")
     }
 }
 
 #[derive(Debug)]
 pub struct Sub;
 
-impl Word for Sub {
+impl SimpleVariadicWord for Sub {
     fn name(&self) -> ClarityName {
         "-".into()
     }
@@ -69,16 +67,16 @@ impl Word for Sub {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "sub")
+        simple_typed_multi_value(generator, builder, expr, n_args, "sub")
     }
 }
 
 #[derive(Debug)]
 pub struct Mul;
 
-impl Word for Mul {
+impl SimpleVariadicWord for Mul {
     fn name(&self) -> ClarityName {
         "*".into()
     }
@@ -88,16 +86,16 @@ impl Word for Mul {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "mul")
+        simple_typed_multi_value(generator, builder, expr, n_args, "mul")
     }
 }
 
 #[derive(Debug)]
 pub struct Div;
 
-impl Word for Div {
+impl SimpleVariadicWord for Div {
     fn name(&self) -> ClarityName {
         "/".into()
     }
@@ -107,16 +105,16 @@ impl Word for Div {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "div")
+        simple_typed_multi_value(generator, builder, expr, n_args, "div")
     }
 }
 
 #[derive(Debug)]
 pub struct Modulo;
 
-impl Word for Modulo {
+impl SimpleVariadicWord for Modulo {
     fn name(&self) -> ClarityName {
         "mod".into()
     }
@@ -126,16 +124,16 @@ impl Word for Modulo {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "mod")
+        simple_typed_multi_value(generator, builder, expr, n_args, "mod")
     }
 }
 
 #[derive(Debug)]
 pub struct Log2;
 
-impl Word for Log2 {
+impl SimpleVariadicWord for Log2 {
     fn name(&self) -> ClarityName {
         "log2".into()
     }
@@ -145,16 +143,16 @@ impl Word for Log2 {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "log2")
+        simple_typed_multi_value(generator, builder, expr, n_args, "log2")
     }
 }
 
 #[derive(Debug)]
 pub struct Power;
 
-impl Word for Power {
+impl SimpleVariadicWord for Power {
     fn name(&self) -> ClarityName {
         "pow".into()
     }
@@ -164,16 +162,16 @@ impl Word for Power {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "pow")
+        simple_typed_multi_value(generator, builder, expr, n_args, "pow")
     }
 }
 
 #[derive(Debug)]
 pub struct Sqrti;
 
-impl Word for Sqrti {
+impl SimpleVariadicWord for Sqrti {
     fn name(&self) -> ClarityName {
         "sqrti".into()
     }
@@ -183,9 +181,9 @@ impl Word for Sqrti {
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "sqrti")
+        simple_typed_multi_value(generator, builder, expr, n_args, "sqrti")
     }
 }
 

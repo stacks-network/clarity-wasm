@@ -6,7 +6,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -15,7 +15,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct ListCons;
 
-impl Word for ListCons {
+impl ComplexWord for ListCons {
     fn name(&self) -> ClarityName {
         "list".into()
     }
@@ -71,7 +71,7 @@ impl Word for ListCons {
 #[derive(Debug)]
 pub struct Fold;
 
-impl Word for Fold {
+impl ComplexWord for Fold {
     fn name(&self) -> ClarityName {
         "fold".into()
     }
@@ -250,7 +250,7 @@ impl Word for Fold {
 #[derive(Debug)]
 pub struct Append;
 
-impl Word for Append {
+impl ComplexWord for Append {
     fn name(&self) -> ClarityName {
         "append".into()
     }
@@ -320,7 +320,7 @@ impl Word for Append {
 #[derive(Debug)]
 pub struct AsMaxLen;
 
-impl Word for AsMaxLen {
+impl ComplexWord for AsMaxLen {
     fn name(&self) -> ClarityName {
         "as-max-len?".into()
     }
@@ -420,7 +420,7 @@ impl Word for AsMaxLen {
 #[derive(Debug)]
 pub struct Concat;
 
-impl Word for Concat {
+impl ComplexWord for Concat {
     fn name(&self) -> ClarityName {
         "concat".into()
     }
@@ -484,7 +484,7 @@ impl Word for Concat {
 #[derive(Debug)]
 pub struct Map;
 
-impl Word for Map {
+impl ComplexWord for Map {
     fn name(&self) -> ClarityName {
         "map".into()
     }
@@ -695,7 +695,7 @@ impl Word for Map {
 #[derive(Debug)]
 pub struct Len;
 
-impl Word for Len {
+impl ComplexWord for Len {
     fn name(&self) -> ClarityName {
         "len".into()
     }
@@ -781,7 +781,7 @@ pub enum ElementAt {
     Alias,
 }
 
-impl Word for ElementAt {
+impl ComplexWord for ElementAt {
     fn name(&self) -> ClarityName {
         match self {
             ElementAt::Original => "element-at".into(),
@@ -958,7 +958,7 @@ impl Word for ElementAt {
 #[derive(Debug)]
 pub struct ReplaceAt;
 
-impl Word for ReplaceAt {
+impl ComplexWord for ReplaceAt {
     fn name(&self) -> ClarityName {
         "replace-at?".into()
     }
@@ -1178,7 +1178,7 @@ impl Word for ReplaceAt {
 #[derive(Debug)]
 pub struct Slice;
 
-impl Word for Slice {
+impl ComplexWord for Slice {
     fn name(&self) -> ClarityName {
         "slice?".into()
     }
@@ -1592,7 +1592,7 @@ mod tests {
             eval(
                 r#"
 (define-private (zero-or-one (char (buff 1))) (if (is-eq char 0x00) 0x00 0x01))
-(map zero-or-one 0x000102) 
+(map zero-or-one 0x000102)
         "#
             ),
             Some(

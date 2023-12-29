@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 
 #[derive(Debug)]
 pub struct MapDefinition;
 
-impl Word for MapDefinition {
+impl ComplexWord for MapDefinition {
     fn name(&self) -> ClarityName {
         "define-map".into()
     }
@@ -44,7 +44,7 @@ impl Word for MapDefinition {
 #[derive(Debug)]
 pub struct MapGet;
 
-impl Word for MapGet {
+impl ComplexWord for MapGet {
     fn name(&self) -> ClarityName {
         "map-get?".into()
     }
@@ -112,7 +112,7 @@ impl Word for MapGet {
 #[derive(Debug)]
 pub struct MapSet;
 
-impl Word for MapSet {
+impl ComplexWord for MapSet {
     fn name(&self) -> ClarityName {
         "map-set".into()
     }
@@ -182,7 +182,7 @@ impl Word for MapSet {
 #[derive(Debug)]
 pub struct MapInsert;
 
-impl Word for MapInsert {
+impl ComplexWord for MapInsert {
     fn name(&self) -> ClarityName {
         "map-insert".into()
     }
@@ -252,7 +252,7 @@ impl Word for MapInsert {
 #[derive(Debug)]
 pub struct MapDelete;
 
-impl Word for MapDelete {
+impl ComplexWord for MapDelete {
     fn name(&self) -> ClarityName {
         "map-delete".into()
     }

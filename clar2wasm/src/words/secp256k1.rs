@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Recover;
 
-impl Word for Recover {
+impl ComplexWord for Recover {
     fn name(&self) -> ClarityName {
         "secp256k1-recover?".into()
     }
@@ -49,7 +49,7 @@ impl Word for Recover {
 #[derive(Debug)]
 pub struct Verify;
 
-impl Word for Verify {
+impl ComplexWord for Verify {
     fn name(&self) -> ClarityName {
         "secp256k1-verify".into()
     }

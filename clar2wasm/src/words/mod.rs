@@ -38,13 +38,19 @@ pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
-pub(crate) static WORDS: &[&'static dyn Word] = &[
-    &arithmetic::Add,
-    &arithmetic::Div,
-    &arithmetic::Mul,
-    &arithmetic::Power,
-    &arithmetic::Sqrti,
-    &arithmetic::Sub,
+pub trait ComplexWord: Sync + core::fmt::Debug {
+    fn name(&self) -> ClarityName;
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError>;
+}
+
+pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &bindings::Let,
     &bitwise::BitwiseAnd,
     &bitwise::BitwiseLShift,
@@ -158,32 +164,80 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &tuples::TupleMerge,
 ];
 
-pub trait Word: Sync + core::fmt::Debug {
+pub trait SimpleWord: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
 
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        expr: &SymbolicExpression,
     ) -> Result<(), GeneratorError>;
 }
 
-lazy_static! {
-    static ref WORDS_BY_NAME: HashMap<ClarityName, &'static dyn Word> = {
-        let mut wbn = HashMap::new();
+pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[];
 
-        for word in WORDS {
-            wbn.insert(word.name(), &**word);
+pub trait SimpleVariadicWord: Sync + core::fmt::Debug {
+    fn name(&self) -> ClarityName;
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        n_args: usize,
+    ) -> Result<(), GeneratorError>;
+}
+
+pub(crate) static SIMPLE_VARIADIC_WORDS: &[&'static dyn SimpleVariadicWord] = &[
+    &arithmetic::Add,
+    &arithmetic::Div,
+    &arithmetic::Mul,
+    &arithmetic::Power,
+    &arithmetic::Sqrti,
+    &arithmetic::Sub,
+];
+
+lazy_static! {
+    static ref COMPLEX_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn ComplexWord> = {
+        let mut cwbn = HashMap::new();
+
+        for word in COMPLEX_WORDS {
+            cwbn.insert(word.name(), &**word);
         }
 
-        wbn
+        cwbn
+    };
+    static ref SIMPLE_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn SimpleWord> = {
+        let mut swbn = HashMap::new();
+
+        for word in SIMPLE_WORDS {
+            swbn.insert(word.name(), &**word);
+        }
+
+        swbn
+    };
+    static ref SIMPLE_VARIADIC_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn SimpleVariadicWord> = {
+        let mut svwbn = HashMap::new();
+
+        for word in SIMPLE_VARIADIC_WORDS {
+            svwbn.insert(word.name(), &**word);
+        }
+
+        svwbn
     };
 }
 
-pub fn lookup(name: &str) -> Option<&'static dyn Word> {
-    WORDS_BY_NAME.get(name).copied()
+pub fn lookup_simple(name: &str) -> Option<&'static dyn SimpleWord> {
+    SIMPLE_WORDS_BY_NAME.get(name).copied()
+}
+
+pub fn lookup_simple_variadic(name: &str) -> Option<&'static dyn SimpleVariadicWord> {
+    SIMPLE_VARIADIC_WORDS_BY_NAME.get(name).copied()
+}
+
+pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
+    COMPLEX_WORDS_BY_NAME.get(name).copied()
 }
 
 #[cfg(test)]
@@ -198,7 +252,15 @@ mod tests {
 
         let mut names = HashSet::new();
 
-        for word in super::WORDS {
+        for word in super::COMPLEX_WORDS {
+            assert!(
+                names.insert(word.name()),
+                "duplicate word: {:?}",
+                word.name()
+            );
+        }
+
+        for word in super::SIMPLE_VARIADIC_WORDS {
             assert!(
                 names.insert(word.name()),
                 "duplicate word: {:?}",
@@ -209,7 +271,16 @@ mod tests {
 
     #[test]
     fn check_for_non_reserved_words() {
-        for word in super::WORDS {
+        for word in super::COMPLEX_WORDS {
+            // Printing each word also gets us coverage on the Debug impl.
+            println!("{:?} => {}", word, word.name());
+            assert!(
+                DefineFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeVariables::lookup_by_name(&word.name()).is_some(),
+            );
+        }
+        for word in super::SIMPLE_VARIADIC_WORDS {
             // Printing each word also gets us coverage on the Debug impl.
             println!("{:?} => {}", word, word.name());
             assert!(

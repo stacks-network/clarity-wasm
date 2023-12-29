@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Not;
 
-impl Word for Not {
+impl ComplexWord for Not {
     fn name(&self) -> ClarityName {
         "not".into()
     }

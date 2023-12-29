@@ -9,7 +9,7 @@ use clarity::{
 use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -17,7 +17,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct IsStandard;
 
-impl Word for IsStandard {
+impl ComplexWord for IsStandard {
     fn name(&self) -> ClarityName {
         "is-standard".into()
     }
@@ -89,7 +89,7 @@ impl Word for IsStandard {
 #[derive(Debug)]
 pub struct Construct;
 
-impl Word for Construct {
+impl ComplexWord for Construct {
     fn name(&self) -> ClarityName {
         "principal-construct?".into()
     }
@@ -178,7 +178,7 @@ fn generate_tuple(
     builder.i32_const(1);
 }
 
-impl Word for Destruct {
+impl ComplexWord for Destruct {
     fn name(&self) -> ClarityName {
         "principal-destruct?".into()
     }
@@ -268,7 +268,7 @@ impl Word for Destruct {
 #[derive(Debug)]
 pub struct PrincipalOf;
 
-impl Word for PrincipalOf {
+impl ComplexWord for PrincipalOf {
     fn name(&self) -> ClarityName {
         "principal-of?".into()
     }

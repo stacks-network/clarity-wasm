@@ -1,6 +1,6 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Functions below are considered no-op's because they are instructions that does nothing
@@ -10,7 +10,7 @@ use crate::wasm_generator::{GeneratorError, WasmGenerator};
 #[derive(Debug)]
 pub struct ToInt;
 
-impl Word for ToInt {
+impl ComplexWord for ToInt {
     fn name(&self) -> ClarityName {
         "to-int".into()
     }
@@ -34,7 +34,7 @@ impl Word for ToInt {
 #[derive(Debug)]
 pub struct ToUint;
 
-impl Word for ToUint {
+impl ComplexWord for ToUint {
     fn name(&self) -> ClarityName {
         "to-uint".into()
     }
@@ -58,7 +58,7 @@ impl Word for ToUint {
 #[derive(Debug)]
 pub struct ContractOf;
 
-impl Word for ContractOf {
+impl ComplexWord for ContractOf {
     fn name(&self) -> ClarityName {
         "contract-of".into()
     }

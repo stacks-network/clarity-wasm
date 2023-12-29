@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_response(
@@ -41,7 +41,7 @@ pub fn traverse_response(
 #[derive(Debug)]
 pub struct IsOk;
 
-impl Word for IsOk {
+impl ComplexWord for IsOk {
     fn name(&self) -> ClarityName {
         "is-ok".into()
     }
@@ -60,7 +60,7 @@ impl Word for IsOk {
 #[derive(Debug)]
 pub struct IsErr;
 
-impl Word for IsErr {
+impl ComplexWord for IsErr {
     fn name(&self) -> ClarityName {
         "is-err".into()
     }

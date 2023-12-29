@@ -1,7 +1,7 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
@@ -49,7 +49,7 @@ fn traverse_comparison(
 #[derive(Debug)]
 pub struct CmpLess;
 
-impl Word for CmpLess {
+impl ComplexWord for CmpLess {
     fn name(&self) -> ClarityName {
         "<".into()
     }
@@ -68,7 +68,7 @@ impl Word for CmpLess {
 #[derive(Debug)]
 pub struct CmpLeq;
 
-impl Word for CmpLeq {
+impl ComplexWord for CmpLeq {
     fn name(&self) -> ClarityName {
         "<=".into()
     }
@@ -87,7 +87,7 @@ impl Word for CmpLeq {
 #[derive(Debug)]
 pub struct CmpGreater;
 
-impl Word for CmpGreater {
+impl ComplexWord for CmpGreater {
     fn name(&self) -> ClarityName {
         ">".into()
     }
@@ -106,7 +106,7 @@ impl Word for CmpGreater {
 #[derive(Debug)]
 pub struct CmpGeq;
 
-impl Word for CmpGeq {
+impl ComplexWord for CmpGeq {
     fn name(&self) -> ClarityName {
         ">=".into()
     }

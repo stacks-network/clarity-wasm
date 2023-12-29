@@ -1,4 +1,4 @@
-use super::Word;
+use super::ComplexWord;
 
 fn traverse_buffer_to_integer(
     name: &str,
@@ -19,7 +19,7 @@ fn traverse_buffer_to_integer(
 #[derive(Debug)]
 pub struct BuffToUintBe;
 
-impl Word for BuffToUintBe {
+impl ComplexWord for BuffToUintBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-be".into()
     }
@@ -38,7 +38,7 @@ impl Word for BuffToUintBe {
 #[derive(Debug)]
 pub struct BuffToIntBe;
 
-impl Word for BuffToIntBe {
+impl ComplexWord for BuffToIntBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-be".into()
     }
@@ -59,7 +59,7 @@ impl Word for BuffToIntBe {
 #[derive(Debug)]
 pub struct BuffToUintLe;
 
-impl Word for BuffToUintLe {
+impl ComplexWord for BuffToUintLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-le".into()
     }
@@ -78,7 +78,7 @@ impl Word for BuffToUintLe {
 #[derive(Debug)]
 pub struct BuffToIntLe;
 
-impl Word for BuffToIntLe {
+impl ComplexWord for BuffToIntLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-le".into()
     }

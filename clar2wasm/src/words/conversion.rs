@@ -1,12 +1,12 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError};
 
 #[derive(Debug)]
 pub struct StringToInt;
 
-impl Word for StringToInt {
+impl ComplexWord for StringToInt {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-int?".into()
     }
@@ -47,7 +47,7 @@ impl Word for StringToInt {
 #[derive(Debug)]
 pub struct StringToUint;
 
-impl Word for StringToUint {
+impl ComplexWord for StringToUint {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-uint?".into()
     }
@@ -89,7 +89,7 @@ impl Word for StringToUint {
 #[derive(Debug)]
 pub struct IntToAscii;
 
-impl Word for IntToAscii {
+impl ComplexWord for IntToAscii {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-ascii".into()
     }
@@ -128,7 +128,7 @@ impl Word for IntToAscii {
 #[derive(Debug)]
 pub struct IntToUtf8;
 
-impl Word for IntToUtf8 {
+impl ComplexWord for IntToUtf8 {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-utf8".into()
     }

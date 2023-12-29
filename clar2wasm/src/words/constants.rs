@@ -2,13 +2,13 @@ use clarity::vm::clarity_wasm::get_type_in_memory_size;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineConstant;
 
-impl Word for DefineConstant {
+impl ComplexWord for DefineConstant {
     fn name(&self) -> ClarityName {
         "define-constant".into()
     }

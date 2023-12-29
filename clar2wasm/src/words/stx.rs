@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct StxBurn;
 
-impl Word for StxBurn {
+impl ComplexWord for StxBurn {
     fn name(&self) -> ClarityName {
         "stx-burn?".into()
     }
@@ -35,7 +35,7 @@ impl Word for StxBurn {
 #[derive(Debug)]
 pub struct StxGetBalance;
 
-impl Word for StxGetBalance {
+impl ComplexWord for StxGetBalance {
     fn name(&self) -> ClarityName {
         "stx-get-balance".into()
     }
@@ -57,7 +57,7 @@ impl Word for StxGetBalance {
 #[derive(Debug)]
 pub struct StxTransfer;
 
-impl Word for StxTransfer {
+impl ComplexWord for StxTransfer {
     fn name(&self) -> ClarityName {
         "stx-transfer?".into()
     }
@@ -87,7 +87,7 @@ impl Word for StxTransfer {
 #[derive(Debug)]
 pub struct StxTransferMemo;
 
-impl Word for StxTransferMemo {
+impl ComplexWord for StxTransferMemo {
     fn name(&self) -> ClarityName {
         "stx-transfer-memo?".into()
     }
@@ -117,7 +117,7 @@ impl Word for StxTransferMemo {
 #[derive(Debug)]
 pub struct StxGetAccount;
 
-impl Word for StxGetAccount {
+impl ComplexWord for StxGetAccount {
     fn name(&self) -> ClarityName {
         "stx-account".into()
     }

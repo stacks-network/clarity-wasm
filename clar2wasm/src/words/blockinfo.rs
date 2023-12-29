@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct GetBlockInfo;
 
-impl Word for GetBlockInfo {
+impl ComplexWord for GetBlockInfo {
     fn name(&self) -> ClarityName {
         "get-block-info?".into()
     }
@@ -56,7 +56,7 @@ impl Word for GetBlockInfo {
 #[derive(Debug)]
 pub struct GetBurnBlockInfo;
 
-impl Word for GetBurnBlockInfo {
+impl ComplexWord for GetBurnBlockInfo {
     fn name(&self) -> ClarityName {
         "get-burn-block-info?".into()
     }
@@ -106,7 +106,7 @@ impl Word for GetBurnBlockInfo {
 #[derive(Debug)]
 pub struct AtBlock;
 
-impl Word for AtBlock {
+impl ComplexWord for AtBlock {
     fn name(&self) -> ClarityName {
         "at-block".into()
     }

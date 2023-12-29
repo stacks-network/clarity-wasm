@@ -1,7 +1,7 @@
 use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
@@ -45,7 +45,7 @@ pub fn traverse_hash(
 #[derive(Debug)]
 pub struct Hash160;
 
-impl Word for Hash160 {
+impl ComplexWord for Hash160 {
     fn name(&self) -> ClarityName {
         "hash160".into()
     }
@@ -71,7 +71,7 @@ impl Word for Hash160 {
 #[derive(Debug)]
 pub struct Sha256;
 
-impl Word for Sha256 {
+impl ComplexWord for Sha256 {
     fn name(&self) -> ClarityName {
         "sha256".into()
     }
@@ -97,7 +97,7 @@ impl Word for Sha256 {
 #[derive(Debug)]
 pub struct Keccak256;
 
-impl Word for Keccak256 {
+impl ComplexWord for Keccak256 {
     fn name(&self) -> ClarityName {
         "keccak256".into()
     }
@@ -157,7 +157,7 @@ impl Word for Keccak256 {
 #[derive(Debug)]
 pub struct Sha512;
 
-impl Word for Sha512 {
+impl ComplexWord for Sha512 {
     fn name(&self) -> ClarityName {
         "sha512".into()
     }
@@ -183,7 +183,7 @@ impl Word for Sha512 {
 #[derive(Debug)]
 pub struct Sha512_256;
 
-impl Word for Sha512_256 {
+impl ComplexWord for Sha512_256 {
     fn name(&self) -> ClarityName {
         "sha512/256".into()
     }
