@@ -6,7 +6,6 @@ use std::rc::Rc;
 use color_eyre::Result;
 use color_eyre::eyre::{bail, anyhow};
 use comfy_table::{Row, Table};
-use console::Color;
 use diesel::{Connection, SqliteConnection};
 use log::*;
 
@@ -17,7 +16,7 @@ use crate::cli::{
 use crate::config::Config;
 use crate::context::{Runtime, Network};
 use crate::db::appdb::AppDb;
-use crate::environments::{WriteableEnv, RuntimeEnvBuilder, ReadableEnv};
+use crate::environments::{RuntimeEnvBuilder, ReadableEnv};
 use crate::ok;
 use crate::utils::{zstd_compress, append_to_path};
 
@@ -42,6 +41,7 @@ async fn exec_snapshot(
 ) -> Result<()> {
     let app_db = Rc::new(app_db);
 
+    // Handle id vs. name environment identifiers
     let env = if let Some(id) = args.env_id {
             app_db.get_env_by_id(id)?
                 .ok_or(anyhow!("environment could not be found"))
@@ -52,17 +52,33 @@ async fn exec_snapshot(
             bail!("one of env-id or env-name must be provided.")
         }?;
 
-    //Here we need to load-up the environment
+    // Attempt to parse the type of environment.
+    let env_type: EnvironmentType = env.environment_type_id.try_into()?;
 
+    // Instantiate an environment builder.
     let builder = RuntimeEnvBuilder::new(app_db);
-    builder.instrumented(
-        env.name, 
-        env.runtime_id.try_into()?, 
-        Network::new(env.network_id as u32, env.chain_id as u32)?, 
-        env.is_read_only, 
-        env.base_path)?;
+
+    // Create a `ReadableEnv` instance from the environment's stored configuration.
+    let mut env_instance: Box<dyn ReadableEnv> = match env_type {
+        EnvironmentType::StacksNode => {
+            Box::new(builder.stacks_node(env.name, PathBuf::try_from(env.base_path)?)?)
+        },
+        EnvironmentType::NetworkSynced => todo!(),
+        EnvironmentType::Instrumented => {
+            Box::new(builder.instrumented(
+                env.name, 
+                env.runtime_id.try_into()?, 
+                Network::new(env.network_id as u32, env.chain_id as u32)?, 
+                env.is_read_only, 
+                env.base_path)?)
+        },
+    };
+
+    // Attempt to open the environment for reading.
+    env_instance.open()?;
     
-    //snapshot_environment(target)?;
+    // Attempt to snapshot the environment's current state.
+    snapshot_environment(&*env_instance, config)?;
 
     todo!()
 }
@@ -156,19 +172,22 @@ async fn exec_new_instrumented(
 }
 
 async fn exec_new_network(
-    app_db: AppDb, 
+    _app_db: AppDb, 
     _config: &Config, 
     _args: &NewNetworkEnvArgs, 
-    name: &str
+    _name: &str
 ) -> Result<()> {
-    ok!()
+    todo!("network node not implemented");
 }
 
-async fn exec_list(app_db: AppDb, config: &Config, _args: &ListEnvArgs) -> Result<()> {
+async fn exec_list(
+    app_db: AppDb, 
+    _config: &Config, 
+    _args: &ListEnvArgs
+) -> Result<()> {
     println!();
     println!("Listing environments...");
     println!();
-
 
     let envs = app_db.list_envs()?;
 
@@ -216,7 +235,8 @@ async fn exec_list(app_db: AppDb, config: &Config, _args: &ListEnvArgs) -> Resul
 }
 
 fn snapshot_environment(
-    target: &dyn WriteableEnv,
+    target: &dyn ReadableEnv,
+    config: &Config
 ) -> Result<()> {
     let name = target.name();
 
@@ -263,4 +283,24 @@ fn snapshot_environment(
     }
 
     ok!()
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum EnvironmentType {
+    StacksNode = 0,
+    NetworkSynced = 1,
+    Instrumented = 2
+}
+
+impl TryFrom<i32> for EnvironmentType {
+    type Error = color_eyre::eyre::Error;
+
+    fn try_from(value: i32) -> Result<Self> {
+        match value {
+            0 => Ok(EnvironmentType::StacksNode),
+            1 => Ok(EnvironmentType::NetworkSynced),
+            2 => Ok(EnvironmentType::Instrumented),
+            _ => bail!("failed to parse environment type from integer: {}", value),
+        }
+    }
 }

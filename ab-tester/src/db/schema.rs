@@ -15,6 +15,7 @@ table! {
         id -> Integer,
         name -> Text,
         is_read_only -> Bool,
+        environment_type_id -> Integer,
         runtime_id -> Integer,
         network_id -> Integer,
         chain_id -> Integer,

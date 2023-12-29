@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS environment (
     network_id INTEGER NOT NULL,
     chain_id INTEGER NOT NULL,
     is_read_only BOOLEAN NOT NULL,
+    environment_type_id INTEGER NOT NULL,
     last_block_height INTEGER NOT NULL,
     base_path TEXT NOT NULL,
 
@@ -21,6 +22,15 @@ CREATE TABLE IF NOT EXISTS environment (
     FOREIGN KEY (runtime_id)
     REFERENCES runtime (id)
 );
+
+CREATE TABLE IF NOT EXISTS environment_type (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
+INSERT INTO environment_type VALUES (0, 'Stacks Node');
+INSERT INTO environment_type VALUES (1, 'Network-Synced');
+INSERT INTO environment_type VALUES (2, 'A/B Tester Instrumented');
 
 CREATE TABLE IF NOT EXISTS environment_snapshot (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
