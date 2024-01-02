@@ -1,6 +1,6 @@
-use super::SimpleWord;
-
 use clarity::vm::types::TypeSignature;
+
+use crate::words::SimpleWord;
 
 fn traverse_buffer_to_integer(
     name: &str,

@@ -522,7 +522,7 @@ impl ComplexWord for Map {
                 );
             };
 
-        let return_element_size = get_type_size(&return_element_type);
+        let return_element_size = get_type_size(return_element_type);
 
         let min_num_elements = generator.module.locals.add(ValType::I32);
         builder.i32_const(i32::MAX);
@@ -676,14 +676,14 @@ impl ComplexWord for Map {
                 })
                 .collect();
 
-            simple.traverse(generator, &mut loop_, &arg_types, &return_element_type)?;
+            simple.traverse(generator, &mut loop_, &arg_types, return_element_type)?;
         } else {
             // Call user defined function.
-            generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+            generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
         }
 
         // Write the result to the output sequence.
-        generator.write_to_memory(&mut loop_, output_offset, 0, &return_element_type);
+        generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type);
 
         // Increment the output offset by the size of the element.
         loop_
@@ -1748,22 +1748,22 @@ mod tests {
 
     #[test]
     fn test_builtin() {
-        let a = &format!(
-            "(map +
+        let a = "
+(map +
   (list 1 2 3 4)
-  (list 10 20 30))"
-        );
+  (list 10 20 30))
+";
         assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
     }
 
     #[test]
     fn test_builtin_2() {
-        let a = &format!(
-            "(map +
+        let a = "
+(map +
   (list 1 2 3 4)
   (list 10 20 30)
-  (list 100 200 300))"
-        );
+  (list 100 200 300))
+";
         assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
     }
 }

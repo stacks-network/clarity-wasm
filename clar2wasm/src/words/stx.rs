@@ -1,8 +1,8 @@
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use clarity::vm::types::TypeSignature;
 
 #[derive(Debug)]
 pub struct StxBurn;

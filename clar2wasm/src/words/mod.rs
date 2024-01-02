@@ -270,29 +270,26 @@ mod tests {
     #[test]
     fn check_word_classes() {
         for word in super::SIMPLE_WORDS {
-            match NativeFunctions::lookup_by_name(word.name().as_str()) {
-                Some(native) => match TypedNativeFunction::type_native_function(&native) {
-                    TypedNativeFunction::Simple(_) => (),
-                    _ => panic!("{:?} should not be simple!", word),
-                },
-                _ => panic!("Not a native function"),
+            if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
+                if let TypedNativeFunction::Special(_) =
+                    TypedNativeFunction::type_native_function(&native)
+                {
+                    panic!("{:?} should not be simple!", word)
+                }
             }
         }
 
         for word in super::COMPLEX_WORDS {
-            match NativeFunctions::lookup_by_name(word.name().as_str()) {
-                Some(native) => match TypedNativeFunction::type_native_function(&native) {
-                    TypedNativeFunction::Simple(_) => {
-                        // we make some exeptions
-                        if word.name().as_str() == "or" || word.name().as_str() == "and" {
-                            continue;
-                        }
-
-                        panic!("{:?} should not be complex!", word)
+            if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
+                if let TypedNativeFunction::Simple(_) =
+                    TypedNativeFunction::type_native_function(&native)
+                {
+                    // we make some exeptions
+                    if word.name().as_str() == "or" || word.name().as_str() == "and" {
+                        continue;
                     }
-                    _ => (),
-                },
-                _ => (),
+                    panic!("{:?} should not be complex!", word)
+                }
             }
         }
     }
