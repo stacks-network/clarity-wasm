@@ -8,6 +8,7 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::words;
 
 #[derive(Debug)]
 pub struct If;
@@ -193,6 +194,8 @@ impl ComplexWord for Filter {
 
         let memory = generator.get_memory();
 
+        let mut loop_result = Ok(());
+
         builder.loop_(None, |loop_| {
             let loop_id = loop_.id();
 
@@ -205,8 +208,19 @@ impl ComplexWord for Filter {
             // [ Value ]
 
             // call the discriminator
-            loop_.call(generator.func_by_name(discriminator.as_str()));
 
+            if let Some(simple) = words::lookup_simple(discriminator) {
+                // Call simple builtin
+                loop_result = simple.traverse(
+                    generator,
+                    loop_,
+                    &[TypeSignature::BoolType],
+                    &TypeSignature::BoolType,
+                );
+            } else {
+                // user defined
+                loop_.call(generator.func_by_name(discriminator.as_str()));
+            }
             // [ Discriminator result (bool) ]
 
             let mut success_branch = loop_.dangling_instr_seq(None);
@@ -262,6 +276,8 @@ impl ComplexWord for Filter {
                 .binop(ir::BinaryOp::I32LtU)
                 .br_if(loop_id);
         });
+
+        loop_result?;
 
         builder.local_get(output_offset);
         builder.local_get(output_len);
@@ -743,13 +759,10 @@ mod tests {
         assert_eq!(
             eval(
                 "
-(define-private (is-great (number int))
-  (> number 2))
-
-(filter is-great (list 1 2 3 4))
+(filter not (list false false true false true true false))
 "
             ),
-            eval("(list 3 4)"),
+            eval("(list false false false false)"),
         );
     }
 

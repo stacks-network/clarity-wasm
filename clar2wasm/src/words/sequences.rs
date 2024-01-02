@@ -204,9 +204,21 @@ impl ComplexWord for Fold {
             loop_.local_get(*result_local);
         }
 
-        // Call the function
-        generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        if let Some(simple) = words::lookup_simple(func) {
+            // Call simple builtin
 
+            let arg_a_ty = match elem_ty {
+                SequenceElementType::Other(o) => o,
+                _ => todo!(),
+            };
+
+            let arg_types = &[arg_a_ty, result_clar_ty.clone()];
+
+            simple.traverse(generator, &mut loop_, arg_types, &result_clar_ty)?;
+        } else {
+            // Call user defined function
+            generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        }
         // Save the result into the locals (in reverse order as we pop)
         for result_local in result_locals.iter().rev() {
             loop_.local_set(*result_local);
@@ -1457,6 +1469,11 @@ mod tests {
             ),
             Some(Value::Int(2))
         );
+    }
+
+    #[test]
+    fn test_fold_builtin() {
+        assert_eq!(eval(r#"(fold + (list 1 2 3 4) 0)"#), Some(Value::Int(10)));
     }
 
     #[test]

@@ -282,8 +282,7 @@ mod tests {
             match NativeFunctions::lookup_by_name(word.name().as_str()) {
                 Some(native) => match TypedNativeFunction::type_native_function(&native) {
                     TypedNativeFunction::Simple(_) => {
-                        // we make some exeptions here
-
+                        // we make some exeptions
                         if word.name().as_str() == "or" || word.name().as_str() == "and" {
                             continue;
                         }
