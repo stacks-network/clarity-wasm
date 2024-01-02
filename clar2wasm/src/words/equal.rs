@@ -886,10 +886,10 @@ fn wasm_equal_list(
                         .local_set(*offset_b);
 
                     // loop while we still have elements
-                    then.local_get(*len_a)
-                        .i32_const(offset_delta_a)
+                    then.local_get(*len_b)
+                        .i32_const(offset_delta_b)
                         .binop(BinaryOp::I32Sub)
-                        .local_tee(*len_a)
+                        .local_tee(*len_b)
                         .br_if(loop_id);
                 },
                 |_| {},
@@ -899,11 +899,11 @@ fn wasm_equal_list(
         };
 
         // Now that we have our comparison loop, we add it to the instructions.
-        // After it, we just have to check if the counter `len_a` is at 0, indicating
+        // After it, we just have to check if the counter `len_b` is at 0, indicating
         // we looped through all elements and everything is equal
         instr
             .instr(Loop { seq: loop_id })
-            .local_get(*len_a)
+            .local_get(*len_b)
             .unop(UnaryOp::I32Eqz);
         instr.id()
     };
@@ -912,7 +912,7 @@ fn wasm_equal_list(
     let equal_size_id = {
         let mut instr = builder.dangling_instr_seq(ValType::I32);
         // consequent when size is 0; alternative when size > 0
-        instr.local_get(*len_a).unop(UnaryOp::I32Eqz).instr(IfElse {
+        instr.local_get(*len_b).unop(UnaryOp::I32Eqz).instr(IfElse {
             consequent: empty_lists,
             alternative: comparison_loop,
         });
