@@ -64,8 +64,8 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &conditionals::Try,
     &conditionals::Unwrap,
     &conditionals::UnwrapErr,
-    &consensus_buff::ToConsensusBuff,
     &consensus_buff::FromConsensusBuff,
+    &consensus_buff::ToConsensusBuff,
     &constants::DefineConstant,
     &contract::AsContract,
     &contract::ContractCall,
@@ -79,9 +79,9 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &enums::ClarityErr,
     &enums::ClarityOk,
     &enums::ClaritySome,
-    &equal::IsEq,
     &equal::IndexOf::Alias,
     &equal::IndexOf::Original,
+    &equal::IsEq,
     &functions::DefinePrivateFunction,
     &functions::DefinePublicFunction,
     &functions::DefineReadonlyFunction,
@@ -91,10 +91,10 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &maps::MapInsert,
     &maps::MapSet,
     &noop::ContractOf,
-    &noop::ToInt,
-    &noop::ToUint,
     &options::IsNone,
     &options::IsSome,
+    &principal::Construct,
+    &principal::PrincipalOf,
     &print::Print,
     &responses::IsErr,
     &responses::IsOk,
@@ -111,8 +111,6 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &sequences::Map,
     &sequences::ReplaceAt,
     &sequences::Slice,
-    &stx::StxBurn,
-    &stx::StxGetAccount,
     &stx::StxTransfer,
     &stx::StxTransferMemo,
     &tokens::BurnFungibleToken,
@@ -132,7 +130,6 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &tuples::TupleCons,
     &tuples::TupleGet,
     &tuples::TupleMerge,
-    &principal::Construct,
 ];
 
 pub trait SimpleWord: Sync + core::fmt::Debug {
@@ -154,10 +151,6 @@ pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &arithmetic::Power,
     &arithmetic::Sqrti,
     &arithmetic::Sub,
-    &comparison::CmpGeq,
-    &comparison::CmpGreater,
-    &comparison::CmpLeq,
-    &comparison::CmpLess,
     &bitwise::BitwiseAnd,
     &bitwise::BitwiseLShift,
     &bitwise::BitwiseNot,
@@ -169,20 +162,27 @@ pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &buff_to_integer::BuffToIntLe,
     &buff_to_integer::BuffToUintBe,
     &buff_to_integer::BuffToUintLe,
-    &principal::IsStandard,
-    &principal::PrincipalOf,
+    &comparison::CmpGeq,
+    &comparison::CmpGreater,
+    &comparison::CmpLeq,
+    &comparison::CmpLess,
     &conversion::IntToAscii,
     &conversion::IntToUtf8,
     &conversion::StringToInt,
     &conversion::StringToUint,
-    &logical::Not,
     &hashing::Hash160,
     &hashing::Keccak256,
     &hashing::Sha256,
     &hashing::Sha512,
     &hashing::Sha512_256,
-    &stx::StxGetBalance,
+    &logical::Not,
+    &noop::ToInt,
+    &noop::ToUint,
     &principal::Destruct,
+    &principal::IsStandard,
+    &stx::StxBurn,
+    &stx::StxGetAccount,
+    &stx::StxGetBalance,
 ];
 
 lazy_static! {
@@ -216,6 +216,7 @@ pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::analysis::type_checker::v2_1::TypedNativeFunction;
     use clarity::vm::functions::define::DefineFunctions;
     use clarity::vm::functions::NativeFunctions;
     use clarity::vm::variables::NativeVariables;
@@ -262,6 +263,37 @@ mod tests {
                     || NativeFunctions::lookup_by_name(&word.name()).is_some()
                     || NativeVariables::lookup_by_name(&word.name()).is_some(),
             );
+        }
+    }
+
+    #[test]
+    fn check_word_classes() {
+        for word in super::SIMPLE_WORDS {
+            match NativeFunctions::lookup_by_name(word.name().as_str()) {
+                Some(native) => match TypedNativeFunction::type_native_function(&native) {
+                    TypedNativeFunction::Simple(_) => (),
+                    _ => panic!("{:?} should not be simple!", word),
+                },
+                _ => panic!("Not a native function"),
+            }
+        }
+
+        for word in super::COMPLEX_WORDS {
+            match NativeFunctions::lookup_by_name(word.name().as_str()) {
+                Some(native) => match TypedNativeFunction::type_native_function(&native) {
+                    TypedNativeFunction::Simple(_) => {
+                        // we make some exeptions here
+
+                        if word.name().as_str() == "or" || word.name().as_str() == "and" {
+                            continue;
+                        }
+
+                        panic!("{:?} should not be complex!", word)
+                    }
+                    _ => (),
+                },
+                _ => (),
+            }
         }
     }
 }

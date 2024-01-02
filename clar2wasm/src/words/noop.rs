@@ -1,6 +1,6 @@
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Functions below are considered no-op's because they are instructions that does nothing
@@ -10,7 +10,7 @@ use crate::wasm_generator::{GeneratorError, WasmGenerator};
 #[derive(Debug)]
 pub struct ToInt;
 
-impl ComplexWord for ToInt {
+impl SimpleWord for ToInt {
     fn name(&self) -> ClarityName {
         "to-int".into()
     }
@@ -19,11 +19,9 @@ impl ComplexWord for ToInt {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
         let helper_func = generator.func_by_name("stdlib.to-int");
         builder.call(helper_func);
 
@@ -34,7 +32,7 @@ impl ComplexWord for ToInt {
 #[derive(Debug)]
 pub struct ToUint;
 
-impl ComplexWord for ToUint {
+impl SimpleWord for ToUint {
     fn name(&self) -> ClarityName {
         "to-uint".into()
     }
@@ -43,11 +41,9 @@ impl ComplexWord for ToUint {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
         let helper_func = generator.func_by_name("stdlib.to-uint");
         builder.call(helper_func);
 

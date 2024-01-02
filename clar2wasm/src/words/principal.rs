@@ -259,7 +259,7 @@ impl SimpleWord for Destruct {
 #[derive(Debug)]
 pub struct PrincipalOf;
 
-impl SimpleWord for PrincipalOf {
+impl ComplexWord for PrincipalOf {
     fn name(&self) -> ClarityName {
         "principal-of?".into()
     }
@@ -268,9 +268,12 @@ impl SimpleWord for PrincipalOf {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _arg_types: &[TypeSignature],
-        _return_type: &TypeSignature,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        // Traverse the public key
+        generator.traverse_expr(builder, args.get_expr(0)?)?;
+
         // Reserve stack space for the host-function to write the principal
         builder.global_get(generator.stack_pointer);
 

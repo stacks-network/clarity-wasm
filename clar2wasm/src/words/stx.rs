@@ -7,7 +7,7 @@ use clarity::vm::types::TypeSignature;
 #[derive(Debug)]
 pub struct StxBurn;
 
-impl ComplexWord for StxBurn {
+impl SimpleWord for StxBurn {
     fn name(&self) -> ClarityName {
         "stx-burn?".into()
     }
@@ -16,15 +16,9 @@ impl ComplexWord for StxBurn {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let amount = args.get_expr(0)?;
-        let sender = args.get_expr(1)?;
-
-        generator.traverse_expr(builder, amount)?;
-        generator.traverse_expr(builder, sender)?;
-
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
         builder.call(generator.func_by_name("stdlib.stx_burn"));
@@ -116,7 +110,7 @@ impl ComplexWord for StxTransferMemo {
 #[derive(Debug)]
 pub struct StxGetAccount;
 
-impl ComplexWord for StxGetAccount {
+impl SimpleWord for StxGetAccount {
     fn name(&self) -> ClarityName {
         "stx-account".into()
     }
@@ -125,10 +119,9 @@ impl ComplexWord for StxGetAccount {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, &args[0..1])?;
         builder.call(generator.func_by_name("stdlib.stx_account"));
         Ok(())
     }
