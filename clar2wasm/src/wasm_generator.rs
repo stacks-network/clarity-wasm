@@ -236,13 +236,11 @@ impl WasmGenerator {
                     for arg in args {
                         self.traverse_expr(builder, arg)?;
                     }
-                    simpleword.traverse(self, builder, expr)?;
-                } else if let Some(varword) = words::lookup_simple_variadic(function_name) {
-                    // traverse arguments
-                    for arg in args {
-                        self.traverse_expr(builder, arg)?;
-                    }
-                    varword.traverse(self, builder, expr, args.len())?;
+                    let ty = self
+                        .get_expr_type(expr)
+                        .expect("Simple words must be typed")
+                        .clone();
+                    simpleword.traverse(self, builder, &ty, args.len())?;
                 } else if let Some(word) = words::lookup_complex(function_name) {
                     // Complex words handle their own argument traversal
                     word.traverse(self, builder, expr, args)?;

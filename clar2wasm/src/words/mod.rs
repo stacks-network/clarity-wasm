@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use lazy_static::lazy_static;
 use walrus::InstrSeqBuilder;
 
@@ -171,25 +171,12 @@ pub trait SimpleWord: Sync + core::fmt::Debug {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-    ) -> Result<(), GeneratorError>;
-}
-
-pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[];
-
-pub trait SimpleVariadicWord: Sync + core::fmt::Debug {
-    fn name(&self) -> ClarityName;
-
-    fn traverse(
-        &self,
-        generator: &mut WasmGenerator,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        return_type: &TypeSignature,
         n_args: usize,
     ) -> Result<(), GeneratorError>;
 }
 
-pub(crate) static SIMPLE_VARIADIC_WORDS: &[&'static dyn SimpleVariadicWord] = &[
+pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &arithmetic::Add,
     &arithmetic::Div,
     &arithmetic::Mul,
@@ -217,23 +204,10 @@ lazy_static! {
 
         swbn
     };
-    static ref SIMPLE_VARIADIC_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn SimpleVariadicWord> = {
-        let mut svwbn = HashMap::new();
-
-        for word in SIMPLE_VARIADIC_WORDS {
-            svwbn.insert(word.name(), &**word);
-        }
-
-        svwbn
-    };
 }
 
 pub fn lookup_simple(name: &str) -> Option<&'static dyn SimpleWord> {
     SIMPLE_WORDS_BY_NAME.get(name).copied()
-}
-
-pub fn lookup_simple_variadic(name: &str) -> Option<&'static dyn SimpleVariadicWord> {
-    SIMPLE_VARIADIC_WORDS_BY_NAME.get(name).copied()
 }
 
 pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
@@ -260,7 +234,7 @@ mod tests {
             );
         }
 
-        for word in super::SIMPLE_VARIADIC_WORDS {
+        for word in super::SIMPLE_WORDS {
             assert!(
                 names.insert(word.name()),
                 "duplicate word: {:?}",
@@ -280,7 +254,7 @@ mod tests {
                     || NativeVariables::lookup_by_name(&word.name()).is_some(),
             );
         }
-        for word in super::SIMPLE_VARIADIC_WORDS {
+        for word in super::SIMPLE_WORDS {
             // Printing each word also gets us coverage on the Debug impl.
             println!("{:?} => {}", word, word.name());
             assert!(

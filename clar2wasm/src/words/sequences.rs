@@ -6,11 +6,11 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
-use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
 pub struct ListCons;
@@ -493,22 +493,24 @@ impl ComplexWord for Map {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
+        let ty = generator
+            .get_expr_type(expr)
+            .expect("list expression must be typed")
+            .clone();
         let return_element_type =
-            match generator
-                .get_function_type(fname)
-                .ok_or(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                ))? {
-                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns.clone()),
-                _ => Err(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                )),
-            }?;
+            if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
+                list_type.get_list_item_type()
+            } else {
+                panic!(
+                    "Expected list type for list expression, but found: {:?}",
+                    ty
+                );
+            };
 
         let return_element_size = get_type_size(&return_element_type);
 
@@ -653,8 +655,18 @@ impl ComplexWord for Map {
                 .local_set(*offset);
         }
 
-        // Call the function.
-        generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+        if let Some(simple) = words::lookup_simple(fname) {
+            // Call simple builtin
+            simple.traverse(
+                generator,
+                &mut loop_,
+                &return_element_type,
+                args.len().saturating_sub(1),
+            )?;
+        } else {
+            // Call user defined function.
+            generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+        }
 
         // Write the result to the output sequence.
         generator.write_to_memory(&mut loop_, output_offset, 0, &return_element_type);
@@ -1711,6 +1723,27 @@ mod tests {
   (list 1 2 3 4)
   (list true false false true)
   (list 10 20 30))"
+        );
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn test_builtin() {
+        let a = &format!(
+            "(map +
+  (list 1 2 3 4)
+  (list 10 20 30))"
+        );
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn test_builtin_2() {
+        let a = &format!(
+            "(map +
+  (list 1 2 3 4)
+  (list 10 20 30)
+  (list 100 200 300))"
         );
         assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
     }

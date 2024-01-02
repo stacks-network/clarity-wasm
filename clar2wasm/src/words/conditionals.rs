@@ -739,6 +739,21 @@ mod tests {
     }
 
     #[test]
+    fn filter_builtin() {
+        assert_eq!(
+            eval(
+                "
+(define-private (is-great (number int))
+  (> number 2))
+
+(filter is-great (list 1 2 3 4))
+"
+            ),
+            eval("(list 3 4)"),
+        );
+    }
+
+    #[test]
     fn and() {
         assert_eq!(
             eval(
