@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 use lazy_static::lazy_static;
 use walrus::InstrSeqBuilder;
 

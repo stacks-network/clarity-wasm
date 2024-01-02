@@ -1,4 +1,5 @@
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
