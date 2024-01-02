@@ -1,14 +1,14 @@
 use clarity::vm::types::TypeSignature;
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::ClarityName;
 use walrus::InstrSeqBuilder;
 
-use super::ComplexWord;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use super::SimpleWord;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct BitwiseNot;
 
-impl ComplexWord for BitwiseNot {
+impl SimpleWord for BitwiseNot {
     fn name(&self) -> ClarityName {
         "bit-not".into()
     }
@@ -17,11 +17,9 @@ impl ComplexWord for BitwiseNot {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
-
         let helper_func = generator.func_by_name("stdlib.bit-not");
         builder.call(helper_func);
         Ok(())
@@ -34,27 +32,20 @@ fn traverse_bitwise(
     name: &'static str,
     generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
-    operands: &[SymbolicExpression],
+    arg_types: &[TypeSignature],
 ) -> Result<(), GeneratorError> {
     let helper_func = generator.func_by_name(&format!("stdlib.{name}"));
-
-    // Start off with operand 0, then loop over the rest, calling the
-    // helper function with a pair of operands, either operand 0 and 1, or
-    // the result of the previous call and the next operand.
-    // e.g. (+ 1 2 3 4) becomes (+ (+ (+ 1 2) 3) 4)
-    generator.traverse_expr(builder, &operands[0])?;
-    for operand in operands.iter().skip(1) {
-        generator.traverse_expr(builder, operand)?;
+    // Run this once for every arg except first
+    for _ in arg_types.iter().skip(1) {
         builder.call(helper_func);
     }
-
     Ok(())
 }
 
 #[derive(Debug)]
 pub struct BitwiseOr;
 
-impl ComplexWord for BitwiseOr {
+impl SimpleWord for BitwiseOr {
     fn name(&self) -> ClarityName {
         "bit-or".into()
     }
@@ -63,17 +54,17 @@ impl ComplexWord for BitwiseOr {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-or", generator, builder, args)
+        traverse_bitwise("bit-or", generator, builder, arg_types)
     }
 }
 
 #[derive(Debug)]
 pub struct BitwiseAnd;
 
-impl ComplexWord for BitwiseAnd {
+impl SimpleWord for BitwiseAnd {
     fn name(&self) -> ClarityName {
         "bit-and".into()
     }
@@ -82,17 +73,17 @@ impl ComplexWord for BitwiseAnd {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-and", generator, builder, args)
+        traverse_bitwise("bit-and", generator, builder, arg_types)
     }
 }
 
 #[derive(Debug)]
 pub struct BitwiseXor;
 
-impl ComplexWord for BitwiseXor {
+impl SimpleWord for BitwiseXor {
     fn name(&self) -> ClarityName {
         "bit-xor".into()
     }
@@ -101,17 +92,17 @@ impl ComplexWord for BitwiseXor {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-xor", generator, builder, args)
+        traverse_bitwise("bit-xor", generator, builder, arg_types)
     }
 }
 
 #[derive(Debug)]
 pub struct BitwiseLShift;
 
-impl ComplexWord for BitwiseLShift {
+impl SimpleWord for BitwiseLShift {
     fn name(&self) -> ClarityName {
         "bit-shift-left".into()
     }
@@ -120,14 +111,9 @@ impl ComplexWord for BitwiseLShift {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let input = args.get_expr(0)?;
-        let shamt = args.get_expr(1)?;
-
-        generator.traverse_expr(builder, input)?;
-        generator.traverse_expr(builder, shamt)?;
         let func = generator.func_by_name("stdlib.bit-shift-left");
         builder.call(func);
         Ok(())
@@ -137,7 +123,7 @@ impl ComplexWord for BitwiseLShift {
 #[derive(Debug)]
 pub struct BitwiseRShift;
 
-impl ComplexWord for BitwiseRShift {
+impl SimpleWord for BitwiseRShift {
     fn name(&self) -> ClarityName {
         "bit-shift-right".into()
     }
@@ -146,19 +132,10 @@ impl ComplexWord for BitwiseRShift {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let input = args.get_expr(0)?;
-        let shamt = args.get_expr(1)?;
-
-        generator.traverse_expr(builder, input)?;
-        generator.traverse_expr(builder, shamt)?;
-
-        let ty = generator
-            .get_expr_type(input)
-            .expect("bit shift operands must be typed");
-        let type_suffix = match ty {
+        let type_suffix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
@@ -179,7 +156,7 @@ impl ComplexWord for BitwiseRShift {
 #[derive(Debug)]
 pub struct Xor;
 
-impl ComplexWord for Xor {
+impl SimpleWord for Xor {
     fn name(&self) -> ClarityName {
         "xor".into()
     }
@@ -188,10 +165,10 @@ impl ComplexWord for Xor {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // xor is a proxy call to bit-xor since they share the same implementation.
-        traverse_bitwise("bit-xor", generator, builder, args)
+        traverse_bitwise("bit-xor", generator, builder, arg_types)
     }
 }

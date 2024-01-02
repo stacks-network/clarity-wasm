@@ -1,17 +1,17 @@
-use super::ComplexWord;
+use super::SimpleWord;
+
+use clarity::vm::types::TypeSignature;
 
 fn traverse_buffer_to_integer(
     name: &str,
     generator: &mut crate::wasm_generator::WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    args: &[clarity::vm::SymbolicExpression],
 ) -> Result<(), crate::wasm_generator::GeneratorError> {
     let func = generator
         .module
         .funcs
         .by_name(name)
         .unwrap_or_else(|| panic!("function not found: {name}"));
-    generator.traverse_args(builder, args)?;
     builder.call(func);
     Ok(())
 }
@@ -19,7 +19,7 @@ fn traverse_buffer_to_integer(
 #[derive(Debug)]
 pub struct BuffToUintBe;
 
-impl ComplexWord for BuffToUintBe {
+impl SimpleWord for BuffToUintBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-be".into()
     }
@@ -28,17 +28,17 @@ impl ComplexWord for BuffToUintBe {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
     }
 }
 
 #[derive(Debug)]
 pub struct BuffToIntBe;
 
-impl ComplexWord for BuffToIntBe {
+impl SimpleWord for BuffToIntBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-be".into()
     }
@@ -47,19 +47,19 @@ impl ComplexWord for BuffToIntBe {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-be", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
     }
 }
 
 #[derive(Debug)]
 pub struct BuffToUintLe;
 
-impl ComplexWord for BuffToUintLe {
+impl SimpleWord for BuffToUintLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-le".into()
     }
@@ -68,17 +68,17 @@ impl ComplexWord for BuffToUintLe {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
     }
 }
 
 #[derive(Debug)]
 pub struct BuffToIntLe;
 
-impl ComplexWord for BuffToIntLe {
+impl SimpleWord for BuffToIntLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-le".into()
     }
@@ -87,11 +87,11 @@ impl ComplexWord for BuffToIntLe {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-le", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder, args)
+        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
     }
 }

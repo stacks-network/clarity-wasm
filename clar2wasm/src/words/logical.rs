@@ -1,12 +1,13 @@
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::ClarityName;
 
-use super::ComplexWord;
+use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Not;
 
-impl ComplexWord for Not {
+impl SimpleWord for Not {
     fn name(&self) -> ClarityName {
         "not".into()
     }
@@ -15,13 +16,10 @@ impl ComplexWord for Not {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
         builder.call(generator.func_by_name("stdlib.not"));
-
         Ok(())
     }
 }

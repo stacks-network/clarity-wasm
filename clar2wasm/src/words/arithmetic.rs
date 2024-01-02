@@ -1,5 +1,5 @@
 use clarity::vm::types::TypeSignature;
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::ClarityName;
 
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
@@ -7,8 +7,8 @@ use crate::wasm_generator::{GeneratorError, WasmGenerator};
 fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
+    arg_types: &[TypeSignature],
     return_type: &TypeSignature,
-    n_args: usize,
     name: &str,
 ) -> Result<(), GeneratorError> {
     let type_suffix = match return_type {
@@ -24,7 +24,7 @@ fn simple_typed_multi_value(
     let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
     // call one time less than the number of args
-    for _ in 1..n_args {
+    for _ in 1..arg_types.len() {
         builder.call(func);
     }
 
@@ -43,10 +43,10 @@ impl SimpleWord for Add {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "add")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "add")
     }
 }
 
@@ -62,10 +62,10 @@ impl SimpleWord for Sub {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "sub")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "sub")
     }
 }
 
@@ -81,10 +81,10 @@ impl SimpleWord for Mul {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "mul")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "mul")
     }
 }
 
@@ -100,10 +100,10 @@ impl SimpleWord for Div {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "div")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "div")
     }
 }
 
@@ -119,10 +119,10 @@ impl SimpleWord for Modulo {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "mod")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "mod")
     }
 }
 
@@ -138,10 +138,10 @@ impl SimpleWord for Log2 {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "log2")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "log2")
     }
 }
 
@@ -157,10 +157,10 @@ impl SimpleWord for Power {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "pow")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "pow")
     }
 }
 
@@ -176,10 +176,10 @@ impl SimpleWord for Sqrti {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-        n_args: usize,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, return_type, n_args, "sqrti")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "sqrti")
     }
 }
 

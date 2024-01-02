@@ -1,7 +1,5 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{
-    FixedFunction, FunctionType, SequenceSubtype, StringSubtype, TypeSignature,
-};
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
@@ -657,12 +655,16 @@ impl ComplexWord for Map {
 
         if let Some(simple) = words::lookup_simple(fname) {
             // Call simple builtin
-            simple.traverse(
-                generator,
-                &mut loop_,
-                &return_element_type,
-                args.len().saturating_sub(1),
-            )?;
+
+            let arg_types: Vec<_> = input_element_types
+                .iter()
+                .map(|stype| match stype {
+                    SequenceElementType::Other(o) => o.clone(),
+                    _ => todo!(),
+                })
+                .collect();
+
+            simple.traverse(generator, &mut loop_, &arg_types, &return_element_type)?;
         } else {
             // Call user defined function.
             generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;

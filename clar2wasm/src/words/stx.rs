@@ -1,7 +1,8 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use clarity::vm::types::TypeSignature;
 
 #[derive(Debug)]
 pub struct StxBurn;
@@ -35,7 +36,7 @@ impl ComplexWord for StxBurn {
 #[derive(Debug)]
 pub struct StxGetBalance;
 
-impl ComplexWord for StxGetBalance {
+impl SimpleWord for StxGetBalance {
     fn name(&self) -> ClarityName {
         "stx-get-balance".into()
     }
@@ -44,11 +45,9 @@ impl ComplexWord for StxGetBalance {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let owner = args.get_expr(0)?;
-        generator.traverse_expr(builder, owner)?;
         builder.call(generator.func_by_name("stdlib.stx_get_balance"));
         Ok(())
     }

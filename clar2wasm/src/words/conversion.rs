@@ -1,12 +1,12 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
-use super::ComplexWord;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use super::SimpleWord;
+use crate::wasm_generator::GeneratorError;
 
 #[derive(Debug)]
 pub struct StringToInt;
 
-impl ComplexWord for StringToInt {
+impl SimpleWord for StringToInt {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-int?".into()
     }
@@ -15,15 +15,10 @@ impl ComplexWord for StringToInt {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let func_prefix = match generator
-            .get_expr_type(args.get_expr(0)?)
-            .expect("string-to-int? argument should have a type")
-        {
+        let func_prefix = match &arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
             }
@@ -47,7 +42,7 @@ impl ComplexWord for StringToInt {
 #[derive(Debug)]
 pub struct StringToUint;
 
-impl ComplexWord for StringToUint {
+impl SimpleWord for StringToUint {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-uint?".into()
     }
@@ -56,15 +51,10 @@ impl ComplexWord for StringToUint {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let func_prefix = match generator
-            .get_expr_type(args.get_expr(0)?)
-            .expect("string-to-int? argument should have a type")
-        {
+        let func_prefix = match arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
             }
@@ -89,7 +79,7 @@ impl ComplexWord for StringToUint {
 #[derive(Debug)]
 pub struct IntToAscii;
 
-impl ComplexWord for IntToAscii {
+impl SimpleWord for IntToAscii {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-ascii".into()
     }
@@ -98,16 +88,10 @@ impl ComplexWord for IntToAscii {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let input = args.get_expr(0)?;
-        let ty = generator
-            .get_expr_type(input)
-            .expect("int-to-ascii input must be typed");
-        let type_prefix = match ty {
+        let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
@@ -128,7 +112,7 @@ impl ComplexWord for IntToAscii {
 #[derive(Debug)]
 pub struct IntToUtf8;
 
-impl ComplexWord for IntToUtf8 {
+impl SimpleWord for IntToUtf8 {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-utf8".into()
     }
@@ -137,16 +121,10 @@ impl ComplexWord for IntToUtf8 {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let input = args.get_expr(0)?;
-        let ty = generator
-            .get_expr_type(input)
-            .expect("int-to-utf8 input must be typed");
-        let type_prefix = match ty {
+        let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {

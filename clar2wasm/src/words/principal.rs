@@ -9,7 +9,7 @@ use clarity::{
 use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
-use super::ComplexWord;
+use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -17,7 +17,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct IsStandard;
 
-impl ComplexWord for IsStandard {
+impl SimpleWord for IsStandard {
     fn name(&self) -> ClarityName {
         "is-standard".into()
     }
@@ -26,12 +26,9 @@ impl ComplexWord for IsStandard {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        // Traverse the principal
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
-
         // Drop the length
         builder.drop();
 
@@ -178,7 +175,7 @@ fn generate_tuple(
     builder.i32_const(1);
 }
 
-impl ComplexWord for Destruct {
+impl SimpleWord for Destruct {
     fn name(&self) -> ClarityName {
         "principal-destruct?".into()
     }
@@ -187,12 +184,9 @@ impl ComplexWord for Destruct {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        // Traverse the principal
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
-
         // Subtract STANDARD_PRINCIPAL_BYTES from the length to get the length
         // of the name.
         builder
@@ -220,9 +214,6 @@ impl ComplexWord for Destruct {
         // Check if the version matches the network.
         builder.call(generator.func_by_name("stdlib.is-version-valid"));
 
-        let ret_ty = generator
-            .get_expr_type(expr)
-            .expect("destruct result should be typed");
         let tuple_ty = TypeSignature::TupleType(
             vec![
                 ("hash-bytes".into(), BUFF_20.clone()),
@@ -236,7 +227,7 @@ impl ComplexWord for Destruct {
             .unwrap(),
         );
 
-        let return_types = clar2wasm_ty(ret_ty);
+        let return_types = clar2wasm_ty(return_type);
         builder.if_else(
             InstrSeqType::new(&mut generator.module.types, &[], &return_types),
             |then| {
@@ -268,7 +259,7 @@ impl ComplexWord for Destruct {
 #[derive(Debug)]
 pub struct PrincipalOf;
 
-impl ComplexWord for PrincipalOf {
+impl SimpleWord for PrincipalOf {
     fn name(&self) -> ClarityName {
         "principal-of?".into()
     }
@@ -277,12 +268,9 @@ impl ComplexWord for PrincipalOf {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        // Traverse the public key
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
-
         // Reserve stack space for the host-function to write the principal
         builder.global_get(generator.stack_pointer);
 
