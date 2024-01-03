@@ -221,4 +221,34 @@ mod tests {
             ))
             .is_some());
     }
+
+    #[test]
+    fn trait_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "my-trait",
+            r#"
+(define-trait my-trait
+  ((add (int int) (response int int))))
+(define-public (add (a int) (b int))
+  (ok (+ a b))
+)
+            "#,
+        )
+        .expect("Failed to init contract my-trait.");
+        let val = env
+            .init_contract_with_snippet(
+                "use-trait",
+                r#"
+(use-trait the-trait .my-trait.my-trait)
+(define-private (foo (adder <the-trait>))
+    (print (list adder adder))
+)
+(foo .my-trait)
+            "#,
+            )
+            .expect("Failed to init contract use-trait.");
+
+        assert_eq!(val.unwrap(), evaluate("(list .my-trait .my-trait)").unwrap());
+    }
 }
