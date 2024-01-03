@@ -249,6 +249,9 @@ mod tests {
             )
             .expect("Failed to init contract use-trait.");
 
-        assert_eq!(val.unwrap(), evaluate("(list .my-trait .my-trait)").unwrap());
+        assert_eq!(
+            val.unwrap(),
+            evaluate("(list .my-trait .my-trait)").unwrap()
+        );
     }
 }
