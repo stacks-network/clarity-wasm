@@ -629,7 +629,10 @@ impl WasmGenerator {
                 );
                 16
             }
-            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
+            TypeSignature::PrincipalType
+            | TypeSignature::CallableType(_)
+            | TypeSignature::TraitReferenceType(_)
+            | TypeSignature::SequenceType(_) => {
                 // Data stack: TOP | Length | Offset | ...
                 // Save the offset/length to locals.
                 let seq_offset = self.module.locals.add(ValType::I32);
@@ -825,7 +828,10 @@ impl WasmGenerator {
             }
             // Principals and sequence types are stored in-memory and
             // represented by an offset and length.
-            TypeSignature::PrincipalType | TypeSignature::SequenceType(_) => {
+            TypeSignature::PrincipalType
+            | TypeSignature::CallableType(_)
+            | TypeSignature::TraitReferenceType(_)
+            | TypeSignature::SequenceType(_) => {
                 // Memory: Offset -> | ValueOffset | ValueLength |
                 builder.local_get(offset).load(
                     memory.id(),
