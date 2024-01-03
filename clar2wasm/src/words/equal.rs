@@ -901,8 +901,13 @@ fn wasm_equal_list(
         // Now that we have our comparison loop, we add it to the instructions.
         // After it, we just have to check if the counter `len_b` is at 0, indicating
         // we looped through all elements and everything is equal
+        // In case we have 3 or more operands for `is-eq`, we also should make sure that
+        // *offset_a* is reset at the end of the loop. We accomplish that by putting its original
+        // value on the stack before the loop and setting it back after the loop.
         instr
+            .local_get(*offset_a)
             .instr(Loop { seq: loop_id })
+            .local_set(*offset_a)
             .local_get(*len_b)
             .unop(UnaryOp::I32Eqz);
         instr.id()
