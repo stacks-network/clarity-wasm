@@ -3,8 +3,6 @@ use proptest::proptest;
 
 use crate::PropValue;
 
-use proptest::prelude::ProptestConfig;
-
 proptest! {
     #[test]
     fn is_eq_one_argument_always_true(val in PropValue::any()) {
@@ -25,10 +23,6 @@ proptest! {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig {
-        cases: 1,
-        .. ProptestConfig::default()
-    })]
     #[test]
     fn is_eq_value_with_itself_always_true_3(val in PropValue::any()) {
         dbg!(&val);
