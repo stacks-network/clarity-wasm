@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
@@ -20,7 +21,6 @@ use wasmtime::{
     AsContextMut, Caller, Config, Engine, Extern, ExternRef, Func, Instance, Linker, Module, Store,
     Val,
 };
-use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.
