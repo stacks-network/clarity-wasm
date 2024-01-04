@@ -1578,14 +1578,34 @@ impl WasmGenerator {
                     // Push the offset of the result onto the stack
                     then.local_get(result_offset);
 
-                    // Call utf8 to scalar conversion function. It will leave
-                    // return the length of the string.
+                    // Call utf8 to scalar conversion function. It will return
+                    // the length of the string and a success indicator.
                     then.local_get(offset_local)
                         .i32_const(5)
                         .binop(BinaryOp::I32Add)
                         .local_get(string_length)
                         .local_get(result_offset)
                         .call(self.func_by_name("stdlib.convert-utf8-to-scalars"));
+
+                    // Check if the conversion failed
+                    then.unop(UnaryOp::I32Eqz).if_else(
+                        InstrSeqType::new(
+                            &mut self.module.types,
+                            &[ValType::I32, ValType::I32, ValType::I32],
+                            &[ValType::I32, ValType::I32, ValType::I32],
+                        ),
+                        |inner| {
+                            // Drop the result and return none.
+                            inner
+                                .drop()
+                                .drop()
+                                .drop()
+                                .i32_const(0)
+                                .i32_const(0)
+                                .i32_const(0);
+                        },
+                        |_| {},
+                    );
 
                     // Increment the offset by the length of the serialized
                     // buffer.
