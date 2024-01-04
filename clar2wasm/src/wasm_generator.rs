@@ -231,7 +231,28 @@ impl WasmGenerator {
                 },
                 args,
             )) => {
-                if let Some(word) = words::lookup(function_name) {
+                if let Some(simpleword) = words::lookup_simple(function_name) {
+                    // traverse arguments
+                    for arg in args {
+                        self.traverse_expr(builder, arg)?;
+                    }
+                    let arg_types: Result<Vec<TypeSignature>, GeneratorError> = args
+                        .iter()
+                        .map(|e| {
+                            self.get_expr_type(e)
+                                .cloned()
+                                .ok_or(GeneratorError::InternalError(
+                                    "expected valid argument type".into(),
+                                ))
+                        })
+                        .collect();
+                    let return_type = self
+                        .get_expr_type(expr)
+                        .expect("Simple words must be typed")
+                        .clone();
+                    simpleword.visit(self, builder, &arg_types?, &return_type)?;
+                } else if let Some(word) = words::lookup_complex(function_name) {
+                    // Complex words handle their own argument traversal
                     word.traverse(self, builder, expr, args)?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;

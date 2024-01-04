@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineTrait;
 
-impl Word for DefineTrait {
+impl ComplexWord for DefineTrait {
     fn name(&self) -> ClarityName {
         "define-trait".into()
     }
@@ -42,7 +42,7 @@ impl Word for DefineTrait {
 #[derive(Debug)]
 pub struct UseTrait;
 
-impl Word for UseTrait {
+impl ComplexWord for UseTrait {
     fn name(&self) -> ClarityName {
         "use-trait".into()
     }
@@ -62,7 +62,7 @@ impl Word for UseTrait {
 #[derive(Debug)]
 pub struct ImplTrait;
 
-impl Word for ImplTrait {
+impl ComplexWord for ImplTrait {
     fn name(&self) -> ClarityName {
         "impl-trait".into()
     }

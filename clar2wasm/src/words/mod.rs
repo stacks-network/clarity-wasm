@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use lazy_static::lazy_static;
 use walrus::InstrSeqBuilder;
@@ -38,32 +39,23 @@ pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
-pub(crate) static WORDS: &[&'static dyn Word] = &[
-    &arithmetic::Add,
-    &arithmetic::Div,
-    &arithmetic::Mul,
-    &arithmetic::Power,
-    &arithmetic::Sqrti,
-    &arithmetic::Sub,
+pub trait ComplexWord: Sync + core::fmt::Debug {
+    fn name(&self) -> ClarityName;
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        _expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError>;
+}
+
+pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &bindings::Let,
-    &bitwise::BitwiseAnd,
-    &bitwise::BitwiseLShift,
-    &bitwise::BitwiseNot,
-    &bitwise::BitwiseOr,
-    &bitwise::BitwiseRShift,
-    &bitwise::BitwiseXor,
-    &bitwise::Xor,
     &blockinfo::AtBlock,
     &blockinfo::GetBlockInfo,
     &blockinfo::GetBurnBlockInfo,
-    &buff_to_integer::BuffToIntBe,
-    &buff_to_integer::BuffToIntLe,
-    &buff_to_integer::BuffToUintBe,
-    &buff_to_integer::BuffToUintLe,
-    &comparison::CmpGeq,
-    &comparison::CmpGreater,
-    &comparison::CmpLeq,
-    &comparison::CmpLess,
     &conditionals::And,
     &conditionals::Asserts,
     &conditionals::Filter,
@@ -73,18 +65,14 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &conditionals::Try,
     &conditionals::Unwrap,
     &conditionals::UnwrapErr,
-    &consensus_buff::ToConsensusBuff,
     &consensus_buff::FromConsensusBuff,
+    &consensus_buff::ToConsensusBuff,
     &constants::DefineConstant,
     &contract::AsContract,
     &contract::ContractCall,
     &control_flow::Begin,
     &control_flow::UnwrapErrPanic,
     &control_flow::UnwrapPanic,
-    &conversion::IntToAscii,
-    &conversion::IntToUtf8,
-    &conversion::StringToInt,
-    &conversion::StringToUint,
     &data_vars::DefineDataVar,
     &data_vars::GetDataVar,
     &data_vars::SetDataVar,
@@ -92,31 +80,21 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &enums::ClarityErr,
     &enums::ClarityOk,
     &enums::ClaritySome,
-    &equal::IsEq,
     &equal::IndexOf::Alias,
     &equal::IndexOf::Original,
+    &equal::IsEq,
     &functions::DefinePrivateFunction,
     &functions::DefinePublicFunction,
     &functions::DefineReadonlyFunction,
-    &hashing::Hash160,
-    &hashing::Keccak256,
-    &hashing::Sha256,
-    &hashing::Sha512,
-    &hashing::Sha512_256,
-    &logical::Not,
     &maps::MapDefinition,
     &maps::MapDelete,
     &maps::MapGet,
     &maps::MapInsert,
     &maps::MapSet,
     &noop::ContractOf,
-    &noop::ToInt,
-    &noop::ToUint,
     &options::IsNone,
     &options::IsSome,
     &principal::Construct,
-    &principal::Destruct,
-    &principal::IsStandard,
     &principal::PrincipalOf,
     &print::Print,
     &responses::IsErr,
@@ -134,9 +112,6 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &sequences::Map,
     &sequences::ReplaceAt,
     &sequences::Slice,
-    &stx::StxBurn,
-    &stx::StxGetAccount,
-    &stx::StxGetBalance,
     &stx::StxTransfer,
     &stx::StxTransferMemo,
     &tokens::BurnFungibleToken,
@@ -158,36 +133,91 @@ pub(crate) static WORDS: &[&'static dyn Word] = &[
     &tuples::TupleMerge,
 ];
 
-pub trait Word: Sync + core::fmt::Debug {
+pub trait SimpleWord: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError>;
 }
 
-lazy_static! {
-    static ref WORDS_BY_NAME: HashMap<ClarityName, &'static dyn Word> = {
-        let mut wbn = HashMap::new();
+pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
+    &arithmetic::Add,
+    &arithmetic::Div,
+    &arithmetic::Mul,
+    &arithmetic::Power,
+    &arithmetic::Sqrti,
+    &arithmetic::Sub,
+    &bitwise::BitwiseAnd,
+    &bitwise::BitwiseLShift,
+    &bitwise::BitwiseNot,
+    &bitwise::BitwiseOr,
+    &bitwise::BitwiseRShift,
+    &bitwise::BitwiseXor,
+    &bitwise::Xor,
+    &buff_to_integer::BuffToIntBe,
+    &buff_to_integer::BuffToIntLe,
+    &buff_to_integer::BuffToUintBe,
+    &buff_to_integer::BuffToUintLe,
+    &comparison::CmpGeq,
+    &comparison::CmpGreater,
+    &comparison::CmpLeq,
+    &comparison::CmpLess,
+    &conversion::IntToAscii,
+    &conversion::IntToUtf8,
+    &conversion::StringToInt,
+    &conversion::StringToUint,
+    &hashing::Hash160,
+    &hashing::Keccak256,
+    &hashing::Sha256,
+    &hashing::Sha512,
+    &hashing::Sha512_256,
+    &logical::Not,
+    &noop::ToInt,
+    &noop::ToUint,
+    &principal::Destruct,
+    &principal::IsStandard,
+    &stx::StxBurn,
+    &stx::StxGetAccount,
+    &stx::StxGetBalance,
+];
 
-        for word in WORDS {
-            wbn.insert(word.name(), &**word);
+lazy_static! {
+    static ref COMPLEX_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn ComplexWord> = {
+        let mut cwbn = HashMap::new();
+
+        for word in COMPLEX_WORDS {
+            cwbn.insert(word.name(), &**word);
         }
 
-        wbn
+        cwbn
+    };
+    static ref SIMPLE_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn SimpleWord> = {
+        let mut swbn = HashMap::new();
+
+        for word in SIMPLE_WORDS {
+            swbn.insert(word.name(), &**word);
+        }
+
+        swbn
     };
 }
 
-pub fn lookup(name: &str) -> Option<&'static dyn Word> {
-    WORDS_BY_NAME.get(name).copied()
+pub fn lookup_simple(name: &str) -> Option<&'static dyn SimpleWord> {
+    SIMPLE_WORDS_BY_NAME.get(name).copied()
+}
+
+pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
+    COMPLEX_WORDS_BY_NAME.get(name).copied()
 }
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::analysis::type_checker::v2_1::TypedNativeFunction;
     use clarity::vm::functions::define::DefineFunctions;
     use clarity::vm::functions::NativeFunctions;
     use clarity::vm::variables::NativeVariables;
@@ -198,7 +228,15 @@ mod tests {
 
         let mut names = HashSet::new();
 
-        for word in super::WORDS {
+        for word in super::COMPLEX_WORDS {
+            assert!(
+                names.insert(word.name()),
+                "duplicate word: {:?}",
+                word.name()
+            );
+        }
+
+        for word in super::SIMPLE_WORDS {
             assert!(
                 names.insert(word.name()),
                 "duplicate word: {:?}",
@@ -209,7 +247,7 @@ mod tests {
 
     #[test]
     fn check_for_non_reserved_words() {
-        for word in super::WORDS {
+        for word in super::COMPLEX_WORDS {
             // Printing each word also gets us coverage on the Debug impl.
             println!("{:?} => {}", word, word.name());
             assert!(
@@ -217,6 +255,42 @@ mod tests {
                     || NativeFunctions::lookup_by_name(&word.name()).is_some()
                     || NativeVariables::lookup_by_name(&word.name()).is_some(),
             );
+        }
+        for word in super::SIMPLE_WORDS {
+            // Printing each word also gets us coverage on the Debug impl.
+            println!("{:?} => {}", word, word.name());
+            assert!(
+                DefineFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeFunctions::lookup_by_name(&word.name()).is_some()
+                    || NativeVariables::lookup_by_name(&word.name()).is_some(),
+            );
+        }
+    }
+
+    #[test]
+    fn check_word_classes() {
+        for word in super::SIMPLE_WORDS {
+            if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
+                if let TypedNativeFunction::Special(_) =
+                    TypedNativeFunction::type_native_function(&native)
+                {
+                    panic!("{:?} should not be simple!", word)
+                }
+            }
+        }
+
+        for word in super::COMPLEX_WORDS {
+            if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
+                if let TypedNativeFunction::Simple(_) =
+                    TypedNativeFunction::type_native_function(&native)
+                {
+                    // we make some exeptions
+                    if word.name().as_str() == "or" || word.name().as_str() == "and" {
+                        continue;
+                    }
+                    panic!("{:?} should not be complex!", word)
+                }
+            }
         }
     }
 }

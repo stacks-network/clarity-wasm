@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_optional(
@@ -38,7 +38,7 @@ pub fn traverse_optional(
 #[derive(Debug)]
 pub struct IsSome;
 
-impl Word for IsSome {
+impl ComplexWord for IsSome {
     fn name(&self) -> ClarityName {
         "is-some".into()
     }
@@ -57,7 +57,7 @@ impl Word for IsSome {
 #[derive(Debug)]
 pub struct IsNone;
 
-impl Word for IsNone {
+impl ComplexWord for IsNone {
     fn name(&self) -> ClarityName {
         "is-none".into()
     }

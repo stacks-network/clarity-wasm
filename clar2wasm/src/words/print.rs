@@ -1,13 +1,13 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Print;
 
-impl Word for Print {
+impl ComplexWord for Print {
     fn name(&self) -> ClarityName {
         "print".into()
     }

@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Let;
 
-impl Word for Let {
+impl ComplexWord for Let {
     fn name(&self) -> ClarityName {
         "let".into()
     }

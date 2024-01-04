@@ -1,13 +1,13 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineDataVar;
 
-impl Word for DefineDataVar {
+impl ComplexWord for DefineDataVar {
     fn name(&self) -> ClarityName {
         "define-data-var".into()
     }
@@ -76,7 +76,7 @@ impl Word for DefineDataVar {
 #[derive(Debug)]
 pub struct SetDataVar;
 
-impl Word for SetDataVar {
+impl ComplexWord for SetDataVar {
     fn name(&self) -> ClarityName {
         "var-set".into()
     }
@@ -136,7 +136,7 @@ impl Word for SetDataVar {
 #[derive(Debug)]
 pub struct GetDataVar;
 
-impl Word for GetDataVar {
+impl ComplexWord for GetDataVar {
     fn name(&self) -> ClarityName {
         "var-get".into()
     }

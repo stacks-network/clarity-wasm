@@ -1,28 +1,21 @@
 use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32};
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::ClarityName;
 
-use super::Word;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use super::SimpleWord;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
     name: &'static str,
     mem_size: usize,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    _expr: &SymbolicExpression,
-    args: &[SymbolicExpression],
+    arg_types: &[TypeSignature],
 ) -> Result<(), GeneratorError> {
-    let value = args.get_expr(0)?;
-    generator.traverse_expr(builder, value)?;
-
     let offset_res = generator.literal_memory_end;
 
     generator.literal_memory_end += mem_size as u32; // 5 u32
 
-    let ty = generator
-        .get_expr_type(value)
-        .expect("Hash value should be typed");
-    let hash_type = match ty {
+    let hash_type = match arg_types[0] {
         TypeSignature::IntType | TypeSignature::UIntType => "int",
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
         _ => {
@@ -45,25 +38,24 @@ pub fn traverse_hash(
 #[derive(Debug)]
 pub struct Hash160;
 
-impl Word for Hash160 {
+impl SimpleWord for Hash160 {
     fn name(&self) -> ClarityName {
         "hash160".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         traverse_hash(
             "hash160",
             core::mem::size_of::<u32>() * 5,
             generator,
             builder,
-            expr,
-            args,
+            arg_types,
         )
     }
 }
@@ -71,25 +63,24 @@ impl Word for Hash160 {
 #[derive(Debug)]
 pub struct Sha256;
 
-impl Word for Sha256 {
+impl SimpleWord for Sha256 {
     fn name(&self) -> ClarityName {
         "sha256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         traverse_hash(
             "sha256",
             core::mem::size_of::<u32>() * 8,
             generator,
             builder,
-            expr,
-            args,
+            arg_types,
         )
     }
 }
@@ -97,32 +88,25 @@ impl Word for Sha256 {
 #[derive(Debug)]
 pub struct Keccak256;
 
-impl Word for Keccak256 {
+impl SimpleWord for Keccak256 {
     fn name(&self) -> ClarityName {
         "keccak256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let value = args.get_expr(0)?;
-        generator.traverse_expr(builder, value)?;
-
-        let ty = generator
-            .get_expr_type(value)
-            .expect("Hash value should be typed")
-            .clone();
-
-        match &ty {
+        let ty = &arg_types[0];
+        match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Convert integers to buffers by storing them to memory
                 let (buffer_local, size) =
-                    generator.create_call_stack_local(builder, &ty, false, true);
-                generator.write_to_memory(builder, buffer_local, 0, &ty);
+                    generator.create_call_stack_local(builder, ty, false, true);
+                generator.write_to_memory(builder, buffer_local, 0, ty);
 
                 // The load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);
@@ -157,25 +141,24 @@ impl Word for Keccak256 {
 #[derive(Debug)]
 pub struct Sha512;
 
-impl Word for Sha512 {
+impl SimpleWord for Sha512 {
     fn name(&self) -> ClarityName {
         "sha512".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         traverse_hash(
             "sha512",
             core::mem::size_of::<u32>() * 8,
             generator,
             builder,
-            expr,
-            args,
+            arg_types,
         )
     }
 }
@@ -183,32 +166,25 @@ impl Word for Sha512 {
 #[derive(Debug)]
 pub struct Sha512_256;
 
-impl Word for Sha512_256 {
+impl SimpleWord for Sha512_256 {
     fn name(&self) -> ClarityName {
         "sha512/256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let value = args.get_expr(0)?;
-        generator.traverse_expr(builder, value)?;
-
-        let ty = generator
-            .get_expr_type(value)
-            .expect("Hash value should be typed")
-            .clone();
-
-        match &ty {
+        let ty = &arg_types[0];
+        match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Convert integers to buffers by storing them to memory
                 let (buffer_local, size) =
-                    generator.create_call_stack_local(builder, &ty, false, true);
-                generator.write_to_memory(builder, buffer_local, 0, &ty);
+                    generator.create_call_stack_local(builder, ty, false, true);
+                generator.write_to_memory(builder, buffer_local, 0, ty);
 
                 // The load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);

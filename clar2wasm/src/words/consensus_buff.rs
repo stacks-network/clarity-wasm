@@ -1,7 +1,7 @@
 use clarity::vm::types::{TypeSignature, MAX_VALUE_SIZE};
 use walrus::ir::{BinaryOp, InstrSeqType};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -10,7 +10,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct ToConsensusBuff;
 
-impl Word for ToConsensusBuff {
+impl ComplexWord for ToConsensusBuff {
     fn name(&self) -> clarity::vm::ClarityName {
         "to-consensus-buff?".into()
     }
@@ -77,7 +77,7 @@ impl Word for ToConsensusBuff {
 #[derive(Debug)]
 pub struct FromConsensusBuff;
 
-impl Word for FromConsensusBuff {
+impl ComplexWord for FromConsensusBuff {
     fn name(&self) -> clarity::vm::ClarityName {
         "from-consensus-buff?".into()
     }

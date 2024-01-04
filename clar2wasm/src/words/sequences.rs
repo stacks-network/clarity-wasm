@@ -1,21 +1,19 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{
-    FixedFunction, FunctionType, SequenceSubtype, StringSubtype, TypeSignature,
-};
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
-use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
 pub struct ListCons;
 
-impl Word for ListCons {
+impl ComplexWord for ListCons {
     fn name(&self) -> ClarityName {
         "list".into()
     }
@@ -71,7 +69,7 @@ impl Word for ListCons {
 #[derive(Debug)]
 pub struct Fold;
 
-impl Word for Fold {
+impl ComplexWord for Fold {
     fn name(&self) -> ClarityName {
         "fold".into()
     }
@@ -206,9 +204,21 @@ impl Word for Fold {
             loop_.local_get(*result_local);
         }
 
-        // Call the function
-        generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        if let Some(simple) = words::lookup_simple(func) {
+            // Call simple builtin
 
+            let arg_a_ty = match elem_ty {
+                SequenceElementType::Other(o) => o,
+                _ => todo!(),
+            };
+
+            let arg_types = &[arg_a_ty, result_clar_ty.clone()];
+
+            simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
+        } else {
+            // Call user defined function
+            generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        }
         // Save the result into the locals (in reverse order as we pop)
         for result_local in result_locals.iter().rev() {
             loop_.local_set(*result_local);
@@ -250,7 +260,7 @@ impl Word for Fold {
 #[derive(Debug)]
 pub struct Append;
 
-impl Word for Append {
+impl ComplexWord for Append {
     fn name(&self) -> ClarityName {
         "append".into()
     }
@@ -320,7 +330,7 @@ impl Word for Append {
 #[derive(Debug)]
 pub struct AsMaxLen;
 
-impl Word for AsMaxLen {
+impl ComplexWord for AsMaxLen {
     fn name(&self) -> ClarityName {
         "as-max-len?".into()
     }
@@ -420,7 +430,7 @@ impl Word for AsMaxLen {
 #[derive(Debug)]
 pub struct Concat;
 
-impl Word for Concat {
+impl ComplexWord for Concat {
     fn name(&self) -> ClarityName {
         "concat".into()
     }
@@ -484,7 +494,7 @@ impl Word for Concat {
 #[derive(Debug)]
 pub struct Map;
 
-impl Word for Map {
+impl ComplexWord for Map {
     fn name(&self) -> ClarityName {
         "map".into()
     }
@@ -493,24 +503,26 @@ impl Word for Map {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
+        let ty = generator
+            .get_expr_type(expr)
+            .expect("list expression must be typed")
+            .clone();
         let return_element_type =
-            match generator
-                .get_function_type(fname)
-                .ok_or(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                ))? {
-                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns.clone()),
-                _ => Err(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                )),
-            }?;
+            if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
+                list_type.get_list_item_type()
+            } else {
+                panic!(
+                    "Expected list type for list expression, but found: {:?}",
+                    ty
+                );
+            };
 
-        let return_element_size = get_type_size(&return_element_type);
+        let return_element_size = get_type_size(return_element_type);
 
         let min_num_elements = generator.module.locals.add(ValType::I32);
         builder.i32_const(i32::MAX);
@@ -653,11 +665,25 @@ impl Word for Map {
                 .local_set(*offset);
         }
 
-        // Call the function.
-        generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+        if let Some(simple) = words::lookup_simple(fname) {
+            // Call simple builtin
+
+            let arg_types: Vec<_> = input_element_types
+                .iter()
+                .map(|stype| match stype {
+                    SequenceElementType::Other(o) => o.clone(),
+                    _ => todo!(),
+                })
+                .collect();
+
+            simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
+        } else {
+            // Call user defined function.
+            generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
+        }
 
         // Write the result to the output sequence.
-        generator.write_to_memory(&mut loop_, output_offset, 0, &return_element_type);
+        generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type);
 
         // Increment the output offset by the size of the element.
         loop_
@@ -695,7 +721,7 @@ impl Word for Map {
 #[derive(Debug)]
 pub struct Len;
 
-impl Word for Len {
+impl ComplexWord for Len {
     fn name(&self) -> ClarityName {
         "len".into()
     }
@@ -781,7 +807,7 @@ pub enum ElementAt {
     Alias,
 }
 
-impl Word for ElementAt {
+impl ComplexWord for ElementAt {
     fn name(&self) -> ClarityName {
         match self {
             ElementAt::Original => "element-at".into(),
@@ -958,7 +984,7 @@ impl Word for ElementAt {
 #[derive(Debug)]
 pub struct ReplaceAt;
 
-impl Word for ReplaceAt {
+impl ComplexWord for ReplaceAt {
     fn name(&self) -> ClarityName {
         "replace-at?".into()
     }
@@ -1178,7 +1204,7 @@ impl Word for ReplaceAt {
 #[derive(Debug)]
 pub struct Slice;
 
-impl Word for Slice {
+impl ComplexWord for Slice {
     fn name(&self) -> ClarityName {
         "slice?".into()
     }
@@ -1446,6 +1472,11 @@ mod tests {
     }
 
     #[test]
+    fn test_fold_builtin() {
+        assert_eq!(eval(r#"(fold + (list 1 2 3 4) 0)"#), Some(Value::Int(10)));
+    }
+
+    #[test]
     fn test_fold_sub_empty() {
         assert_eq!(
             eval(
@@ -1592,7 +1623,7 @@ mod tests {
             eval(
                 r#"
 (define-private (zero-or-one (char (buff 1))) (if (is-eq char 0x00) 0x00 0x01))
-(map zero-or-one 0x000102) 
+(map zero-or-one 0x000102)
         "#
             ),
             Some(
@@ -1712,6 +1743,27 @@ mod tests {
   (list true false false true)
   (list 10 20 30))"
         );
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn test_builtin() {
+        let a = "
+(map +
+  (list 1 2 3 4)
+  (list 10 20 30))
+";
+        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn test_builtin_2() {
+        let a = "
+(map +
+  (list 1 2 3 4)
+  (list 10 20 30)
+  (list 100 200 300))
+";
         assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
     }
 }

@@ -1,7 +1,7 @@
 use clarity::vm::representations::Span;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
 
 #[derive(Clone)]
@@ -14,7 +14,7 @@ pub struct TypedVar<'a> {
 #[derive(Debug)]
 pub struct DefinePrivateFunction;
 
-impl Word for DefinePrivateFunction {
+impl ComplexWord for DefinePrivateFunction {
     fn name(&self) -> ClarityName {
         "define-private".into()
     }
@@ -40,7 +40,7 @@ impl Word for DefinePrivateFunction {
 #[derive(Debug)]
 pub struct DefineReadonlyFunction;
 
-impl Word for DefineReadonlyFunction {
+impl ComplexWord for DefineReadonlyFunction {
     fn name(&self) -> ClarityName {
         "define-read-only".into()
     }
@@ -68,7 +68,7 @@ impl Word for DefineReadonlyFunction {
 #[derive(Debug)]
 pub struct DefinePublicFunction;
 
-impl Word for DefinePublicFunction {
+impl ComplexWord for DefinePublicFunction {
     fn name(&self) -> ClarityName {
         "define-public".into()
     }

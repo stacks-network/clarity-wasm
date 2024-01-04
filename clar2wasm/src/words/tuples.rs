@@ -3,13 +3,13 @@ use std::collections::{BTreeMap, HashMap};
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct TupleCons;
 
-impl Word for TupleCons {
+impl ComplexWord for TupleCons {
     fn name(&self) -> ClarityName {
         "tuple".into()
     }
@@ -83,7 +83,7 @@ impl Word for TupleCons {
 #[derive(Debug)]
 pub struct TupleGet;
 
-impl Word for TupleGet {
+impl ComplexWord for TupleGet {
     fn name(&self) -> ClarityName {
         "get".into()
     }
@@ -161,7 +161,7 @@ impl Word for TupleGet {
 #[derive(Debug)]
 pub struct TupleMerge;
 
-impl Word for TupleMerge {
+impl ComplexWord for TupleMerge {
     fn name(&self) -> ClarityName {
         "merge".into()
     }

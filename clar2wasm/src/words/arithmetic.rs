@@ -1,22 +1,17 @@
 use clarity::vm::types::TypeSignature;
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::ClarityName;
 
-use super::Word;
+use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
-// Wrapper function for multi-value typed functions, such as +, - etc
-pub fn traverse_typed_multi_value(
+fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    expr: &SymbolicExpression,
-    args: &[SymbolicExpression],
+    arg_types: &[TypeSignature],
+    return_type: &TypeSignature,
     name: &str,
 ) -> Result<(), GeneratorError> {
-    let ty = generator
-        .get_expr_type(expr)
-        .expect("arithmetic expression must be typed");
-
-    let type_suffix = match ty {
+    let type_suffix = match return_type {
         TypeSignature::IntType => "int",
         TypeSignature::UIntType => "uint",
         _ => {
@@ -28,9 +23,8 @@ pub fn traverse_typed_multi_value(
 
     let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
-    generator.traverse_expr(builder, &args[0])?;
-    for operand in args.iter().skip(1) {
-        generator.traverse_expr(builder, operand)?;
+    // call one time less than the number of args
+    for _ in 1..arg_types.len() {
         builder.call(func);
     }
 
@@ -40,152 +34,152 @@ pub fn traverse_typed_multi_value(
 #[derive(Debug)]
 pub struct Add;
 
-impl Word for Add {
+impl SimpleWord for Add {
     fn name(&self) -> ClarityName {
         "+".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "add")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "add")
     }
 }
 
 #[derive(Debug)]
 pub struct Sub;
 
-impl Word for Sub {
+impl SimpleWord for Sub {
     fn name(&self) -> ClarityName {
         "-".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "sub")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "sub")
     }
 }
 
 #[derive(Debug)]
 pub struct Mul;
 
-impl Word for Mul {
+impl SimpleWord for Mul {
     fn name(&self) -> ClarityName {
         "*".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "mul")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "mul")
     }
 }
 
 #[derive(Debug)]
 pub struct Div;
 
-impl Word for Div {
+impl SimpleWord for Div {
     fn name(&self) -> ClarityName {
         "/".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "div")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "div")
     }
 }
 
 #[derive(Debug)]
 pub struct Modulo;
 
-impl Word for Modulo {
+impl SimpleWord for Modulo {
     fn name(&self) -> ClarityName {
         "mod".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "mod")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "mod")
     }
 }
 
 #[derive(Debug)]
 pub struct Log2;
 
-impl Word for Log2 {
+impl SimpleWord for Log2 {
     fn name(&self) -> ClarityName {
         "log2".into()
     }
 
-    fn traverse<'b>(
+    fn visit<'b>(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "log2")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "log2")
     }
 }
 
 #[derive(Debug)]
 pub struct Power;
 
-impl Word for Power {
+impl SimpleWord for Power {
     fn name(&self) -> ClarityName {
         "pow".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "pow")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "pow")
     }
 }
 
 #[derive(Debug)]
 pub struct Sqrti;
 
-impl Word for Sqrti {
+impl SimpleWord for Sqrti {
     fn name(&self) -> ClarityName {
         "sqrti".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        arg_types: &[TypeSignature],
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_typed_multi_value(generator, builder, expr, args, "sqrti")
+        simple_typed_multi_value(generator, builder, arg_types, return_type, "sqrti")
     }
 }
 

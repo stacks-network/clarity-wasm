@@ -3,16 +3,17 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::words;
 
 #[derive(Debug)]
 pub struct If;
 
-impl Word for If {
+impl ComplexWord for If {
     fn name(&self) -> ClarityName {
         "if".into()
     }
@@ -45,7 +46,7 @@ impl Word for If {
 #[derive(Debug)]
 pub struct Match;
 
-impl Word for Match {
+impl ComplexWord for Match {
     fn name(&self) -> ClarityName {
         "match".into()
     }
@@ -130,7 +131,7 @@ impl Word for Match {
 #[derive(Debug)]
 pub struct Filter;
 
-impl Word for Filter {
+impl ComplexWord for Filter {
     fn name(&self) -> ClarityName {
         "filter".into()
     }
@@ -193,6 +194,8 @@ impl Word for Filter {
 
         let memory = generator.get_memory();
 
+        let mut loop_result = Ok(());
+
         builder.loop_(None, |loop_| {
             let loop_id = loop_.id();
 
@@ -205,8 +208,19 @@ impl Word for Filter {
             // [ Value ]
 
             // call the discriminator
-            loop_.call(generator.func_by_name(discriminator.as_str()));
 
+            if let Some(simple) = words::lookup_simple(discriminator) {
+                // Call simple builtin
+                loop_result = simple.visit(
+                    generator,
+                    loop_,
+                    &[TypeSignature::BoolType],
+                    &TypeSignature::BoolType,
+                );
+            } else {
+                // user defined
+                loop_.call(generator.func_by_name(discriminator.as_str()));
+            }
             // [ Discriminator result (bool) ]
 
             let mut success_branch = loop_.dangling_instr_seq(None);
@@ -262,6 +276,8 @@ impl Word for Filter {
                 .binop(ir::BinaryOp::I32LtU)
                 .br_if(loop_id);
         });
+
+        loop_result?;
 
         builder.local_get(output_offset);
         builder.local_get(output_len);
@@ -326,7 +342,7 @@ fn traverse_short_circuiting_list(
 #[derive(Debug)]
 pub struct And;
 
-impl Word for And {
+impl ComplexWord for And {
     fn name(&self) -> ClarityName {
         "and".into()
     }
@@ -345,7 +361,7 @@ impl Word for And {
 #[derive(Debug)]
 pub struct Or;
 
-impl Word for Or {
+impl ComplexWord for Or {
     fn name(&self) -> ClarityName {
         "or".into()
     }
@@ -364,7 +380,7 @@ impl Word for Or {
 #[derive(Debug)]
 pub struct Unwrap;
 
-impl Word for Unwrap {
+impl ComplexWord for Unwrap {
     fn name(&self) -> ClarityName {
         "unwrap!".into()
     }
@@ -441,7 +457,7 @@ impl Word for Unwrap {
 #[derive(Debug)]
 pub struct UnwrapErr;
 
-impl Word for UnwrapErr {
+impl ComplexWord for UnwrapErr {
     fn name(&self) -> ClarityName {
         "unwrap-err!".into()
     }
@@ -526,7 +542,7 @@ impl Word for UnwrapErr {
 #[derive(Debug)]
 pub struct Asserts;
 
-impl Word for Asserts {
+impl ComplexWord for Asserts {
     fn name(&self) -> ClarityName {
         "asserts!".into()
     }
@@ -588,7 +604,7 @@ impl Word for Asserts {
 #[derive(Debug)]
 pub struct Try;
 
-impl Word for Try {
+impl ComplexWord for Try {
     fn name(&self) -> ClarityName {
         "try!".into()
     }
@@ -735,6 +751,18 @@ mod tests {
 "
             ),
             eval("(list 3 4)"),
+        );
+    }
+
+    #[test]
+    fn filter_builtin() {
+        assert_eq!(
+            eval(
+                "
+(filter not (list false false true false true true false))
+"
+            ),
+            eval("(list false false false false)"),
         );
     }
 

@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::UnaryOp;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 /// `Trap` should match the values used in the standard library and is used to
@@ -21,7 +21,7 @@ enum Trap {
 #[derive(Debug)]
 pub struct Begin;
 
-impl Word for Begin {
+impl ComplexWord for Begin {
     fn name(&self) -> ClarityName {
         "begin".into()
     }
@@ -49,7 +49,7 @@ impl Word for Begin {
 #[derive(Debug)]
 pub struct UnwrapPanic;
 
-impl Word for UnwrapPanic {
+impl ComplexWord for UnwrapPanic {
     fn name(&self) -> ClarityName {
         "unwrap-panic".into()
     }
@@ -159,7 +159,7 @@ impl Word for UnwrapPanic {
 #[derive(Debug)]
 pub struct UnwrapErrPanic;
 
-impl Word for UnwrapErrPanic {
+impl ComplexWord for UnwrapErrPanic {
     fn name(&self) -> ClarityName {
         "unwrap-err-panic".into()
     }
