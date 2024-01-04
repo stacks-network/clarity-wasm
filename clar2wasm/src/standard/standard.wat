@@ -3274,7 +3274,10 @@
     )
 
     ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
-    (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32)
+    ;; Returns two i32s:
+    ;; - i32:0: the number of bytes read from the input
+    ;; - i32:1: 1 if the input is valid UTF-8, 0 otherwise
+    (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32 i32)
         (local $i i32)          ;; Input loop counter
         (local $j i32)          ;; Output loop counter
         (local $byte1 i32)      ;; Current byte and following bytes
@@ -3301,7 +3304,7 @@
                     (if (i32.ge_u (i32.add (local.get $i) (i32.const 1)) (local.get $length))
                         ;; Not enough bytes for 2-byte sequence, return error
                         (then
-                            (return (i32.const 0))
+                            (return (i32.const 0) (i32.const 0))
                         )
                     )
                     (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
@@ -3322,14 +3325,14 @@
                                     (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
                                         (then
                                             ;; Overlong encoding detected, return error
-                                            (return (i32.const 0))
+                                            (return (i32.const 0) (i32.const 0))
                                         )
                                     )
                                     (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
                                 )
                                 (else
                                     ;; Second byte is not a valid continuation byte, exit with error
-                                    (return (i32.const 0))
+                                    (return (i32.const 0) (i32.const 0))
                                 )
                             )
                         )
@@ -3337,7 +3340,7 @@
                             (if (i32.ge_u (i32.add (local.get $i) (i32.const 2)) (local.get $length))
                                 ;; Not enough bytes for 3-byte sequence, return error
                                 (then
-                                    (return (i32.const 0))
+                                    (return (i32.const 0) (i32.const 0))
                                 )
                             )
                             (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
@@ -3367,14 +3370,14 @@
                                             (if (i32.lt_u (local.get $scalar) (i32.const 0x800))
                                                 (then
                                                     ;; Overlong encoding detected, return error
-                                                    (return (i32.const 0))
+                                                    (return (i32.const 0) (i32.const 0))
                                                 )
                                             )
                                             (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
                                         )
                                         (else
                                             ;; Second or third bytes are not a valid continuation byte, exit with error
-                                            (return (i32.const 0))
+                                            (return (i32.const 0) (i32.const 0))
                                         )
                                     )
                                 )
@@ -3382,7 +3385,7 @@
                                     (if (i32.ge_u (i32.add (local.get $i) (i32.const 3)) (local.get $length))
                                         ;; Not enough bytes for 4-byte sequence, return error
                                         (then
-                                            (return (i32.const 0))
+                                            (return (i32.const 0) (i32.const 0))
                                         )
                                     )
                                     (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
@@ -3420,20 +3423,20 @@
                                                     (if (i32.lt_u (local.get $scalar) (i32.const 0x10000))
                                                         (then
                                                             ;; Overlong encoding detected, return error
-                                                            (return (i32.const 0))
+                                                            (return (i32.const 0) (i32.const 0))
                                                         )
                                                     )
                                                     (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
                                                 )
                                                 (else
                                                     ;; Second, third, or forth bytes are not a valid continuation byte, exit with error
-                                                    (return (i32.const 0))
+                                                    (return (i32.const 0) (i32.const 0))
                                                 )
                                             )
                                         )
                                         (else
                                             ;; Invalid initial byte, exit with error
-                                            (return (i32.const 0))
+                                            (return (i32.const 0) (i32.const 0))
                                         )
                                     )
                                 )
@@ -3448,7 +3451,7 @@
                          (i32.le_u (local.get $scalar) (i32.const 0xDFFF)))
                 (then
                     ;; Surrogate pair detected, return error
-                    (return (i32.const 0))
+                    (return (i32.const 0) (i32.const 0))
                 )
             )
 
@@ -3456,7 +3459,7 @@
             (if (i32.gt_u (local.get $scalar) (i32.const 0x10FFFF))
                 (then
                     ;; Scalar value out of Unicode range, return error
-                    (return (i32.const 0))
+                    (return (i32.const 0) (i32.const 0))
                 )
             )
 
@@ -3469,13 +3472,16 @@
 
             ;; Check if we have processed all input bytes
             (if (i32.ge_u (local.get $i) (local.get $length))
-                (then (return (local.get $j)))  ;; Return the number of bytes written
+                ;; Return the number of bytes written and success indicator
+                (then (return (local.get $j) (i32.const 1)))
             )
             (br $loop)
         )
 
-        ;; Return the number of bytes written to the output array
+        ;; Return the number of bytes written to the output array and a
+        ;; success indicator
         (local.get $j)
+        (i32.const 1)
     )
 
     (export "stdlib.add-uint" (func $stdlib.add-uint))
