@@ -51,7 +51,7 @@ impl SimpleWord for CmpLess {
         "<".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -70,7 +70,7 @@ impl SimpleWord for CmpLeq {
         "<=".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -89,7 +89,7 @@ impl SimpleWord for CmpGreater {
         ">".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -108,7 +108,7 @@ impl SimpleWord for CmpGeq {
         ">=".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

@@ -13,7 +13,7 @@ impl SimpleWord for BitwiseNot {
         "bit-not".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -50,7 +50,7 @@ impl SimpleWord for BitwiseOr {
         "bit-or".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -69,7 +69,7 @@ impl SimpleWord for BitwiseAnd {
         "bit-and".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -88,7 +88,7 @@ impl SimpleWord for BitwiseXor {
         "bit-xor".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -107,7 +107,7 @@ impl SimpleWord for BitwiseLShift {
         "bit-shift-left".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -128,7 +128,7 @@ impl SimpleWord for BitwiseRShift {
         "bit-shift-right".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -161,7 +161,7 @@ impl SimpleWord for Xor {
         "xor".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

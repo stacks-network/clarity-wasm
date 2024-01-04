@@ -39,7 +39,7 @@ impl SimpleWord for Add {
         "+".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -58,7 +58,7 @@ impl SimpleWord for Sub {
         "-".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -77,7 +77,7 @@ impl SimpleWord for Mul {
         "*".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -96,7 +96,7 @@ impl SimpleWord for Div {
         "/".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -115,7 +115,7 @@ impl SimpleWord for Modulo {
         "mod".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -134,7 +134,7 @@ impl SimpleWord for Log2 {
         "log2".into()
     }
 
-    fn traverse<'b>(
+    fn visit<'b>(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -153,7 +153,7 @@ impl SimpleWord for Power {
         "pow".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -172,7 +172,7 @@ impl SimpleWord for Sqrti {
         "sqrti".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

@@ -12,7 +12,7 @@ impl SimpleWord for Not {
         "not".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

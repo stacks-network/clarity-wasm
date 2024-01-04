@@ -43,7 +43,7 @@ impl SimpleWord for Hash160 {
         "hash160".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -68,7 +68,7 @@ impl SimpleWord for Sha256 {
         "sha256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -93,7 +93,7 @@ impl SimpleWord for Keccak256 {
         "keccak256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -146,7 +146,7 @@ impl SimpleWord for Sha512 {
         "sha512".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -171,7 +171,7 @@ impl SimpleWord for Sha512_256 {
         "sha512/256".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

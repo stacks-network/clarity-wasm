@@ -136,7 +136,7 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
 pub trait SimpleWord: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,

@@ -214,7 +214,7 @@ impl ComplexWord for Fold {
 
             let arg_types = &[arg_a_ty, result_clar_ty.clone()];
 
-            simple.traverse(generator, &mut loop_, arg_types, &result_clar_ty)?;
+            simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
         } else {
             // Call user defined function
             generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
@@ -676,7 +676,7 @@ impl ComplexWord for Map {
                 })
                 .collect();
 
-            simple.traverse(generator, &mut loop_, &arg_types, return_element_type)?;
+            simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
         } else {
             // Call user defined function.
             generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;

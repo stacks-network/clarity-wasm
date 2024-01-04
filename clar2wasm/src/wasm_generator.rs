@@ -250,7 +250,7 @@ impl WasmGenerator {
                         .get_expr_type(expr)
                         .expect("Simple words must be typed")
                         .clone();
-                    simpleword.traverse(self, builder, &arg_types?, &return_type)?;
+                    simpleword.visit(self, builder, &arg_types?, &return_type)?;
                 } else if let Some(word) = words::lookup_complex(function_name) {
                     // Complex words handle their own argument traversal
                     word.traverse(self, builder, expr, args)?;

@@ -16,7 +16,7 @@ impl SimpleWord for ToInt {
         "to-int".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -38,7 +38,7 @@ impl SimpleWord for ToUint {
         "to-uint".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

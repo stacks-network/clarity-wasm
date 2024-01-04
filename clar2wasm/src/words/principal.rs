@@ -22,7 +22,7 @@ impl SimpleWord for IsStandard {
         "is-standard".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -180,7 +180,7 @@ impl SimpleWord for Destruct {
         "principal-destruct?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

@@ -211,7 +211,7 @@ impl ComplexWord for Filter {
 
             if let Some(simple) = words::lookup_simple(discriminator) {
                 // Call simple builtin
-                loop_result = simple.traverse(
+                loop_result = simple.visit(
                     generator,
                     loop_,
                     &[TypeSignature::BoolType],

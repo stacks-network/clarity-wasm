@@ -12,7 +12,7 @@ impl SimpleWord for StxBurn {
         "stx-burn?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -35,7 +35,7 @@ impl SimpleWord for StxGetBalance {
         "stx-get-balance".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -115,7 +115,7 @@ impl SimpleWord for StxGetAccount {
         "stx-account".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

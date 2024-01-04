@@ -11,7 +11,7 @@ impl SimpleWord for StringToInt {
         "string-to-int?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -47,7 +47,7 @@ impl SimpleWord for StringToUint {
         "string-to-uint?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -84,7 +84,7 @@ impl SimpleWord for IntToAscii {
         "int-to-ascii".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -117,7 +117,7 @@ impl SimpleWord for IntToUtf8 {
         "int-to-utf8".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,

@@ -24,7 +24,7 @@ impl SimpleWord for BuffToUintBe {
         "buff-to-uint-be".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -43,7 +43,7 @@ impl SimpleWord for BuffToIntBe {
         "buff-to-int-be".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -64,7 +64,7 @@ impl SimpleWord for BuffToUintLe {
         "buff-to-uint-le".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
@@ -83,7 +83,7 @@ impl SimpleWord for BuffToIntLe {
         "buff-to-int-le".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
