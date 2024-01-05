@@ -1458,10 +1458,9 @@ impl ComplexWord for Slice {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
+    use clarity::vm::{execute_v2 as execute, Value};
 
     use crate::tools::evaluate as eval;
-    use clarity::vm::execute_v2 as execute;
 
     #[test]
     fn test_fold_sub() {
