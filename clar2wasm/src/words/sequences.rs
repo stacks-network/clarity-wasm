@@ -1786,7 +1786,7 @@ mod tests {
     #[test]
     fn map_or() {
         let a = "
-(map and
+(map or
   (list true false true)
   (list false false true)
   (list false false false))
