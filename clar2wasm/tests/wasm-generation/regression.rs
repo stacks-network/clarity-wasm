@@ -50,3 +50,12 @@ fn to_consensus_buff_1() {
         )
     );
 }
+
+#[test]
+fn is_eq_list_opt_resp() {
+    let l = "(list none (some (ok 1)))";
+    assert_eq!(
+        evaluate(&format!(r#"(is-eq {l} {l})"#)),
+        Some(Value::Bool(true))
+    )
+}
