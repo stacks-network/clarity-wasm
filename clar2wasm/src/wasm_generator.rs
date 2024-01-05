@@ -231,7 +231,12 @@ impl WasmGenerator {
                 },
                 args,
             )) => {
-                if let Some(simpleword) = words::lookup_simple(function_name) {
+                // Complex words handle their own argument traversal, and have priority
+                // since we need to have a slight overlap for the words `and` and `or`
+                // which exist in both complex and simple forms
+                if let Some(word) = words::lookup_complex(function_name) {
+                    word.traverse(self, builder, expr, args)?;
+                } else if let Some(simpleword) = words::lookup_simple(function_name) {
                     // traverse arguments
                     for arg in args {
                         self.traverse_expr(builder, arg)?;
@@ -251,14 +256,11 @@ impl WasmGenerator {
                         .expect("Simple words must be typed")
                         .clone();
                     simpleword.visit(self, builder, &arg_types?, &return_type)?;
-                } else if let Some(word) = words::lookup_complex(function_name) {
-                    // Complex words handle their own argument traversal
-                    word.traverse(self, builder, expr, args)?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
             }
-            _ => todo!(),
+            _ => return Err(GeneratorError::InternalError("Invalid list".into())),
         }
         Ok(())
     }

@@ -167,6 +167,8 @@ pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &comparison::CmpGreater,
     &comparison::CmpLeq,
     &comparison::CmpLess,
+    &conditionals::SimpleOr,
+    &conditionals::SimpleAnd,
     &conversion::IntToAscii,
     &conversion::IntToUtf8,
     &conversion::StringToInt,
@@ -237,11 +239,13 @@ mod tests {
         }
 
         for word in super::SIMPLE_WORDS {
-            assert!(
-                names.insert(word.name()),
-                "duplicate word: {:?}",
-                word.name()
-            );
+            if word.name().as_str() != "or" && word.name().as_str() != "and" {
+                assert!(
+                    names.insert(word.name()),
+                    "duplicate word: {:?}",
+                    word.name()
+                );
+            }
         }
     }
 
