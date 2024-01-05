@@ -1,4 +1,5 @@
 use clarity::vm::clarity_wasm::get_type_size;
+use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
@@ -9,6 +10,19 @@ use crate::wasm_generator::{
     WasmGenerator,
 };
 use crate::words::{self, ComplexWord};
+
+fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
+    match se {
+        SequenceElementType::Other(o) => o.clone(),
+        SequenceElementType::Byte => BUFF_1.clone(),
+        SequenceElementType::UnicodeScalar => {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                StringUTF8Length::try_from(1u32)
+                    .expect("String length of 1 should always be valid"),
+            )))
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ListCons;
@@ -207,10 +221,7 @@ impl ComplexWord for Fold {
         if let Some(simple) = words::lookup_simple(func) {
             // Call simple builtin
 
-            let arg_a_ty = match elem_ty {
-                SequenceElementType::Other(o) => o,
-                _ => todo!(),
-            };
+            let arg_a_ty = type_from_sequence_element(&elem_ty);
 
             let arg_types = &[arg_a_ty, result_clar_ty.clone()];
 
@@ -512,14 +523,12 @@ impl ComplexWord for Map {
             .get_expr_type(expr)
             .expect("list expression must be typed")
             .clone();
+
         let return_element_type =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 list_type.get_list_item_type()
             } else {
-                panic!(
-                    "Expected list type for list expression, but found: {:?}",
-                    ty
-                );
+                panic!("Expected map to return a list, but found: {:?}", ty);
             };
 
         let return_element_size = get_type_size(return_element_type);
@@ -670,10 +679,7 @@ impl ComplexWord for Map {
 
             let arg_types: Vec<_> = input_element_types
                 .iter()
-                .map(|stype| match stype {
-                    SequenceElementType::Other(o) => o.clone(),
-                    _ => todo!(),
-                })
+                .map(type_from_sequence_element)
                 .collect();
 
             simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
@@ -1452,7 +1458,7 @@ impl ComplexWord for Slice {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
+    use clarity::vm::{execute_v2 as execute, Value};
 
     use crate::tools::evaluate as eval;
 
@@ -1714,6 +1720,16 @@ mod tests {
     }
 
     #[test]
+    fn test_builtin_string() {
+        let a = r#"
+(map >
+  "ab"
+  "ba"
+)"#;
+        assert_eq!(eval(a), execute(a).unwrap())
+    }
+
+    #[test]
     fn test_map() {
         const MAP_FNS: &str = "
 (define-private (addify-1 (a int))
@@ -1724,10 +1740,10 @@ mod tests {
 ";
 
         let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        assert_eq!(execute(a).unwrap(), eval(a));
 
         let a = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        assert_eq!(execute(a).unwrap(), eval(a));
     }
 
     #[test]
@@ -1743,7 +1759,7 @@ mod tests {
   (list true false false true)
   (list 10 20 30))"
         );
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        assert_eq!(execute(a).unwrap(), eval(a));
     }
 
     #[test]
@@ -1753,17 +1769,28 @@ mod tests {
   (list 1 2 3 4)
   (list 10 20 30))
 ";
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        assert_eq!(execute(a).unwrap(), eval(a));
     }
 
     #[test]
-    fn test_builtin_2() {
+    fn map_and() {
         let a = "
-(map +
-  (list 1 2 3 4)
-  (list 10 20 30)
-  (list 100 200 300))
+(map and
+  (list true true true)
+  (list false true true)
+  (list false false true))
 ";
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        assert_eq!(execute(a).unwrap(), eval(a));
+    }
+
+    #[test]
+    fn map_or() {
+        let a = "
+(map or
+  (list true false true)
+  (list false false true)
+  (list false false false))
+";
+        assert_eq!(execute(a).unwrap(), eval(a));
     }
 }
