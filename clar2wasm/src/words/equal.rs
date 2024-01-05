@@ -529,28 +529,36 @@ fn wasm_equal_optional(
         .binop(BinaryOp::I32Eq);
 
     // if both operands are identical,
-    // [then]: we check if we have a `none` or if the `some` inner_type are equal
+    // [then]: we check if we have a `none` (automatic true) or if the `some` inner_type are equal
     // [else]: we push "false" on the stack
     let then_id = {
         let mut then = builder.dangling_instr_seq(ValType::I32);
-        // is none ?
-        then.local_get(*first_variant).unop(UnaryOp::I32Eqz);
-        // is some inner equal ? (or automatic true if NoType)
-        if some_ty == &TypeSignature::NoType {
-            // if first operand is NoType, it means that it is a none and we
-            // put true directly to because it is enough to check for variant equality
-            then.i32_const(1);
-        } else {
+
+        let none_case_id = {
+            let mut none_ = then.dangling_instr_seq(ValType::I32);
+            none_.i32_const(1);
+            none_.id()
+        };
+
+        let some_case_id = {
+            let mut some_ = then.dangling_instr_seq(ValType::I32);
             wasm_equal(
                 some_ty,
                 nth_some_ty,
                 generator,
-                &mut then,
+                &mut some_,
                 first_inner,
                 nth_inner,
-            )?; // is some arguments equal ?
-        }
-        then.binop(BinaryOp::I32Or);
+            )?;
+            some_.id()
+        };
+
+        // put those in an if statement (true if `some`, false if `none`)
+        then.local_get(*first_variant).instr(IfElse {
+            consequent: some_case_id,
+            alternative: none_case_id,
+        });
+
         then.id()
     };
 
