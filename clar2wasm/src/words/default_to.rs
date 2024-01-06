@@ -4,8 +4,7 @@ use walrus::ir::InstrSeqType;
 
 use super::ComplexWord;
 use crate::wasm_generator::{
-    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
-    WasmGenerator,
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
 
 #[derive(Debug)]
@@ -20,7 +19,7 @@ impl ComplexWord for DefaultTo {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         // There are a `default` value and an `optional` arguments.
@@ -29,6 +28,19 @@ impl ComplexWord for DefaultTo {
         // default-val-low, default-val-high, indicator, plc-val-low, plc-val-high
         let default = args.get_expr(0)?;
         let optional = args.get_expr(1)?;
+
+        // WORKAROUND:
+        //  - the default type should be the same as the expression
+        //  - the optional type should be the same type as the expression, wrapped
+        // in a optional.
+        // We explicitly set them to avoid representation bugs.
+        let Some(expr_type) = generator.get_expr_type(expr).cloned() else {
+            return Err(GeneratorError::TypeError(
+                "default-to expression should be typed".to_owned(),
+            ));
+        };
+        generator.set_expr_type(default, expr_type.clone());
+        generator.set_expr_type(optional, TypeSignature::OptionalType(Box::new(expr_type)));
 
         generator.traverse_args(builder, args)?;
 
@@ -62,15 +74,9 @@ impl ComplexWord for DefaultTo {
             InstrSeqType::new(&mut generator.module.types, &out_types, &out_types),
             |then| {
                 drop_value(then, &default_ty);
-                if &default_ty != opt_val_ty {
-                    // A none value may have an incomplete type (optional NoType),
-                    // leaving a NoType placeholder for the value instead of the expected value type.
-                    // Thus, to complete the stack, we need to push a placeholder value for Clarity type.
-                    add_placeholder_for_clarity_type(then, &default_ty);
-                } else {
-                    for opt_val_local in opt_val_locals {
-                        then.local_get(opt_val_local);
-                    }
+
+                for opt_val_local in opt_val_locals {
+                    then.local_get(opt_val_local);
                 }
             },
             |_| {},
