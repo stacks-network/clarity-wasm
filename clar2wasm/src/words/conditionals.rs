@@ -151,7 +151,9 @@ impl ComplexWord for Filter {
         // Get the type of the sequence
         let ty = generator
             .get_expr_type(sequence)
-            .expect("sequence expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "sequence expression must be typed".to_owned(),
+            ))?
             .clone();
 
         // Get the type of the sequence
@@ -397,7 +399,11 @@ impl ComplexWord for Unwrap {
 
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let inner_type = match generator.get_expr_type(input) {
             Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
@@ -474,7 +480,11 @@ impl ComplexWord for UnwrapErr {
 
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
             generator.get_expr_type(input)
@@ -559,8 +569,16 @@ impl ComplexWord for Asserts {
 
         generator.traverse_expr(builder, input)?;
 
-        let input_type = clar2wasm_ty(generator.get_expr_type(input).expect("Input must be typed"));
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let input_type = clar2wasm_ty(
+            generator
+                .get_expr_type(input)
+                .ok_or(GeneratorError::TypeError("Input must be typed".to_owned()))?,
+        );
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let mut success_branch = builder.dangling_instr_seq(InstrSeqType::new(
             &mut generator.module.types,

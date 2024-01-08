@@ -39,7 +39,7 @@ impl ComplexWord for Begin {
             })?,
             generator
                 .get_expr_type(expr)
-                .expect("begin must be typed")
+                .ok_or(GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
         );
         generator.traverse_statement_list(builder, args)
@@ -70,7 +70,9 @@ impl ComplexWord for UnwrapPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .expect("'unwrap-err' input expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "'unwrap-err' input expression must be typed".to_owned(),
+            ))?
             .clone();
 
         match &input_ty {
@@ -179,7 +181,9 @@ impl ComplexWord for UnwrapErrPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .expect("'unwrap-err-panic' input expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "'unwrap-err-panic' input expression must be typed".to_owned(),
+            ))?
             .clone();
 
         match &input_ty {

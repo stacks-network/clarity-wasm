@@ -36,7 +36,9 @@ fn traverse_comparison(
         .module
         .funcs
         .by_name(&format!("stdlib.{name}-{type_suffix}"))
-        .unwrap_or_else(|| panic!("function not found: {name}-{type_suffix}"));
+        .ok_or(GeneratorError::InternalError(format!(
+            "function not found: {name}-{type_suffix}"
+        )))?;
 
     builder.call(func);
 

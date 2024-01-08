@@ -241,14 +241,16 @@ impl WasmGenerator {
                         .map(|e| {
                             self.get_expr_type(e)
                                 .cloned()
-                                .ok_or(GeneratorError::InternalError(
-                                    "expected valid argument type".into(),
+                                .ok_or(GeneratorError::TypeError(
+                                    "expected valid argument type".to_owned(),
                                 ))
                         })
                         .collect();
                     let return_type = self
                         .get_expr_type(expr)
-                        .expect("Simple words must be typed")
+                        .ok_or(GeneratorError::TypeError(
+                            "Simple words must be typed".to_owned(),
+                        ))?
                         .clone();
                     simpleword.visit(self, builder, &arg_types?, &return_type)?;
                 } else if let Some(word) = words::lookup_complex(function_name) {
@@ -305,12 +307,9 @@ impl WasmGenerator {
             .i32_const(id_length as i32);
 
         // Call the host interface function, `define_function`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.define_function")
-                .expect("define_function not found"),
-        );
+        builder.call(self.module.funcs.by_name("stdlib.define_function").ok_or(
+            GeneratorError::InternalError("define_function not found".to_owned()),
+        )?);
 
         let mut bindings = HashMap::new();
 
@@ -550,10 +549,9 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
     ) -> Result<InstrSeqId, GeneratorError> {
-        let return_type = clar2wasm_ty(
-            self.get_expr_type(expr)
-                .expect("Expression results must be typed"),
-        );
+        let return_type = clar2wasm_ty(self.get_expr_type(expr).ok_or(
+            GeneratorError::TypeError("Expression results must be typed".to_owned()),
+        )?);
 
         let mut block = builder.dangling_instr_seq(InstrSeqType::new(
             &mut self.module.types,

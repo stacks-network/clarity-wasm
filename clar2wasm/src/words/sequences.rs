@@ -27,16 +27,18 @@ impl ComplexWord for ListCons {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .expect("list expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "list expression must be typed".to_owned(),
+            ))?
             .clone();
         let (elem_ty, _num_elem) =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 (list_type.get_list_item_type(), list_type.get_max_len())
             } else {
-                panic!(
+                return Err(GeneratorError::TypeError(format!(
                     "Expected list type for list expression, but found: {:?}",
                     ty
-                );
+                )));
             };
 
         // Allocate space on the data stack for the entire list
@@ -99,15 +101,18 @@ impl ComplexWord for Fold {
         // The result type must match the type of the initial value
         let result_clar_ty = generator
             .get_expr_type(initial)
-            .expect("fold's initial value expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "fold's initial value expression must be typed".to_owned(),
+            ))?
             .clone();
         let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
         let elem_ty = match generator
             .get_expr_type(sequence)
-            .expect("sequence expression must be typed")
-        {
+            .ok_or(GeneratorError::TypeError(
+                "sequence expression must be typed".to_owned(),
+            ))? {
             TypeSignature::SequenceType(seq_ty) => match &seq_ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),
@@ -447,7 +452,9 @@ impl ComplexWord for Concat {
         // Create a new sequence to hold the result in the stack frame
         let ty = generator
             .get_expr_type(expr)
-            .expect("concat expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "concat expression must be typed".to_owned(),
+            ))?
             .clone();
         let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
         builder.local_get(offset);
@@ -510,16 +517,18 @@ impl ComplexWord for Map {
 
         let ty = generator
             .get_expr_type(expr)
-            .expect("list expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "list expression must be typed".to_owned(),
+            ))?
             .clone();
         let return_element_type =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 list_type.get_list_item_type()
             } else {
-                panic!(
+                return Err(GeneratorError::TypeError(format!(
                     "Expected list type for list expression, but found: {:?}",
                     ty
-                );
+                )));
             };
 
         let return_element_size = get_type_size(return_element_type);
@@ -538,7 +547,9 @@ impl ComplexWord for Map {
 
             let (element_ty, element_size) = match generator
                 .get_expr_type(arg)
-                .expect("sequence expression must be typed")
+                .ok_or(GeneratorError::TypeError(
+                    "sequence expression must be typed".to_owned(),
+                ))?
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {

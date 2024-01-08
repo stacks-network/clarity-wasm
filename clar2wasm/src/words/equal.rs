@@ -30,7 +30,9 @@ impl ComplexWord for IsEq {
         generator.traverse_expr(builder, first_op)?;
         let ty = generator
             .get_expr_type(first_op)
-            .expect("is-eq value expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "is-eq value expression must be typed".to_owned(),
+            ))?
             .clone();
 
         // No need to go further if there is only one argument
@@ -67,7 +69,9 @@ impl ComplexWord for IsEq {
             // insert the new operand into locals
             let operand_ty = generator
                 .get_expr_type(operand)
-                .expect("is-eq value expression must be typed")
+                .ok_or(GeneratorError::TypeError(
+                    "is-eq value expression must be typed".to_owned(),
+                ))?
                 .clone();
             assign_to_locals(builder, &ty, &operand_ty, &nth_locals)?;
 
@@ -118,8 +122,9 @@ impl ComplexWord for IndexOf {
         // Get type of the Sequence element.
         let elem_ty = match generator
             .get_expr_type(seq)
-            .expect("Sequence expression must be typed")
-        {
+            .ok_or(GeneratorError::TypeError(
+                "Sequence expression must be typed".to_owned(),
+            ))? {
             TypeSignature::SequenceType(ty) => match &ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),

@@ -26,7 +26,9 @@ pub fn traverse_hash(
         .module
         .funcs
         .by_name(&format!("stdlib.{name}-{hash_type}"))
-        .unwrap_or_else(|| panic!("function not found: {name}-{hash_type}"));
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("function not found: {name}-{hash_type}"))
+        })?;
 
     builder
         .i32_const(offset_res as i32) // result offset
@@ -126,13 +128,9 @@ impl SimpleWord for Keccak256 {
         builder.local_get(result_local).i32_const(result_size);
 
         // Call the host interface function, `keccak256`
-        builder.call(
-            generator
-                .module
-                .funcs
-                .by_name("stdlib.keccak256")
-                .expect("function not found"),
-        );
+        builder.call(generator.module.funcs.by_name("stdlib.keccak256").ok_or(
+            GeneratorError::InternalError("stdlib.keccak256 not found".to_owned()),
+        )?);
 
         Ok(())
     }
@@ -204,13 +202,9 @@ impl SimpleWord for Sha512_256 {
         builder.local_get(result_local).i32_const(result_size);
 
         // Call the host interface function, `sha512`
-        builder.call(
-            generator
-                .module
-                .funcs
-                .by_name("stdlib.sha512_256")
-                .expect("function not found"),
-        );
+        builder.call(generator.module.funcs.by_name("stdlib.sha512_256").ok_or(
+            GeneratorError::InternalError("stdlib.sha512_256 not found".to_owned()),
+        )?);
 
         Ok(())
     }

@@ -1,17 +1,20 @@
 use clarity::vm::types::TypeSignature;
 
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::words::SimpleWord;
 
 fn traverse_buffer_to_integer(
     name: &str,
-    generator: &mut crate::wasm_generator::WasmGenerator,
+    generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-) -> Result<(), crate::wasm_generator::GeneratorError> {
+) -> Result<(), GeneratorError> {
     let func = generator
         .module
         .funcs
         .by_name(name)
-        .unwrap_or_else(|| panic!("function not found: {name}"));
+        .ok_or(GeneratorError::InternalError(format!(
+            "function not found: {name}"
+        )))?;
     builder.call(func);
     Ok(())
 }

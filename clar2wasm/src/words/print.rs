@@ -27,7 +27,9 @@ impl ComplexWord for Print {
         // Save the value to locals
         let ty = generator
             .get_expr_type(value)
-            .expect("print value expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "print value expression must be typed".to_owned(),
+            ))?
             .clone();
         let val_locals = generator.save_to_locals(builder, &ty, true);
 
@@ -41,7 +43,9 @@ impl ComplexWord for Print {
 
         let ty = generator
             .get_expr_type(value)
-            .expect("print value expression must be typed")
+            .ok_or(GeneratorError::TypeError(
+                "print value expression must be typed".to_owned(),
+            ))?
             .clone();
 
         // Push the value back onto the data stack
