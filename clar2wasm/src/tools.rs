@@ -96,7 +96,7 @@ impl TestEnvironment {
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
         // compile_result.module.emit_wasm_file("test.wasm").unwrap();
-        contract_context.set_wasm_module(compile_result.module.emit_wasm());
+        contract_context.set_wasm_module(compile_result.to_wasm());
 
         let mut cost_tracker = LimitedCostTracker::new_free();
         std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
