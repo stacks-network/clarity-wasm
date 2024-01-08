@@ -23,7 +23,7 @@ impl ComplexWord for TupleCons {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::InternalError(
+            .ok_or(GeneratorError::TypeError(
                 "tuple expression must be typed".to_string(),
             ))?
             .clone();
@@ -31,7 +31,7 @@ impl ComplexWord for TupleCons {
         let tuple_ty = match ty {
             TypeSignature::TupleType(tuple) => tuple,
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "expected tuple type".to_string(),
                 ))
             }
@@ -108,11 +108,11 @@ impl ComplexWord for TupleGet {
         let tuple_ty = generator
             .get_expr_type(&args[1])
             .ok_or_else(|| {
-                GeneratorError::InternalError("tuple expression must be typed".to_string())
+                GeneratorError::TypeError("tuple expression must be typed".to_string())
             })
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected tuple type".to_string(),
                 )),
             })?
@@ -182,11 +182,11 @@ impl ComplexWord for TupleMerge {
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])
             .ok_or_else(|| {
-                GeneratorError::InternalError("tuple expression must be typed".to_string())
+                GeneratorError::TypeError("tuple expression must be typed".to_string())
             })
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected tuple type".to_string(),
                 )),
             })?
@@ -195,11 +195,11 @@ impl ComplexWord for TupleMerge {
         let rhs_tuple_ty = generator
             .get_expr_type(&args[1])
             .ok_or_else(|| {
-                GeneratorError::InternalError("tuple expression must be typed".to_string())
+                GeneratorError::TypeError("tuple expression must be typed".to_string())
             })
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected tuple type".to_string(),
                 )),
             })?

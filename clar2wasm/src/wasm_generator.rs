@@ -291,7 +291,7 @@ impl WasmGenerator {
         let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
             fixed.clone()
         } else {
-            return Err(GeneratorError::InternalError(match opt_function_type {
+            return Err(GeneratorError::TypeError(match opt_function_type {
                 Some(_) => "expected fixed function type".to_string(),
                 None => format!("unable to find function type for {}", name.as_str()),
             }));

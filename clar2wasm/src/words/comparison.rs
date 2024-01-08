@@ -26,7 +26,7 @@ fn traverse_comparison(
             "buff"
         }
         _ => {
-            return Err(GeneratorError::InternalError(
+            return Err(GeneratorError::TypeError(
                 "invalid type for comparison".to_string(),
             ))
         }

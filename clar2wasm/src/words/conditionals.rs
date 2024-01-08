@@ -160,8 +160,8 @@ impl ComplexWord for Filter {
         let seq_ty = match &ty {
             TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
             _ => {
-                return Err(GeneratorError::InternalError(
-                    "expected sequence type".to_string(),
+                return Err(GeneratorError::TypeError(
+                    "expected sequence type".to_owned(),
                 ));
             }
         };
@@ -491,7 +491,7 @@ impl ComplexWord for UnwrapErr {
         {
             (**inner_types).clone()
         } else {
-            return Err(GeneratorError::InternalError(
+            return Err(GeneratorError::TypeError(
                 "unwrap-error! only accepts response types".to_string(),
             ));
         };

@@ -140,7 +140,7 @@ impl ComplexWord for IndexOf {
                 }
             },
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 ));
             }
