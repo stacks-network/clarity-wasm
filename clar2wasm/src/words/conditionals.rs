@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType};
 use walrus::ValType;
 
-use super::ComplexWord;
+use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -361,6 +361,28 @@ impl ComplexWord for And {
 }
 
 #[derive(Debug)]
+pub struct SimpleAnd;
+
+impl SimpleWord for SimpleAnd {
+    fn name(&self) -> ClarityName {
+        "and".into()
+    }
+
+    fn visit(
+        &self,
+        _generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        for _ in 0..arg_types.len().saturating_sub(1) {
+            builder.binop(ir::BinaryOp::I32And);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub struct Or;
 
 impl ComplexWord for Or {
@@ -376,6 +398,28 @@ impl ComplexWord for Or {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         traverse_short_circuiting_list(generator, builder, args, true)
+    }
+}
+
+#[derive(Debug)]
+pub struct SimpleOr;
+
+impl SimpleWord for SimpleOr {
+    fn name(&self) -> ClarityName {
+        "or".into()
+    }
+
+    fn visit(
+        &self,
+        _generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        for _ in 0..arg_types.len().saturating_sub(1) {
+            builder.binop(ir::BinaryOp::I32Or);
+        }
+        Ok(())
     }
 }
 
