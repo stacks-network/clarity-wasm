@@ -30,11 +30,7 @@ impl ComplexWord for TupleCons {
 
         let tuple_ty = match ty {
             TypeSignature::TupleType(tuple) => tuple,
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "expected tuple type".to_string(),
-                ))
-            }
+            _ => return Err(GeneratorError::TypeError("expected tuple type".to_string())),
         };
 
         // The args for `tuple` should be pairs of values, with the first value
@@ -107,14 +103,10 @@ impl ComplexWord for TupleGet {
 
         let tuple_ty = generator
             .get_expr_type(&args[1])
-            .ok_or_else(|| {
-                GeneratorError::TypeError("tuple expression must be typed".to_string())
-            })
+            .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError(
-                    "expected tuple type".to_string(),
-                )),
+                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
             .clone();
 
@@ -181,27 +173,19 @@ impl ComplexWord for TupleMerge {
 
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])
-            .ok_or_else(|| {
-                GeneratorError::TypeError("tuple expression must be typed".to_string())
-            })
+            .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError(
-                    "expected tuple type".to_string(),
-                )),
+                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
             .clone();
 
         let rhs_tuple_ty = generator
             .get_expr_type(&args[1])
-            .ok_or_else(|| {
-                GeneratorError::TypeError("tuple expression must be typed".to_string())
-            })
+            .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError(
-                    "expected tuple type".to_string(),
-                )),
+                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
             .clone();
 
