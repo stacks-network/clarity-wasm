@@ -923,9 +923,9 @@ impl ComplexWord for ElementAt {
 
         // If the index is out of range, then return `none`, else load the
         // value at the specified index and return `(some value)`.
-        let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
-            GeneratorError::TypeError("append result must be typed".to_string())
-        })?;
+        let result_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
         builder.if_else(
             InstrSeqType::new(
@@ -1122,9 +1122,9 @@ impl ComplexWord for ReplaceAt {
 
         // If the index is out of range, then return `none`, else write the
         // value at the specified index and return `(some value)`.
-        let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
-            GeneratorError::TypeError("append result must be typed".to_string())
-        })?;
+        let result_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
         builder.if_else(
             InstrSeqType::new(

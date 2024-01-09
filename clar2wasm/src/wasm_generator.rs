@@ -130,7 +130,7 @@ pub(crate) fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty
 }
 
 impl WasmGenerator {
-    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
+    pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
@@ -147,9 +147,11 @@ impl WasmGenerator {
                     .map_or(false, |name| name == stack_pointer_name)
             })
             .map(|global| global.id())
-            .expect("Expected to find a global named $stack-pointer");
+            .ok_or(GeneratorError::InternalError(
+                "Expected to find a global named $stack-pointer".to_owned(),
+            ))?;
 
-        WasmGenerator {
+        Ok(WasmGenerator {
             contract_analysis,
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
@@ -160,7 +162,7 @@ impl WasmGenerator {
             early_return_block_id: None,
             return_type: None,
             frame_size: 0,
-        }
+        })
     }
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
