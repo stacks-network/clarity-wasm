@@ -14,7 +14,7 @@ proptest! {
     #[test]
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
         assert_eq!(
-            evaluate(&val.to_string()),
+            evaluate(&val.to_string()).unwrap(),
             Some(val.into())
         )
     }
@@ -22,10 +22,10 @@ proptest! {
     #[test]
     fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
         let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet("snippet", &format!("(to-consensus-buff? {val})")).is_ok()
+        env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
     })) {
         assert_eq!(
-            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val)),
+            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val))?,
             Some(Value::some(val.into()).unwrap())
         )
     }

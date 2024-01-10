@@ -140,18 +140,16 @@ impl ComplexWord for AtBlock {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
-    use clarity::vm::Value;
+    use clarity::vm::{errors::Error, Value};
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, TestEnvironment};
 
     //- Block Info
 
     #[test]
-    fn get_block_info_non_existent() {
-        assert_eq!(
-            evaluate("(get-block-info? time u9999999)"),
-            Some(Value::none())
-        );
+    fn get_block_info_non_existent() -> Result<(), Error> {
+        crosscheck("(get-block-info? time u9999999)", Ok(Some(Value::none())));
+        Ok(())
     }
 
     #[test]
@@ -159,7 +157,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? burnchain-header-hash u0)")
+            .evaluate("(get-block-info? burnchain-header-hash u0)")
             .expect("Failed to init contract.");
         assert_eq!(
             result,
@@ -172,7 +170,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? id-header-hash u0)")
+            .evaluate("(get-block-info? id-header-hash u0)")
             .expect("Failed to init contract.");
         let mut expected = [0u8; 32];
         hex::decode_to_slice(
@@ -191,7 +189,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? header-hash u0)")
+            .evaluate("(get-block-info? header-hash u0)")
             .expect("Failed to init contract.");
         assert_eq!(
             result,
@@ -204,7 +202,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? miner-address u0)")
+            .evaluate("(get-block-info? miner-address u0)")
             .expect("Failed to init contract.");
         assert_eq!(
             result,
@@ -222,7 +220,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? time u0)")
+            .evaluate("(get-block-info? time u0)")
             .expect("Failed to init contract.");
         let block_time_val = match result {
             Some(Value::Optional(OptionalData { data: Some(data) })) => *data,
@@ -245,7 +243,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? block-reward u0)")
+            .evaluate("(get-block-info? block-reward u0)")
             .expect("Failed to init contract.");
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
@@ -255,7 +253,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? miner-spend-total u0)")
+            .evaluate("(get-block-info? miner-spend-total u0)")
             .expect("Failed to init contract.");
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
@@ -265,32 +263,35 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-block-info? miner-spend-winner u0)")
+            .evaluate("(get-block-info? miner-spend-winner u0)")
             .expect("Failed to init contract.");
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
 
     //- Burn Block Info
 
+    // FIXME: This panics the interpreter
+    #[ignore]
     #[test]
     fn get_burn_block_info_non_existent() {
-        assert_eq!(
-            evaluate("(get-burn-block-info? header-hash u9999999)"),
-            Some(Value::none())
-        );
+        crosscheck(
+            "(get-burn-block-info? header-hash u9999999)",
+            Ok(Some(Value::none())),
+        )
     }
 
     #[test]
-    fn get_burn_block_info_header_hash() {
+    fn get_burn_block_info_header_hash() -> Result<(), Error> {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-burn-block-info? header-hash u0)")
+            .evaluate("(get-burn-block-info? header-hash u0)")
             .expect("Failed to init contract.");
         assert_eq!(
             result,
             Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
         );
+        Ok(())
     }
 
     #[test]
@@ -298,7 +299,7 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
-            .init_contract_with_snippet("snippet", "(get-burn-block-info? pox-addrs u0)")
+            .evaluate("(get-burn-block-info? pox-addrs u0)")
             .expect("Failed to init contract.");
         assert_eq!(
             result,
@@ -330,12 +331,13 @@ mod tests {
 
     //- At Block
 
+    // FIXME: This fails in interpreter
+    #[ignore]
     #[test]
     fn at_block() {
-        assert_eq!(
-            evaluate("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)"),
-            Some(Value::UInt(0xFFFFFFFF))
-        );
+        crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF)))
+        )
     }
 
     #[test]
@@ -344,8 +346,7 @@ mod tests {
         env.advance_chain_tip(1);
         // Should error, since the data var is not yet defined in block 0
         let e = env
-            .init_contract_with_snippet(
-                "snippet",
+            .evaluate(
                 r#"
 (define-data-var data int 1)
 (at-block (unwrap-panic (get-block-info? id-header-hash u0))

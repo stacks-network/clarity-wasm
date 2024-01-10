@@ -957,56 +957,62 @@ fn wasm_equal_list(
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
-    use clarity::vm::Value::{self, Int};
+    use clarity::vm::{errors::Error, Value};
 
-    use crate::tools::{evaluate as eval, TestEnvironment};
+    use crate::tools::{evaluate, TestEnvironment};
 
     #[test]
-    fn index_of_list_not_present() {
+    fn index_of_list_not_present() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of? (list 1 2 3 4 5 6 7) 9)"),
+            evaluate("(index-of? (list 1 2 3 4 5 6 7) 9)")?,
             Some(Value::none())
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_list_first() {
+    fn index_of_list_first() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of? (list 1 2 3 4) 1)"),
-            Some(Value::some(Value::UInt(0)).unwrap())
+            evaluate("(index-of? (list 1 2 3 4) 1)")?,
+            Some(Value::some(Value::UInt(0))?)
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_list() {
+    fn index_of_list() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of? (list 1 2 3 4 5 6 7) 3)"),
-            Some(Value::some(Value::UInt(2)).unwrap())
+            evaluate("(index-of? (list 1 2 3 4 5 6 7) 3)")?,
+            Some(Value::some(Value::UInt(2))?)
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_list_last() {
+    fn index_of_list_last() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of? (list 1 2 3 4 5 6 7) 7)"),
-            Some(Value::some(Value::UInt(6)).unwrap())
+            evaluate("(index-of? (list 1 2 3 4 5 6 7) 7)")?,
+            Some(Value::some(Value::UInt(6))?)
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_list_called_by_v1_alias() {
+    fn index_of_list_called_by_v1_alias() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of (list 1 2 3 4 5 6 7) 100)"),
+            evaluate("(index-of (list 1 2 3 4 5 6 7) 100)")?,
             Some(Value::none())
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_list_of_lists() {
+    fn index_of_list_of_lists() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of (list (list 1 2) (list 2 3 4) (list 1 2 3 4 5) (list 1 2 3 4)) (list 1 2 3 4))"),
-            Some(Value::some(Value::UInt(3)).unwrap())
+            evaluate("(index-of (list (list 1 2) (list 2 3 4) (list 1 2 3 4 5) (list 1 2 3 4)) (list 1 2 3 4))")?,
+            Some(Value::some(Value::UInt(3))?)
         );
+        Ok(())
     }
 
     #[test]
@@ -1027,8 +1033,7 @@ mod tests {
     #[test]
     fn index_of_list_check_stack() {
         let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "snippet",
+        let val = env.evaluate(
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
   (is-eq (index-of? haystack needle) none))
@@ -1040,7 +1045,7 @@ mod tests {
         assert_eq!(
             val.unwrap(),
             Some(Value::Sequence(SequenceData::List(ListData {
-                data: vec![Int(4), Int(5), Int(6)],
+                data: vec![Value::Int(4), Value::Int(5), Value::Int(6)],
                 type_signature: ListTypeData::new_list(
                     clarity::vm::types::TypeSignature::IntType,
                     3
@@ -1051,147 +1056,170 @@ mod tests {
     }
 
     #[test]
-    fn index_of_ascii() {
+    fn index_of_ascii() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of \"Stacks\" \"a\")"),
+            evaluate("(index-of \"Stacks\" \"a\")")?,
+            Some(Value::some(Value::UInt(2))?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_ascii_empty() -> Result<(), Error> {
+        assert_eq!(evaluate("(index-of \"\" \"\")")?, Some(Value::none()));
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_ascii_empty_input() -> Result<(), Error> {
+        assert_eq!(evaluate("(index-of \"\" \"a\")")?, Some(Value::none()));
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_ascii_empty_char() -> Result<(), Error> {
+        assert_eq!(evaluate("(index-of \"Stacks\" \"\")")?, Some(Value::none()));
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_ascii_first_elem() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of \"Stacks\" \"S\")")?,
+            Some(Value::some(Value::UInt(0))?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_ascii_last_elem() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of \"Stacks\" \"s\")")?,
+            Some(Value::some(Value::UInt(5))?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_utf8() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of u\"Stacks\" u\"a\")")?,
             Some(Value::some(Value::UInt(2)).unwrap())
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_ascii_empty() {
-        assert_eq!(eval("(index-of \"\" \"\")"), Some(Value::none()));
-    }
-
-    #[test]
-    fn index_of_ascii_empty_input() {
-        assert_eq!(eval("(index-of \"\" \"a\")"), Some(Value::none()));
-    }
-
-    #[test]
-    fn index_of_ascii_empty_char() {
-        assert_eq!(eval("(index-of \"Stacks\" \"\")"), Some(Value::none()));
-    }
-
-    #[test]
-    fn index_of_ascii_first_elem() {
+    fn index_of_utf8_b() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of \"Stacks\" \"S\")"),
+            evaluate("(index-of u\"St\\u{1F98A}cks\" u\"\\u{1F98A}\")")?,
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_utf8_first_elem() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of u\"Stacks\\u{1F98A}\" u\"S\")")?,
             Some(Value::some(Value::UInt(0)).unwrap())
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_ascii_last_elem() {
+    fn index_of_utf8_last_elem() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of \"Stacks\" \"s\")"),
-            Some(Value::some(Value::UInt(5)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_utf8() {
-        assert_eq!(
-            eval("(index-of u\"Stacks\" u\"a\")"),
-            Some(Value::some(Value::UInt(2)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_utf8_b() {
-        assert_eq!(
-            eval("(index-of u\"St\\u{1F98A}cks\" u\"\\u{1F98A}\")"),
-            Some(Value::some(Value::UInt(2)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_utf8_first_elem() {
-        assert_eq!(
-            eval("(index-of u\"Stacks\\u{1F98A}\" u\"S\")"),
-            Some(Value::some(Value::UInt(0)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_utf8_last_elem() {
-        assert_eq!(
-            eval("(index-of u\"Stacks\\u{1F98A}\" u\"\\u{1F98A}\")"),
+            evaluate("(index-of u\"Stacks\\u{1F98A}\" u\"\\u{1F98A}\")")?,
             Some(Value::some(Value::UInt(6)).unwrap())
         );
+        Ok(())
     }
 
     #[test]
-    fn index_of_utf8_zero_len() {
-        assert_eq!(eval("(index-of u\"Stacks\" u\"\")"), Some(Value::none()));
-    }
-
-    #[test]
-    fn index_of_buff_last_byte() {
+    fn index_of_utf8_zero_len() -> Result<(), Error> {
         assert_eq!(
-            eval("(index-of 0xfb01 0x01)"),
-            Some(Value::some(Value::UInt(1)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_buff_first_byte() {
-        assert_eq!(
-            eval("(index-of 0xfb01 0xfb)"),
-            Some(Value::some(Value::UInt(0)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_buff() {
-        assert_eq!(
-            eval("(index-of 0xeeaadd 0xaa)"),
-            Some(Value::some(Value::UInt(1)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_buff_not_present() {
-        assert_eq!(eval("(index-of 0xeeaadd 0xcc)"), Some(Value::none()));
-    }
-
-    #[test]
-    fn index_of_first_optional_complex_type() {
-        assert_eq!(
-            eval("(index-of (list (some 42) none none none (some 15)) (some 42))"),
-            Some(Value::some(Value::UInt(0)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_last_optional_complex_type() {
-        assert_eq!(
-            eval("(index-of (list (some 42) (some 3) (some 6) (some 15) none) none)"),
-            Some(Value::some(Value::UInt(4)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_optional_complex_type() {
-        assert_eq!(
-            eval("(index-of (list (some 1) none) none)"),
-            Some(Value::some(Value::UInt(1)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_complex_type() {
-        assert_eq!(
-            eval("(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))"),
-            Some(Value::some(Value::UInt(2)).unwrap())
-        );
-    }
-
-    #[test]
-    fn index_of_tuple_complex_type() {
-        assert_eq!(
-            eval("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))"),
+            evaluate("(index-of u\"Stacks\" u\"\")")?,
             Some(Value::none())
         );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_buff_last_byte() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of 0xfb01 0x01)")?,
+            Some(Value::some(Value::UInt(1))?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_buff_first_byte() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of 0xfb01 0xfb)")?,
+            Some(Value::some(Value::UInt(0))?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_buff() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of 0xeeaadd 0xaa)")?,
+            Some(Value::some(Value::UInt(1)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_buff_not_present() -> Result<(), Error> {
+        assert_eq!(evaluate("(index-of 0xeeaadd 0xcc)")?, Some(Value::none()));
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_first_optional_complex_type() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of (list (some 42) none none none (some 15)) (some 42))")?,
+            Some(Value::some(Value::UInt(0)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_last_optional_complex_type() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of (list (some 42) (some 3) (some 6) (some 15) none) none)")?,
+            Some(Value::some(Value::UInt(4)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_optional_complex_type() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of (list (some 1) none) none)")?,
+            Some(Value::some(Value::UInt(1)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_complex_type() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))")?,
+            Some(Value::some(Value::UInt(2)).unwrap())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_of_tuple_complex_type() -> Result<(), Error> {
+        assert_eq!(
+            evaluate("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))")?,
+            Some(Value::none())
+        );
+        Ok(())
     }
 }

@@ -293,76 +293,82 @@ impl ComplexWord for PrincipalOf {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::types::{PrincipalData, TupleData};
-    use clarity::vm::{ClarityVersion, Value};
+    use clarity::vm::{errors::Error, Value};
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::evaluate;
 
     //- is-standard
 
     #[test]
-    fn test_is_standard() {
+    fn test_is_standard() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)"),
+            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)")?,
             Some(Value::Bool(true))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_contract() {
+    fn test_is_standard_contract() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)"),
+            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)")?,
             Some(Value::Bool(true))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_multisig() {
+    fn test_is_standard_multisig() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)"),
+            evaluate("(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)")?,
             Some(Value::Bool(true))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_mainnet() {
+    fn test_is_standard_mainnet() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)"),
+            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)")?,
             Some(Value::Bool(false))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_mainnet_contract() {
+    fn test_is_standard_mainnet_contract() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)"),
+            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)")?,
             Some(Value::Bool(false))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_mainnet_multisig() {
+    fn test_is_standard_mainnet_multisig() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)"),
+            evaluate("(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)")?,
             Some(Value::Bool(false))
         );
+        Ok(())
     }
 
     #[test]
-    fn test_is_standard_other() {
+    fn test_is_standard_other() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)"),
+            evaluate("(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)")?,
             Some(Value::Bool(false))
         );
+        Ok(())
     }
 
     //- principal-construct?
 
     #[test]
-    fn test_construct_standard() {
+    fn test_construct_standard() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)"),
+            evaluate("(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
             Some(
                 Value::okay(
                     PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK")
@@ -372,14 +378,15 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_contract() {
+    fn test_construct_contract() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#
-            ),
+            )?,
             Some(
                 Value::okay(
                     PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK.foo")
@@ -389,12 +396,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_mainnet() {
+    fn test_construct_mainnet() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)"),
+            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -415,14 +423,15 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_mainnet_contract() {
+    fn test_construct_mainnet_contract() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#
-            ),
+            )?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -445,12 +454,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_empty_version() {
+    fn test_construct_empty_version() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)"),
+            evaluate("(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -463,12 +473,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_short_hash() {
+    fn test_construct_short_hash() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)"),
+            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -481,12 +492,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_high_version() {
+    fn test_construct_high_version() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)"),
+            evaluate("(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -499,14 +511,15 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_empty_contract() {
+    fn test_construct_empty_contract() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#
-            ),
+            )?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -519,14 +532,15 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_construct_illegal_contract() {
+    fn test_construct_illegal_contract() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#
-            ),
+            )?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -539,14 +553,15 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     //- principal-destruct?
 
     #[test]
-    fn test_destruct_standard() {
+    fn test_destruct_standard() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)"),
+            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)")?,
             Some(
                 Value::okay(
                     TupleData::from_data(vec![
@@ -566,12 +581,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_destruct_contract() {
+    fn test_destruct_contract() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)"),
+            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)")?,
             Some(
                 Value::okay(
                     TupleData::from_data(vec![
@@ -597,12 +613,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_destruct_standard_err() {
+    fn test_destruct_standard_err() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)"),
+            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -622,12 +639,13 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn test_destruct_contract_err() {
+    fn test_destruct_contract_err() -> Result<(), Error> {
         assert_eq!(
-            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)"),
+            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)")?,
             Some(
                 Value::error(
                     TupleData::from_data(vec![
@@ -653,16 +671,17 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     //- principal-of?
 
     #[test]
-    fn test_principal_of() {
+    fn test_principal_of() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)"
-            ),
+            )?,
             Some(
                 Value::okay(
                     PrincipalData::parse("ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP").unwrap().into()
@@ -670,25 +689,25 @@ mod tests {
                 .unwrap()
             )
         );
+        Ok(())
     }
 
     #[test]
     fn test_principal_of_runtime_err() {
-        let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
-        let res = env.init_contract_with_snippet(
-            "snippet",
+        assert!(evaluate(
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
-        );
-        assert!(res.is_err());
+        )
+        .is_err());
     }
 
     #[test]
-    fn test_principal_of_err() {
+    fn test_principal_of_err() -> Result<(), Error> {
         assert_eq!(
             evaluate(
                 "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)"
-            ),
+            )?,
             Some(Value::err_uint(1))
         );
+        Ok(())
     }
 }

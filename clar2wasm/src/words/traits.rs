@@ -106,29 +106,27 @@ impl ComplexWord for ImplTrait {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
-    use clarity::vm::Value;
+    use clarity::vm::{errors::Error, Value};
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
         // Just validate that it doesn't crash
-        assert_eq!(evaluate("(define-trait my-trait ())"), None);
+        crosscheck("(define-trait my-trait ())", Ok(None))
     }
 
     #[test]
-    fn define_trait_check_context() {
+    fn define_trait_check_context() -> Result<(), Error> {
         let mut env = TestEnvironment::default();
-        let val = env
-            .init_contract_with_snippet(
-                "token-trait",
-                r#"
+        let val = env.init_contract_with_snippet(
+            "token-trait",
+            r#"
 (define-trait token-trait
     ((transfer? (principal principal uint) (response uint uint))
         (get-balance (principal) (response uint uint))))
              "#,
-            )
-            .expect("Failed to init contract.");
+        )?;
 
         assert!(val.is_none());
         let contract_context = env.get_contract_context("token-trait").unwrap();
@@ -136,6 +134,7 @@ mod tests {
             .lookup_trait_definition("token-trait")
             .unwrap();
         assert_eq!(token_trait.len(), 2);
+        Ok(())
     }
 
     #[test]
@@ -223,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn trait_list() {
+    fn trait_list() -> Result<(), Error> {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet(
             "my-trait",
@@ -249,9 +248,7 @@ mod tests {
             )
             .expect("Failed to init contract use-trait.");
 
-        assert_eq!(
-            val.unwrap(),
-            evaluate("(list .my-trait .my-trait)").unwrap()
-        );
+        assert_eq!(val, evaluate("(list .my-trait .my-trait)")?);
+        Ok(())
     }
 }

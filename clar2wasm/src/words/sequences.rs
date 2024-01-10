@@ -1458,35 +1458,32 @@ impl ComplexWord for Slice {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{execute_v2 as execute, Value};
+    use clarity::vm::Value;
 
-    use crate::tools::evaluate as eval;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_fold_sub() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (sub (x int) (y int))
     (- x y)
 )
 (fold sub (list 1 2 3 4) 0)
-    "#
-            ),
-            Some(Value::Int(2))
-        );
+    "#,
+            Ok(Some(Value::Int(2))),
+        )
     }
 
     #[test]
     fn test_fold_builtin() {
-        assert_eq!(eval(r#"(fold + (list 1 2 3 4) 0)"#), Some(Value::Int(10)));
+        crosscheck(r#"(fold + (list 1 2 3 4) 0)"#, Ok(Some(Value::Int(10))))
     }
 
     #[test]
     fn test_fold_sub_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (sub (x int) (y int))
     (- x y)
 )
@@ -1494,200 +1491,186 @@ mod tests {
     (fold sub l 42)
 )
 (fold-sub (list))
-    "#
-            ),
-            Some(Value::Int(42))
-        );
+    "#,
+            Ok(Some(Value::Int(42))),
+        )
     }
 
     #[test]
     fn test_fold_string_ascii() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string "cdef" "ab")
-    "#
-            ),
-            Some(Value::string_ascii_from_bytes("fedcab".to_string().into_bytes()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_ascii_from_bytes("fedcab".to_string().into_bytes()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_ascii_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string "" "ab")
-    "#
-            ),
-            Some(Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"cdef" u"ab")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("fedcab".into()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_utf8_from_bytes("fedcab".into()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8_b() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"cdef" u"ab\u{1F98A}")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"" u"ab\u{1F98A}")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())
-        );
+    "#,
+            Ok(Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())),
+        )
     }
 
     #[test]
     fn test_fold_buffer() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r"
 (define-private (concat-buff (a (buff 20)) (b (buff 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-buff 0x03040506 0x0102)
-"#,
-            ),
-            Some(Value::buff_from(vec![0x06, 0x05, 0x04, 0x03, 0x01, 0x02]).unwrap())
-        );
+",
+            Ok(Some(
+                Value::buff_from(vec![0x06, 0x05, 0x04, 0x03, 0x01, 0x02]).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_buffer_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            "
 (define-private (concat-buff (a (buff 20)) (b (buff 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-buff 0x 0x0102)
-"#,
-            ),
-            Some(Value::buff_from(vec![0x01, 0x02]).unwrap())
-        );
+",
+            Ok(Some(Value::buff_from(vec![0x01, 0x02]).unwrap())),
+        )
     }
 
     #[test]
     fn test_map_simple_list() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (addify (a int))
     (+ a 1)
 )
 (map addify (list 1 2 3))
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
-                    .unwrap()
-            )
-        );
+                    .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_buff() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (zero-or-one (char (buff 1))) (if (is-eq char 0x00) 0x00 0x01))
 (map zero-or-one 0x000102)
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::buff_from_byte(0),
                     Value::buff_from_byte(1),
-                    Value::buff_from_byte(1)
+                    Value::buff_from_byte(1),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_string_ascii() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (a-or-b (char (string-ascii 1))) (if (is-eq char "a") "a" "b"))
 (map a-or-b "aca")
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
                     Value::string_ascii_from_bytes(vec![0x62]).unwrap(),
                     Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_string_utf8() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (a-or-b (char (string-utf8 1))) (if (is-eq char u"a") u"a" u"b"))
 (map a-or-b u"aca")
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
                     Value::string_utf8_from_bytes(vec![0x62]).unwrap(),
                     Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_mixed() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (add-everything
     (a int)
     (b uint)
@@ -1710,13 +1693,12 @@ mod tests {
     u"123"
     0x010203
 )
-        "#
-            ),
-            Some(
-                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15),])
-                    .unwrap()
-            )
-        );
+        "#,
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15)])
+                    .unwrap(),
+            )),
+        )
     }
 
     #[test]
@@ -1726,7 +1708,7 @@ mod tests {
   "ab"
   "ba"
 )"#;
-        assert_eq!(eval(a), execute(a).unwrap())
+        crosscheck(a, evaluate("(list false true)"));
     }
 
     #[test]
@@ -1740,26 +1722,26 @@ mod tests {
 ";
 
         let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
-        assert_eq!(execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list 2 3 4)"));
 
-        let a = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
-        assert_eq!(execute(a).unwrap(), eval(a));
+        let b = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
+        crosscheck(b, evaluate("(list 9 11)"));
     }
 
     #[test]
     fn test_heterogeneus() {
         const MAP_HETERO: &str = "
-(define-private (selectron (a int) (b bool) (c int))
-  (if b a c))";
+(define-private (selectron (a bool) (b int) (c int))
+  (if a b c))";
 
         let a = &format!(
             "{MAP_HETERO}
 (map selectron
-  (list 1 2 3 4)
   (list true false false true)
+  (list 1 2 3 4)
   (list 10 20 30))"
         );
-        assert_eq!(execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list 1 20 30)"));
     }
 
     #[test]
@@ -1769,7 +1751,7 @@ mod tests {
   (list 1 2 3 4)
   (list 10 20 30))
 ";
-        assert_eq!(execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list 11 22 33)"))
     }
 
     #[test]
@@ -1780,7 +1762,7 @@ mod tests {
   (list false true true)
   (list false false true))
 ";
-        assert_eq!(execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list false false true)"))
     }
 
     #[test]
@@ -1791,6 +1773,6 @@ mod tests {
   (list false false true)
   (list false false false))
 ";
-        assert_eq!(execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list true false true)"));
     }
 }

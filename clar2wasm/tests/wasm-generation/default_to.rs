@@ -7,7 +7,7 @@ proptest! {
     #[test]
     fn default_to_with_none_is_always_default(val in PropValue::any()) {
         assert_eq!(
-            evaluate(&format!(r#"(default-to {val} none)"#)),
+            evaluate(&format!(r#"(default-to {val} none)"#))?,
             Some(val.into())
         )
     }
@@ -26,7 +26,7 @@ proptest! {
     #[test]
     fn default_to_with_some_is_always_value((default, value) in default_and_value_of_same_type()) {
         assert_eq!(
-            evaluate(&format!(r#"(default-to {default} (some {value}))"#)),
+            evaluate(&format!(r#"(default-to {default} (some {value}))"#))?,
             Some(value.into())
         )
     }

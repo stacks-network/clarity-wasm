@@ -76,51 +76,51 @@ impl ComplexWord for ContractOf {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
-    use clarity::vm::Value;
+    use clarity::vm::{errors::Error, Value};
 
-    use crate::tools::{evaluate as eval, TestEnvironment};
+    use crate::tools::{evaluate, TestEnvironment};
 
     #[test]
-    #[should_panic]
     fn to_int_out_of_range() {
-        assert_eq!(
-            eval("(to-int u170141183460469231731687303715884105728)"),
-            Some(Value::Int(42))
-        );
+        assert!(evaluate("(to-int u170141183460469231731687303715884105728)").is_err());
     }
 
     #[test]
-    fn to_int_max_on_range() {
+    fn to_int_max_on_range() -> Result<(), Error> {
         assert_eq!(
-            eval("(to-int u170141183460469231731687303715884105727)"),
+            evaluate("(to-int u170141183460469231731687303715884105727)")?,
             Some(Value::Int(170141183460469231731687303715884105727))
         );
+        Ok(())
     }
 
     #[test]
-    fn to_int_zero() {
-        assert_eq!(eval("(to-int u0)"), Some(Value::Int(0)));
+    fn to_int_zero() -> Result<(), Error> {
+        assert_eq!(evaluate("(to-int u0)")?, Some(Value::Int(0)));
+        Ok(())
     }
 
     #[test]
-    fn to_int() {
-        assert_eq!(eval("(to-int u42)"), Some(Value::Int(42)));
+    fn to_int() -> Result<(), Error> {
+        assert_eq!(evaluate("(to-int u42)")?, Some(Value::Int(42)));
+        Ok(())
     }
 
     #[test]
-    #[should_panic]
     fn to_uint_negative() {
-        assert_eq!(eval("(to-uint -31)"), Some(Value::UInt(767)));
+        assert!(evaluate("(to-uint -31)").is_err())
     }
 
     #[test]
-    fn to_uint() {
-        assert_eq!(eval("(to-uint 767)"), Some(Value::UInt(767)));
+    fn to_uint() -> Result<(), Error> {
+        assert_eq!(evaluate("(to-uint 767)")?, Some(Value::UInt(767)));
+        Ok(())
     }
 
     #[test]
-    fn to_uint_zero() {
-        assert_eq!(eval("(to-uint 0)"), Some(Value::UInt(0)));
+    fn to_uint_zero() -> Result<(), Error> {
+        assert_eq!(evaluate("(to-uint 0)")?, Some(Value::UInt(0)));
+        Ok(())
     }
 
     #[test]
