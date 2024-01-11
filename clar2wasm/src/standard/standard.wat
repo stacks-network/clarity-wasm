@@ -3286,7 +3286,15 @@
         (local $byte4 i32)
         (local $scalar i32)     ;; Scalar value
 
-        (call $log (i64.extend_i32_u (local.get $length)))
+        ;; If the length is 0, just return 0
+        (if (i32.eqz (local.get $length))
+            (then
+                (return 
+                    (i32.const 0) ;; length (0 bytes)
+                    (i32.const 1) ;; success status (1 = success)
+                )
+            )
+        )
 
         ;; Initialize loop counters
         (local.set $i (i32.const 0))
