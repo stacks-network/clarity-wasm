@@ -25,8 +25,8 @@ proptest! {
         env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
     })) {
         assert_eq!(
-            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val))?,
-            Some(Value::some(val.into()).unwrap())
+            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val)),
+            Ok(Some(Value::some(val.into()).unwrap()))
         )
     }
 }

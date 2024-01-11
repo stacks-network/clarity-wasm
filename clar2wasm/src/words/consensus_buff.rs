@@ -284,17 +284,18 @@ mod tests {
 
     #[test]
     fn to_consensus_buff_string_utf8_empty() {
-        assert_eq!(
-            evaluate(r#"(to-consensus-buff? u"")"#),
-            Some(
+        crosscheck(
+            r#"(to-consensus-buff? u"")"#,
+            Ok(Some(
                 Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
-                    data: Vec::from_hex("0e00000000").unwrap()
+                    data: Vec::from_hex("0e00000000").unwrap(),
                 })))
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
     }
 
+    #[test]
     fn to_consensus_buff_string_ascii() {
         crosscheck(
             r#"(to-consensus-buff? "Hello, World!")"#,
@@ -719,9 +720,11 @@ mod tests {
 
     #[test]
     fn from_consensus_buff_string_utf8_empty() {
-        assert_eq!(
-            evaluate(r#"(from-consensus-buff? (string-utf8 20) 0x0e00000000)"#),
-            Some(Value::some(Value::string_utf8_from_bytes("".into()).unwrap()).unwrap())
+        crosscheck(
+            r#"(from-consensus-buff? (string-utf8 20) 0x0e00000000)"#,
+            Ok(Some(
+                Value::some(Value::string_utf8_from_bytes("".into()).unwrap()).unwrap(),
+            )),
         );
     }
 

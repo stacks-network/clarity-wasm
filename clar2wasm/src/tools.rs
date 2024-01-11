@@ -174,20 +174,33 @@ pub fn evaluate_at(
 
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-pub fn evaluate(snippet: &str) -> Result<Option<Value>, Error> {
-    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
+#[allow(clippy::result_unit_err)]
+pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
+    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
 }
 
-pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let a = evaluate(snippet);
-    let b = execute(snippet);
+pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
+    let compiled = evaluate(snippet);
+    let interpreted = execute(snippet);
 
-    assert_eq!(a, b, "Compiled and interpreted results diverge!");
-    assert_eq!(b, expected, "Not the expected result");
+    if compiled.is_err() && interpreted.is_err() {
+        // if both error, we don't require the errors to be equal
+        assert!(expected.is_err(), "Expected Error, got {:?}", expected,)
+    } else {
+        assert_eq!(
+            compiled,
+            interpreted.map_err(|_| ()),
+            "Compiled and interpreted results diverge!"
+        );
+        assert_eq!(
+            compiled.map_err(|_| ()),
+            expected.map_err(|_| ()),
+            "Not the expected result"
+        );
+    }
 }
 
 #[test]
-fn test_evaluate_snippet() -> Result<(), Error> {
-    assert_eq!(evaluate("(+ 1 2)")?, Some(Value::Int(3)));
-    Ok(())
+fn test_evaluate_snippet() {
+    assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
 }

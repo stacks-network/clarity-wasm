@@ -218,52 +218,49 @@ impl SimpleWord for Sha512_256 {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{errors::Error, Value};
+    use clarity::vm::Value;
 
-    use crate::tools::evaluate;
+    use crate::tools::crosscheck;
 
     #[test]
-    fn test_keccak256() -> Result<(), Error> {
+    fn test_keccak256() {
         let mut expected = [0u8; 32];
         hex::decode_to_slice(
             "f490de2920c8a35fabeb13208852aa28c76f9be9b03a4dd2b3c075f7a26923b4",
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(keccak256 0)")?,
-            Some(Value::buff_from(expected.to_vec()).unwrap())
-        );
-        Ok(())
+        crosscheck(
+            "(keccak256 0)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
     }
 
     #[test]
-    fn test_sha512() -> Result<(), Error> {
+    fn test_sha512() {
         let mut expected = [0u8; 64];
         hex::decode_to_slice(
             "6fcee9a7b7a7b821d241c03c82377928bc6882e7a08c78a4221199bfa220cdc55212273018ee613317c8293bb8d1ce08d1e017508e94e06ab85a734c99c7cc34",
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(sha512 1)")?,
-            Some(Value::buff_from(expected.to_vec()).unwrap())
+        crosscheck(
+            "(sha512 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_sha512_256() -> Result<(), Error> {
+    fn test_sha512_256() {
         let mut expected = [0u8; 32];
         hex::decode_to_slice(
             "515a7e92e7c60522db968d81ff70b80818fc17aeabbec36baf0dda2812e94a86",
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(sha512/256 1)")?,
-            Some(Value::buff_from(expected.to_vec()).unwrap())
-        );
-        Ok(())
+        crosscheck(
+            "(sha512/256 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
     }
 }

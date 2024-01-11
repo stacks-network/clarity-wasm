@@ -140,16 +140,15 @@ impl ComplexWord for AtBlock {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
-    use clarity::vm::{errors::Error, Value};
+    use clarity::vm::Value;
 
     use crate::tools::{crosscheck, TestEnvironment};
 
     //- Block Info
 
     #[test]
-    fn get_block_info_non_existent() -> Result<(), Error> {
+    fn get_block_info_non_existent() {
         crosscheck("(get-block-info? time u9999999)", Ok(Some(Value::none())));
-        Ok(())
     }
 
     #[test]
@@ -270,8 +269,7 @@ mod tests {
 
     //- Burn Block Info
 
-    // FIXME: This panics the interpreter
-    #[ignore]
+    #[ignore = "FIXME: This panics the interpreter"]
     #[test]
     fn get_burn_block_info_non_existent() {
         crosscheck(
@@ -281,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn get_burn_block_info_header_hash() -> Result<(), Error> {
+    fn get_burn_block_info_header_hash() {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let result = env
@@ -291,7 +289,6 @@ mod tests {
             result,
             Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
         );
-        Ok(())
     }
 
     #[test]
@@ -331,8 +328,7 @@ mod tests {
 
     //- At Block
 
-    // FIXME: This fails in interpreter
-    #[ignore]
+    #[ignore = "FIXME: This fails in interpreter"]
     #[test]
     fn at_block() {
         crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",

@@ -76,51 +76,46 @@ impl ComplexWord for ContractOf {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
-    use clarity::vm::{errors::Error, Value};
+    use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, TestEnvironment};
 
     #[test]
     fn to_int_out_of_range() {
-        assert!(evaluate("(to-int u170141183460469231731687303715884105728)").is_err());
+        crosscheck("(to-int u170141183460469231731687303715884105728)", Err(()))
     }
 
     #[test]
-    fn to_int_max_on_range() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(to-int u170141183460469231731687303715884105727)")?,
-            Some(Value::Int(170141183460469231731687303715884105727))
-        );
-        Ok(())
+    fn to_int_max_on_range() {
+        crosscheck(
+            "(to-int u170141183460469231731687303715884105727)",
+            Ok(Some(Value::Int(170141183460469231731687303715884105727))),
+        )
     }
 
     #[test]
-    fn to_int_zero() -> Result<(), Error> {
-        assert_eq!(evaluate("(to-int u0)")?, Some(Value::Int(0)));
-        Ok(())
+    fn to_int_zero() {
+        crosscheck("(to-int u0)", Ok(Some(Value::Int(0))));
     }
 
     #[test]
-    fn to_int() -> Result<(), Error> {
-        assert_eq!(evaluate("(to-int u42)")?, Some(Value::Int(42)));
-        Ok(())
+    fn to_int() {
+        crosscheck("(to-int u42)", Ok(Some(Value::Int(42))));
     }
 
     #[test]
     fn to_uint_negative() {
-        assert!(evaluate("(to-uint -31)").is_err())
+        crosscheck("(to-uint -31)", Err(()))
     }
 
     #[test]
-    fn to_uint() -> Result<(), Error> {
-        assert_eq!(evaluate("(to-uint 767)")?, Some(Value::UInt(767)));
-        Ok(())
+    fn to_uint() {
+        crosscheck("(to-uint 767)", Ok(Some(Value::UInt(767))));
     }
 
     #[test]
-    fn to_uint_zero() -> Result<(), Error> {
-        assert_eq!(evaluate("(to-uint 0)")?, Some(Value::UInt(0)));
-        Ok(())
+    fn to_uint_zero() {
+        crosscheck("(to-uint 0)", Ok(Some(Value::UInt(0))));
     }
 
     #[test]

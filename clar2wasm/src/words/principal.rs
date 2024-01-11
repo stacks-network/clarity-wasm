@@ -294,116 +294,105 @@ impl ComplexWord for PrincipalOf {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{PrincipalData, TupleData};
-    use clarity::vm::{errors::Error, Value};
+    use clarity::vm::Value;
 
-    use crate::tools::evaluate;
+    use crate::tools::crosscheck;
 
     //- is-standard
 
     #[test]
-    fn test_is_standard() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)")?,
-            Some(Value::Bool(true))
+    fn test_is_standard() {
+        crosscheck(
+            "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
+            Ok(Some(Value::Bool(true))),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_is_standard_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)")?,
-            Some(Value::Bool(true))
+    fn test_is_standard_contract() {
+        crosscheck(
+            "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
+            Ok(Some(Value::Bool(true))),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_is_standard_multisig() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)")?,
-            Some(Value::Bool(true))
-        );
-        Ok(())
+    fn test_is_standard_multisig() {
+        crosscheck(
+            "(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)",
+            Ok(Some(Value::Bool(true))),
+        )
     }
 
     #[test]
-    fn test_is_standard_mainnet() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)")?,
-            Some(Value::Bool(false))
+    fn test_is_standard_mainnet() {
+        crosscheck(
+            "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
+            Ok(Some(Value::Bool(false))),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_is_standard_mainnet_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)")?,
-            Some(Value::Bool(false))
+    fn test_is_standard_mainnet_contract() {
+        crosscheck(
+            "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
+            Ok(Some(Value::Bool(false))),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_is_standard_mainnet_multisig() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)")?,
-            Some(Value::Bool(false))
+    fn test_is_standard_mainnet_multisig() {
+        crosscheck(
+            "(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)",
+            Ok(Some(Value::Bool(false))),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_is_standard_other() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)")?,
-            Some(Value::Bool(false))
+    fn test_is_standard_other() {
+        crosscheck(
+            "(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)",
+            Ok(Some(Value::Bool(false))),
         );
-        Ok(())
     }
 
     //- principal-construct?
 
     #[test]
-    fn test_construct_standard() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
-            Some(
+    fn test_construct_standard() {
+        crosscheck(
+            "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+            Ok(Some(
                 Value::okay(
                     PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK")
                         .unwrap()
-                        .into()
+                        .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#
-            )?,
-            Some(
+    fn test_construct_contract() {
+        crosscheck(
+            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
+            Ok(Some(
                 Value::okay(
                     PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK.foo")
                         .unwrap()
-                        .into()
+                        .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_mainnet() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
-            Some(
+    fn test_construct_mainnet() {
+        crosscheck(
+            "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(0)),
@@ -412,27 +401,24 @@ mod tests {
                             Value::some(
                                 PrincipalData::parse("SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY")
                                     .unwrap()
-                                    .into()
+                                    .into(),
                             )
-                            .unwrap()
-                        )
+                            .unwrap(),
+                        ),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_mainnet_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#
-            )?,
-            Some(
+    fn test_construct_mainnet_contract() {
+        crosscheck(
+            r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(0)),
@@ -440,274 +426,256 @@ mod tests {
                             "value".into(),
                             Value::some(
                                 PrincipalData::parse(
-                                    "SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo"
+                                    "SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo",
                                 )
                                 .unwrap()
-                                .into()
+                                .into(),
                             )
-                            .unwrap()
-                        )
+                            .unwrap(),
+                        ),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_empty_version() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
-            Some(
+    fn test_construct_empty_version() {
+        crosscheck(
+            "(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none())
+                        ("value".into(), Value::none()),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_short_hash() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)")?,
-            Some(
+    fn test_construct_short_hash() {
+        crosscheck(
+            "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none())
+                        ("value".into(), Value::none()),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_high_version() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)")?,
-            Some(
+    fn test_construct_high_version() {
+        crosscheck(
+            "(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none())
+                        ("value".into(), Value::none()),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_construct_empty_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#
-            )?,
-            Some(
+    fn test_construct_empty_contract() {
+        crosscheck(
+            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#,
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(2)),
-                        ("value".into(), Value::none())
+                        ("value".into(), Value::none()),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
-        );
-        Ok(())
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
-    fn test_construct_illegal_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#
-            )?,
-            Some(
+    fn test_construct_illegal_contract() {
+        crosscheck(
+            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#,
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         ("error_code".into(), Value::UInt(2)),
-                        ("value".into(), Value::none())
+                        ("value".into(), Value::none()),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
-        );
-        Ok(())
+                .unwrap(),
+            )),
+        )
     }
 
     //- principal-destruct?
 
     #[test]
-    fn test_destruct_standard() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)")?,
-            Some(
+    fn test_destruct_standard() {
+        crosscheck(
+            "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
+            Ok(Some(
                 Value::okay(
                     TupleData::from_data(vec![
                         (
                             "hash-bytes".into(),
                             Value::buff_from(
-                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap()
+                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
                         ("name".into(), Value::none()),
-                        ("version".into(), Value::buff_from_byte(0x1a))
+                        ("version".into(), Value::buff_from_byte(0x1a)),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_destruct_contract() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)")?,
-            Some(
+    fn test_destruct_contract() {
+        crosscheck(
+            "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
+            Ok(Some(
                 Value::okay(
                     TupleData::from_data(vec![
                         (
                             "hash-bytes".into(),
                             Value::buff_from(
-                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap()
+                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
                         (
                             "name".into(),
                             Value::some(
-                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap()
+                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
-                        ("version".into(), Value::buff_from_byte(0x1a))
+                        ("version".into(), Value::buff_from_byte(0x1a)),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_destruct_standard_err() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)")?,
-            Some(
+    fn test_destruct_standard_err() {
+        crosscheck(
+            "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         (
                             "hash-bytes".into(),
                             Value::buff_from(
-                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap()
+                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
                         ("name".into(), Value::none()),
-                        ("version".into(), Value::buff_from_byte(0x16))
+                        ("version".into(), Value::buff_from_byte(0x16)),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     #[test]
-    fn test_destruct_contract_err() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)")?,
-            Some(
+    fn test_destruct_contract_err() {
+        crosscheck(
+            "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
+            Ok(Some(
                 Value::error(
                     TupleData::from_data(vec![
                         (
                             "hash-bytes".into(),
                             Value::buff_from(
-                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap()
+                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
                         (
                             "name".into(),
                             Value::some(
-                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap()
+                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap(),
                             )
-                            .unwrap()
+                            .unwrap(),
                         ),
-                        ("version".into(), Value::buff_from_byte(0x16))
+                        ("version".into(), Value::buff_from_byte(0x16)),
                     ])
                     .unwrap()
-                    .into()
+                    .into(),
                 )
-                .unwrap()
-            )
+                .unwrap(),
+            )),
         );
-        Ok(())
     }
 
     //- principal-of?
 
     #[test]
-    fn test_principal_of() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)"
-            )?,
-            Some(
+    fn test_principal_of() {
+        crosscheck(
+            "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)",
+            Ok(Some(
                 Value::okay(
-                    PrincipalData::parse("ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP").unwrap().into()
+                    PrincipalData::parse("ST1AW6EKPGT61SQ9FNVDS17RKNWT8ZP582VF9HSCP")
+                        .unwrap()
+                        .into(),
                 )
-                .unwrap()
-            )
-        );
-        Ok(())
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_principal_of_runtime_err() {
-        assert!(evaluate(
+        crosscheck(
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
-        )
-        .is_err());
+            Err(()),
+        );
     }
 
     #[test]
-    fn test_principal_of_err() -> Result<(), Error> {
-        assert_eq!(
-            evaluate(
-                "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)"
-            )?,
-            Some(Value::err_uint(1))
+    fn test_principal_of_err() {
+        crosscheck(
+            "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)",
+            Ok(Some(Value::err_uint(1))),
         );
-        Ok(())
     }
 }

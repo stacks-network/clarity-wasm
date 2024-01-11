@@ -106,7 +106,7 @@ impl ComplexWord for ImplTrait {
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
-    use clarity::vm::{errors::Error, Value};
+    use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
@@ -117,16 +117,18 @@ mod tests {
     }
 
     #[test]
-    fn define_trait_check_context() -> Result<(), Error> {
+    fn define_trait_check_context() {
         let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "token-trait",
-            r#"
+        let val = env
+            .init_contract_with_snippet(
+                "token-trait",
+                r#"
 (define-trait token-trait
     ((transfer? (principal principal uint) (response uint uint))
         (get-balance (principal) (response uint uint))))
              "#,
-        )?;
+            )
+            .unwrap();
 
         assert!(val.is_none());
         let contract_context = env.get_contract_context("token-trait").unwrap();
@@ -134,7 +136,6 @@ mod tests {
             .lookup_trait_definition("token-trait")
             .unwrap();
         assert_eq!(token_trait.len(), 2);
-        Ok(())
     }
 
     #[test]
@@ -222,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn trait_list() -> Result<(), Error> {
+    fn trait_list() {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet(
             "my-trait",
@@ -246,9 +247,8 @@ mod tests {
 (foo .my-trait)
             "#,
             )
-            .expect("Failed to init contract use-trait.");
+            .map_err(|_| ());
 
-        assert_eq!(val, evaluate("(list .my-trait .my-trait)")?);
-        Ok(())
+        assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
     }
 }

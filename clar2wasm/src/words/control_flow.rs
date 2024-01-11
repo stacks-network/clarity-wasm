@@ -236,12 +236,11 @@ mod tests {
     use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
-    fn test_unwrap_panic_some() -> Result<(), Error> {
-        assert_eq!(evaluate("(unwrap-panic (some u1))")?, Some(Value::UInt(1)));
-        Ok(())
+    fn test_unwrap_panic_some() {
+        crosscheck("(unwrap-panic (some u1))", Ok(Some(Value::UInt(1))))
     }
 
     #[test]
@@ -261,9 +260,8 @@ mod tests {
     }
 
     #[test]
-    fn test_unwrap_panic_ok() -> Result<(), Error> {
-        assert_eq!(evaluate("(unwrap-panic (ok u2))")?, Some(Value::UInt(2)));
-        Ok(())
+    fn test_unwrap_panic_ok() {
+        crosscheck("(unwrap-panic (ok u2))", Ok(Some(Value::UInt(2))));
     }
 
     #[test]
@@ -283,12 +281,8 @@ mod tests {
     }
 
     #[test]
-    fn test_unwrap_err_panic_err() -> Result<(), Error> {
-        assert_eq!(
-            evaluate("(unwrap-err-panic (err u1))")?,
-            Some(Value::UInt(1))
-        );
-        Ok(())
+    fn test_unwrap_err_panic_err() {
+        crosscheck("(unwrap-err-panic (err u1))", Ok(Some(Value::UInt(1))))
     }
 
     #[test]
@@ -309,7 +303,7 @@ mod tests {
     /// Verify that the full response type is set correctly for the last
     /// expression in a `begin` block.
     #[test]
-    fn begin_response_type_bug() -> Result<(), Error> {
+    fn begin_response_type_bug() -> Result<(), ()> {
         evaluate(
             r#"
 (define-private (foo)
