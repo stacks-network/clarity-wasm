@@ -93,19 +93,7 @@ pub fn compile(
         }
     };
 
-    let generator = match WasmGenerator::new(contract_analysis.clone()) {
-        Ok(g) => g,
-        Err(e) => {
-            diagnostics.push(Diagnostic::err(&e));
-            return Err(CompileError::Generic {
-                ast,
-                diagnostics,
-                cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
-            });
-        }
-    };
-
-    match generator.generate() {
+    match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
         Ok(module) => Ok(CompileResult {
             ast,
             diagnostics,
@@ -124,6 +112,6 @@ pub fn compile(
 }
 
 pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
-    let generator = WasmGenerator::new(contract_analysis.clone())?;
+    let generator = WasmGenerator::new(contract_analysis)?;
     generator.generate()
 }

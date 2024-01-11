@@ -863,9 +863,9 @@ impl WasmGenerator {
             let wasm_types = clar2wasm_ty(value_ty);
             for _ in 0..wasm_types.len() {
                 builder.local_get(
-                    locals
-                        .pop()
-                        .ok_or(GeneratorError::InternalError("invalid tuple value".into()))?,
+                    locals.pop().ok_or_else(|| {
+                        GeneratorError::InternalError("invalid tuple value".into())
+                    })?,
                 );
             }
 

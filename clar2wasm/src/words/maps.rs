@@ -30,9 +30,15 @@ impl ComplexWord for MapDefinition {
             .i32_const(name_offset as i32)
             .i32_const(name_length as i32);
 
-        builder.call(generator.module.funcs.by_name("stdlib.define_map").ok_or(
-            GeneratorError::InternalError("stdlib.define_map not found".to_owned()),
-        )?);
+        builder.call(
+            generator
+                .module
+                .funcs
+                .by_name("stdlib.define_map")
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.define_map not found".to_owned())
+                })?,
+        );
         Ok(())
     }
 }
@@ -59,9 +65,7 @@ impl ComplexWord for MapGet {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::InternalError(format!(
-                "map not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::InternalError(format!("map not found: {name}")))?;
         let id_length = name.len();
 
         // Push the identifier offset and length onto the data stack
@@ -72,9 +76,9 @@ impl ComplexWord for MapGet {
         // Create space on the call stack to write the key
         let ty = generator
             .get_expr_type(key)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -90,9 +94,9 @@ impl ComplexWord for MapGet {
         // Create a new local to hold the result on the call stack
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "map-get? expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-get? expression must be typed".to_owned())
+            })?
             .clone();
         let (return_offset, return_size) =
             generator.create_call_stack_local(builder, &ty, true, true);
@@ -134,9 +138,7 @@ impl ComplexWord for MapSet {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::InternalError(format!(
-                "map not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::InternalError(format!("map not found: {name}")))?;
         let id_length = name.len();
 
         // Push the identifier offset and length onto the data stack
@@ -147,9 +149,9 @@ impl ComplexWord for MapSet {
         // Create space on the call stack to write the key
         let ty = generator
             .get_expr_type(key)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -165,9 +167,9 @@ impl ComplexWord for MapSet {
         // Create space on the call stack to write the value
         let ty = generator
             .get_expr_type(value)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -210,9 +212,7 @@ impl ComplexWord for MapInsert {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::InternalError(format!(
-                "map not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::InternalError(format!("map not found: {name}")))?;
         let id_length = name.len();
 
         // Push the identifier offset and length onto the data stack
@@ -223,9 +223,9 @@ impl ComplexWord for MapInsert {
         // Create space on the call stack to write the key
         let ty = generator
             .get_expr_type(key)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -241,9 +241,9 @@ impl ComplexWord for MapInsert {
         // Create space on the call stack to write the value
         let ty = generator
             .get_expr_type(value)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -285,9 +285,7 @@ impl ComplexWord for MapDelete {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::InternalError(format!(
-                "map not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::InternalError(format!("map not found: {name}")))?;
 
         let id_length = name.len();
 
@@ -299,9 +297,9 @@ impl ComplexWord for MapDelete {
         // Create space on the call stack to write the key
         let ty = generator
             .get_expr_type(key)
-            .ok_or(GeneratorError::TypeError(
-                "map-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("map-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -315,9 +313,15 @@ impl ComplexWord for MapDelete {
         builder.local_get(key_offset).i32_const(key_size);
 
         // Call the host interface function, `map_delete`
-        builder.call(generator.module.funcs.by_name("stdlib.map_delete").ok_or(
-            GeneratorError::TypeError("stdlib.map_delete not found".to_owned()),
-        )?);
+        builder.call(
+            generator
+                .module
+                .funcs
+                .by_name("stdlib.map_delete")
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("stdlib.map_delete not found".to_owned())
+                })?,
+        );
 
         Ok(())
     }

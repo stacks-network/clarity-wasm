@@ -24,9 +24,9 @@ impl ComplexWord for Recover {
         // Reserve stack space for the host-function to write the result
         let ret_ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "result of secp256k1-recover? should be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("result of secp256k1-recover? should be typed".to_owned())
+            })?
             .clone();
 
         let (result_local, result_size) =
@@ -39,9 +39,9 @@ impl ComplexWord for Recover {
                 .module
                 .funcs
                 .by_name("stdlib.secp256k1_recover")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.secp256k1_recover not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.secp256k1_recover not found".to_owned())
+                })?,
         );
 
         generator.read_from_memory(builder, result_local, 0, &ret_ty);
@@ -75,9 +75,9 @@ impl ComplexWord for Verify {
                 .module
                 .funcs
                 .by_name("stdlib.secp256k1_verify")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.secp256k1_verify not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.secp256k1_verify not found".to_owned())
+                })?,
         );
 
         Ok(())

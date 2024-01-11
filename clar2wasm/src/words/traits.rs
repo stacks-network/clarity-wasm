@@ -33,9 +33,9 @@ impl ComplexWord for DefineTrait {
                 .module
                 .funcs
                 .by_name("stdlib.define_trait")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.define_trait not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.define_trait not found".to_owned())
+                })?,
         );
         Ok(())
     }
@@ -94,9 +94,15 @@ impl ComplexWord for ImplTrait {
             .i32_const(trait_offset as i32)
             .i32_const(trait_length as i32);
 
-        builder.call(generator.module.funcs.by_name("stdlib.impl_trait").ok_or(
-            GeneratorError::InternalError("stdlib.impl_trait not found".to_owned()),
-        )?);
+        builder.call(
+            generator
+                .module
+                .funcs
+                .by_name("stdlib.impl_trait")
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.impl_trait not found".to_owned())
+                })?,
+        );
         Ok(())
     }
 }

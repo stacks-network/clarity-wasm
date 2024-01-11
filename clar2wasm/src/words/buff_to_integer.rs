@@ -12,9 +12,7 @@ fn traverse_buffer_to_integer(
         .module
         .funcs
         .by_name(name)
-        .ok_or(GeneratorError::InternalError(format!(
-            "function not found: {name}"
-        )))?;
+        .ok_or_else(|| GeneratorError::InternalError(format!("function not found: {name}")))?;
     builder.call(func);
     Ok(())
 }

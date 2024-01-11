@@ -30,9 +30,9 @@ impl ComplexWord for IsEq {
         generator.traverse_expr(builder, first_op)?;
         let ty = generator
             .get_expr_type(first_op)
-            .ok_or(GeneratorError::TypeError(
-                "is-eq value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("is-eq value expression must be typed".to_owned())
+            })?
             .clone();
 
         // No need to go further if there is only one argument
@@ -69,9 +69,9 @@ impl ComplexWord for IsEq {
             // insert the new operand into locals
             let operand_ty = generator
                 .get_expr_type(operand)
-                .ok_or(GeneratorError::TypeError(
-                    "is-eq value expression must be typed".to_owned(),
-                ))?
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("is-eq value expression must be typed".to_owned())
+                })?
                 .clone();
             assign_to_locals(builder, &ty, &operand_ty, &nth_locals)?;
 
@@ -120,11 +120,9 @@ impl ComplexWord for IndexOf {
         // STACK: [offset, size]
 
         // Get type of the Sequence element.
-        let elem_ty = match generator
-            .get_expr_type(seq)
-            .ok_or(GeneratorError::TypeError(
-                "Sequence expression must be typed".to_owned(),
-            ))? {
+        let elem_ty = match generator.get_expr_type(seq).ok_or_else(|| {
+            GeneratorError::TypeError("Sequence expression must be typed".to_owned())
+        })? {
             TypeSignature::SequenceType(ty) => match &ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),
@@ -187,7 +185,9 @@ impl ComplexWord for IndexOf {
             // Get the type of the item expression
             let item_ty = generator
                 .get_expr_type(item)
-                .expect("index_of item expression must be typed")
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("index_of item expression must be typed".to_owned())
+                })?
                 .clone();
 
             // Store the item into a local.
@@ -207,9 +207,11 @@ impl ComplexWord for IndexOf {
                 &[],
                 &[ValType::I32, ValType::I64, ValType::I64],
             );
-            else_case.loop_(loop_body_ty, |loop_| {
+
+            let loop_body = &mut else_case.dangling_instr_seq(loop_body_ty);
+            let loop_body_id = {
                 // Loop label.
-                let loop_id = loop_.id();
+                let loop_id = loop_body.id();
 
                 // Load an element from the sequence, at offset position,
                 // and push it onto the top of the stack.
@@ -217,9 +219,9 @@ impl ComplexWord for IndexOf {
                 let (elem_size, elem_locals) = match &elem_ty {
                     SequenceElementType::Other(elem_ty) => {
                         (
-                            generator.read_from_memory(loop_, offset, 0, elem_ty),
+                            generator.read_from_memory(loop_body, offset, 0, elem_ty),
                             // STACK: [element]
-                            generator.save_to_locals(loop_, elem_ty, true),
+                            generator.save_to_locals(loop_body, elem_ty, true),
                             // STACK: []
                         )
                     }
@@ -227,37 +229,37 @@ impl ComplexWord for IndexOf {
                         // The element type is a byte, so we can just push the
                         // offset and size = 1 to the stack.
                         let size = 1;
-                        loop_.local_get(offset).i32_const(size);
+                        loop_body.local_get(offset).i32_const(size);
                         // STACK: [offset, size]
 
-                        (size, generator.save_to_locals(loop_, &item_ty, true))
+                        (size, generator.save_to_locals(loop_body, &item_ty, true))
                         // STACK: []
                     }
                     SequenceElementType::UnicodeScalar => {
                         // The element type is a unicode scalar, so we can just push the
                         // offset and size = 4 to the stack.
                         let size = 4;
-                        loop_.local_get(offset).i32_const(size);
+                        loop_body.local_get(offset).i32_const(size);
                         // STACK: [offset, size]
 
-                        (size, generator.save_to_locals(loop_, &item_ty, true))
+                        (size, generator.save_to_locals(loop_body, &item_ty, true))
                         // STACK: []
                     }
                 };
 
                 // Check item and element equality.
                 // And push the result of the comparison onto the top of the stack.
-                let _res = wasm_equal(
+                wasm_equal(
                     &item_ty,
                     &item_ty,
                     generator,
-                    loop_,
+                    loop_body,
                     &item_locals,
                     &elem_locals,
-                );
+                )?;
                 // STACK: [wasm_equal_result]
 
-                loop_.if_else(
+                loop_body.if_else(
                     InstrSeqType::new(
                         &mut generator.module.types,
                         &[],
@@ -304,7 +306,10 @@ impl ComplexWord for IndexOf {
                         );
                     },
                 );
-            });
+                loop_body.id()
+            };
+
+            else_case.instr(Loop { seq: loop_body_id });
 
             else_case.id()
         };

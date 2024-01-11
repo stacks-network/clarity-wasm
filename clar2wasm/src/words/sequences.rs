@@ -41,9 +41,7 @@ impl ComplexWord for ListCons {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "list expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
             .clone();
         let (elem_ty, _num_elem) =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
@@ -115,18 +113,18 @@ impl ComplexWord for Fold {
         // The result type must match the type of the initial value
         let result_clar_ty = generator
             .get_expr_type(initial)
-            .ok_or(GeneratorError::TypeError(
-                "fold's initial value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "fold's initial value expression must be typed".to_owned(),
+                )
+            })?
             .clone();
         let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
-        let elem_ty = match generator
-            .get_expr_type(sequence)
-            .ok_or(GeneratorError::TypeError(
-                "sequence expression must be typed".to_owned(),
-            ))? {
+        let elem_ty = match generator.get_expr_type(sequence).ok_or_else(|| {
+            GeneratorError::TypeError("sequence expression must be typed".to_owned())
+        })? {
             TypeSignature::SequenceType(seq_ty) => match &seq_ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),
@@ -290,9 +288,7 @@ impl ComplexWord for Append {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "append result must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
             .clone();
 
         let memory = generator.get_memory();
@@ -331,9 +327,7 @@ impl ComplexWord for Append {
         // Get the type of the element that we're appending.
         let elem_ty = generator
             .get_expr_type(elem)
-            .ok_or(GeneratorError::TypeError(
-                "append element must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("append element must be typed".to_string()))?
             .clone();
 
         // Store the element at the write pointer.
@@ -463,9 +457,7 @@ impl ComplexWord for Concat {
         // Create a new sequence to hold the result in the stack frame
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "concat expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("concat expression must be typed".to_owned()))?
             .clone();
         let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
         builder.local_get(offset);
@@ -528,9 +520,7 @@ impl ComplexWord for Map {
 
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "list expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
             .clone();
 
         let return_element_type =
@@ -559,9 +549,9 @@ impl ComplexWord for Map {
 
             let (element_ty, element_size) = match generator
                 .get_expr_type(arg)
-                .ok_or(GeneratorError::TypeError(
-                    "sequence expression must be typed".to_owned(),
-                ))?
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("sequence expression must be typed".to_owned())
+                })?
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
@@ -1019,9 +1009,9 @@ impl ComplexWord for ReplaceAt {
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::TypeError(
-                "replace-at? result must be typed".to_string(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("replace-at? result must be typed".to_string())
+            })?
             .clone();
 
         // Create a new stack local for a copy of the input list
@@ -1280,9 +1270,7 @@ impl ComplexWord for Slice {
 
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::TypeError(
-                "slice? sequence must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("slice? sequence must be typed".to_string()))?
             .clone();
 
         // Get the offset of the specified index.
@@ -1384,9 +1372,7 @@ impl ComplexWord for Slice {
 
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::TypeError(
-                "slice? sequence must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("slice? sequence must be typed".to_string()))?
             .clone();
 
         // Get the offset of the specified index.

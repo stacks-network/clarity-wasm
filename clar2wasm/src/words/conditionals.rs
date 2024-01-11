@@ -151,9 +151,9 @@ impl ComplexWord for Filter {
         // Get the type of the sequence
         let ty = generator
             .get_expr_type(sequence)
-            .ok_or(GeneratorError::TypeError(
-                "sequence expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("sequence expression must be typed".to_owned())
+            })?
             .clone();
 
         // Get the type of the sequence
@@ -446,7 +446,7 @@ impl ComplexWord for Unwrap {
         let throw_type = clar2wasm_ty(
             generator
                 .get_expr_type(throw)
-                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
         );
 
         let inner_type = match generator.get_expr_type(input) {
@@ -527,7 +527,7 @@ impl ComplexWord for UnwrapErr {
         let throw_type = clar2wasm_ty(
             generator
                 .get_expr_type(throw)
-                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
         );
 
         let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
@@ -616,12 +616,12 @@ impl ComplexWord for Asserts {
         let input_type = clar2wasm_ty(
             generator
                 .get_expr_type(input)
-                .ok_or(GeneratorError::TypeError("Input must be typed".to_owned()))?,
+                .ok_or_else(|| GeneratorError::TypeError("Input must be typed".to_owned()))?,
         );
         let throw_type = clar2wasm_ty(
             generator
                 .get_expr_type(throw)
-                .ok_or(GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
         );
 
         let mut success_branch = builder.dangling_instr_seq(InstrSeqType::new(

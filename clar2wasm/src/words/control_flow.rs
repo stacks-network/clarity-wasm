@@ -39,7 +39,7 @@ impl ComplexWord for Begin {
             })?,
             generator
                 .get_expr_type(expr)
-                .ok_or(GeneratorError::TypeError("begin must be typed".to_owned()))?
+                .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
         );
         generator.traverse_statement_list(builder, args)
@@ -70,9 +70,9 @@ impl ComplexWord for UnwrapPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .ok_or(GeneratorError::TypeError(
-                "'unwrap-err' input expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("'unwrap-err' input expression must be typed".to_owned())
+            })?
             .clone();
 
         match &input_ty {
@@ -97,9 +97,11 @@ impl ComplexWord for UnwrapPanic {
                             .module
                             .funcs
                             .by_name("stdlib.runtime-error")
-                            .ok_or(GeneratorError::InternalError(
-                                "stdlib.runtime-error not found".to_owned(),
-                            ))?,
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
                     );
                     if_case.id()
                 };
@@ -149,9 +151,11 @@ impl ComplexWord for UnwrapPanic {
                             .module
                             .funcs
                             .by_name("stdlib.runtime-error")
-                            .ok_or(GeneratorError::InternalError(
-                                "stdlib.runtime-error not found".to_owned(),
-                            ))?,
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
                     );
                     if_case.id()
                 };
@@ -201,9 +205,11 @@ impl ComplexWord for UnwrapErrPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .ok_or(GeneratorError::TypeError(
-                "'unwrap-err-panic' input expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "'unwrap-err-panic' input expression must be typed".to_owned(),
+                )
+            })?
             .clone();
 
         match &input_ty {
@@ -241,9 +247,11 @@ impl ComplexWord for UnwrapErrPanic {
                             .module
                             .funcs
                             .by_name("stdlib.runtime-error")
-                            .ok_or(GeneratorError::InternalError(
-                                "stdlib.runtime-error not found".to_owned(),
-                            ))?,
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
                     );
                     else_case.id()
                 };

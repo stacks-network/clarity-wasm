@@ -23,9 +23,7 @@ impl ComplexWord for TupleCons {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "tuple expression must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))?
             .clone();
 
         let tuple_ty = match ty {
@@ -39,28 +37,26 @@ impl ComplexWord for TupleCons {
         // of the keys to their values.
         let mut values = HashMap::new();
         for arg in args {
-            let list = arg.match_list().ok_or(GeneratorError::InternalError(
-                "expected key-value pairs in tuple".to_string(),
-            ))?;
+            let list = arg.match_list().ok_or_else(|| {
+                GeneratorError::InternalError("expected key-value pairs in tuple".to_string())
+            })?;
             if list.len() != 2 {
                 return Err(GeneratorError::InternalError(
                     "expected key-value pairs in tuple".to_string(),
                 ));
             }
 
-            let key = list[0].match_atom().ok_or(GeneratorError::InternalError(
-                "expected key-value pairs in tuple".to_string(),
-            ))?;
+            let key = list[0].match_atom().ok_or_else(|| {
+                GeneratorError::InternalError("expected key-value pairs in tuple".to_string())
+            })?;
             values.insert(key, &list[1]);
         }
 
         // Now we can iterate over the tuple type and build the tuple.
         for (key, ty) in tuple_ty.get_type_map() {
-            let value = values
-                .remove(key)
-                .ok_or(GeneratorError::InternalError(format!(
-                    "missing key '{key}' in tuple"
-                )))?;
+            let value = values.remove(key).ok_or_else(|| {
+                GeneratorError::InternalError(format!("missing key '{key}' in tuple"))
+            })?;
 
             // WORKAROUND: if you have a tuple like `(tuple (foo none))`, the `none` will have the type
             // NoType, even if it has a defined type in the tuple. This creates issues because the placeholder
@@ -99,7 +95,7 @@ impl ComplexWord for TupleGet {
 
         let target_field_name = args[0]
             .match_atom()
-            .ok_or(GeneratorError::InternalError("expected key name".into()))?;
+            .ok_or_else(|| GeneratorError::InternalError("expected key name".into()))?;
 
         let tuple_ty = generator
             .get_expr_type(&args[1])
@@ -117,9 +113,9 @@ impl ComplexWord for TupleGet {
         let field_types = tuple_ty.get_type_map();
 
         // Create locals for the target field
-        let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or(
-            GeneratorError::InternalError(format!("missing field '{target_field_name}' in tuple")),
-        )?);
+        let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or_else(|| {
+            GeneratorError::InternalError(format!("missing field '{target_field_name}' in tuple"))
+        })?);
         let mut val_locals = Vec::with_capacity(wasm_types.len());
         for local_ty in wasm_types.iter().rev() {
             let local = generator.module.locals.add(*local_ty);

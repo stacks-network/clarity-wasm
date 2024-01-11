@@ -30,9 +30,9 @@ impl ComplexWord for DefineDataVar {
         // the top-level, we have not set up the call stack yet.
         let ty = generator
             .get_expr_type(initial)
-            .ok_or(GeneratorError::TypeError(
-                "initial value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("initial value expression must be typed".to_owned())
+            })?
             .clone();
         let offset = generator.module.locals.add(ValType::I32);
         builder
@@ -69,9 +69,9 @@ impl ComplexWord for DefineDataVar {
                 .module
                 .funcs
                 .by_name("stdlib.define_variable")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.define_variable not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.define_variable not found".to_owned())
+                })?,
         );
         Ok(())
     }
@@ -100,17 +100,15 @@ impl ComplexWord for SetDataVar {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::InternalError(format!(
-                "variable not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::InternalError(format!("variable not found: {name}")))?;
         let id_length = name.len();
 
         // Create space on the call stack to write the value
         let ty = generator
             .get_expr_type(value)
-            .ok_or(GeneratorError::TypeError(
-                "var-set value expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("var-set value expression must be typed".to_owned())
+            })?
             .clone();
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
 
@@ -131,9 +129,9 @@ impl ComplexWord for SetDataVar {
                 .module
                 .funcs
                 .by_name("stdlib.set_variable")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.set_variable not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.set_variable not found".to_owned())
+                })?,
         );
 
         // `var-set` always returns `true`
@@ -164,17 +162,15 @@ impl ComplexWord for GetDataVar {
         let id_offset = *generator
             .literal_memory_offset
             .get(&LiteralMemoryEntry::Ascii(name.as_str().into()))
-            .ok_or(GeneratorError::TypeError(format!(
-                "variable not found: {name}"
-            )))?;
+            .ok_or_else(|| GeneratorError::TypeError(format!("variable not found: {name}")))?;
         let id_length = name.len();
 
         // Create a new local to hold the result on the call stack
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "var-get expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("var-get expression must be typed".to_owned())
+            })?
             .clone();
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, true);
 
@@ -192,9 +188,9 @@ impl ComplexWord for GetDataVar {
                 .module
                 .funcs
                 .by_name("stdlib.get_variable")
-                .ok_or(GeneratorError::InternalError(
-                    "stdlib.get_variable not found".to_owned(),
-                ))?,
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.get_variable not found".to_owned())
+                })?,
         );
 
         // Host interface fills the result into the specified memory. Read it

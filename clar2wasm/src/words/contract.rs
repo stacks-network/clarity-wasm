@@ -91,9 +91,9 @@ impl ComplexWord for ContractCall {
 
             let arg_ty = generator
                 .get_expr_type(arg)
-                .ok_or(GeneratorError::TypeError(
-                    "contract-call? argument must be typed".to_owned(),
-                ))?
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("contract-call? argument must be typed".to_owned())
+                })?
                 .clone();
 
             arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty);
@@ -105,9 +105,9 @@ impl ComplexWord for ContractCall {
         // Reserve space for the return value
         let return_ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::TypeError(
-                "contract-call? expression must be typed".to_owned(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("contract-call? expression must be typed".to_owned())
+            })?
             .clone();
         let (return_offset, return_size) =
             generator.create_call_stack_local(builder, &return_ty, true, true);

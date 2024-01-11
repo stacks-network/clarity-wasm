@@ -35,9 +35,9 @@ impl ComplexWord for Let {
             // Store store the value in locals, and save to the var map
             let ty = generator
                 .get_expr_type(value)
-                .ok_or(GeneratorError::TypeError(
-                    "let value expression must be typed".to_owned(),
-                ))?
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("let value expression must be typed".to_owned())
+                })?
                 .clone();
             let locals = generator.save_to_locals(builder, &ty, true);
 
