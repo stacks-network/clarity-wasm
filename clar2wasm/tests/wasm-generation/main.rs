@@ -1,6 +1,8 @@
 pub mod default_to;
 pub mod equal;
+pub mod optional;
 pub mod regression;
+pub mod response;
 pub mod values;
 
 use clarity::vm::types::{
