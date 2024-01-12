@@ -220,7 +220,7 @@ impl SimpleWord for Sha512_256 {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::evaluate;
+    use crate::tools::crosscheck;
 
     #[test]
     fn test_keccak256() {
@@ -230,10 +230,10 @@ mod tests {
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(keccak256 0)"),
-            Some(Value::buff_from(expected.to_vec()).unwrap())
-        );
+        crosscheck(
+            "(keccak256 0)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
     }
 
     #[test]
@@ -244,9 +244,9 @@ mod tests {
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(sha512 1)"),
-            Some(Value::buff_from(expected.to_vec()).unwrap())
+        crosscheck(
+            "(sha512 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
         );
     }
 
@@ -258,9 +258,9 @@ mod tests {
             &mut expected,
         )
         .unwrap();
-        assert_eq!(
-            evaluate("(sha512/256 1)"),
-            Some(Value::buff_from(expected.to_vec()).unwrap())
-        );
+        crosscheck(
+            "(sha512/256 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
     }
 }

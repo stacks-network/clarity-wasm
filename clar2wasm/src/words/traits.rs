@@ -108,12 +108,12 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
         // Just validate that it doesn't crash
-        assert_eq!(evaluate("(define-trait my-trait ())"), None);
+        crosscheck("(define-trait my-trait ())", Ok(None))
     }
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
         (get-balance (principal) (response uint uint))))
              "#,
             )
-            .expect("Failed to init contract.");
+            .unwrap();
 
         assert!(val.is_none());
         let contract_context = env.get_contract_context("token-trait").unwrap();
@@ -247,11 +247,8 @@ mod tests {
 (foo .my-trait)
             "#,
             )
-            .expect("Failed to init contract use-trait.");
+            .map_err(|_| ());
 
-        assert_eq!(
-            val.unwrap(),
-            evaluate("(list .my-trait .my-trait)").unwrap()
-        );
+        assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
     }
 }

@@ -14,7 +14,7 @@ use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{ClarityVersion, ContractContext, Value};
+use clarity::vm::{execute_v2 as execute, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -141,7 +141,7 @@ impl TestEnvironment {
         Ok(return_val)
     }
 
-    pub fn eval(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
+    pub fn evaluate(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
         self.init_contract_with_snippet("snippet", snippet)
     }
 
@@ -163,20 +163,42 @@ impl Default for TestEnvironment {
 
 /// Evaluate a Clarity snippet at a specific epoch and version.
 /// Returns an optional value -- the result of the evaluation.
-pub fn evaluate_at(snippet: &str, epoch: StacksEpochId, version: ClarityVersion) -> Option<Value> {
+pub fn evaluate_at(
+    snippet: &str,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) -> Result<Option<Value>, Error> {
     let mut env = TestEnvironment::new(epoch, version);
-    env.init_contract_with_snippet("snippet", snippet)
-        .expect("Failed to init contract.")
+    env.evaluate(snippet)
 }
 
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-pub fn evaluate(snippet: &str) -> Option<Value> {
-    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
+#[allow(clippy::result_unit_err)]
+pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
+    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
+}
+
+pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
+    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
+    let interpreted = execute(snippet);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
+        &compiled,
+        &interpreted
+    );
+
+    assert_eq!(
+        compiled.map_err(|_| ()),
+        expected,
+        "Not the expected result"
+    );
 }
 
 #[test]
 fn test_evaluate_snippet() {
-    let result = evaluate("(+ 1 2)");
-    assert_eq!(result, Some(Value::Int(3)));
+    assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
 }

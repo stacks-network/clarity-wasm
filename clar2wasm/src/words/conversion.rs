@@ -147,157 +147,145 @@ mod tests {
     use clarity::vm::types::{ASCIIData, CharType, SequenceData, UTF8Data};
     use clarity::vm::Value;
 
-    use crate::tools::evaluate;
+    use crate::tools::crosscheck;
 
     #[test]
     fn valid_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "1234567")"#),
-            Some(Value::some(Value::Int(1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? "1234567")"#,
+            Ok(Some(Value::some(Value::Int(1234567)).unwrap())),
         )
     }
 
     #[test]
     fn valid_negative_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "-1234567")"#),
-            Some(Value::some(Value::Int(-1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? "-1234567")"#,
+            Ok(Some(Value::some(Value::Int(-1234567)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-int? "0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn valid_string_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? "98765")"#),
-            Some(Value::some(Value::UInt(98765)).unwrap())
+        crosscheck(
+            r#"(string-to-uint? "98765")"#,
+            Ok(Some(Value::some(Value::UInt(98765)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_string_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? "0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-uint? "0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn valid_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"1234567")"#),
-            Some(Value::some(Value::Int(1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? u"1234567")"#,
+            Ok(Some(Value::some(Value::Int(1234567)).unwrap())),
         )
     }
 
     #[test]
     fn valid_negative_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"-1234567")"#),
-            Some(Value::some(Value::Int(-1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? u"-1234567")"#,
+            Ok(Some(Value::some(Value::Int(-1234567)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-int? u"0xabcd")"#, Ok(Some(Value::none())));
     }
 
     #[test]
     fn valid_utf8_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? u"98765")"#),
-            Some(Value::some(Value::UInt(98765)).unwrap())
+        crosscheck(
+            r#"(string-to-uint? u"98765")"#,
+            Ok(Some(Value::some(Value::UInt(98765)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_utf8_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? u"0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-uint? u"0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn uint_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii u42)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "42".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii u42)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "42".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn positive_int_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii 2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "2048".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii 2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "2048".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn negative_int_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii -2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "-2048".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii -2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "-2048".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn uint_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 u42)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 u42)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "42".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
+                    data: "42".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         )
     }
 
     #[test]
     fn positive_int_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "2048".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
-        )
+                    data: "2048".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
+        );
     }
 
     #[test]
     fn negative_int_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 -2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 -2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "-2048".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
+                    data: "-2048".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         )
     }
 }

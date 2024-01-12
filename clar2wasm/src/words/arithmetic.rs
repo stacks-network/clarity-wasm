@@ -190,17 +190,14 @@ mod tests {
     #[test]
     fn test_overflow() {
         let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet(
-            "snippet",
-            "(+ u340282366920938463463374607431768211455 u1)",
-        )
-        .expect_err("should panic");
+        env.evaluate("(+ u340282366920938463463374607431768211455 u1)")
+            .expect_err("should error");
     }
 
     #[test]
     fn test_underflow() {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet("snippet", "(- u0 u1)")
-            .expect_err("should panic");
+            .expect_err("should error");
     }
 }

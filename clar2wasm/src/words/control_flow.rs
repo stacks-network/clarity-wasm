@@ -236,19 +236,18 @@ mod tests {
     use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn test_unwrap_panic_some() {
-        assert_eq!(evaluate("(unwrap-panic (some u1))",), Some(Value::UInt(1)));
+        crosscheck("(unwrap-panic (some u1))", Ok(Some(Value::UInt(1))))
     }
 
     #[test]
     fn test_unwrap_panic_none() {
         let mut env = TestEnvironment::default();
         let err = env
-            .init_contract_with_snippet(
-                "callee",
+            .evaluate(
                 r#"
 (define-private (unwrap-opt (x (optional uint)))
     (unwrap-panic x)
@@ -256,21 +255,20 @@ mod tests {
 (unwrap-opt none)
         "#,
             )
-            .expect_err("should panic");
+            .expect_err("should error");
         matches!(err, Error::Wasm(WasmError::Runtime(_)));
     }
 
     #[test]
     fn test_unwrap_panic_ok() {
-        assert_eq!(evaluate("(unwrap-panic (ok u2))",), Some(Value::UInt(2)));
+        crosscheck("(unwrap-panic (ok u2))", Ok(Some(Value::UInt(2))));
     }
 
     #[test]
     fn test_unwrap_panic_err() {
         let mut env = TestEnvironment::default();
         let err = env
-            .init_contract_with_snippet(
-                "callee",
+            .evaluate(
                 r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-panic x)
@@ -278,24 +276,19 @@ mod tests {
 (unwrap-opt (err u42))
         "#,
             )
-            .expect_err("should panic");
+            .expect_err("should error");
         matches!(err, Error::Wasm(WasmError::Runtime(_)));
     }
 
     #[test]
     fn test_unwrap_err_panic_err() {
-        assert_eq!(
-            evaluate("(unwrap-err-panic (err u1))",),
-            Some(Value::UInt(1))
-        );
+        crosscheck("(unwrap-err-panic (err u1))", Ok(Some(Value::UInt(1))))
     }
 
     #[test]
     fn test_unwrap_err_panic_ok() {
-        let mut env = TestEnvironment::default();
-        let err = env
-            .init_contract_with_snippet(
-                "callee",
+        let err = TestEnvironment::default()
+            .evaluate(
                 r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-err-panic x)
@@ -303,17 +296,15 @@ mod tests {
 (unwrap-opt (ok u42))
         "#,
             )
-            .expect_err("should panic");
+            .expect_err("should error");
         matches!(err, Error::Wasm(WasmError::Runtime(_)));
     }
 
     /// Verify that the full response type is set correctly for the last
     /// expression in a `begin` block.
     #[test]
-    fn begin_response_type_bug() {
-        let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet(
-            "snippet",
+    fn begin_response_type_bug() -> Result<(), ()> {
+        evaluate(
             r#"
 (define-private (foo)
     (err u1)
@@ -325,7 +316,7 @@ mod tests {
     )
 )
             "#,
-        )
-        .unwrap();
+        )?;
+        Ok(())
     }
 }
