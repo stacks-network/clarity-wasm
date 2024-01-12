@@ -877,6 +877,24 @@ mod tests {
     }
 
     #[test]
+    fn clar_match_cursed() {
+        const ADD_10: &str = "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   add-10 (+ add-10 107)))";
+
+        crosscheck(
+            &format!("{ADD_10} (add-10 (ok 115))"),
+            Ok(Some(Value::Int(125))),
+        );
+        crosscheck(
+            &format!("{ADD_10} (add-10 (err 18))"),
+            Ok(Some(Value::Int(125))),
+        );
+    }
+
+    #[test]
     fn clar_match_b() {
         const ADD_10: &str = "
 (define-private (add-10 (x (optional int)))
