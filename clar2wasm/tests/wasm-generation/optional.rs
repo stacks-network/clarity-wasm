@@ -8,7 +8,7 @@ proptest! {
     fn is_some_always_true(val in PropValue::any()) {
         assert_eq!(
             evaluate(&format!(r#"(is-some (some {val}))"#)),
-            Some(clarity::vm::Value::Bool(true))
+            Ok(Some(clarity::vm::Value::Bool(true)))
         )
     }
 }
@@ -18,7 +18,7 @@ proptest! {
     fn is_none_always_false(val in PropValue::any()) {
         assert_eq!(
             evaluate(&format!(r#"(is-none (some {val}))"#)),
-            Some(clarity::vm::Value::Bool(false))
+            Ok(Some(clarity::vm::Value::Bool(false)))
         )
     }
 }

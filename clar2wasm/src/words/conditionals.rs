@@ -839,7 +839,7 @@ mod tests {
         );
     }
 
-    #[ignore = "FIXME: err already used in interpreted version"]
+    #[ignore = "FIXME - check for name collisions"]
     #[test]
     fn clar_match_a() {
         const ADD_10: &str = "

@@ -180,24 +180,22 @@ pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
-    let compiled = evaluate(snippet);
+    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
     let interpreted = execute(snippet);
 
-    if compiled.is_err() && interpreted.is_err() {
-        // if both error, we don't require the errors to be equal
-        assert!(expected.is_err(), "Expected Error, got {:?}", expected,)
-    } else {
-        assert_eq!(
-            compiled,
-            interpreted.map_err(|_| ()),
-            "Compiled and interpreted results diverge!"
-        );
-        assert_eq!(
-            compiled.map_err(|_| ()),
-            expected.map_err(|_| ()),
-            "Not the expected result"
-        );
-    }
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
+        &compiled,
+        &interpreted
+    );
+
+    assert_eq!(
+        compiled.map_err(|_| ()),
+        expected,
+        "Not the expected result"
+    );
 }
 
 #[test]
