@@ -2,3 +2,6 @@
 members = ["clar2wasm", "tests"]
 exclude = ["stacks-core"]
 resolver = "2"
+
+[profile.bench]
+debug = true
