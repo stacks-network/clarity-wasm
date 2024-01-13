@@ -1,15 +1,11 @@
-use clar2wasm::tools::evaluate;
 use proptest::{prop_compose, proptest};
 
-use crate::{prop_signature, PropValue};
+use crate::{check_against_interpreter, prop_signature, PropValue};
 
 proptest! {
     #[test]
     fn default_to_with_none_is_always_default(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(default-to {val} none)"#)),
-            Ok(Some(val.into()))
-        )
+        check_against_interpreter(&format!(r#"(default-to {val} none)"#), Some(val.into()));
     }
 }
 
@@ -25,9 +21,9 @@ prop_compose! {
 proptest! {
     #[test]
     fn default_to_with_some_is_always_value((default, value) in default_and_value_of_same_type()) {
-        assert_eq!(
-            evaluate(&format!(r#"(default-to {default} (some {value}))"#)),
-            Ok(Some(value.into()))
-        )
+        check_against_interpreter(
+            &format!(r#"(default-to {default} (some {value}))"#),
+            Some(value.into())
+        );
     }
 }

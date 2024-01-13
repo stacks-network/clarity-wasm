@@ -1,10 +1,10 @@
-use clar2wasm::tools::{evaluate, TestEnvironment};
+use clar2wasm::tools::TestEnvironment;
 use clarity::vm::Value;
 use proptest::prelude::ProptestConfig;
 use proptest::proptest;
 use proptest::strategy::Strategy;
 
-use crate::{PropValue, TypePrinter};
+use crate::{check_against_interpreter, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(ProptestConfig {
@@ -13,8 +13,8 @@ proptest! {
     })]
     #[test]
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&val.to_string()).unwrap(),
+        check_against_interpreter(
+            &val.to_string(),
             Some(val.into())
         )
     }
@@ -24,9 +24,9 @@ proptest! {
         let mut env = TestEnvironment::default();
         env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
     })) {
-        assert_eq!(
-            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val)),
-            Ok(Some(Value::some(val.into()).unwrap()))
+        check_against_interpreter(
+            &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
+            Some(Value::some(val.into()).unwrap())
         )
     }
 }

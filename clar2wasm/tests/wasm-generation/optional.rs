@@ -1,24 +1,23 @@
-use clar2wasm::tools::evaluate;
 use proptest::proptest;
 
-use crate::PropValue;
+use crate::{check_against_interpreter, PropValue};
 
 proptest! {
     #[test]
     fn is_some_always_true(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-some (some {val}))"#)),
-            Ok(Some(clarity::vm::Value::Bool(true)))
-        )
+        check_against_interpreter(
+            &format!(r#"(is-some (some {val}))"#),
+            Some(clarity::vm::Value::Bool(true))
+        );
     }
 }
 
 proptest! {
     #[test]
     fn is_none_always_false(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-none (some {val}))"#)),
-            Ok(Some(clarity::vm::Value::Bool(false)))
-        )
+        check_against_interpreter(
+            &format!(r#"(is-none (some {val}))"#),
+            Some(clarity::vm::Value::Bool(false))
+        );
     }
 }
