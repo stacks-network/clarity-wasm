@@ -1,4 +1,4 @@
-use clar2wasm::tools::{evaluate, TestEnvironment};
+use clar2wasm::tools::{crosscheck, TestEnvironment};
 use clarity::vm::Value;
 use proptest::prelude::ProptestConfig;
 use proptest::proptest;
@@ -13,9 +13,9 @@ proptest! {
     })]
     #[test]
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&val.to_string()).unwrap(),
-            Some(val.into())
+        crosscheck(
+            &val.to_string(),
+            Ok(Some(val.into()))
         )
     }
 
@@ -24,8 +24,8 @@ proptest! {
         let mut env = TestEnvironment::default();
         env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
     })) {
-        assert_eq!(
-            evaluate(&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val)),
+        crosscheck(
+            &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
             Ok(Some(Value::some(val.into()).unwrap()))
         )
     }

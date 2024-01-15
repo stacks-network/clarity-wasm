@@ -1,4 +1,4 @@
-use clar2wasm::tools::evaluate;
+use clar2wasm::tools::crosscheck;
 use proptest::proptest;
 
 use crate::PropValue;
@@ -6,8 +6,8 @@ use crate::PropValue;
 proptest! {
     #[test]
     fn is_ok_always_true(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-ok (ok {val}))"#)),
+        crosscheck(
+            &format!(r#"(is-ok (ok {val}))"#),
             Ok(Some(clarity::vm::Value::Bool(true)))
         )
     }
@@ -16,8 +16,8 @@ proptest! {
 proptest! {
     #[test]
     fn is_ok_always_false(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-ok (err {val}))"#)),
+        crosscheck(
+            &format!(r#"(is-ok (err {val}))"#),
             Ok(Some(clarity::vm::Value::Bool(false)))
         )
     }
@@ -26,8 +26,8 @@ proptest! {
 proptest! {
     #[test]
     fn is_err_always_true(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-err (err {val}))"#)),
+        crosscheck(
+            &format!(r#"(is-err (err {val}))"#),
             Ok(Some(clarity::vm::Value::Bool(true)))
         )
     }
@@ -36,8 +36,8 @@ proptest! {
 proptest! {
     #[test]
     fn is_err_always_false(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r#"(is-err (ok {val}))"#)),
+        crosscheck(
+            &format!(r#"(is-err (ok {val}))"#),
             Ok(Some(clarity::vm::Value::Bool(false)))
         )
     }
