@@ -5,7 +5,6 @@ pub mod regression;
 pub mod response;
 pub mod values;
 
-use clar2wasm::tools::crosscheck;
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
     SequenceData, SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
@@ -52,10 +51,6 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
             (8u32..32, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
         ]
     })
-}
-
-pub fn check_against_interpreter(snippet: &str, expected: Option<Value>) {
-    crosscheck(snippet, Ok(expected));
 }
 
 pub struct PropValue(Value);
