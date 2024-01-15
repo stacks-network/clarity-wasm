@@ -33,7 +33,9 @@ impl ComplexWord for GetBlockInfo {
         // Reserve space on the stack for the return value
         let return_ty = generator
             .get_expr_type(expr)
-            .expect("get-block-info? expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("get-block-info? expression must be typed".to_owned())
+            })?
             .clone();
 
         let (return_offset, return_size) =
@@ -83,7 +85,11 @@ impl ComplexWord for GetBurnBlockInfo {
         // Reserve space on the stack for the return value
         let return_ty = generator
             .get_expr_type(expr)
-            .expect("get-burn-block-info? expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "get-burn-block-info? expression must be typed".to_owned(),
+                )
+            })?
             .clone();
 
         let (return_offset, return_size) =

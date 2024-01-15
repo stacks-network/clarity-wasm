@@ -33,7 +33,9 @@ impl ComplexWord for DefineTrait {
                 .module
                 .funcs
                 .by_name("stdlib.define_trait")
-                .expect("function not found"),
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.define_trait not found".to_owned())
+                })?,
         );
         Ok(())
     }
@@ -97,7 +99,9 @@ impl ComplexWord for ImplTrait {
                 .module
                 .funcs
                 .by_name("stdlib.impl_trait")
-                .expect("function not found"),
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.impl_trait not found".to_owned())
+                })?,
         );
         Ok(())
     }

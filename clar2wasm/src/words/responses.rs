@@ -17,7 +17,7 @@ pub fn traverse_response(
     // Get the type of the response expression
     let ty = generator
         .get_expr_type(res)
-        .expect("input expression must be typed")
+        .ok_or_else(|| GeneratorError::TypeError("input expression must be typed".to_owned()))?
         .clone();
 
     let (ok_ty, err_ty) = if let TypeSignature::ResponseType(types) = &ty {

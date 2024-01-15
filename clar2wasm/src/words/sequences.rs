@@ -41,16 +41,16 @@ impl ComplexWord for ListCons {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .expect("list expression must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
             .clone();
         let (elem_ty, _num_elem) =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 (list_type.get_list_item_type(), list_type.get_max_len())
             } else {
-                panic!(
+                return Err(GeneratorError::TypeError(format!(
                     "Expected list type for list expression, but found: {:?}",
                     ty
-                );
+                )));
             };
 
         // Allocate space on the data stack for the entire list
@@ -113,15 +113,18 @@ impl ComplexWord for Fold {
         // The result type must match the type of the initial value
         let result_clar_ty = generator
             .get_expr_type(initial)
-            .expect("fold's initial value expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "fold's initial value expression must be typed".to_owned(),
+                )
+            })?
             .clone();
         let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
-        let elem_ty = match generator
-            .get_expr_type(sequence)
-            .expect("sequence expression must be typed")
-        {
+        let elem_ty = match generator.get_expr_type(sequence).ok_or_else(|| {
+            GeneratorError::TypeError("sequence expression must be typed".to_owned())
+        })? {
             TypeSignature::SequenceType(seq_ty) => match &seq_ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),
@@ -137,7 +140,7 @@ impl ComplexWord for Fold {
                 }
             },
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 ));
             }
@@ -285,9 +288,7 @@ impl ComplexWord for Append {
     ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
-            .ok_or(GeneratorError::InternalError(
-                "append result must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
             .clone();
 
         let memory = generator.get_memory();
@@ -326,9 +327,7 @@ impl ComplexWord for Append {
         // Get the type of the element that we're appending.
         let elem_ty = generator
             .get_expr_type(elem)
-            .ok_or(GeneratorError::InternalError(
-                "append element must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("append element must be typed".to_string()))?
             .clone();
 
         // Store the element at the write pointer.
@@ -377,7 +376,7 @@ impl ComplexWord for AsMaxLen {
         // Get the length.
         generator
             .get_expr_type(seq)
-            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
                     // The length of the list in bytes is on the top of the stack. If we
@@ -409,7 +408,7 @@ impl ComplexWord for AsMaxLen {
                 | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
                     _,
                 ))) => Ok(()),
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 )),
             })?;
@@ -458,7 +457,7 @@ impl ComplexWord for Concat {
         // Create a new sequence to hold the result in the stack frame
         let ty = generator
             .get_expr_type(expr)
-            .expect("concat expression must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("concat expression must be typed".to_owned()))?
             .clone();
         let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
         builder.local_get(offset);
@@ -521,14 +520,17 @@ impl ComplexWord for Map {
 
         let ty = generator
             .get_expr_type(expr)
-            .expect("list expression must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
             .clone();
 
         let return_element_type =
             if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
                 list_type.get_list_item_type()
             } else {
-                panic!("Expected map to return a list, but found: {:?}", ty);
+                return Err(GeneratorError::TypeError(format!(
+                    "Expected list type for list expression, but found: {:?}",
+                    ty
+                )));
             };
 
         let return_element_size = get_type_size(return_element_type);
@@ -547,7 +549,9 @@ impl ComplexWord for Map {
 
             let (element_ty, element_size) = match generator
                 .get_expr_type(arg)
-                .expect("sequence expression must be typed")
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("sequence expression must be typed".to_owned())
+                })?
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
@@ -563,7 +567,7 @@ impl ComplexWord for Map {
                     _,
                 ))) => (SequenceElementType::UnicodeScalar, 4),
                 _ => {
-                    return Err(GeneratorError::InternalError(
+                    return Err(GeneratorError::TypeError(
                         "expected sequence type".to_string(),
                     ));
                 }
@@ -753,7 +757,7 @@ impl ComplexWord for Len {
         // Get the length
         generator
             .get_expr_type(seq)
-            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
                     // The length of the list in bytes is on the top of the stack. If we
@@ -783,7 +787,7 @@ impl ComplexWord for Len {
                 | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
                     _,
                 ))) => Ok(()),
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 )),
             })?;
@@ -866,7 +870,7 @@ impl ComplexWord for ElementAt {
         // Record the element type, for use later.
         let element_ty: SequenceElementType = generator
             .get_expr_type(seq)
-            .ok_or_else(|| GeneratorError::InternalError("append result must be typed".to_string()))
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))
             .and_then(|ty| match ty {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
                     // The length of the list in bytes is on the top of the stack. If we
@@ -899,7 +903,7 @@ impl ComplexWord for ElementAt {
 
                     Ok(SequenceElementType::UnicodeScalar)
                 }
-                _ => Err(GeneratorError::InternalError(
+                _ => Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 )),
             })?;
@@ -918,9 +922,9 @@ impl ComplexWord for ElementAt {
 
         // If the index is out of range, then return `none`, else load the
         // value at the specified index and return `(some value)`.
-        let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
-            GeneratorError::InternalError("append result must be typed".to_string())
-        })?;
+        let result_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
         builder.if_else(
             InstrSeqType::new(
@@ -1005,9 +1009,9 @@ impl ComplexWord for ReplaceAt {
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::InternalError(
-                "replace-at? result must be typed".to_string(),
-            ))?
+            .ok_or_else(|| {
+                GeneratorError::TypeError("replace-at? result must be typed".to_string())
+            })?
             .clone();
 
         // Create a new stack local for a copy of the input list
@@ -1085,7 +1089,7 @@ impl ComplexWord for ReplaceAt {
 
                 Ok(SequenceElementType::UnicodeScalar)
             }
-            _ => Err(GeneratorError::InternalError(
+            _ => Err(GeneratorError::TypeError(
                 "expected sequence type".to_string(),
             )),
         }?;
@@ -1108,7 +1112,7 @@ impl ComplexWord for ReplaceAt {
         generator.traverse_expr(builder, replacement)?;
 
         let input_ty = generator.get_expr_type(replacement).ok_or_else(|| {
-            GeneratorError::InternalError("replace-at? value must be typed".to_string())
+            GeneratorError::TypeError("replace-at? value must be typed".to_string())
         })?;
         let input_wasm_types = clar2wasm_ty(input_ty);
 
@@ -1117,9 +1121,9 @@ impl ComplexWord for ReplaceAt {
 
         // If the index is out of range, then return `none`, else write the
         // value at the specified index and return `(some value)`.
-        let result_ty = generator.get_expr_type(expr).ok_or_else(|| {
-            GeneratorError::InternalError("append result must be typed".to_string())
-        })?;
+        let result_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
         builder.if_else(
             InstrSeqType::new(
@@ -1266,9 +1270,7 @@ impl ComplexWord for Slice {
 
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::InternalError(
-                "slice? sequence must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("slice? sequence must be typed".to_string()))?
             .clone();
 
         // Get the offset of the specified index.
@@ -1300,7 +1302,7 @@ impl ComplexWord for Slice {
 
                 Ok(())
             }
-            _ => Err(GeneratorError::InternalError(
+            _ => Err(GeneratorError::TypeError(
                 "expected sequence type".to_string(),
             )),
         }?;
@@ -1370,9 +1372,7 @@ impl ComplexWord for Slice {
 
         let seq_ty = generator
             .get_expr_type(seq)
-            .ok_or(GeneratorError::InternalError(
-                "slice? sequence must be typed".to_string(),
-            ))?
+            .ok_or_else(|| GeneratorError::TypeError("slice? sequence must be typed".to_string()))?
             .clone();
 
         // Get the offset of the specified index.
@@ -1404,7 +1404,7 @@ impl ComplexWord for Slice {
 
                 Ok(())
             }
-            _ => Err(GeneratorError::InternalError(
+            _ => Err(GeneratorError::TypeError(
                 "expected sequence type".to_string(),
             )),
         }?;

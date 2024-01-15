@@ -26,7 +26,11 @@ impl ComplexWord for ToConsensusBuff {
 
         let ty = generator
             .get_expr_type(args.get_expr(0)?)
-            .expect("to-consensus-buff? value expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "to-consensus-buff? value expression must be typed".to_owned(),
+                )
+            })?
             .clone();
 
         // Save the offset (current stack pointer) into a local.
@@ -93,7 +97,11 @@ impl ComplexWord for FromConsensusBuff {
         // of this expression.
         let ty = generator
             .get_expr_type(_expr)
-            .expect("from-consensus-buff? value expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "from-consensus-buff? value expression must be typed".to_owned(),
+                )
+            })?
             .clone();
         let wasm_result_ty = clar2wasm_ty(&ty);
         let value_ty = if let TypeSignature::OptionalType(ref inner) = ty {

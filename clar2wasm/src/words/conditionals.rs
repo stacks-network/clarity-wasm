@@ -151,15 +151,17 @@ impl ComplexWord for Filter {
         // Get the type of the sequence
         let ty = generator
             .get_expr_type(sequence)
-            .expect("sequence expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("sequence expression must be typed".to_owned())
+            })?
             .clone();
 
         // Get the type of the sequence
         let seq_ty = match &ty {
             TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
             _ => {
-                return Err(GeneratorError::InternalError(
-                    "expected sequence type".to_string(),
+                return Err(GeneratorError::TypeError(
+                    "expected sequence type".to_owned(),
                 ));
             }
         };
@@ -441,7 +443,11 @@ impl ComplexWord for Unwrap {
 
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let inner_type = match generator.get_expr_type(input) {
             Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
@@ -518,14 +524,18 @@ impl ComplexWord for UnwrapErr {
 
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
             generator.get_expr_type(input)
         {
             (**inner_types).clone()
         } else {
-            return Err(GeneratorError::InternalError(
+            return Err(GeneratorError::TypeError(
                 "unwrap-error! only accepts response types".to_string(),
             ));
         };
@@ -603,8 +613,16 @@ impl ComplexWord for Asserts {
 
         generator.traverse_expr(builder, input)?;
 
-        let input_type = clar2wasm_ty(generator.get_expr_type(input).expect("Input must be typed"));
-        let throw_type = clar2wasm_ty(generator.get_expr_type(throw).expect("Throw must be typed"));
+        let input_type = clar2wasm_ty(
+            generator
+                .get_expr_type(input)
+                .ok_or_else(|| GeneratorError::TypeError("Input must be typed".to_owned()))?,
+        );
+        let throw_type = clar2wasm_ty(
+            generator
+                .get_expr_type(throw)
+                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        );
 
         let mut success_branch = builder.dangling_instr_seq(InstrSeqType::new(
             &mut generator.module.types,

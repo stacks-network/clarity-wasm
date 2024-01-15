@@ -47,13 +47,17 @@ impl ComplexWord for DefaultTo {
         // Default value type
         let default_ty = generator
             .get_expr_type(default)
-            .expect("default expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("default expression must be typed".to_owned())
+            })?
             .clone();
 
         // Optional value type
         let opt_ty = generator
             .get_expr_type(optional)
-            .expect("optional expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("optional expression must be typed".to_owned())
+            })?
             .clone();
         // Optional value
         let opt_val_ty = if let TypeSignature::OptionalType(opt_type) = &opt_ty {

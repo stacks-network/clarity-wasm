@@ -1,6 +1,6 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::UnaryOp;
+use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
@@ -39,7 +39,7 @@ impl ComplexWord for Begin {
             })?,
             generator
                 .get_expr_type(expr)
-                .expect("begin must be typed")
+                .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
         );
         generator.traverse_statement_list(builder, args)
@@ -70,7 +70,9 @@ impl ComplexWord for UnwrapPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .expect("'unwrap-err' input expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("'unwrap-err' input expression must be typed".to_owned())
+            })?
             .clone();
 
         match &input_ty {
@@ -88,19 +90,31 @@ impl ComplexWord for UnwrapPanic {
                 let val_locals = generator.save_to_locals(builder, val_ty, true);
 
                 // If the indicator is 0, throw a runtime error
-                builder.unop(UnaryOp::I32Eqz).if_else(
-                    None,
-                    |then| {
-                        then.i32_const(Trap::Panic as i32).call(
-                            generator
-                                .module
-                                .funcs
-                                .by_name("stdlib.runtime-error")
-                                .expect("stdlib.runtime-error not found"),
-                        );
-                    },
-                    |_| {},
-                );
+                let if_id = {
+                    let mut if_case = builder.dangling_instr_seq(None);
+                    if_case.i32_const(Trap::Panic as i32).call(
+                        generator
+                            .module
+                            .funcs
+                            .by_name("stdlib.runtime-error")
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
+                    );
+                    if_case.id()
+                };
+
+                let else_id = {
+                    let else_case = builder.dangling_instr_seq(None);
+                    else_case.id()
+                };
+
+                builder.unop(UnaryOp::I32Eqz).instr(IfElse {
+                    consequent: if_id,
+                    alternative: else_id,
+                });
 
                 // Otherwise, push the value back onto the stack
                 for val_local in val_locals {
@@ -130,19 +144,31 @@ impl ComplexWord for UnwrapPanic {
                 let ok_val_locals = generator.save_to_locals(builder, ok_ty, true);
 
                 // If the indicator is 0, throw a runtime error
-                builder.unop(UnaryOp::I32Eqz).if_else(
-                    None,
-                    |then| {
-                        then.i32_const(Trap::Panic as i32).call(
-                            generator
-                                .module
-                                .funcs
-                                .by_name("stdlib.runtime-error")
-                                .expect("stdlib.runtime-error not found"),
-                        );
-                    },
-                    |_| {},
-                );
+                let if_id = {
+                    let mut if_case = builder.dangling_instr_seq(None);
+                    if_case.i32_const(Trap::Panic as i32).call(
+                        generator
+                            .module
+                            .funcs
+                            .by_name("stdlib.runtime-error")
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
+                    );
+                    if_case.id()
+                };
+
+                let else_id = {
+                    let else_case = builder.dangling_instr_seq(None);
+                    else_case.id()
+                };
+
+                builder.unop(UnaryOp::I32Eqz).instr(IfElse {
+                    consequent: if_id,
+                    alternative: else_id,
+                });
 
                 // Otherwise, push the value back onto the stack
                 for val_local in ok_val_locals {
@@ -179,7 +205,11 @@ impl ComplexWord for UnwrapErrPanic {
         // Get the type of the input expression
         let input_ty = generator
             .get_expr_type(input)
-            .expect("'unwrap-err-panic' input expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "'unwrap-err-panic' input expression must be typed".to_owned(),
+                )
+            })?
             .clone();
 
         match &input_ty {
@@ -205,19 +235,31 @@ impl ComplexWord for UnwrapErrPanic {
                 drop_value(builder, ok_ty);
 
                 // If the indicator is 0, throw a runtime error
-                builder.unop(UnaryOp::I32Eqz).if_else(
-                    None,
-                    |_| {},
-                    |else_| {
-                        else_.i32_const(Trap::Panic as i32).call(
-                            generator
-                                .module
-                                .funcs
-                                .by_name("stdlib.runtime-error")
-                                .expect("stdlib.runtime-error not found"),
-                        );
-                    },
-                );
+                let if_id = {
+                    let if_case = builder.dangling_instr_seq(None);
+                    if_case.id()
+                };
+
+                let else_id = {
+                    let mut else_case = builder.dangling_instr_seq(None);
+                    else_case.i32_const(Trap::Panic as i32).call(
+                        generator
+                            .module
+                            .funcs
+                            .by_name("stdlib.runtime-error")
+                            .ok_or_else(|| {
+                                GeneratorError::InternalError(
+                                    "stdlib.runtime-error not found".to_owned(),
+                                )
+                            })?,
+                    );
+                    else_case.id()
+                };
+
+                builder.unop(UnaryOp::I32Eqz).instr(IfElse {
+                    consequent: if_id,
+                    alternative: else_id,
+                });
 
                 // Otherwise, push the value back onto the stack
                 for val_local in err_val_locals {

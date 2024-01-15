@@ -17,7 +17,7 @@ pub fn traverse_optional(
     // Get the type of the optional expression
     let ty = generator
         .get_expr_type(opt)
-        .expect("input expression must be typed")
+        .ok_or_else(|| GeneratorError::TypeError("input expression must be typed".to_owned()))?
         .clone();
 
     let some_ty = if let TypeSignature::OptionalType(some_type) = &ty {

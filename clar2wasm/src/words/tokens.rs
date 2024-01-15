@@ -248,7 +248,9 @@ impl ComplexWord for DefineNonFungibleToken {
                 .module
                 .funcs
                 .by_name("stdlib.define_nft")
-                .expect("function not found"),
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("stdlib.define_nft not found".to_owned())
+                })?,
         );
         Ok(())
     }
@@ -284,7 +286,7 @@ impl ComplexWord for BurnNonFungibleToken {
 
         let identifier_ty = generator
             .get_expr_type(identifier)
-            .expect("NFT identifier must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
             .clone();
 
         // Allocate space on the stack for the identifier
@@ -338,7 +340,7 @@ impl ComplexWord for TransferNonFungibleToken {
 
         let identifier_ty = generator
             .get_expr_type(identifier)
-            .expect("NFT identifier must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
             .clone();
 
         // Allocate space on the stack for the identifier
@@ -394,7 +396,7 @@ impl ComplexWord for MintNonFungibleToken {
 
         let identifier_ty = generator
             .get_expr_type(identifier)
-            .expect("NFT identifier must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
             .clone();
 
         // Allocate space on the stack for the identifier
@@ -446,7 +448,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
         let identifier_ty = generator
             .get_expr_type(identifier)
-            .expect("NFT identifier must be typed")
+            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
             .clone();
 
         // Allocate space on the stack for the identifier

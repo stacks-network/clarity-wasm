@@ -95,7 +95,7 @@ impl SimpleWord for IntToAscii {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "invalid type for int-to-ascii".to_owned(),
                 ));
             }
@@ -128,7 +128,7 @@ impl SimpleWord for IntToUtf8 {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "invalid type for int-to-utf8".to_owned(),
                 ));
             }

@@ -15,7 +15,7 @@ fn simple_typed_multi_value(
         TypeSignature::IntType => "int",
         TypeSignature::UIntType => "uint",
         _ => {
-            return Err(GeneratorError::InternalError(
+            return Err(GeneratorError::TypeError(
                 "invalid type for arithmetic".to_string(),
             ));
         }

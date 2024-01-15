@@ -38,7 +38,9 @@ impl ComplexWord for DefineConstant {
 
             let ty = generator
                 .get_expr_type(value)
-                .expect("constant value must be typed")
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("constant value must be typed".to_owned())
+                })?
                 .clone();
 
             let len = get_type_in_memory_size(&ty, true) as u32;

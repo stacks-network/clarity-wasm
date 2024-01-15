@@ -86,25 +86,27 @@ pub trait ArgumentsExt {
 
 impl ArgumentsExt for &[SymbolicExpression] {
     fn get_expr(&self, n: usize) -> Result<&SymbolicExpression, GeneratorError> {
-        self.get(n).ok_or(GeneratorError::InternalError(format!(
-            "{self:?} does not have an argument of index {n}"
-        )))
+        self.get(n).ok_or_else(|| {
+            GeneratorError::InternalError(format!(
+                "{self:?} does not have an argument of index {n}"
+            ))
+        })
     }
 
     fn get_name(&self, n: usize) -> Result<&ClarityName, GeneratorError> {
-        self.get_expr(n)?
-            .match_atom()
-            .ok_or(GeneratorError::InternalError(format!(
+        self.get_expr(n)?.match_atom().ok_or_else(|| {
+            GeneratorError::InternalError(format!(
                 "{self:?} does not have a name at argument index {n}"
-            )))
+            ))
+        })
     }
 
     fn get_list(&self, n: usize) -> Result<&[SymbolicExpression], GeneratorError> {
-        self.get_expr(n)?
-            .match_list()
-            .ok_or(GeneratorError::InternalError(format!(
+        self.get_expr(n)?.match_list().ok_or_else(|| {
+            GeneratorError::InternalError(format!(
                 "{self:?} does not have a list at argument index {n}"
-            )))
+            ))
+        })
     }
 }
 
@@ -130,7 +132,7 @@ pub(crate) fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty
 }
 
 impl WasmGenerator {
-    pub fn new(contract_analysis: ContractAnalysis) -> WasmGenerator {
+    pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module =
             Module::from_buffer(standard_lib_wasm).expect("failed to load standard library");
@@ -147,9 +149,13 @@ impl WasmGenerator {
                     .map_or(false, |name| name == stack_pointer_name)
             })
             .map(|global| global.id())
-            .expect("Expected to find a global named $stack-pointer");
+            .ok_or_else(|| {
+                GeneratorError::InternalError(
+                    "Expected to find a global named $stack-pointer".to_owned(),
+                )
+            })?;
 
-        WasmGenerator {
+        Ok(WasmGenerator {
             contract_analysis,
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
@@ -160,7 +166,7 @@ impl WasmGenerator {
             early_return_block_id: None,
             return_type: None,
             frame_size: 0,
-        }
+        })
     }
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
@@ -244,16 +250,16 @@ impl WasmGenerator {
                     let arg_types: Result<Vec<TypeSignature>, GeneratorError> = args
                         .iter()
                         .map(|e| {
-                            self.get_expr_type(e)
-                                .cloned()
-                                .ok_or(GeneratorError::InternalError(
-                                    "expected valid argument type".into(),
-                                ))
+                            self.get_expr_type(e).cloned().ok_or_else(|| {
+                                GeneratorError::TypeError("expected valid argument type".to_owned())
+                            })
                         })
                         .collect();
                     let return_type = self
                         .get_expr_type(expr)
-                        .expect("Simple words must be typed")
+                        .ok_or_else(|| {
+                            GeneratorError::TypeError("Simple words must be typed".to_owned())
+                        })?
                         .clone();
                     simpleword.visit(self, builder, &arg_types?, &return_type)?;
                 } else {
@@ -291,7 +297,7 @@ impl WasmGenerator {
         let function_type = if let Some(FunctionType::Fixed(fixed)) = opt_function_type {
             fixed.clone()
         } else {
-            return Err(GeneratorError::InternalError(match opt_function_type {
+            return Err(GeneratorError::TypeError(match opt_function_type {
                 Some(_) => "expected fixed function type".to_string(),
                 None => format!("unable to find function type for {}", name.as_str()),
             }));
@@ -311,7 +317,9 @@ impl WasmGenerator {
             self.module
                 .funcs
                 .by_name("stdlib.define_function")
-                .expect("define_function not found"),
+                .ok_or_else(|| {
+                    GeneratorError::InternalError("define_function not found".to_owned())
+                })?,
         );
 
         let mut bindings = HashMap::new();
@@ -552,10 +560,9 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
     ) -> Result<InstrSeqId, GeneratorError> {
-        let return_type = clar2wasm_ty(
-            self.get_expr_type(expr)
-                .expect("Expression results must be typed"),
-        );
+        let return_type = clar2wasm_ty(self.get_expr_type(expr).ok_or_else(|| {
+            GeneratorError::TypeError("Expression results must be typed".to_owned())
+        })?);
 
         let mut block = builder.dangling_instr_seq(InstrSeqType::new(
             &mut self.module.types,
@@ -1261,13 +1268,9 @@ impl WasmGenerator {
         }
 
         // Handle parameters and local bindings
-        let values = self
-            .bindings
-            .get(atom.as_str())
-            .ok_or(GeneratorError::InternalError(format!(
-                "unable to find local for {}",
-                atom.as_str()
-            )))?;
+        let values = self.bindings.get(atom.as_str()).ok_or_else(|| {
+            GeneratorError::InternalError(format!("unable to find local for {}", atom.as_str()))
+        })?;
 
         for value in values {
             builder.local_get(*value);
@@ -1366,9 +1369,7 @@ impl WasmGenerator {
             self.module
                 .funcs
                 .by_name(name.as_str())
-                .ok_or(GeneratorError::TypeError(format!(
-                    "function not found: {name}"
-                )))?,
+                .ok_or_else(|| GeneratorError::TypeError(format!("function not found: {name}")))?,
         );
 
         Ok(())

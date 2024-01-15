@@ -30,7 +30,9 @@ impl ComplexWord for IsEq {
         generator.traverse_expr(builder, first_op)?;
         let ty = generator
             .get_expr_type(first_op)
-            .expect("is-eq value expression must be typed")
+            .ok_or_else(|| {
+                GeneratorError::TypeError("is-eq value expression must be typed".to_owned())
+            })?
             .clone();
 
         // No need to go further if there is only one argument
@@ -67,7 +69,9 @@ impl ComplexWord for IsEq {
             // insert the new operand into locals
             let operand_ty = generator
                 .get_expr_type(operand)
-                .expect("is-eq value expression must be typed")
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("is-eq value expression must be typed".to_owned())
+                })?
                 .clone();
             assign_to_locals(builder, &ty, &operand_ty, &nth_locals)?;
 
@@ -116,10 +120,9 @@ impl ComplexWord for IndexOf {
         // STACK: [offset, size]
 
         // Get type of the Sequence element.
-        let elem_ty = match generator
-            .get_expr_type(seq)
-            .expect("Sequence expression must be typed")
-        {
+        let elem_ty = match generator.get_expr_type(seq).ok_or_else(|| {
+            GeneratorError::TypeError("Sequence expression must be typed".to_owned())
+        })? {
             TypeSignature::SequenceType(ty) => match &ty {
                 SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
                     list_type.get_list_item_type().clone(),
@@ -135,7 +138,7 @@ impl ComplexWord for IndexOf {
                 }
             },
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "expected sequence type".to_string(),
                 ));
             }
@@ -161,146 +164,160 @@ impl ComplexWord for IndexOf {
         builder.local_get(seq_size).unop(UnaryOp::I32Eqz);
         // STACK: [size]
 
-        builder.if_else(
-            InstrSeqType::new(
+        let ty = InstrSeqType::new(
+            &mut generator.module.types,
+            &[],
+            &[ValType::I32, ValType::I64, ValType::I64],
+        );
+
+        let if_id = {
+            let mut if_case = builder.dangling_instr_seq(ty);
+            if_case.i32_const(0).i64_const(0).i64_const(0);
+            if_case.id()
+        };
+
+        let else_id = {
+            let else_case = &mut builder.dangling_instr_seq(ty);
+            let item = args.get_expr(1).unwrap();
+            generator.traverse_expr(else_case, item)?;
+            // STACK: [item]
+
+            // Get the type of the item expression
+            let item_ty = generator
+                .get_expr_type(item)
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("index_of item expression must be typed".to_owned())
+                })?
+                .clone();
+
+            // Store the item into a local.
+            let item_locals = generator.save_to_locals(else_case, &item_ty, true);
+            // STACK: []
+
+            // Create and store an index into a local.
+            let index = generator.module.locals.add(ValType::I64);
+            else_case.i64_const(0);
+            // STACK: [0]
+            else_case.local_set(index);
+            // STACK: []
+
+            // Loop through the sequence.
+            let loop_body_ty = InstrSeqType::new(
                 &mut generator.module.types,
                 &[],
                 &[ValType::I32, ValType::I64, ValType::I64],
-            ),
-            |then| {
-                // If Sequence size is 0 returns "None".
-                then.i32_const(0).i64_const(0).i64_const(0);
-                // STACK: [i32, i64, i64]
-            },
-            |else_| {
-                // Traverse the item, leaving it on top of the stack.
-                let item = args.get_expr(1).unwrap();
-                let _ = generator.traverse_expr(else_, item);
-                // STACK: [item]
+            );
 
-                // Get the type of the item expression
-                let item_ty = generator
-                    .get_expr_type(item)
-                    .expect("index_of item expression must be typed")
-                    .clone();
+            let loop_body = &mut else_case.dangling_instr_seq(loop_body_ty);
+            let loop_body_id = {
+                // Loop label.
+                let loop_id = loop_body.id();
 
-                // Store the item into a local.
-                let item_locals = generator.save_to_locals(else_, &item_ty, true);
-                // STACK: []
+                // Load an element from the sequence, at offset position,
+                // and push it onto the top of the stack.
+                // Also store the current sequence element into a local.
+                let (elem_size, elem_locals) = match &elem_ty {
+                    SequenceElementType::Other(elem_ty) => {
+                        (
+                            generator.read_from_memory(loop_body, offset, 0, elem_ty),
+                            // STACK: [element]
+                            generator.save_to_locals(loop_body, elem_ty, true),
+                            // STACK: []
+                        )
+                    }
+                    SequenceElementType::Byte => {
+                        // The element type is a byte, so we can just push the
+                        // offset and size = 1 to the stack.
+                        let size = 1;
+                        loop_body.local_get(offset).i32_const(size);
+                        // STACK: [offset, size]
 
-                // Create and store an index into a local.
-                let index = generator.module.locals.add(ValType::I64);
-                else_.i64_const(0);
-                // STACK: [0]
-                else_.local_set(index);
-                // STACK: []
+                        (size, generator.save_to_locals(loop_body, &item_ty, true))
+                        // STACK: []
+                    }
+                    SequenceElementType::UnicodeScalar => {
+                        // The element type is a unicode scalar, so we can just push the
+                        // offset and size = 4 to the stack.
+                        let size = 4;
+                        loop_body.local_get(offset).i32_const(size);
+                        // STACK: [offset, size]
 
-                // Loop through the sequence.
-                let loop_body_ty = InstrSeqType::new(
-                    &mut generator.module.types,
-                    &[],
-                    &[ValType::I32, ValType::I64, ValType::I64],
+                        (size, generator.save_to_locals(loop_body, &item_ty, true))
+                        // STACK: []
+                    }
+                };
+
+                // Check item and element equality.
+                // And push the result of the comparison onto the top of the stack.
+                wasm_equal(
+                    &item_ty,
+                    &item_ty,
+                    generator,
+                    loop_body,
+                    &item_locals,
+                    &elem_locals,
+                )?;
+                // STACK: [wasm_equal_result]
+
+                loop_body.if_else(
+                    InstrSeqType::new(
+                        &mut generator.module.types,
+                        &[],
+                        &[ValType::I32, ValType::I64, ValType::I64],
+                    ),
+                    |then| {
+                        then.i32_const(1).local_get(index).i64_const(0);
+                        // STACK: [1, index_lo, index_hi]
+                    },
+                    |else_| {
+                        // Increment the sequence offset by the size of the element
+                        // and push it to the stack.
+                        // Also push the offset limit onto the top of the stack.
+                        else_
+                            .local_get(offset)
+                            .i32_const(elem_size)
+                            .binop(BinaryOp::I32Add)
+                            .local_tee(offset)
+                            .local_get(end_offset);
+                        // STACK: [offset, end_offset]
+
+                        else_.binop(BinaryOp::I32GeU).if_else(
+                            InstrSeqType::new(
+                                &mut generator.module.types,
+                                &[],
+                                &[ValType::I32, ValType::I64, ValType::I64],
+                            ),
+                            |then| {
+                                // Reached the end of the sequence
+                                // and not found the element.
+                                then.i32_const(0).local_get(index).i64_const(0);
+                                // STACK: [0, index_lo, index_hi]
+                            },
+                            |else_| {
+                                // Increment index by 1
+                                // and continue loop.
+                                else_
+                                    .local_get(index)
+                                    .i64_const(1)
+                                    .binop(BinaryOp::I64Add)
+                                    .local_set(index)
+                                    .br(loop_id);
+                            },
+                        );
+                    },
                 );
-                else_.loop_(loop_body_ty, |loop_| {
-                    // Loop label.
-                    let loop_id = loop_.id();
+                loop_body.id()
+            };
 
-                    // Load an element from the sequence, at offset position,
-                    // and push it onto the top of the stack.
-                    // Also store the current sequence element into a local.
-                    let (elem_size, elem_locals) = match &elem_ty {
-                        SequenceElementType::Other(elem_ty) => {
-                            (
-                                generator.read_from_memory(loop_, offset, 0, elem_ty),
-                                // STACK: [element]
-                                generator.save_to_locals(loop_, elem_ty, true),
-                                // STACK: []
-                            )
-                        }
-                        SequenceElementType::Byte => {
-                            // The element type is a byte, so we can just push the
-                            // offset and size = 1 to the stack.
-                            let size = 1;
-                            loop_.local_get(offset).i32_const(size);
-                            // STACK: [offset, size]
+            else_case.instr(Loop { seq: loop_body_id });
 
-                            (size, generator.save_to_locals(loop_, &item_ty, true))
-                            // STACK: []
-                        }
-                        SequenceElementType::UnicodeScalar => {
-                            // The element type is a unicode scalar, so we can just push the
-                            // offset and size = 4 to the stack.
-                            let size = 4;
-                            loop_.local_get(offset).i32_const(size);
-                            // STACK: [offset, size]
+            else_case.id()
+        };
 
-                            (size, generator.save_to_locals(loop_, &item_ty, true))
-                            // STACK: []
-                        }
-                    };
-
-                    // Check item and element equality.
-                    // And push the result of the comparison onto the top of the stack.
-                    let _res = wasm_equal(
-                        &item_ty,
-                        &item_ty,
-                        generator,
-                        loop_,
-                        &item_locals,
-                        &elem_locals,
-                    );
-                    // STACK: [wasm_equal_result]
-
-                    loop_.if_else(
-                        InstrSeqType::new(
-                            &mut generator.module.types,
-                            &[],
-                            &[ValType::I32, ValType::I64, ValType::I64],
-                        ),
-                        |then| {
-                            then.i32_const(1).local_get(index).i64_const(0);
-                            // STACK: [1, index_lo, index_hi]
-                        },
-                        |else_| {
-                            // Increment the sequence offset by the size of the element
-                            // and push it to the stack.
-                            // Also push the offset limit onto the top of the stack.
-                            else_
-                                .local_get(offset)
-                                .i32_const(elem_size)
-                                .binop(BinaryOp::I32Add)
-                                .local_tee(offset)
-                                .local_get(end_offset);
-                            // STACK: [offset, end_offset]
-
-                            else_.binop(BinaryOp::I32GeU).if_else(
-                                InstrSeqType::new(
-                                    &mut generator.module.types,
-                                    &[],
-                                    &[ValType::I32, ValType::I64, ValType::I64],
-                                ),
-                                |then| {
-                                    // Reached the end of the sequence
-                                    // and not found the element.
-                                    then.i32_const(0).local_get(index).i64_const(0);
-                                    // STACK: [0, index_lo, index_hi]
-                                },
-                                |else_| {
-                                    // Increment index by 1
-                                    // and continue loop.
-                                    else_
-                                        .local_get(index)
-                                        .i64_const(1)
-                                        .binop(BinaryOp::I64Add)
-                                        .local_set(index)
-                                        .br(loop_id);
-                                },
-                            );
-                        },
-                    );
-                });
-            },
-        );
+        builder.instr(IfElse {
+            consequent: if_id,
+            alternative: else_id,
+        });
 
         Ok(())
     }

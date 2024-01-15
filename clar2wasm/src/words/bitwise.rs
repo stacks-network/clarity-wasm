@@ -139,7 +139,7 @@ impl SimpleWord for BitwiseRShift {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
-                return Err(GeneratorError::InternalError(
+                return Err(GeneratorError::TypeError(
                     "invalid type for shift".to_string(),
                 ));
             }

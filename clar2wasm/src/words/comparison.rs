@@ -26,7 +26,7 @@ fn traverse_comparison(
             "buff"
         }
         _ => {
-            return Err(GeneratorError::InternalError(
+            return Err(GeneratorError::TypeError(
                 "invalid type for comparison".to_string(),
             ))
         }
@@ -36,7 +36,9 @@ fn traverse_comparison(
         .module
         .funcs
         .by_name(&format!("stdlib.{name}-{type_suffix}"))
-        .unwrap_or_else(|| panic!("function not found: {name}-{type_suffix}"));
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("function not found: {name}-{type_suffix}"))
+        })?;
 
     builder.call(func);
 
