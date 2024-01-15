@@ -179,7 +179,7 @@ impl ComplexWord for IndexOf {
         let else_id = {
             let else_case = &mut builder.dangling_instr_seq(ty);
             let item = args.get_expr(1).unwrap();
-            let _ = generator.traverse_expr(else_case, item);
+            generator.traverse_expr(else_case, item)?;
             // STACK: [item]
 
             // Get the type of the item expression
