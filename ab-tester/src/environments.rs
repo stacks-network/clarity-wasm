@@ -13,6 +13,7 @@ use log::*;
 use self::instrumented::InstrumentedEnv;
 use self::network::NetworkEnv;
 use self::stacks_node::StacksNodeEnv;
+use crate::cli::commands::env::EnvironmentType;
 use crate::context::boot_data::mainnet_boot_data;
 use crate::context::{Block, BlockCursor, Network, Runtime};
 use crate::db::appdb::AppDb;
@@ -45,6 +46,7 @@ impl RuntimeEnvBuilder {
         name: &str,
         runtime: &Runtime,
         network: &Network,
+        environment_type: &EnvironmentType,
         readonly: bool,
         path: &str,
     ) -> Result<super::db::model::Environment> {
@@ -56,6 +58,7 @@ impl RuntimeEnvBuilder {
                         runtime.into(), 
                         network.network_id() as i32,
                         network.chain_id() as i32,
+                        *environment_type as i32,
                         readonly, 
                         name, 
                         path)
@@ -74,11 +77,13 @@ impl RuntimeEnvBuilder {
             &name,
             &Runtime::None,
             &network,
+            &EnvironmentType::StacksNode,
             true,
             node_dir
                 .to_str()
                 .ok_or(anyhow!("failed to convert node dir to path"))?,
         )?;
+        
         Ok(StacksNodeEnv::new(env.id, name, node_dir))
     }
 
@@ -97,6 +102,7 @@ impl RuntimeEnvBuilder {
             &name, 
             &runtime, 
             &network, 
+            &EnvironmentType::Instrumented,
             readonly, 
             &working_dir
         )?;
@@ -251,6 +257,7 @@ fn open_sortition_db(path: &str, network: &Network) -> Result<stacks::SortitionD
 }
 
 pub trait EnvPaths {
+    fn working_dir(&self) -> &Path;
     fn index_db_path(&self) -> &Path;
     fn sortition_dir(&self) -> &Path;
     fn sortition_db_path(&self) -> &Path;
@@ -261,6 +268,7 @@ pub trait EnvPaths {
     /// Prints information about the paths.
     fn print(&self, env_name: &str) {
         info!("[{env_name}] using directories:");
+        debug!("[{env_name}] working dir: {:?}", self.working_dir());
         debug!("[{env_name}] index db: {:?}", self.index_db_path());
         debug!("[{env_name}] sortition dir: {:?}", self.sortition_dir());
         debug!("[{env_name}] sortition db: {:?}", self.sortition_db_path());
@@ -271,6 +279,8 @@ pub trait EnvPaths {
 }
 
 pub trait EnvConfig {
+    fn working_dir(&self) -> &Path;
+
     fn chainstate_index_db_path(&self) -> &Path;
     fn is_chainstate_app_indexed(&self) -> bool;
     fn blocks_dir(&self) -> &Path;

@@ -10,7 +10,7 @@ use std::rc::Rc;
 use color_eyre::eyre::{anyhow, bail};
 use color_eyre::Result;
 use diesel::helper_types::{Limit, Offset};
-use diesel::{prelude::*, update};
+use diesel::{prelude::*, update, delete};
 use diesel::query_dsl::methods::{LimitDsl, LoadQuery, OffsetDsl};
 use diesel::upsert::excluded;
 use diesel::{debug_query, insert_into, OptionalExtension, QueryDsl, SqliteConnection};
@@ -19,7 +19,7 @@ use lz4_flex::compress_prepend_size;
 
 use super::dbcursor::RecordCursor;
 use super::model::{
-    Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment, Payment,
+    Block, BlockHeader, Contract, ContractExecution, ContractVarInstance, Environment, Payment, EnvironmentSnapshot,
 };
 use super::schema::*;
 #[allow(unused_imports)]
@@ -660,6 +660,7 @@ impl AppDb {
         runtime_id: i32,
         network_id: i32,
         chain_id: i32,
+        environment_type_id: i32,
         is_read_only: bool,
         name: &str,
         path: &str,
@@ -668,6 +669,7 @@ impl AppDb {
             environment::runtime_id.eq(runtime_id),
             environment::network_id.eq(network_id),
             environment::chain_id.eq(chain_id),
+            environment::environment_type_id.eq(environment_type_id),
             environment::name.eq(name),
             environment::is_read_only.eq(is_read_only),
             environment::last_block_height.eq(0),
@@ -683,6 +685,14 @@ impl AppDb {
         Ok(result)
     }
 
+    pub fn delete_environment(&self, environment_id: i32) -> Result<()> {
+        delete(environment::table)
+            .filter(environment::id.eq(environment_id))
+            .execute(&mut *self.conn.borrow_mut())?;
+
+        Ok(())
+    }
+
     /// Updates an environment's last-processed block height, which enables
     /// resume-processing functionality.
     pub fn set_environment_last_block_height(
@@ -696,6 +706,31 @@ impl AppDb {
             .execute(&mut *self.conn.borrow_mut())?;
 
         Ok(())
+    }
+
+    /// Inserts a new environment snapshot instance.
+    pub fn insert_environment_snapshot(
+        &self,
+        environment_id: i32,
+        name: &str,
+        block_height: i32,
+        path: &str
+    ) -> Result<EnvironmentSnapshot> {
+        let query = insert_into(environment_snapshot::table)
+            .values((
+                environment_snapshot::name.eq(name),
+                environment_snapshot::environment_id.eq(environment_id),
+                environment_snapshot::block_height.eq(block_height),
+                environment_snapshot::file_path.eq(path)
+            ));
+
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
+
+        let result = query
+            .get_result::<EnvironmentSnapshot>(&mut *self.conn.borrow_mut())
+            .unwrap();
+
+        Ok(result)
     }
 
     /// Inserts a Clarity contract into the application-specific database and

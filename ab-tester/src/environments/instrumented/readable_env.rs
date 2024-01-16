@@ -7,7 +7,7 @@ use crate::{
     }, 
     db::{
         model, 
-        schema::{_payments, _snapshots, _block_commits}, appdb::headers_db::AsHeadersDb
+        schema::{_payments, _snapshots, _block_commits}
     }, 
     context::BlockCursor
 };

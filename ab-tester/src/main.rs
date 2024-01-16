@@ -111,7 +111,7 @@ fn configure_logging(cli: &Cli) {
         std::env::set_var("sql_trace", "1");
     }
 
-    if !cli.disable_stacks_logging {
+    if cli.enable_stacks_logging {
         if let Some(level) = cli.verbosity.log_level() {
             match level {
                 Level::Trace => {

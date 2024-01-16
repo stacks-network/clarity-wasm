@@ -1,13 +1,16 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 
 use color_eyre::Result;
 use color_eyre::eyre::{bail, anyhow};
 use comfy_table::{Row, Table};
 use diesel::{Connection, SqliteConnection};
 use log::*;
+use chrono::prelude::*;
 
 use crate::cli::{
     EnvArgs, EnvSubCommands, ListEnvArgs, NewEnvArgs, NewEnvSubCommands, NewInstrumentedEnvArgs,
@@ -17,7 +20,7 @@ use crate::config::Config;
 use crate::context::{Runtime, Network};
 use crate::db::appdb::AppDb;
 use crate::environments::{RuntimeEnvBuilder, ReadableEnv};
-use crate::ok;
+use crate::{ok, DeleteEnvArgs};
 use crate::utils::{zstd_compress, append_to_path};
 
 pub async fn exec(
@@ -31,7 +34,31 @@ pub async fn exec(
         EnvSubCommands::List(args) => exec_list(app_db, config, args).await,
         EnvSubCommands::New(args) => exec_new(app_db, config, args).await,
         EnvSubCommands::Snapshot(args) => exec_snapshot(app_db, config, args).await,
+        EnvSubCommands::Delete(args) => exec_delete(app_db, config, args).await,
     }
+}
+
+async fn exec_delete(
+    app_db: AppDb,
+    _config: &Config,
+    args: &DeleteEnvArgs
+) -> Result<()> {
+    let app_db = Rc::new(app_db);
+
+    // Handle id vs. name environment identifiers
+    let env = if let Some(id) = args.env_id {
+        app_db.get_env_by_id(id)?
+            .ok_or(anyhow!("environment could not be found"))
+    } else if let Some(name) = &args.env_name {
+        app_db.get_env_by_name(name)?
+            .ok_or(anyhow!("environment could not be found"))
+    } else {
+        bail!("one of env-id or env-name must be provided.")
+    }?;
+
+    app_db.delete_environment(env.id)?;
+
+    todo!()
 }
 
 async fn exec_snapshot(
@@ -61,12 +88,12 @@ async fn exec_snapshot(
     // Create a `ReadableEnv` instance from the environment's stored configuration.
     let mut env_instance: Box<dyn ReadableEnv> = match env_type {
         EnvironmentType::StacksNode => {
-            Box::new(builder.stacks_node(env.name, PathBuf::try_from(env.base_path)?)?)
+            Box::new(builder.stacks_node(env.name.clone(), PathBuf::try_from(env.base_path)?)?)
         },
         EnvironmentType::NetworkSynced => todo!(),
         EnvironmentType::Instrumented => {
             Box::new(builder.instrumented(
-                env.name, 
+                env.name.clone(), 
                 env.runtime_id.try_into()?, 
                 Network::new(env.network_id as u32, env.chain_id as u32)?, 
                 env.is_read_only, 
@@ -76,9 +103,16 @@ async fn exec_snapshot(
 
     // Attempt to open the environment for reading.
     env_instance.open()?;
+
+    let alias = args.alias.clone().unwrap_or_else(|| {
+        let mut alias = env.name;
+        alias.push_str("-");
+        alias.push_str(&Utc::now().format("%Y%m%d%H%M%S").to_string());
+        alias.to_string()
+    });
     
     // Attempt to snapshot the environment's current state.
-    snapshot_environment(&*env_instance, config)?;
+    snapshot_environment(&*env_instance, config, alias)?;
 
     todo!()
 }
@@ -123,12 +157,15 @@ async fn exec_new_from_stacks_node(
     let app_db = Rc::new(app_db);
 
     let builder = RuntimeEnvBuilder::new(app_db);
+
+    info!("attempting to read stacks node at path: {:?}", args.path);
     let mut env = builder.stacks_node(
         name.to_string(), 
         args.path.clone())?;
 
     let x: &mut dyn ReadableEnv = &mut env;
     x.open()?;
+    info!("node successfully opened and validated");
 
     ok!()
 }
@@ -236,9 +273,38 @@ async fn exec_list(
 
 fn snapshot_environment(
     target: &dyn ReadableEnv,
-    config: &Config
+    config: &Config,
+    snapshot_name: String
 ) -> Result<()> {
     let name = target.name();
+    let working_dir = target.cfg().working_dir();
+
+    debug!("creating new tar archive of the environment's working directory: '{:?}'", working_dir);
+    let mut tar_file = tempfile::tempfile()?;
+    {
+        let mut tar = tar::Builder::new(&mut tar_file);
+        tar.append_path(working_dir)?;
+        tar.finish()?;
+    }
+    tar_file.flush()?;
+
+    let target_path = PathBuf::from_str(&config.app.working_dir)?
+        .join(format!("snapshots/{:?}/{:?}.tar.zstd", name, snapshot_name));
+
+    debug!("opening target file for compression: {}", target_path.display());
+    let mut target_file = File::options()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(target_path)?;
+    let target_writer = BufWriter::new(&mut target_file);
+
+    debug!("compressing file");
+    zstd::stream::copy_encode(tar_file, target_writer, 5)?;
+    debug!("compression finished, flushing file");
+    target_file.sync_all()?;
+
+    std::thread::sleep(Duration::from_millis(500));
 
     // TODO: Load environment from src-target.backup if exists and --reset-env
     // is set.

@@ -18,6 +18,9 @@ pub struct NetworkEnv {
 pub struct NetworkEnvConfig {}
 
 impl EnvConfig for NetworkEnvConfig {
+    fn working_dir(&self) -> &std::path::Path {
+        todo!()
+    }
     fn chainstate_index_db_path(&self) -> &std::path::Path {
         todo!()
     }

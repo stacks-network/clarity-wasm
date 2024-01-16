@@ -36,6 +36,9 @@ pub struct InstrumentedEnvConfig {
 }
 
 impl EnvConfig for InstrumentedEnvConfig {
+    fn working_dir(&self) -> &std::path::Path {
+        &self.working_dir
+    }
     fn chainstate_index_db_path(&self) -> &std::path::Path {
         self.paths.index_db_path()
     }

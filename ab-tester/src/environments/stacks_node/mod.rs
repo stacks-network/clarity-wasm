@@ -33,6 +33,9 @@ pub struct StacksNodeEnvConfig {
 }
 
 impl EnvConfig for StacksNodeEnvConfig {
+    fn working_dir(&self) -> &Path {
+        &self.node_dir
+    }
     fn chainstate_index_db_path(&self) -> &Path {
         &self.paths.chainstate_dir
     }
@@ -128,7 +131,7 @@ impl StacksNodeEnv {
             .first::<(bool, i32)>(&mut db)?;
 
         // TODO: This construct only supports mainnet + testnet
-        let network_id = if db_config.0 { 0 } else { 1 };
+        let network_id = if db_config.0 { 1 } else { 0 };
 
         Network::new(network_id, db_config.1 as u32)
     }
@@ -575,6 +578,7 @@ impl ReadableEnv for StacksNodeEnv {
 /// and sortition.
 #[derive(Debug, Clone)]
 pub struct StacksEnvPaths {
+    pub working_dir: PathBuf,
     pub index_db_path: PathBuf,
     pub sortition_dir: PathBuf,
     pub sortition_db_path: PathBuf,
@@ -584,6 +588,9 @@ pub struct StacksEnvPaths {
 }
 
 impl EnvPaths for StacksEnvPaths {
+    fn working_dir(&self) -> &Path {
+        &self.working_dir
+    }
     fn index_db_path(&self) -> &Path {
         &self.index_db_path
     }
@@ -610,6 +617,7 @@ impl StacksEnvPaths {
     /// this application.
     pub fn new(working_dir: PathBuf) -> Self {
         Self {
+            working_dir: working_dir.clone(),
             index_db_path: working_dir.join("chainstate/vm/index.sqlite"),
             sortition_dir: working_dir.join("burnchain/sortition"),
             sortition_db_path: working_dir.join("burnchain/sortition/marf.sqlite"),

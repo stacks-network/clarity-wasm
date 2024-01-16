@@ -43,12 +43,12 @@ pub struct Cli {
 
     #[arg(
         short = None,
-        long = "disable-stacks-logging",
-        help = "Disables logging of Stacks node output to the console.",
+        long = "enable-stacks-logging",
+        help = "Enables output of Stacks node logging to the console.",
         default_value = "false",
         global = true,
     )]
-    pub disable_stacks_logging: bool,
+    pub enable_stacks_logging: bool,
 }
 
 impl Cli {
@@ -94,9 +94,14 @@ pub struct EnvArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum EnvSubCommands {
+    /// Create a new virtual Stacks node environment for testing.
     New(NewEnvArgs),
+    ///Print a list of the available node environments.
     List(ListEnvArgs),
-    Snapshot(SnapshotEnvArgs)
+    ///Create a point-in-time snapshot of the specified environment.
+    Snapshot(SnapshotEnvArgs),
+    ///Delete the specified environment, optionally also removing the environment's data from disk.
+    Delete(DeleteEnvArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -207,13 +212,31 @@ pub struct NewEnvArgs {
 
 pub struct SnapshotEnvArgs {
     #[arg(
-        long = "env-name"
+        long = "name"
     )]
     pub env_name: Option<String>,
     #[arg(
-        long = "env-id"
+        long = "id"
     )]
     pub env_id: Option<i32>,
+    
+    #[arg(long = "alias")]
+    pub alias: Option<String>
+}
+
+#[derive(Debug, Args)]
+pub struct DeleteEnvArgs {
+    #[arg(long = "name")]
+    pub env_name: Option<String>,
+    #[arg(long = "id")]
+    pub env_id: Option<i32>,
+    #[arg(
+        long = "remove-node-dir",
+        short = 'r',
+        default_value = "false",
+        help = "If provided, the node's working directory on disk will be removed."
+    )]
+    pub remove_node_dir: bool,
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
