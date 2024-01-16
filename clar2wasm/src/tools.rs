@@ -192,9 +192,10 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
     );
 
     assert_eq!(
-        compiled.map_err(|_| ()),
-        expected,
-        "Not the expected result"
+        compiled.as_ref().map_err(|_| &()),
+        expected.as_ref(),
+        "Not the expected result {:?}",
+        compiled.as_ref().unwrap_err()
     );
 }
 

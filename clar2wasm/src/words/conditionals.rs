@@ -60,6 +60,14 @@ impl ComplexWord for Match {
     ) -> Result<(), GeneratorError> {
         let match_on = args.get_expr(0)?;
         let success_binding = args.get_name(1)?;
+
+        if generator.is_reserved_name(success_binding) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                success_binding
+            )));
+        }
+
         let success_body = args.get_expr(2)?;
 
         // save the current set of named locals, for later restoration
@@ -93,6 +101,14 @@ impl ComplexWord for Match {
                 let (ok_ty, err_ty) = &*inner_types;
 
                 let err_binding = args.get_name(3)?;
+
+                if generator.is_reserved_name(err_binding) {
+                    return Err(GeneratorError::InternalError(format!(
+                        "Name already used {:?}",
+                        err_binding
+                    )));
+                }
+
                 let err_body = args.get_expr(4)?;
 
                 let err_locals = generator.save_to_locals(builder, err_ty, true);
@@ -857,14 +873,13 @@ mod tests {
         );
     }
 
-    #[ignore = "FIXME - check for name collisions"]
     #[test]
     fn clar_match_a() {
         const ADD_10: &str = "
 (define-private (add-10 (x (response int int)))
  (match x
    val (+ val 10)
-   err (+ err 107)))";
+   error (+ error 107)))";
 
         crosscheck(
             &format!("{ADD_10} (add-10 (ok 115))"),
@@ -874,6 +889,30 @@ mod tests {
             &format!("{ADD_10} (add-10 (err 18))"),
             Ok(Some(Value::Int(125))),
         );
+    }
+
+    #[test]
+    fn clar_match_disallow_builtin_names() {
+        // It's not allowed to use names of user-defined functions as bindings
+        const ERR: &str = "
+(define-private (test (x (response int int)))
+ (match x
+   val (+ val 10)
+   err (+ err 107)))";
+
+        crosscheck(&format!("{ERR} (test (err 18))"), Err(()));
+    }
+
+    #[test]
+    fn clar_match_cursed() {
+        // It's not allowed to use names of user-defined functions as bindings
+        const CURSED: &str = "
+(define-private (cursed (x (response int int)))
+ (match x
+   val (+ val 10)
+   cursed (+ cursed 107)))";
+
+        crosscheck(&format!("{CURSED} (cursed (err 18))"), Err(()));
     }
 
     #[test]

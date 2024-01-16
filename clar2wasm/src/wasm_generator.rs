@@ -1480,4 +1480,13 @@ impl WasmGenerator {
             .unop(UnaryOp::I64ExtendUI32)
             .call(self.func_by_name("log"));
     }
+
+    pub(crate) fn is_reserved_name(&self, name: &ClarityName) -> bool {
+        words::lookup_complex(name).is_some()
+            || words::lookup_simple(name).is_some()
+            || self
+                .contract_analysis
+                .get_public_function_type(name.as_str())
+                .is_some()
+    }
 }

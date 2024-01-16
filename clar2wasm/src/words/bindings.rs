@@ -1,7 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::words::ComplexWord;
 
 #[derive(Debug)]
 pub struct Let;
@@ -29,6 +29,15 @@ impl ComplexWord for Let {
             let name = pair.get_name(0)?;
             let value = pair.get_expr(1)?;
 
+            // make sure name does not collide with builtin or user-defined symbols
+
+            if generator.is_reserved_name(name) {
+                return Err(GeneratorError::InternalError(format!(
+                    "Name already used {:?}",
+                    name
+                )));
+            }
+
             // Traverse the value
             generator.traverse_expr(builder, value)?;
 
@@ -52,5 +61,32 @@ impl ComplexWord for Let {
         generator.bindings = saved_locals;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck;
+
+    #[test]
+    fn clar_let_disallow_builtin_names() {
+        // It's not allowed to use names of user-defined functions as bindings
+        const ERR: &str = "
+(define-private (test)
+ (let ((+ u3))
+   +))";
+
+        crosscheck(&format!("{ERR} (test)"), Err(()));
+    }
+
+    #[test]
+    fn clar_let_disallow_user_defined_names() {
+        // It's not allowed to use names of user-defined functions as bindings
+        const ERR: &str = "
+(define-private (test)
+ (let ((test u3))
+    test))";
+
+        crosscheck(&format!("{ERR} (test)"), Err(()));
     }
 }
