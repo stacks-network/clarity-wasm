@@ -1,6 +1,7 @@
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Functions below are considered no-op's because they are instructions that does nothing
@@ -10,20 +11,18 @@ use crate::wasm_generator::{GeneratorError, WasmGenerator};
 #[derive(Debug)]
 pub struct ToInt;
 
-impl Word for ToInt {
+impl SimpleWord for ToInt {
     fn name(&self) -> ClarityName {
         "to-int".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
         let helper_func = generator.func_by_name("stdlib.to-int");
         builder.call(helper_func);
 
@@ -34,20 +33,18 @@ impl Word for ToInt {
 #[derive(Debug)]
 pub struct ToUint;
 
-impl Word for ToUint {
+impl SimpleWord for ToUint {
     fn name(&self) -> ClarityName {
         "to-uint".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
-        args: &[SymbolicExpression],
+        _arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
         let helper_func = generator.func_by_name("stdlib.to-uint");
         builder.call(helper_func);
 
@@ -58,7 +55,7 @@ impl Word for ToUint {
 #[derive(Debug)]
 pub struct ContractOf;
 
-impl Word for ContractOf {
+impl ComplexWord for ContractOf {
     fn name(&self) -> ClarityName {
         "contract-of".into()
     }
@@ -81,49 +78,44 @@ mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate as eval, TestEnvironment};
+    use crate::tools::{crosscheck, TestEnvironment};
 
     #[test]
-    #[should_panic]
     fn to_int_out_of_range() {
-        assert_eq!(
-            eval("(to-int u170141183460469231731687303715884105728)"),
-            Some(Value::Int(42))
-        );
+        crosscheck("(to-int u170141183460469231731687303715884105728)", Err(()))
     }
 
     #[test]
     fn to_int_max_on_range() {
-        assert_eq!(
-            eval("(to-int u170141183460469231731687303715884105727)"),
-            Some(Value::Int(170141183460469231731687303715884105727))
-        );
+        crosscheck(
+            "(to-int u170141183460469231731687303715884105727)",
+            Ok(Some(Value::Int(170141183460469231731687303715884105727))),
+        )
     }
 
     #[test]
     fn to_int_zero() {
-        assert_eq!(eval("(to-int u0)"), Some(Value::Int(0)));
+        crosscheck("(to-int u0)", Ok(Some(Value::Int(0))));
     }
 
     #[test]
     fn to_int() {
-        assert_eq!(eval("(to-int u42)"), Some(Value::Int(42)));
+        crosscheck("(to-int u42)", Ok(Some(Value::Int(42))));
     }
 
     #[test]
-    #[should_panic]
     fn to_uint_negative() {
-        assert_eq!(eval("(to-uint -31)"), Some(Value::UInt(767)));
+        crosscheck("(to-uint -31)", Err(()))
     }
 
     #[test]
     fn to_uint() {
-        assert_eq!(eval("(to-uint 767)"), Some(Value::UInt(767)));
+        crosscheck("(to-uint 767)", Ok(Some(Value::UInt(767))));
     }
 
     #[test]
     fn to_uint_zero() {
-        assert_eq!(eval("(to-uint 0)"), Some(Value::UInt(0)));
+        crosscheck("(to-uint 0)", Ok(Some(Value::UInt(0))));
     }
 
     #[test]

@@ -5,8 +5,8 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-# clarity = { path = "../stacks-core/clarity" }
 clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next-devnet" }
+
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"

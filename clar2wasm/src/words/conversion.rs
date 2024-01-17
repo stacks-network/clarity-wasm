@@ -1,29 +1,24 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
-use super::Word;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError};
+use super::SimpleWord;
+use crate::wasm_generator::GeneratorError;
 
 #[derive(Debug)]
 pub struct StringToInt;
 
-impl Word for StringToInt {
+impl SimpleWord for StringToInt {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-int?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let func_prefix = match generator
-            .get_expr_type(args.get_expr(0)?)
-            .expect("string-to-int? argument should have a type")
-        {
+        let func_prefix = match &arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
             }
@@ -47,24 +42,19 @@ impl Word for StringToInt {
 #[derive(Debug)]
 pub struct StringToUint;
 
-impl Word for StringToUint {
+impl SimpleWord for StringToUint {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-uint?".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let func_prefix = match generator
-            .get_expr_type(args.get_expr(0)?)
-            .expect("string-to-int? argument should have a type")
-        {
+        let func_prefix = match arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
             }
@@ -89,25 +79,19 @@ impl Word for StringToUint {
 #[derive(Debug)]
 pub struct IntToAscii;
 
-impl Word for IntToAscii {
+impl SimpleWord for IntToAscii {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-ascii".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let input = args.get_expr(0)?;
-        let ty = generator
-            .get_expr_type(input)
-            .expect("int-to-ascii input must be typed");
-        let type_prefix = match ty {
+        let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
@@ -128,25 +112,19 @@ impl Word for IntToAscii {
 #[derive(Debug)]
 pub struct IntToUtf8;
 
-impl Word for IntToUtf8 {
+impl SimpleWord for IntToUtf8 {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-utf8".into()
     }
 
-    fn traverse(
+    fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
-        args: &[clarity::vm::SymbolicExpression],
+        arg_types: &[TypeSignature],
+        _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        generator.traverse_args(builder, args)?;
-
-        let input = args.get_expr(0)?;
-        let ty = generator
-            .get_expr_type(input)
-            .expect("int-to-utf8 input must be typed");
-        let type_prefix = match ty {
+        let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
             _ => {
@@ -169,157 +147,145 @@ mod tests {
     use clarity::vm::types::{ASCIIData, CharType, SequenceData, UTF8Data};
     use clarity::vm::Value;
 
-    use crate::tools::evaluate;
+    use crate::tools::crosscheck;
 
     #[test]
     fn valid_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "1234567")"#),
-            Some(Value::some(Value::Int(1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? "1234567")"#,
+            Ok(Some(Value::some(Value::Int(1234567)).unwrap())),
         )
     }
 
     #[test]
     fn valid_negative_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "-1234567")"#),
-            Some(Value::some(Value::Int(-1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? "-1234567")"#,
+            Ok(Some(Value::some(Value::Int(-1234567)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_string_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? "0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-int? "0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn valid_string_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? "98765")"#),
-            Some(Value::some(Value::UInt(98765)).unwrap())
+        crosscheck(
+            r#"(string-to-uint? "98765")"#,
+            Ok(Some(Value::some(Value::UInt(98765)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_string_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? "0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-uint? "0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn valid_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"1234567")"#),
-            Some(Value::some(Value::Int(1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? u"1234567")"#,
+            Ok(Some(Value::some(Value::Int(1234567)).unwrap())),
         )
     }
 
     #[test]
     fn valid_negative_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"-1234567")"#),
-            Some(Value::some(Value::Int(-1234567)).unwrap())
+        crosscheck(
+            r#"(string-to-int? u"-1234567")"#,
+            Ok(Some(Value::some(Value::Int(-1234567)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_utf8_to_int() {
-        assert_eq!(
-            evaluate(r#"(string-to-int? u"0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-int? u"0xabcd")"#, Ok(Some(Value::none())));
     }
 
     #[test]
     fn valid_utf8_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? u"98765")"#),
-            Some(Value::some(Value::UInt(98765)).unwrap())
+        crosscheck(
+            r#"(string-to-uint? u"98765")"#,
+            Ok(Some(Value::some(Value::UInt(98765)).unwrap())),
         )
     }
 
     #[test]
     fn invalid_utf8_to_uint() {
-        assert_eq!(
-            evaluate(r#"(string-to-uint? u"0xabcd")"#),
-            Some(Value::none())
-        )
+        crosscheck(r#"(string-to-uint? u"0xabcd")"#, Ok(Some(Value::none())))
     }
 
     #[test]
     fn uint_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii u42)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "42".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii u42)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "42".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn positive_int_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii 2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "2048".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii 2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "2048".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn negative_int_to_string() {
-        assert_eq!(
-            evaluate(r#"(int-to-ascii -2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::ASCII(
-                ASCIIData {
-                    data: "-2048".bytes().collect()
-                }
-            ))))
+        crosscheck(
+            r#"(int-to-ascii -2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "-2048".bytes().collect(),
+                }),
+            )))),
         )
     }
 
     #[test]
     fn uint_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 u42)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 u42)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "42".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
+                    data: "42".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         )
     }
 
     #[test]
     fn positive_int_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "2048".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
-        )
+                    data: "2048".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
+        );
     }
 
     #[test]
     fn negative_int_to_utf8() {
-        assert_eq!(
-            evaluate(r#"(int-to-utf8 -2048)"#),
-            Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+        crosscheck(
+            r#"(int-to-utf8 -2048)"#,
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
                 UTF8Data {
-                    data: "-2048".bytes().map(|b| vec![b]).collect()
-                }
-            ))))
+                    data: "-2048".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         )
     }
 }

@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -9,7 +9,7 @@ use crate::wasm_generator::{
 #[derive(Debug)]
 pub struct ClaritySome;
 
-impl Word for ClaritySome {
+impl ComplexWord for ClaritySome {
     fn name(&self) -> ClarityName {
         "some".into()
     }
@@ -44,7 +44,7 @@ impl Word for ClaritySome {
 #[derive(Debug)]
 pub struct ClarityOk;
 
-impl Word for ClarityOk {
+impl ComplexWord for ClarityOk {
     fn name(&self) -> ClarityName {
         "ok".into()
     }
@@ -89,7 +89,7 @@ impl Word for ClarityOk {
 #[derive(Debug)]
 pub struct ClarityErr;
 
-impl Word for ClarityErr {
+impl ComplexWord for ClarityErr {
     fn name(&self) -> ClarityName {
         "err".into()
     }

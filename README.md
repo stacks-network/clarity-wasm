@@ -194,6 +194,44 @@ Output `profile001.svg` preview:
 
 ## Contribute
 
+### Using local paths for dependencies
+
+When modifying both the `clar2wasm` crate and the `stacks-core` crates, you can use the `[patch]` section in .cargo/config to specify local paths for these dependencies. This will allow you to test your changes to both crates together, without the need to first untested changes push to GitHub.
+
+Add the following to *clarity-wasm/.cargo/config*
+
+```toml
+[patch.'https://github.com/stacks-network/stacks-core.git']
+clarity = { path = "../stacks-core/clarity" }
+``````
+
+Then do the same for the stacks-core repo, adding the following to *stacks-core/.cargo/config*
+
+```toml
+[patch.'https://github.com/stacks-network/stacks-core.git']
+clarity = { path = "stacks-core/clarity" }
+stacks-common = { path = "stacks-core/stacks-common" }
+```
+
+Similarly, in the stacks-core directory, you can add the following to *stacks-core/.cargo/config*
+
+```toml
+[patch.'https://github.com/stacks-network/stacks-core.git']
+clarity = { path = "clarity" }
+stacks-common = { path = "stacks-common" }
+pox-locking = { path = "pox-locking" }
+libstackerdb = { path = "libstackerdb" }
+stx-genesis = { path = "stx-genesis"}
+stacks = { package = "stackslib", path = "stackslib" }
+libsigner = { path = "libsigner" }
+stacks-signer = { path = "stacks-signer" }
+
+[patch.'https://github.com/stacks-network/clarity-wasm.git']
+clar2wasm = { package = "clar2wasm", path = "../clar2wasm/." }
+```
+
+Note that these patch configurations should not be checked into the repositories, because we want the default behavior to be to use the git repo paths.
+
 ### Formatting
 
 To standardize the formatting of the code, we use rustfmt. To format your changes using the standard options, run:

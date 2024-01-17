@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
@@ -8,7 +9,9 @@ use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::types::{
+    BuffData, QualifiedContractIdentifier, SequenceData, StandardPrincipalData,
+};
 use clarity::vm::{
     eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
 };
@@ -671,8 +674,9 @@ fn clarity_add(c: &mut Criterion) {
     conn.begin();
     conn.set_clarity_epoch_version(StacksEpochId::latest());
     conn.commit();
-    let mut cost_tracker = LimitedCostTracker::new_free();
-    let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+    let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
+    let mut contract_context: ContractContext =
+        ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
     let contract_str = r#"
 (define-read-only (add (x int) (y int))
@@ -755,6 +759,307 @@ fn clarity_add(c: &mut Criterion) {
     global_context.commit().unwrap();
 }
 
+fn sha512(c: &mut Criterion) {
+    c.bench_function("calculate-sha512: clarity wasm", |b| {
+        let (instance, mut store) = load_stdlib().unwrap();
+        let sha512 = instance
+            .get_func(store.borrow_mut(), "stdlib.sha512-buf")
+            .unwrap();
+
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .expect("Could not find memory");
+
+        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+        let res_offset: i32 = 3000i32;
+
+        let text = b"Hello, World!";
+        memory
+            .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+            .expect("Should be able to write to memory");
+
+        b.iter(|| {
+            let mut results = [Val::I64(0), Val::I64(0)];
+            sha512
+                .call(
+                    &mut store.borrow_mut(),
+                    &[
+                        Val::I32(END_OF_STANDARD_DATA as i32),
+                        Val::I32(text.len() as i32),
+                        res_offset.into(),
+                    ],
+                    &mut results,
+                )
+                .unwrap();
+        })
+    });
+}
+
+fn clarity_sha512(c: &mut Criterion) {
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("clarity-sha512"),
+    );
+
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+
+    let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
+    let mut contract_context: ContractContext =
+        ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+    let contract_str = r#"
+(define-read-only (calculate-sha512 (data (buff 1000)))
+    (sha512 data)
+)
+    "#
+    .to_string();
+
+    // Parse the contract
+    let (mut ast, _, success) = build_ast_with_diagnostics(
+        &contract_id,
+        &contract_str,
+        &mut cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+    );
+
+    if !success {
+        panic!("Failed to parse contract");
+    }
+
+    // Create a new analysis database
+    let mut analysis_db = AnalysisDatabase::new(&mut clarity_store);
+
+    // Run the analysis passes
+    let mut contract_analysis = run_analysis(
+        &contract_id,
+        &mut ast.expressions,
+        &mut analysis_db,
+        false,
+        cost_tracker,
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+    )
+    .expect("Failed to run analysis");
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+
+    global_context.begin();
+
+    {
+        // Initialize the contract
+        eval_all(
+            &ast.expressions,
+            &mut contract_context,
+            &mut global_context,
+            None,
+        )
+        .expect("Failed to interpret the contract");
+
+        let func = contract_context
+            .lookup_function("calculate-sha512")
+            .expect("failed to lookup function");
+
+        let mut call_stack = CallStack::new();
+        let mut env = Environment::new(
+            &mut global_context,
+            &contract_context,
+            &mut call_stack,
+            Some(StandardPrincipalData::transient().into()),
+            Some(StandardPrincipalData::transient().into()),
+            None,
+        );
+
+        let input: &str = "Hello World!";
+
+        let hex_buffer: Vec<u8> = input.bytes().collect();
+
+        // If you want the result as a single string
+        // let hex_string = hex_buffer.join("");
+
+        c.bench_function("calculate-sha512: clarity", |b| {
+            b.iter(|| {
+                let buffer_clone = hex_buffer.clone(); // Clone the buffer
+                let _result = func
+                    .execute_apply(
+                        &[Value::Sequence(SequenceData::Buffer(BuffData {
+                            data: buffer_clone,
+                        }))],
+                        &mut env,
+                    )
+                    .expect("Function call failed");
+            })
+        });
+    }
+
+    global_context.commit().unwrap();
+}
+
+fn sha256(c: &mut Criterion) {
+    c.bench_function("calculate-sha256: clarity wasm", |b| {
+        let (instance, mut store) = load_stdlib().unwrap();
+        let sha512 = instance
+            .get_func(store.borrow_mut(), "stdlib.sha256-buf")
+            .unwrap();
+
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .expect("Could not find memory");
+
+        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
+        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+
+        let res_offset: i32 = 3000i32;
+
+        let text = b"Hello, World!";
+        memory
+            .write(&mut store, END_OF_STANDARD_DATA as usize, text)
+            .expect("Should be able to write to memory");
+
+        b.iter(|| {
+            let mut results = [Val::I32(0), Val::I32(0)];
+            sha512
+                .call(
+                    &mut store.borrow_mut(),
+                    &[
+                        Val::I32(END_OF_STANDARD_DATA as i32),
+                        Val::I32(text.len() as i32),
+                        res_offset.into(),
+                    ],
+                    &mut results,
+                )
+                .unwrap();
+        })
+    });
+}
+
+fn clarity_sha256(c: &mut Criterion) {
+    let contract_id = QualifiedContractIdentifier::new(
+        StandardPrincipalData::transient(),
+        ContractName::from("clarity-sha256"),
+    );
+
+    let mut datastore = Datastore::new();
+    let constants = StacksConstants::default();
+    let burn_datastore = BurnDatastore::new(constants);
+    let mut clarity_store = MemoryBackingStore::new();
+    let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
+    conn.begin();
+    conn.set_clarity_epoch_version(StacksEpochId::latest());
+    conn.commit();
+
+    let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
+    let mut contract_context: ContractContext =
+        ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+
+    let contract_str = r#"
+(define-read-only (calculate-sha256 (data (buff 1000)))
+    (sha256 data)
+)
+    "#
+    .to_string();
+
+    // Parse the contract
+    let (mut ast, _, success) = build_ast_with_diagnostics(
+        &contract_id,
+        &contract_str,
+        &mut cost_tracker,
+        ClarityVersion::latest(),
+        StacksEpochId::latest(),
+    );
+
+    if !success {
+        panic!("Failed to parse contract");
+    }
+
+    // Create a new analysis database
+    let mut analysis_db = AnalysisDatabase::new(&mut clarity_store);
+
+    // Run the analysis passes
+    let mut contract_analysis = run_analysis(
+        &contract_id,
+        &mut ast.expressions,
+        &mut analysis_db,
+        false,
+        cost_tracker,
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+    )
+    .expect("Failed to run analysis");
+
+    let mut global_context = GlobalContext::new(
+        false,
+        CHAIN_ID_TESTNET,
+        conn,
+        contract_analysis.cost_track.take().unwrap(),
+        StacksEpochId::latest(),
+    );
+
+    global_context.begin();
+
+    {
+        // Initialize the contract
+        eval_all(
+            &ast.expressions,
+            &mut contract_context,
+            &mut global_context,
+            None,
+        )
+        .expect("Failed to interpret the contract");
+
+        let func = contract_context
+            .lookup_function("calculate-sha256")
+            .expect("failed to lookup function");
+
+        let mut call_stack = CallStack::new();
+        let mut env = Environment::new(
+            &mut global_context,
+            &contract_context,
+            &mut call_stack,
+            Some(StandardPrincipalData::transient().into()),
+            Some(StandardPrincipalData::transient().into()),
+            None,
+        );
+
+        let input: &str = "Hello World!";
+
+        let hex_buffer: Vec<u8> = input.bytes().collect();
+
+        // If you want the result as a single string
+        // let hex_string = hex_buffer.join("");
+
+        c.bench_function("calculate-sha256: clarity", |b| {
+            b.iter(|| {
+                let buffer_clone = hex_buffer.clone(); // Clone the buffer
+                let _result = func
+                    .execute_apply(
+                        &[Value::Sequence(SequenceData::Buffer(BuffData {
+                            data: buffer_clone,
+                        }))],
+                        &mut env,
+                    )
+                    .expect("Function call failed");
+            })
+        });
+    }
+
+    global_context.commit().unwrap();
+}
 use walrus::{FunctionBuilder, ModuleConfig, ValType};
 
 pub fn generate_wasm() -> Vec<u8> {
@@ -893,6 +1198,6 @@ criterion_group! {
             Criterion::default()
         }
     };
-    targets = add, add_externfunc, rust_add, clarity_add
+    targets = add, add_externfunc, rust_add, clarity_add, sha512, clarity_sha512, sha256, clarity_sha256
 }
 criterion_main!(add_comparison);

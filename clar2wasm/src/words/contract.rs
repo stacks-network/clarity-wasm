@@ -2,13 +2,13 @@ use clarity::vm::types::PrincipalData;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ValType;
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct AsContract;
 
-impl Word for AsContract {
+impl ComplexWord for AsContract {
     fn name(&self) -> ClarityName {
         "as-contract".into()
     }
@@ -38,7 +38,7 @@ impl Word for AsContract {
 #[derive(Debug)]
 pub struct ContractCall;
 
-impl Word for ContractCall {
+impl ComplexWord for ContractCall {
     fn name(&self) -> ClarityName {
         "contract-call?".into()
     }

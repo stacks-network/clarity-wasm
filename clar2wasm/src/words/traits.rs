@@ -1,12 +1,12 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 
-use super::Word;
+use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct DefineTrait;
 
-impl Word for DefineTrait {
+impl ComplexWord for DefineTrait {
     fn name(&self) -> ClarityName {
         "define-trait".into()
     }
@@ -42,7 +42,7 @@ impl Word for DefineTrait {
 #[derive(Debug)]
 pub struct UseTrait;
 
-impl Word for UseTrait {
+impl ComplexWord for UseTrait {
     fn name(&self) -> ClarityName {
         "use-trait".into()
     }
@@ -62,7 +62,7 @@ impl Word for UseTrait {
 #[derive(Debug)]
 pub struct ImplTrait;
 
-impl Word for ImplTrait {
+impl ComplexWord for ImplTrait {
     fn name(&self) -> ClarityName {
         "impl-trait".into()
     }
@@ -108,12 +108,12 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
         // Just validate that it doesn't crash
-        assert_eq!(evaluate("(define-trait my-trait ())"), None);
+        crosscheck("(define-trait my-trait ())", Ok(None))
     }
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
         (get-balance (principal) (response uint uint))))
              "#,
             )
-            .expect("Failed to init contract.");
+            .unwrap();
 
         assert!(val.is_none());
         let contract_context = env.get_contract_context("token-trait").unwrap();
@@ -247,11 +247,8 @@ mod tests {
 (foo .my-trait)
             "#,
             )
-            .expect("Failed to init contract use-trait.");
+            .map_err(|_| ());
 
-        assert_eq!(
-            val.unwrap(),
-            evaluate("(list .my-trait .my-trait)").unwrap()
-        );
+        assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
     }
 }

@@ -1,21 +1,33 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{
-    FixedFunction, FunctionType, SequenceSubtype, StringSubtype, TypeSignature,
-};
+use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
-use super::Word;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::words::{self, ComplexWord};
+
+fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
+    match se {
+        SequenceElementType::Other(o) => o.clone(),
+        SequenceElementType::Byte => BUFF_1.clone(),
+        SequenceElementType::UnicodeScalar => {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                StringUTF8Length::try_from(1u32)
+                    .expect("String length of 1 should always be valid"),
+            )))
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ListCons;
 
-impl Word for ListCons {
+impl ComplexWord for ListCons {
     fn name(&self) -> ClarityName {
         "list".into()
     }
@@ -71,7 +83,7 @@ impl Word for ListCons {
 #[derive(Debug)]
 pub struct Fold;
 
-impl Word for Fold {
+impl ComplexWord for Fold {
     fn name(&self) -> ClarityName {
         "fold".into()
     }
@@ -206,9 +218,18 @@ impl Word for Fold {
             loop_.local_get(*result_local);
         }
 
-        // Call the function
-        generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        if let Some(simple) = words::lookup_simple(func) {
+            // Call simple builtin
 
+            let arg_a_ty = type_from_sequence_element(&elem_ty);
+
+            let arg_types = &[arg_a_ty, result_clar_ty.clone()];
+
+            simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
+        } else {
+            // Call user defined function
+            generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+        }
         // Save the result into the locals (in reverse order as we pop)
         for result_local in result_locals.iter().rev() {
             loop_.local_set(*result_local);
@@ -250,7 +271,7 @@ impl Word for Fold {
 #[derive(Debug)]
 pub struct Append;
 
-impl Word for Append {
+impl ComplexWord for Append {
     fn name(&self) -> ClarityName {
         "append".into()
     }
@@ -320,7 +341,7 @@ impl Word for Append {
 #[derive(Debug)]
 pub struct AsMaxLen;
 
-impl Word for AsMaxLen {
+impl ComplexWord for AsMaxLen {
     fn name(&self) -> ClarityName {
         "as-max-len?".into()
     }
@@ -420,7 +441,7 @@ impl Word for AsMaxLen {
 #[derive(Debug)]
 pub struct Concat;
 
-impl Word for Concat {
+impl ComplexWord for Concat {
     fn name(&self) -> ClarityName {
         "concat".into()
     }
@@ -484,7 +505,7 @@ impl Word for Concat {
 #[derive(Debug)]
 pub struct Map;
 
-impl Word for Map {
+impl ComplexWord for Map {
     fn name(&self) -> ClarityName {
         "map".into()
     }
@@ -493,24 +514,24 @@ impl Word for Map {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
-        let return_element_type =
-            match generator
-                .get_function_type(fname)
-                .ok_or(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                ))? {
-                FunctionType::Fixed(FixedFunction { returns, .. }) => Ok(returns.clone()),
-                _ => Err(GeneratorError::InternalError(
-                    "Map function must be typed".to_string(),
-                )),
-            }?;
+        let ty = generator
+            .get_expr_type(expr)
+            .expect("list expression must be typed")
+            .clone();
 
-        let return_element_size = get_type_size(&return_element_type);
+        let return_element_type =
+            if let TypeSignature::SequenceType(SequenceSubtype::ListType(list_type)) = &ty {
+                list_type.get_list_item_type()
+            } else {
+                panic!("Expected map to return a list, but found: {:?}", ty);
+            };
+
+        let return_element_size = get_type_size(return_element_type);
 
         let min_num_elements = generator.module.locals.add(ValType::I32);
         builder.i32_const(i32::MAX);
@@ -653,11 +674,22 @@ impl Word for Map {
                 .local_set(*offset);
         }
 
-        // Call the function.
-        generator.visit_call_user_defined(&mut loop_, &return_element_type, fname)?;
+        if let Some(simple) = words::lookup_simple(fname) {
+            // Call simple builtin
+
+            let arg_types: Vec<_> = input_element_types
+                .iter()
+                .map(type_from_sequence_element)
+                .collect();
+
+            simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
+        } else {
+            // Call user defined function.
+            generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
+        }
 
         // Write the result to the output sequence.
-        generator.write_to_memory(&mut loop_, output_offset, 0, &return_element_type);
+        generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type);
 
         // Increment the output offset by the size of the element.
         loop_
@@ -695,7 +727,7 @@ impl Word for Map {
 #[derive(Debug)]
 pub struct Len;
 
-impl Word for Len {
+impl ComplexWord for Len {
     fn name(&self) -> ClarityName {
         "len".into()
     }
@@ -781,7 +813,7 @@ pub enum ElementAt {
     Alias,
 }
 
-impl Word for ElementAt {
+impl ComplexWord for ElementAt {
     fn name(&self) -> ClarityName {
         match self {
             ElementAt::Original => "element-at".into(),
@@ -958,7 +990,7 @@ impl Word for ElementAt {
 #[derive(Debug)]
 pub struct ReplaceAt;
 
-impl Word for ReplaceAt {
+impl ComplexWord for ReplaceAt {
     fn name(&self) -> ClarityName {
         "replace-at?".into()
     }
@@ -1178,7 +1210,7 @@ impl Word for ReplaceAt {
 #[derive(Debug)]
 pub struct Slice;
 
-impl Word for Slice {
+impl ComplexWord for Slice {
     fn name(&self) -> ClarityName {
         "slice?".into()
     }
@@ -1428,28 +1460,30 @@ impl Word for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::evaluate as eval;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_fold_sub() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (sub (x int) (y int))
     (- x y)
 )
 (fold sub (list 1 2 3 4) 0)
-    "#
-            ),
-            Some(Value::Int(2))
-        );
+    "#,
+            Ok(Some(Value::Int(2))),
+        )
+    }
+
+    #[test]
+    fn test_fold_builtin() {
+        crosscheck(r#"(fold + (list 1 2 3 4) 0)"#, Ok(Some(Value::Int(10))))
     }
 
     #[test]
     fn test_fold_sub_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (sub (x int) (y int))
     (- x y)
 )
@@ -1457,200 +1491,186 @@ mod tests {
     (fold sub l 42)
 )
 (fold-sub (list))
-    "#
-            ),
-            Some(Value::Int(42))
-        );
+    "#,
+            Ok(Some(Value::Int(42))),
+        )
     }
 
     #[test]
     fn test_fold_string_ascii() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string "cdef" "ab")
-    "#
-            ),
-            Some(Value::string_ascii_from_bytes("fedcab".to_string().into_bytes()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_ascii_from_bytes("fedcab".to_string().into_bytes()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_ascii_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string "" "ab")
-    "#
-            ),
-            Some(Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_ascii_from_bytes("ab".to_string().into_bytes()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"cdef" u"ab")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("fedcab".into()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_utf8_from_bytes("fedcab".into()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8_b() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"cdef" u"ab\u{1F98A}")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap())
-        );
+    "#,
+            Ok(Some(
+                Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_string_utf8_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (concat-string (a (string-utf8 20)) (b (string-utf8 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-string u"" u"ab\u{1F98A}")
-    "#
-            ),
-            Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())
-        );
+    "#,
+            Ok(Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())),
+        )
     }
 
     #[test]
     fn test_fold_buffer() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r"
 (define-private (concat-buff (a (buff 20)) (b (buff 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-buff 0x03040506 0x0102)
-"#,
-            ),
-            Some(Value::buff_from(vec![0x06, 0x05, 0x04, 0x03, 0x01, 0x02]).unwrap())
-        );
+",
+            Ok(Some(
+                Value::buff_from(vec![0x06, 0x05, 0x04, 0x03, 0x01, 0x02]).unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_fold_buffer_empty() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            "
 (define-private (concat-buff (a (buff 20)) (b (buff 20)))
     (unwrap-panic (as-max-len? (concat a b) u20))
 )
 (fold concat-buff 0x 0x0102)
-"#,
-            ),
-            Some(Value::buff_from(vec![0x01, 0x02]).unwrap())
-        );
+",
+            Ok(Some(Value::buff_from(vec![0x01, 0x02]).unwrap())),
+        )
     }
 
     #[test]
     fn test_map_simple_list() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (addify (a int))
     (+ a 1)
 )
 (map addify (list 1 2 3))
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![Value::Int(2), Value::Int(3), Value::Int(4)])
-                    .unwrap()
-            )
-        );
+                    .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_buff() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (zero-or-one (char (buff 1))) (if (is-eq char 0x00) 0x00 0x01))
-(map zero-or-one 0x000102) 
-        "#
-            ),
-            Some(
+(map zero-or-one 0x000102)
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::buff_from_byte(0),
                     Value::buff_from_byte(1),
-                    Value::buff_from_byte(1)
+                    Value::buff_from_byte(1),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_string_ascii() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (a-or-b (char (string-ascii 1))) (if (is-eq char "a") "a" "b"))
 (map a-or-b "aca")
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
                     Value::string_ascii_from_bytes(vec![0x62]).unwrap(),
                     Value::string_ascii_from_bytes(vec![0x61]).unwrap(),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_simple_string_utf8() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (a-or-b (char (string-utf8 1))) (if (is-eq char u"a") u"a" u"b"))
 (map a-or-b u"aca")
-        "#
-            ),
-            Some(
+        "#,
+            Ok(Some(
                 Value::cons_list_unsanitized(vec![
                     Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
                     Value::string_utf8_from_bytes(vec![0x62]).unwrap(),
                     Value::string_utf8_from_bytes(vec![0x61]).unwrap(),
                 ])
-                .unwrap()
-            )
-        );
+                .unwrap(),
+            )),
+        )
     }
 
     #[test]
     fn test_map_mixed() {
-        assert_eq!(
-            eval(
-                r#"
+        crosscheck(
+            r#"
 (define-private (add-everything
     (a int)
     (b uint)
@@ -1673,13 +1693,22 @@ mod tests {
     u"123"
     0x010203
 )
-        "#
-            ),
-            Some(
-                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15),])
-                    .unwrap()
-            )
-        );
+        "#,
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15)])
+                    .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
+    fn test_builtin_string() {
+        let a = r#"
+(map >
+  "ab"
+  "ba"
+)"#;
+        crosscheck(a, evaluate("(list false true)"));
     }
 
     #[test]
@@ -1693,25 +1722,57 @@ mod tests {
 ";
 
         let a = &format!("{MAP_FNS} (map addify-1 (list 1 2 3))");
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list 2 3 4)"));
 
-        let a = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        let b = &format!("{MAP_FNS} (map addify-2 (list 1 2 3) (list 7 8))");
+        crosscheck(b, evaluate("(list 9 11)"));
     }
 
     #[test]
     fn test_heterogeneus() {
         const MAP_HETERO: &str = "
-(define-private (selectron (a int) (b bool) (c int))
-  (if b a c))";
+(define-private (selectron (a bool) (b int) (c int))
+  (if a b c))";
 
         let a = &format!(
             "{MAP_HETERO}
 (map selectron
-  (list 1 2 3 4)
   (list true false false true)
+  (list 1 2 3 4)
   (list 10 20 30))"
         );
-        assert_eq!(clarity::vm::execute(a).unwrap(), eval(a));
+        crosscheck(a, evaluate("(list 1 20 30)"));
+    }
+
+    #[test]
+    fn test_builtin() {
+        let a = "
+(map +
+  (list 1 2 3 4)
+  (list 10 20 30))
+";
+        crosscheck(a, evaluate("(list 11 22 33)"))
+    }
+
+    #[test]
+    fn map_and() {
+        let a = "
+(map and
+  (list true true true)
+  (list false true true)
+  (list false false true))
+";
+        crosscheck(a, evaluate("(list false false true)"))
+    }
+
+    #[test]
+    fn map_or() {
+        let a = "
+(map or
+  (list true false true)
+  (list false false true)
+  (list false false false))
+";
+        crosscheck(a, evaluate("(list true false true)"));
     }
 }
