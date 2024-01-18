@@ -26,6 +26,10 @@ impl ComplexWord for DefineDataVar {
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name);
 
+        // Traverse the initial value for the data variable (result is on the
+        // data stack)
+        generator.traverse_expr(builder, initial)?;
+
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
         let ty = generator
@@ -38,10 +42,6 @@ impl ComplexWord for DefineDataVar {
         builder
             .i32_const(generator.literal_memory_end as i32)
             .local_set(offset);
-
-        // Traverse the initial value for the data variable (result is on the
-        // data stack)
-        generator.traverse_expr(builder, initial)?;
 
         // Write the initial value to the memory, to be read by the host.
         let size = generator.write_to_memory(builder, offset, 0, &ty);

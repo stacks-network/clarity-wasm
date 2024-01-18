@@ -581,7 +581,7 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.2.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#fd73fd58b16782836248e9b037fbac04f9238db7"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#863707b41f6ba028cfd19993b6d6243debec6f9b"
 dependencies = [
  "integer-sqrt",
  "lazy_static",
@@ -2814,7 +2814,7 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.2"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#fd73fd58b16782836248e9b037fbac04f9238db7"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#863707b41f6ba028cfd19993b6d6243debec6f9b"
 dependencies = [
  "chrono",
  "curve25519-dalek",
@@ -4042,9 +4042,9 @@ dependencies = [
 
 [[package]]
 name = "wsts"
-version = "5.0.0"
+version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c250118354755b4abb091a83cb8d659b511c0ae211ccdb3b1254e3db199cb86"
+checksum = "6c7db3d3fe28c359e0cdb7f7ad83e3316bda0ba982b8cd1bf0fbe73ae4127e4b"
 dependencies = [
  "aes-gcm",
  "bs58 0.5.0",

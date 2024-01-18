@@ -30,3 +30,13 @@ proptest! {
         )
     }
 }
+
+proptest! {
+    #[test]
+    fn data_var_define_and_get(val in PropValue::any()) {
+        crosscheck(
+            &format!(r##"(define-data-var v {} {val}) (var-get v)"##, val.type_string()),
+            Ok(Some(val.into()))
+        )
+    }
+}
