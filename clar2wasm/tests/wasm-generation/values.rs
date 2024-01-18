@@ -34,9 +34,9 @@ proptest! {
 proptest! {
     #[test]
     fn data_var_define_and_get(val in PropValue::any()) {
-        assert_eq!(
-            evaluate(&format!(r##"(define-data-var v {} {val}) (var-get v)"##, val.type_string())),
-            evaluate(&val.to_string())
+        crosscheck(
+            &format!(r##"(define-data-var v {} {val}) (var-get v)"##, val.type_string()),
+            Ok(Some(val.into()))
         )
     }
 }
