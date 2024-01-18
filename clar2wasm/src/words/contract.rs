@@ -96,7 +96,7 @@ impl ComplexWord for ContractCall {
                 })?
                 .clone();
 
-            arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty);
+            arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty)?;
         }
 
         // Push the arguments offset and length onto the data stack

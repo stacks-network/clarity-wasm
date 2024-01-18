@@ -916,7 +916,7 @@ impl WasmGenerator {
         for local in inner_locals {
             loop_block.local_get(local);
         }
-        let bytes_written = self.write_to_memory(&mut loop_block, result_offset, 0, element_ty);
+        let bytes_written = self.write_to_memory(&mut loop_block, result_offset, 0, element_ty)?;
 
         // Increment the result offset by the number of bytes written
         loop_block

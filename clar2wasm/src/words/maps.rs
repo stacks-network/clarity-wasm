@@ -86,7 +86,7 @@ impl ComplexWord for MapGet {
         generator.traverse_expr(builder, key)?;
 
         // Write the key to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, key_offset, 0, &ty);
+        generator.write_to_memory(builder, key_offset, 0, &ty)?;
 
         // Push the key offset and size to the data stack
         builder.local_get(key_offset).i32_const(key_size);
@@ -159,7 +159,7 @@ impl ComplexWord for MapSet {
         generator.traverse_expr(builder, key)?;
 
         // Write the key to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, key_offset, 0, &ty);
+        generator.write_to_memory(builder, key_offset, 0, &ty)?;
 
         // Push the key offset and size to the data stack
         builder.local_get(key_offset).i32_const(key_size);
@@ -177,7 +177,7 @@ impl ComplexWord for MapSet {
         generator.traverse_expr(builder, value)?;
 
         // Write the value to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, val_offset, 0, &ty);
+        generator.write_to_memory(builder, val_offset, 0, &ty)?;
 
         // Push the value offset and size to the data stack
         builder.local_get(val_offset).i32_const(val_size);
@@ -233,7 +233,7 @@ impl ComplexWord for MapInsert {
         generator.traverse_expr(builder, key)?;
 
         // Write the key to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, key_offset, 0, &ty);
+        generator.write_to_memory(builder, key_offset, 0, &ty)?;
 
         // Push the key offset and size to the data stack
         builder.local_get(key_offset).i32_const(key_size);
@@ -251,7 +251,7 @@ impl ComplexWord for MapInsert {
         generator.traverse_expr(builder, value)?;
 
         // Write the value to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, val_offset, 0, &ty);
+        generator.write_to_memory(builder, val_offset, 0, &ty)?;
 
         // Push the value offset and size to the data stack
         builder.local_get(val_offset).i32_const(val_size);
@@ -307,7 +307,7 @@ impl ComplexWord for MapDelete {
         generator.traverse_expr(builder, key)?;
 
         // Write the key to the memory (it's already on the data stack)
-        generator.write_to_memory(builder, key_offset, 0, &ty);
+        generator.write_to_memory(builder, key_offset, 0, &ty)?;
 
         // Push the key offset and size to the data stack
         builder.local_get(key_offset).i32_const(key_size);

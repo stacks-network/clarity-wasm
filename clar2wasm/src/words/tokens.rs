@@ -294,7 +294,7 @@ impl ComplexWord for BurnNonFungibleToken {
             generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
-        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty)?;
 
         // Push the offset and size to the data stack
         builder.local_get(id_offset).i32_const(id_size);
@@ -348,7 +348,7 @@ impl ComplexWord for TransferNonFungibleToken {
             generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
-        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty)?;
 
         // Push the offset and size to the data stack
         builder.local_get(id_offset).i32_const(id_size);
@@ -404,7 +404,7 @@ impl ComplexWord for MintNonFungibleToken {
             generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
-        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty)?;
 
         // Push the offset and size to the data stack
         builder.local_get(id_offset).i32_const(id_size);
@@ -456,7 +456,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
             generator.create_call_stack_local(builder, &identifier_ty, true, false);
 
         // Write the identifier to the stack (since the host needs to handle generic types)
-        generator.write_to_memory(builder, id_offset, 0, &identifier_ty);
+        generator.write_to_memory(builder, id_offset, 0, &identifier_ty)?;
 
         // Push the offset and size to the data stack
         builder.local_get(id_offset).i32_const(id_size);

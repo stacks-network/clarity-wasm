@@ -704,7 +704,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         ty: &TypeSignature,
-    ) -> u32 {
+    ) -> Result<u32, GeneratorError> {
         let memory = self.module.memories.iter().next().expect("no memory found");
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -728,7 +728,7 @@ impl WasmGenerator {
                         offset: offset + 8,
                     },
                 );
-                16
+                Ok(16)
             }
             TypeSignature::PrincipalType
             | TypeSignature::CallableType(_)
@@ -754,7 +754,7 @@ impl WasmGenerator {
                         offset: offset + 4,
                     },
                 );
-                8
+                Ok(8)
             }
             TypeSignature::BoolType => {
                 // Data stack: TOP | Value | ...
@@ -768,7 +768,7 @@ impl WasmGenerator {
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
-                4
+                Ok(4)
             }
             TypeSignature::NoType => {
                 // Data stack: TOP | (Place holder i32)
@@ -778,7 +778,7 @@ impl WasmGenerator {
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
-                4
+                Ok(4)
             }
             TypeSignature::OptionalType(some_ty) => {
                 let memory_id = memory.id();
@@ -786,7 +786,7 @@ impl WasmGenerator {
                 // recursively store the inner value
 
                 let bytes_written =
-                    self.write_to_memory(builder, offset_local, offset + 4, some_ty);
+                    self.write_to_memory(builder, offset_local, offset + 4, some_ty)?;
 
                 // Save the variant to a local and store it to memory
                 let variant_val = self.module.locals.add(ValType::I32);
@@ -801,7 +801,7 @@ impl WasmGenerator {
                     );
 
                 // recursively store the inner value
-                4 + bytes_written
+                Ok(4 + bytes_written)
             }
             TypeSignature::ResponseType(ok_err_ty) => {
                 // Data stack: TOP | err_value | ok_value | (ok|err) variant
@@ -814,11 +814,11 @@ impl WasmGenerator {
                     offset_local,
                     offset + 4 + get_type_size(&ok_err_ty.0) as u32,
                     &ok_err_ty.1,
-                );
+                )?;
 
                 // write ok value at offset + size of variant (4)
                 bytes_written +=
-                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0);
+                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0)?;
 
                 let variant_val = self.module.locals.add(ValType::I32);
                 builder
@@ -831,7 +831,7 @@ impl WasmGenerator {
                         MemArg { align: 4, offset },
                     );
 
-                bytes_written + 4
+                Ok(bytes_written + 4)
             }
             TypeSignature::TupleType(tuple_ty) => {
                 // Data stack: TOP | last_value | value_before_last | ... | first_value
@@ -850,12 +850,18 @@ impl WasmGenerator {
                     )
                     .collect();
                 for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
-                    bytes_written +=
-                        self.write_to_memory(builder, offset_local, offset + offset_delta, elem_ty);
+                    bytes_written += self.write_to_memory(
+                        builder,
+                        offset_local,
+                        offset + offset_delta,
+                        elem_ty,
+                    )?;
                 }
-                bytes_written
+                Ok(bytes_written)
             }
-            _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
+            TypeSignature::ListUnionType(_) => Err(GeneratorError::TypeError(
+                "Not a valid value type: ListUnionType".to_owned(),
+            ))?,
         }
     }
 

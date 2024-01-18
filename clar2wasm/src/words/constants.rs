@@ -50,7 +50,7 @@ impl ComplexWord for DefineConstant {
             generator.literal_memory_end += len;
 
             // Write the initial value to the memory, to be read by the host.
-            generator.write_to_memory(builder, offset_local, 0, &ty);
+            generator.write_to_memory(builder, offset_local, 0, &ty)?;
 
             offset
         };

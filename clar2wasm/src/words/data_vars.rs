@@ -44,7 +44,7 @@ impl ComplexWord for DefineDataVar {
             .local_set(offset);
 
         // Write the initial value to the memory, to be read by the host.
-        let size = generator.write_to_memory(builder, offset, 0, &ty);
+        let size = generator.write_to_memory(builder, offset, 0, &ty)?;
 
         // Increment the literal memory end
         // FIXME: These initial values do not need to be saved in the literal
@@ -113,7 +113,7 @@ impl ComplexWord for SetDataVar {
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Write the value to the memory, to be read by the host
-        generator.write_to_memory(builder, offset, 0, &ty);
+        generator.write_to_memory(builder, offset, 0, &ty)?;
 
         // Push the identifier offset and length onto the data stack
         builder

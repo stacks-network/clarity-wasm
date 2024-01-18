@@ -55,7 +55,7 @@ impl ComplexWord for ListCons {
 
             generator.traverse_expr(builder, expr)?;
             // Write this element to memory
-            let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty);
+            let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty)?;
             total_size += elem_size;
         }
 
@@ -295,7 +295,7 @@ impl ComplexWord for Append {
             .clone();
 
         // Store the element at the write pointer.
-        generator.write_to_memory(builder, write_ptr, 0, &elem_ty);
+        generator.write_to_memory(builder, write_ptr, 0, &elem_ty)?;
 
         Ok(())
     }
@@ -657,7 +657,7 @@ impl ComplexWord for Map {
         }
 
         // Write the result to the output sequence.
-        generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type);
+        generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type)?;
 
         // Increment the output offset by the size of the element.
         loop_
@@ -1080,87 +1080,97 @@ impl ComplexWord for ReplaceAt {
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
-        builder.if_else(
-            InstrSeqType::new(
-                &mut generator.module.types,
-                &input_wasm_types,
-                &result_wasm_types,
-            ),
-            |then| {
-                // First, drop the value.
-                match &element_ty {
-                    SequenceElementType::Other(elem_ty) => {
-                        // Read the element type from the list.
-                        drop_value(then, elem_ty);
-                    }
-                    SequenceElementType::Byte | SequenceElementType::UnicodeScalar => {
-                        // The value is a byte or 32-bit scalar, but it's represented by an offset
-                        // and length, so drop those.
-                        then.drop().drop();
-                    }
-                }
 
-                // Push the `none` indicator and placeholders for offset/length
-                then.i32_const(0).i32_const(0).i32_const(0);
-            },
-            |else_| {
-                let offset_local = generator.module.locals.add(ValType::I32);
+        let mut then = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &input_wasm_types,
+            &result_wasm_types,
+        ));
+        let then_id = then.id();
 
-                // Add the element offset to the offset of the destination.
+        // First, drop the value.
+        match &element_ty {
+            SequenceElementType::Other(elem_ty) => {
+                // Read the element type from the list.
+                drop_value(&mut then, elem_ty);
+            }
+            SequenceElementType::Byte | SequenceElementType::UnicodeScalar => {
+                // The value is a byte or 32-bit scalar, but it's represented by an offset
+                // and length, so drop those.
+                then.drop().drop();
+            }
+        }
+
+        // Push the `none` indicator and placeholders for offset/length
+        then.i32_const(0).i32_const(0).i32_const(0);
+
+        let mut else_ = builder.dangling_instr_seq(InstrSeqType::new(
+            &mut generator.module.types,
+            &input_wasm_types,
+            &result_wasm_types,
+        ));
+        let else_id = else_.id();
+
+        let offset_local = generator.module.locals.add(ValType::I32);
+
+        // Add the element offset to the offset of the destination.
+        else_
+            .local_get(index_local)
+            // We know this offset is in range, so it must be a 32-bit
+            // value, so this operation is safe.
+            .unop(UnaryOp::I32WrapI64)
+            .local_get(dest_offset)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Write the value to the specified offset.
+        match &element_ty {
+            SequenceElementType::Byte => {
+                // The element type is a byte (from a string or buffer), so
+                // we need to just copy that byte to the specified offset.
+
+                // Drop the length of the value (it must be 1)
+                else_.drop();
+
+                // Save the source offset to a local.
+                let src_local = generator.module.locals.add(ValType::I32);
+                else_.local_set(src_local);
+
                 else_
-                    .local_get(index_local)
-                    // We know this offset is in range, so it must be a 32-bit
-                    // value, so this operation is safe.
-                    .unop(UnaryOp::I32WrapI64)
-                    .local_get(dest_offset)
-                    .binop(BinaryOp::I32Add)
-                    .local_set(offset_local);
+                    .local_get(offset_local)
+                    .local_get(src_local)
+                    .i32_const(1)
+                    .memory_copy(memory, memory);
+            }
+            SequenceElementType::UnicodeScalar => {
+                // The element is a 32-bit unicode scalar value, so we
+                // need to just copy those 4 bytes to the specified offset.
 
-                // Write the value to the specified offset.
-                match &element_ty {
-                    SequenceElementType::Byte => {
-                        // The element type is a byte (from a string or buffer), so
-                        // we need to just copy that byte to the specified offset.
+                // Drop the length of the value (it must be 4)
+                else_.drop();
 
-                        // Drop the length of the value (it must be 1)
-                        else_.drop();
+                // Save the source offset to a local.
+                let src_local = generator.module.locals.add(ValType::I32);
+                else_.local_set(src_local);
 
-                        // Save the source offset to a local.
-                        let src_local = generator.module.locals.add(ValType::I32);
-                        else_.local_set(src_local);
+                else_
+                    .local_get(offset_local)
+                    .local_get(src_local)
+                    .i32_const(4)
+                    .memory_copy(memory, memory);
+            }
+            SequenceElementType::Other(elem_ty) => {
+                generator.write_to_memory(&mut else_, offset_local, 0, elem_ty)?;
+            }
+        }
 
-                        else_
-                            .local_get(offset_local)
-                            .local_get(src_local)
-                            .i32_const(1)
-                            .memory_copy(memory, memory);
-                    }
-                    SequenceElementType::UnicodeScalar => {
-                        // The element is a 32-bit unicode scalar value, so we
-                        // need to just copy those 4 bytes to the specified offset.
+        // Push the `some` indicator with destination offset/length.
+        else_.i32_const(1).local_get(dest_offset).i32_const(length);
 
-                        // Drop the length of the value (it must be 4)
-                        else_.drop();
-
-                        // Save the source offset to a local.
-                        let src_local = generator.module.locals.add(ValType::I32);
-                        else_.local_set(src_local);
-
-                        else_
-                            .local_get(offset_local)
-                            .local_get(src_local)
-                            .i32_const(4)
-                            .memory_copy(memory, memory);
-                    }
-                    SequenceElementType::Other(elem_ty) => {
-                        generator.write_to_memory(else_, offset_local, 0, elem_ty);
-                    }
-                }
-
-                // Push the `some` indicator with destination offset/length.
-                else_.i32_const(1).local_get(dest_offset).i32_const(length);
-            },
-        );
+        builder.instr(IfElse {
+            consequent: then_id,
+            alternative: else_id,
+        });
 
         Ok(())
     }
