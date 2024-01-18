@@ -202,16 +202,8 @@ Add the following to *clarity-wasm/.cargo/config*
 
 ```toml
 [patch.'https://github.com/stacks-network/stacks-core.git']
-clarity = { path = "../stacks-core/clarity" }
+clarity = { path = "./stacks-core/clarity" }
 ``````
-
-Then do the same for the stacks-core repo, adding the following to *stacks-core/.cargo/config*
-
-```toml
-[patch.'https://github.com/stacks-network/stacks-core.git']
-clarity = { path = "stacks-core/clarity" }
-stacks-common = { path = "stacks-core/stacks-common" }
-```
 
 Similarly, in the stacks-core directory, you can add the following to *stacks-core/.cargo/config*
 
