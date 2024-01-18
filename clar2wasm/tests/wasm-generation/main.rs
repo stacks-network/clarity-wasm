@@ -69,7 +69,10 @@ impl From<PropValue> for Value {
 
 impl std::fmt::Debug for PropValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self, f)
+        f.debug_struct("PropValue")
+            .field("value", &self.to_string())
+            .field("type", &self.type_string())
+            .finish()
     }
 }
 
