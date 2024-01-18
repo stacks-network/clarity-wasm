@@ -7,7 +7,7 @@ edition = "2021"
 path = "./src/lib.rs"
 
 [dependencies]
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next-devnet"}
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/devnet-wasm-test"}
 
 clar2wasm = { path = "../clar2wasm", features = ["developer-mode"] }
 wasmtime = "15.0.0"
