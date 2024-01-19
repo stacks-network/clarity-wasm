@@ -66,57 +66,36 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::TestEnvironment;
+    use crate::tools::crosscheck;
 
     #[test]
     fn define_constant_const() {
-        let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "define_constant",
-            r#"
-(define-constant four 4)
-(define-private (go) (print four))
-(go)
-"#,
-        );
-        assert_eq!(val.unwrap(), Some(Value::Int(4)));
+        crosscheck(
+            r#"(define-constant four 4) (define-private (go) (print four)) (go)"#,
+            Ok(Some(Value::Int(4))),
+        )
     }
 
     #[test]
     fn define_constant_function() {
-        let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "define_constant",
-            r#"
-(define-constant four (+ 2 2))
-(define-private (go) (print four))
-(go)
-"#,
-        );
-        assert_eq!(val.unwrap(), Some(Value::Int(4)));
+        crosscheck(
+            r#"(define-constant four (+ 2 2)) (define-private (go) (print four)) (go)"#,
+            Ok(Some(Value::Int(4))),
+        )
     }
 
     #[test]
     fn define_constant_list() {
-        let mut env = TestEnvironment::default();
-        let val = env.init_contract_with_snippet(
-            "define_constant",
-            r#"
-(define-constant list-of-2-int (list 1 1))
-(define-private (go) (print list-of-2-int))
-(go)
-"#,
-        );
-        assert_eq!(
-            val.unwrap(),
-            Some(Value::Sequence(SequenceData::List(ListData {
+        crosscheck(
+            r#"(define-constant list-of-2-int (list 1 1)) (define-private (go) (print list-of-2-int)) (go)"#,
+            Ok(Some(Value::Sequence(SequenceData::List(ListData {
                 data: vec![Value::Int(1), Value::Int(1)],
                 type_signature: ListTypeData::new_list(
                     clarity::vm::types::TypeSignature::IntType,
-                    2
+                    2,
                 )
-                .unwrap()
-            })))
-        );
+                .unwrap(),
+            })))),
+        )
     }
 }
