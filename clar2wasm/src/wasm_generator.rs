@@ -147,12 +147,14 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             types.extend(clar2wasm_ty(&inner_types.1));
             types
         }
-        TypeSignature::SequenceType(_) => vec![
+        TypeSignature::SequenceType(_) | TypeSignature::ListUnionType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
+        TypeSignature::PrincipalType
+        | TypeSignature::CallableType(_)
+        | TypeSignature::TraitReferenceType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
@@ -168,7 +170,6 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             }
             types
         }
-        _ => unimplemented!("{:?}", ty),
     }
 }
 
