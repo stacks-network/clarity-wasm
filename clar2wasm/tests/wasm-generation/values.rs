@@ -40,3 +40,13 @@ proptest! {
         )
     }
 }
+
+proptest! {
+    #[test]
+    fn constant_define_and_get(val in PropValue::any()) {
+        crosscheck(
+            &format!(r#"(define-constant cst {val}) cst"#),
+            Ok(Some(val.into()))
+        )
+    }
+}
