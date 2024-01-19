@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type};
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::{CharType, FunctionType, PrincipalData, SequenceData, TypeSignature};
+use clarity::vm::types::{
+    CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, TypeSignature,
+};
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{BinaryOp, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp};
@@ -1112,7 +1114,14 @@ impl WasmGenerator {
 
             // If `ty` is a value that stays in memory, we can just push the
             // offset and length to the stack.
-            if is_in_memory_type(&ty) {
+            // CAUTION: list type needs to be dereferenced, contrarily to other
+            //          in-memory types
+            if is_in_memory_type(&ty)
+                && !matches!(
+                    &ty,
+                    TypeSignature::SequenceType(SequenceSubtype::ListType(_))
+                )
+            {
                 builder
                     .local_get(offset_local)
                     .i32_const(get_type_in_memory_size(&ty, false));
