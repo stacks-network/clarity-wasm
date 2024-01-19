@@ -4,7 +4,11 @@ use std::collections::HashMap;
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type};
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::{CharType, FunctionType, PrincipalData, SequenceData, TypeSignature};
+use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
+use clarity::vm::types::{
+    CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+    TypeSignature,
+};
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{BinaryOp, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp};
@@ -15,7 +19,7 @@ use walrus::{
 
 use crate::words;
 
-/// First free position after data directly defined in standard.wat
+// First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 1352;
 
 /// WasmGenerator is a Clarity AST visitor that generates a WebAssembly module
@@ -128,6 +132,73 @@ pub(crate) fn add_placeholder_for_clarity_type(builder: &mut InstrSeqBuilder, ty
     let wasm_types = clar2wasm_ty(ty);
     for wasm_type in wasm_types.iter() {
         add_placeholder_for_type(builder, *wasm_type);
+    }
+}
+
+/// Convert a Clarity type signature to a wasm type signature.
+pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
+    match ty {
+        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
+        TypeSignature::IntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
+        TypeSignature::ResponseType(inner_types) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(&inner_types.0));
+            types.extend(clar2wasm_ty(&inner_types.1));
+            types
+        }
+        TypeSignature::SequenceType(_) => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::BoolType => vec![ValType::I32],
+        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
+            ValType::I32, // offset
+            ValType::I32, // length
+        ],
+        TypeSignature::OptionalType(inner_ty) => {
+            let mut types = vec![ValType::I32];
+            types.extend(clar2wasm_ty(inner_ty));
+            types
+        }
+        TypeSignature::TupleType(inner_types) => {
+            let mut types = vec![];
+            for inner_type in inner_types.get_type_map().values() {
+                types.extend(clar2wasm_ty(inner_type));
+            }
+            types
+        }
+        _ => unimplemented!("{:?}", ty),
+    }
+}
+
+pub enum SequenceElementType {
+    /// A byte, from a string-ascii or buffer.
+    Byte,
+    /// A 32-bit unicode scalar value, from a string-utf8.
+    UnicodeScalar,
+    /// Any other type.
+    Other(TypeSignature),
+}
+
+/// Drop a value of type `ty` from the data stack.
+pub(crate) fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
+    let wasm_types = clar2wasm_ty(ty);
+    (0..wasm_types.len()).for_each(|_| {
+        builder.drop();
+    });
+}
+
+pub fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
+    match se {
+        SequenceElementType::Other(o) => o.clone(),
+        SequenceElementType::Byte => BUFF_1.clone(),
+        SequenceElementType::UnicodeScalar => {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                StringUTF8Length::try_from(1u32)
+                    .expect("String length of 1 should always be valid"),
+            )))
+        }
     }
 }
 
@@ -1154,54 +1225,7 @@ impl WasmGenerator {
         }
         locals
     }
-}
 
-/// Convert a Clarity type signature to a wasm type signature.
-pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
-    match ty {
-        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
-        TypeSignature::IntType => vec![ValType::I64, ValType::I64],
-        TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
-        TypeSignature::ResponseType(inner_types) => {
-            let mut types = vec![ValType::I32];
-            types.extend(clar2wasm_ty(&inner_types.0));
-            types.extend(clar2wasm_ty(&inner_types.1));
-            types
-        }
-        TypeSignature::SequenceType(_) => vec![
-            ValType::I32, // offset
-            ValType::I32, // length
-        ],
-        TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
-            ValType::I32, // offset
-            ValType::I32, // length
-        ],
-        TypeSignature::OptionalType(inner_ty) => {
-            let mut types = vec![ValType::I32];
-            types.extend(clar2wasm_ty(inner_ty));
-            types
-        }
-        TypeSignature::TupleType(inner_types) => {
-            let mut types = vec![];
-            for inner_type in inner_types.get_type_map().values() {
-                types.extend(clar2wasm_ty(inner_type));
-            }
-            types
-        }
-        _ => unimplemented!("{:?}", ty),
-    }
-}
-
-/// Drop a value of type `ty` from the data stack.
-pub(crate) fn drop_value(builder: &mut InstrSeqBuilder, ty: &TypeSignature) {
-    let wasm_types = clar2wasm_ty(ty);
-    (0..wasm_types.len()).for_each(|_| {
-        builder.drop();
-    });
-}
-
-impl WasmGenerator {
     pub fn func_by_name(&self, name: &str) -> FunctionId {
         self.module
             .funcs
@@ -1488,5 +1512,34 @@ impl WasmGenerator {
                 .contract_analysis
                 .get_public_function_type(name.as_str())
                 .is_some()
+    }
+
+    pub fn get_sequence_element_type(
+        &self,
+        sequence: &SymbolicExpression,
+    ) -> Result<SequenceElementType, GeneratorError> {
+        match self.get_expr_type(sequence).ok_or_else(|| {
+            GeneratorError::TypeError("sequence expression must be typed".to_owned())
+        })? {
+            TypeSignature::SequenceType(seq_ty) => match &seq_ty {
+                SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
+                    list_type.get_list_item_type().clone(),
+                )),
+                SequenceSubtype::BufferType(_)
+                | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
+                    // For buffer and string-ascii return none, which indicates
+                    // that elements should be read byte-by-byte.
+                    Ok(SequenceElementType::Byte)
+                }
+                SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
+                    Ok(SequenceElementType::UnicodeScalar)
+                }
+            },
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "expected sequence type".to_string(),
+                ));
+            }
+        }
     }
 }

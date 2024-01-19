@@ -1,28 +1,14 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use crate::wasm_generator::{
-    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
-    WasmGenerator,
+    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
+    ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
 use crate::words::{self, ComplexWord};
-
-fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
-    match se {
-        SequenceElementType::Other(o) => o.clone(),
-        SequenceElementType::Byte => BUFF_1.clone(),
-        SequenceElementType::UnicodeScalar => {
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
-                StringUTF8Length::try_from(1u32)
-                    .expect("String length of 1 should always be valid"),
-            )))
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct ListCons;
@@ -122,29 +108,7 @@ impl ComplexWord for Fold {
         let result_wasm_types = clar2wasm_ty(&result_clar_ty);
 
         // Get the type of the sequence
-        let elem_ty = match generator.get_expr_type(sequence).ok_or_else(|| {
-            GeneratorError::TypeError("sequence expression must be typed".to_owned())
-        })? {
-            TypeSignature::SequenceType(seq_ty) => match &seq_ty {
-                SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
-                    list_type.get_list_item_type().clone(),
-                )),
-                SequenceSubtype::BufferType(_)
-                | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
-                    // For buffer and string-ascii return none, which indicates
-                    // that elements should be read byte-by-byte.
-                    Ok(SequenceElementType::Byte)
-                }
-                SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
-                    Ok(SequenceElementType::UnicodeScalar)
-                }
-            },
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "expected sequence type".to_string(),
-                ));
-            }
-        }?;
+        let elem_ty = generator.get_sequence_element_type(sequence)?;
 
         // Evaluate the sequence, which will load it into the call stack,
         // leaving the offset and size on the data stack.
@@ -800,15 +764,6 @@ impl ComplexWord for Len {
 
         Ok(())
     }
-}
-
-pub enum SequenceElementType {
-    /// A byte, from a string-ascii or buffer.
-    Byte,
-    /// A 32-bit unicode scalar value, from a string-utf8.
-    UnicodeScalar,
-    /// Any other type.
-    Other(TypeSignature),
 }
 
 #[derive(Debug)]

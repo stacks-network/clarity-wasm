@@ -4,8 +4,8 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
-use super::sequences::SequenceElementType;
 use super::ComplexWord;
+use crate::wasm_generator::SequenceElementType;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -120,29 +120,7 @@ impl ComplexWord for IndexOf {
         // STACK: [offset, size]
 
         // Get type of the Sequence element.
-        let elem_ty = match generator.get_expr_type(seq).ok_or_else(|| {
-            GeneratorError::TypeError("Sequence expression must be typed".to_owned())
-        })? {
-            TypeSignature::SequenceType(ty) => match &ty {
-                SequenceSubtype::ListType(list_type) => Ok(SequenceElementType::Other(
-                    list_type.get_list_item_type().clone(),
-                )),
-                SequenceSubtype::BufferType(_)
-                | SequenceSubtype::StringType(StringSubtype::ASCII(_)) => {
-                    // buffer and string-ascii elements should be read byte-by-byte
-                    Ok(SequenceElementType::Byte)
-                }
-                SequenceSubtype::StringType(StringSubtype::UTF8(_)) => {
-                    // UTF8 is represented as 32-bit unicode scalars values should be read 4 bytes at a time
-                    Ok(SequenceElementType::UnicodeScalar)
-                }
-            },
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "expected sequence type".to_string(),
-                ));
-            }
-        }?;
+        let elem_ty = generator.get_sequence_element_type(seq)?;
 
         // Locals declaration.
         let seq_size = generator.module.locals.add(ValType::I32);

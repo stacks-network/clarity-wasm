@@ -1,4 +1,4 @@
-use clarity::vm::types::{SequenceSubtype, TypeSignature};
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType};
 use walrus::ValType;
@@ -6,7 +6,7 @@ use walrus::ValType;
 use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
-    WasmGenerator,
+    SequenceElementType, WasmGenerator,
 };
 use crate::words;
 
@@ -172,26 +172,13 @@ impl ComplexWord for Filter {
             })?
             .clone();
 
-        // Get the type of the sequence
-        let seq_ty = match &ty {
-            TypeSignature::SequenceType(seq_ty) => seq_ty.clone(),
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "expected sequence type".to_owned(),
-                ));
-            }
-        };
+        let elem_ty = generator.get_sequence_element_type(sequence)?;
 
         // Setup neccesary locals for the operations.
         let input_len = generator.module.locals.add(ValType::I32);
         let input_offset = generator.module.locals.add(ValType::I32);
         let input_end = generator.module.locals.add(ValType::I32);
         let output_len = generator.module.locals.add(ValType::I32);
-
-        let elem_ty = match &seq_ty {
-            SequenceSubtype::ListType(list_type) => list_type.get_list_item_type(),
-            _ => unimplemented!("Unsupported sequence type"),
-        };
 
         builder
             // [ input_offset, input_len ]
@@ -218,7 +205,23 @@ impl ComplexWord for Filter {
             let loop_id = loop_.id();
 
             // Load an element from the sequence
-            let elem_size = generator.read_from_memory(loop_, input_offset, 0, elem_ty);
+            let elem_size = match elem_ty {
+                SequenceElementType::Other(elem_ty) => {
+                    generator.read_from_memory(loop_, input_offset, 0, &elem_ty)
+                }
+                SequenceElementType::Byte => {
+                    // The element type is a byte, so we can just push the
+                    // offset and length (1) to the stack.
+                    loop_.local_get(input_offset).i32_const(1);
+                    1
+                }
+                SequenceElementType::UnicodeScalar => {
+                    // The element type is a 32-bit unicode scalar, so we can just push the
+                    // offset and length (4) to the stack.
+                    loop_.local_get(input_offset).i32_const(4);
+                    4
+                }
+            };
 
             // Stack now contains the value read from memory, note that this can be multiple values in case of
             // sequences.
@@ -835,6 +838,18 @@ mod tests {
         crosscheck(
             "(filter not (list false false true false true true false))",
             evaluate("(list false false false false)"),
+        );
+    }
+
+    #[test]
+    fn filter_buff() {
+        crosscheck(
+            "
+(define-private (is-dash (char (buff 1)))
+    (is-eq char 0x2d) ;; -
+)
+(filter is-dash 0x612d62)",
+            Ok(Some(Value::buff_from_byte(0x2d))),
         );
     }
 
