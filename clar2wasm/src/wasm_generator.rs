@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_memory_type};
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::{
-    CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, TypeSignature,
-};
+use clarity::vm::types::{CharType, FunctionType, PrincipalData, SequenceData, TypeSignature};
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{BinaryOp, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp};
@@ -1119,7 +1117,7 @@ impl WasmGenerator {
             if is_in_memory_type(&ty)
                 && !matches!(
                     &ty,
-                    TypeSignature::SequenceType(SequenceSubtype::ListType(_))
+                    TypeSignature::SequenceType(seq) if seq.is_list_type()
                 )
             {
                 builder
