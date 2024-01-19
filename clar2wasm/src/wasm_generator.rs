@@ -1535,11 +1535,9 @@ impl WasmGenerator {
                     Ok(SequenceElementType::UnicodeScalar)
                 }
             },
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "expected sequence type".to_string(),
-                ));
-            }
+            _ => Err(GeneratorError::TypeError(
+                "expected sequence type".to_string(),
+            )),
         }
     }
 }

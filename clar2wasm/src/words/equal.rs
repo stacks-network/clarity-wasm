@@ -5,9 +5,8 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::ComplexWord;
-use crate::wasm_generator::SequenceElementType;
 use crate::wasm_generator::{
-    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
 
 #[derive(Debug)]
