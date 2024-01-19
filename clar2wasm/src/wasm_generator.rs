@@ -1183,7 +1183,14 @@ impl WasmGenerator {
 
             // If `ty` is a value that stays in memory, we can just push the
             // offset and length to the stack.
-            if is_in_memory_type(&ty) {
+            // CAUTION: list type needs to be dereferenced, contrarily to other
+            //          in-memory types
+            if is_in_memory_type(&ty)
+                && !matches!(
+                    &ty,
+                    TypeSignature::SequenceType(seq) if seq.is_list_type()
+                )
+            {
                 builder
                     .local_get(offset_local)
                     .i32_const(get_type_in_memory_size(&ty, false));
