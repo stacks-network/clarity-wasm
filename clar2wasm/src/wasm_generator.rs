@@ -115,15 +115,15 @@ impl ArgumentsExt for &[SymbolicExpression] {
 }
 
 /// Push a placeholder value for Wasm type `ty` onto the data stack.
+/// `unreachable!` is used for Wasm types that should never be used.
+#[allow(clippy::unreachable)]
 pub(crate) fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
     match ty {
         ValType::I32 => builder.i32_const(0),
         ValType::I64 => builder.i64_const(0),
-        ValType::F32 => builder.f32_const(0.0),
-        ValType::F64 => builder.f64_const(0.0),
-        ValType::V128 => unimplemented!("V128"),
-        ValType::Externref => unimplemented!("Externref"),
-        ValType::Funcref => unimplemented!("Funcref"),
+        ValType::F32 | ValType::F64 | ValType::V128 | ValType::Externref | ValType::Funcref => {
+            unreachable!("Use of Wasm type {}", ty);
+        }
     };
 }
 
