@@ -29,6 +29,9 @@ impl ComplexWord for DefineConstant {
             let (offset, _len) = generator.add_literal(value);
             offset
         } else {
+            // Traverse the initial value expression.
+            generator.traverse_expr(builder, value)?;
+
             // If the initial expression is not a literal, then we need to
             // reserve the space for it, and then execute the expression and
             // write the result into the reserved space.
@@ -45,9 +48,6 @@ impl ComplexWord for DefineConstant {
 
             let len = get_type_in_memory_size(&ty, true) as u32;
             generator.literal_memory_end += len;
-
-            // Traverse the initial value expression.
-            generator.traverse_expr(builder, value)?;
 
             // Write the initial value to the memory, to be read by the host.
             generator.write_to_memory(builder, offset_local, 0, &ty);
