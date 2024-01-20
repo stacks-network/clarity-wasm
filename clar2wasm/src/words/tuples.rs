@@ -28,7 +28,12 @@ impl ComplexWord for TupleCons {
 
         let tuple_ty = match ty {
             TypeSignature::TupleType(tuple) => tuple,
-            _ => return Err(GeneratorError::TypeError("expected tuple type".to_string())),
+            _ => {
+                return Err(GeneratorError::TypeError(format!(
+                    "expected tuple type: got {:?}",
+                    ty
+                )))
+            }
         };
 
         // The args for `tuple` should be pairs of values, with the first value
@@ -102,7 +107,10 @@ impl ComplexWord for TupleGet {
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
+                _ => Err(GeneratorError::TypeError(format!(
+                    "expected tuple type, got {:?}, {:?}",
+                    lhs_ty, _expr
+                ))),
             })?
             .clone();
 
@@ -172,16 +180,22 @@ impl ComplexWord for TupleMerge {
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
+                _ => Err(GeneratorError::TypeError(format!(
+                    "expected tuple type, got {:?}",
+                    lhs_ty
+                ))),
             })?
             .clone();
 
         let rhs_tuple_ty = generator
             .get_expr_type(&args[1])
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
-            .and_then(|lhs_ty| match lhs_ty {
+            .and_then(|rhs_ty| match rhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
-                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
+                _ => Err(GeneratorError::TypeError(format!(
+                    "expected tuple type: got {:?}",
+                    rhs_ty
+                ))),
             })?
             .clone();
 
