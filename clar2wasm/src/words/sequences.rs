@@ -164,7 +164,7 @@ impl ComplexWord for Fold {
         // Load the element from the sequence
         let elem_size = match &elem_ty {
             SequenceElementType::Other(elem_ty) => {
-                generator.read_from_memory(&mut loop_, offset, 0, elem_ty)
+                generator.read_from_memory(&mut loop_, offset, 0, elem_ty)?
             }
             SequenceElementType::Byte => {
                 // The element type is a byte, so we can just push the
@@ -620,7 +620,7 @@ impl ComplexWord for Map {
         for (i, offset) in input_offsets.iter().enumerate() {
             match &input_element_types[i] {
                 SequenceElementType::Other(elem_ty) => {
-                    generator.read_from_memory(&mut loop_, *offset, 0, elem_ty);
+                    generator.read_from_memory(&mut loop_, *offset, 0, elem_ty)?;
                 }
                 SequenceElementType::Byte => {
                     // The element type is a byte, so we can just push the
@@ -873,74 +873,79 @@ impl ComplexWord for ElementAt {
         // Or with the overflow indicator.
         builder.local_get(overflow_local).binop(BinaryOp::I32Or);
 
-        // let placeholder_ty = element_ty.clone();
-
         // If the index is out of range, then return `none`, else load the
         // value at the specified index and return `(some value)`.
         let result_ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?;
         let result_wasm_types = clar2wasm_ty(result_ty);
-        builder.if_else(
-            InstrSeqType::new(
-                &mut generator.module.types,
-                &[ValType::I32],
-                &result_wasm_types,
-            ),
-            |then| {
-                // First, drop the offset.
-                then.drop();
 
-                // Push the `none` indicator.
-                then.i32_const(0);
-
-                // Then push a placeholder for the element type.
-                match &element_ty {
-                    SequenceElementType::Byte | SequenceElementType::UnicodeScalar => {
-                        // The element type is an in-memory type, so we need
-                        // placeholders for offset and length
-                        then.i32_const(0).i32_const(0);
-                    }
-                    SequenceElementType::Other(elem_ty) => {
-                        // Read the element type from the list.
-                        add_placeholder_for_clarity_type(then, elem_ty)
-                    }
-                }
-            },
-            |else_| {
-                let offset_local = generator.module.locals.add(ValType::I32);
-
-                // Add the element offset to the offset of the list.
-                else_
-                    .local_get(index_local)
-                    // We know this offset is in range, so it must be a 32-bit
-                    // value, so this operation is safe.
-                    .unop(UnaryOp::I32WrapI64)
-                    .binop(BinaryOp::I32Add)
-                    .local_set(offset_local);
-
-                // Push the `some` indicator
-                else_.i32_const(1);
-
-                // Load the value at the specified offset.
-                match &element_ty {
-                    SequenceElementType::Byte => {
-                        // The element type is a byte (from a string or buffer), so
-                        // we need to push the offset and length (1) to the
-                        // stack.
-                        else_.local_get(offset_local).i32_const(1);
-                    }
-                    SequenceElementType::UnicodeScalar => {
-                        // UTF8 is represented as 32-bit unicode scalar values.
-                        else_.local_get(offset_local).i32_const(4);
-                    }
-                    SequenceElementType::Other(elem_ty) => {
-                        // If the element type is not UTF8, use `read_from_memory`.
-                        generator.read_from_memory(else_, offset_local, 0, elem_ty);
-                    }
-                }
-            },
+        let branch_ty = InstrSeqType::new(
+            &mut generator.module.types,
+            &[ValType::I32],
+            &result_wasm_types,
         );
+        let mut then = builder.dangling_instr_seq(branch_ty);
+        let then_id = then.id();
+
+        // First, drop the offset.
+        then.drop();
+
+        // Push the `none` indicator.
+        then.i32_const(0);
+
+        // Then push a placeholder for the element type.
+        match &element_ty {
+            SequenceElementType::Byte | SequenceElementType::UnicodeScalar => {
+                // The element type is an in-memory type, so we need
+                // placeholders for offset and length
+                then.i32_const(0).i32_const(0);
+            }
+            SequenceElementType::Other(elem_ty) => {
+                // Read the element type from the list.
+                add_placeholder_for_clarity_type(&mut then, elem_ty)
+            }
+        }
+
+        let mut else_ = builder.dangling_instr_seq(branch_ty);
+        let else_id = else_.id();
+
+        let offset_local = generator.module.locals.add(ValType::I32);
+
+        // Add the element offset to the offset of the list.
+        else_
+            .local_get(index_local)
+            // We know this offset is in range, so it must be a 32-bit
+            // value, so this operation is safe.
+            .unop(UnaryOp::I32WrapI64)
+            .binop(BinaryOp::I32Add)
+            .local_set(offset_local);
+
+        // Push the `some` indicator
+        else_.i32_const(1);
+
+        // Load the value at the specified offset.
+        match &element_ty {
+            SequenceElementType::Byte => {
+                // The element type is a byte (from a string or buffer), so
+                // we need to push the offset and length (1) to the
+                // stack.
+                else_.local_get(offset_local).i32_const(1);
+            }
+            SequenceElementType::UnicodeScalar => {
+                // UTF8 is represented as 32-bit unicode scalar values.
+                else_.local_get(offset_local).i32_const(4);
+            }
+            SequenceElementType::Other(elem_ty) => {
+                // If the element type is not UTF8, use `read_from_memory`.
+                generator.read_from_memory(&mut else_, offset_local, 0, elem_ty)?;
+            }
+        }
+
+        builder.instr(ir::IfElse {
+            consequent: then_id,
+            alternative: else_id,
+        });
 
         Ok(())
     }

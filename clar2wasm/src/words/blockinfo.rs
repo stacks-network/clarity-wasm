@@ -49,7 +49,7 @@ impl ComplexWord for GetBlockInfo {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
-        generator.read_from_memory(builder, return_offset, 0, &return_ty);
+        generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
         Ok(())
     }
@@ -103,7 +103,7 @@ impl ComplexWord for GetBurnBlockInfo {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
-        generator.read_from_memory(builder, return_offset, 0, &return_ty);
+        generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
         Ok(())
     }

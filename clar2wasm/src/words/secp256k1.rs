@@ -44,7 +44,7 @@ impl ComplexWord for Recover {
                 })?,
         );
 
-        generator.read_from_memory(builder, result_local, 0, &ret_ty);
+        generator.read_from_memory(builder, result_local, 0, &ret_ty)?;
 
         Ok(())
     }

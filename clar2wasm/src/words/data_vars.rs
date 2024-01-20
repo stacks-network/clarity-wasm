@@ -195,7 +195,7 @@ impl ComplexWord for GetDataVar {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
-        generator.read_from_memory(builder, offset, 0, &ty);
+        generator.read_from_memory(builder, offset, 0, &ty)?;
 
         Ok(())
     }

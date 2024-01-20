@@ -196,7 +196,7 @@ impl ComplexWord for IndexOf {
                 let (elem_size, elem_locals) = match &elem_ty {
                     SequenceElementType::Other(elem_ty) => {
                         (
-                            generator.read_from_memory(loop_body, offset, 0, elem_ty),
+                            generator.read_from_memory(loop_body, offset, 0, elem_ty)?,
                             // STACK: [element]
                             generator.save_to_locals(loop_body, elem_ty, true),
                             // STACK: []
@@ -856,11 +856,11 @@ fn wasm_equal_list(
             let loop_id = loop_.id();
 
             // read an element from first list and assign it to locals
-            offset_delta_a = generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty);
+            offset_delta_a = generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty)?;
             assign_first_operand_to_locals(&mut loop_, list_ty, &first_locals)?;
 
             // same for nth list
-            offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty);
+            offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty)?;
             assign_to_locals(&mut loop_, list_ty, nth_list_ty, &nth_locals)?;
 
             // compare both elements

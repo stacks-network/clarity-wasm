@@ -874,9 +874,9 @@ impl WasmGenerator {
         offset: LocalId,
         literal_offset: u32,
         ty: &TypeSignature,
-    ) -> i32 {
+    ) -> Result<i32, GeneratorError> {
         let memory = self.module.memories.iter().next().expect("no memory found");
-        let size = match ty {
+        match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Memory: Offset -> | Low | High |
                 builder.local_get(offset).load(
@@ -895,7 +895,7 @@ impl WasmGenerator {
                         offset: literal_offset + 8,
                     },
                 );
-                16
+                Ok(16)
             }
             TypeSignature::OptionalType(inner) => {
                 // Memory: Offset -> | Indicator | Value |
@@ -907,7 +907,7 @@ impl WasmGenerator {
                         offset: literal_offset,
                     },
                 );
-                4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)
+                Ok(4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)?)
             }
             TypeSignature::ResponseType(inner) => {
                 // Memory: Offset -> | Indicator | Ok Value | Err Value |
@@ -925,14 +925,14 @@ impl WasmGenerator {
                     offset,
                     literal_offset + offset_adjust,
                     &inner.0,
-                ) as u32;
+                )? as u32;
                 offset_adjust += self.read_from_memory(
                     builder,
                     offset,
                     literal_offset + offset_adjust,
                     &inner.1,
-                ) as u32;
-                offset_adjust as i32
+                )? as u32;
+                Ok(offset_adjust as i32)
             }
             // Principals and sequence types are stored in-memory and
             // represented by an offset and length.
@@ -957,22 +957,22 @@ impl WasmGenerator {
                         offset: literal_offset + 4,
                     },
                 );
-                8
+                Ok(8)
             }
             TypeSignature::TupleType(tuple) => {
                 // Memory: Offset -> | Value1 | Value2 | ... |
                 let mut offset_adjust = 0;
                 for ty in tuple.get_type_map().values() {
                     offset_adjust +=
-                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)
+                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)?
                             as u32;
                 }
-                offset_adjust as i32
+                Ok(offset_adjust as i32)
             }
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
                 builder.i32_const(0);
-                4
+                Ok(4)
             }
             TypeSignature::BoolType => {
                 builder.local_get(offset).load(
@@ -983,11 +983,12 @@ impl WasmGenerator {
                         offset: literal_offset,
                     },
                 );
-                4
+                Ok(4)
             }
-            _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
-        };
-        size
+            TypeSignature::ListUnionType(_) => Err(GeneratorError::TypeError(
+                "Not a valid value type: ListUnionType".to_owned(),
+            ))?,
+        }
     }
 
     pub(crate) fn traverse_statement_list(
@@ -1177,7 +1178,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         name: &str,
         expr: &SymbolicExpression,
-    ) -> bool {
+    ) -> Result<bool, GeneratorError> {
         if let Some(offset) = self.constants.get(name) {
             // Load the offset into a local variable
             let offset_local = self.module.locals.add(ValType::I32);
@@ -1201,14 +1202,14 @@ impl WasmGenerator {
                 builder
                     .local_get(offset_local)
                     .i32_const(get_type_in_memory_size(&ty, false));
-                true
+                Ok(true)
             } else {
                 // Otherwise, we need to load the value from memory.
-                self.read_from_memory(builder, offset_local, 0, &ty);
-                true
+                self.read_from_memory(builder, offset_local, 0, &ty)?;
+                Ok(true)
             }
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -1301,7 +1302,7 @@ impl WasmGenerator {
             return Ok(());
         }
 
-        if self.lookup_constant_variable(builder, atom.as_str(), expr) {
+        if self.lookup_constant_variable(builder, atom.as_str(), expr)? {
             return Ok(());
         }
 
