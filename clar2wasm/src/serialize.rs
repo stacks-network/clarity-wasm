@@ -519,7 +519,7 @@ impl WasmGenerator {
                 let mut loop_ = size_non_zero.dangling_instr_seq(None);
                 let loop_id = loop_.id();
 
-                self.read_from_memory(&mut loop_, read_ptr, 0, element_ty);
+                self.read_from_memory(&mut loop_, read_ptr, 0, element_ty)?;
 
                 self.serialize_to_memory(&mut loop_, write_ptr, 0, element_ty)?;
 

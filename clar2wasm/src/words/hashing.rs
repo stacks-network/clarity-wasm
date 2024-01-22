@@ -108,7 +108,7 @@ impl SimpleWord for Keccak256 {
                 // Convert integers to buffers by storing them to memory
                 let (buffer_local, size) =
                     generator.create_call_stack_local(builder, ty, false, true);
-                generator.write_to_memory(builder, buffer_local, 0, ty);
+                generator.write_to_memory(builder, buffer_local, 0, ty)?;
 
                 // The load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);
@@ -188,7 +188,7 @@ impl SimpleWord for Sha512_256 {
                 // Convert integers to buffers by storing them to memory
                 let (buffer_local, size) =
                     generator.create_call_stack_local(builder, ty, false, true);
-                generator.write_to_memory(builder, buffer_local, 0, ty);
+                generator.write_to_memory(builder, buffer_local, 0, ty)?;
 
                 // The load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);

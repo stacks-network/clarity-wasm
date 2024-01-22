@@ -59,7 +59,8 @@ impl ComplexWord for ContractCall {
             // This is a static contract call.
             // Push the contract identifier onto the stack
             // TODO(#111): These should be tracked for reuse, similar to the string literals
-            let (id_offset, id_length) = generator.add_literal(&contract_identifier.clone().into());
+            let (id_offset, id_length) =
+                generator.add_literal(&contract_identifier.clone().into())?;
             builder
                 .i32_const(id_offset as i32)
                 .i32_const(id_length as i32);
@@ -96,7 +97,7 @@ impl ComplexWord for ContractCall {
                 })?
                 .clone();
 
-            arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty);
+            arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty)?;
         }
 
         // Push the arguments offset and length onto the data stack
@@ -120,7 +121,7 @@ impl ComplexWord for ContractCall {
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
-        generator.read_from_memory(builder, return_offset, 0, &return_ty);
+        generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
         Ok(())
     }

@@ -115,15 +115,15 @@ impl ArgumentsExt for &[SymbolicExpression] {
 }
 
 /// Push a placeholder value for Wasm type `ty` onto the data stack.
+/// `unreachable!` is used for Wasm types that should never be used.
+#[allow(clippy::unreachable)]
 pub(crate) fn add_placeholder_for_type(builder: &mut InstrSeqBuilder, ty: ValType) {
     match ty {
         ValType::I32 => builder.i32_const(0),
         ValType::I64 => builder.i64_const(0),
-        ValType::F32 => builder.f32_const(0.0),
-        ValType::F64 => builder.f64_const(0.0),
-        ValType::V128 => unimplemented!("V128"),
-        ValType::Externref => unimplemented!("Externref"),
-        ValType::Funcref => unimplemented!("Funcref"),
+        ValType::F32 | ValType::F64 | ValType::V128 | ValType::Externref | ValType::Funcref => {
+            unreachable!("Use of Wasm type {}", ty);
+        }
     };
 }
 
@@ -147,12 +147,14 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             types.extend(clar2wasm_ty(&inner_types.1));
             types
         }
-        TypeSignature::SequenceType(_) => vec![
+        TypeSignature::SequenceType(_) | TypeSignature::ListUnionType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
         TypeSignature::BoolType => vec![ValType::I32],
-        TypeSignature::PrincipalType | TypeSignature::CallableType(_) => vec![
+        TypeSignature::PrincipalType
+        | TypeSignature::CallableType(_)
+        | TypeSignature::TraitReferenceType(_) => vec![
             ValType::I32, // offset
             ValType::I32, // length
         ],
@@ -168,7 +170,6 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
             }
             types
         }
-        _ => unimplemented!("{:?}", ty),
     }
 }
 
@@ -574,7 +575,10 @@ impl WasmGenerator {
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
-    pub(crate) fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
+    pub(crate) fn add_literal(
+        &mut self,
+        value: &clarity::vm::Value,
+    ) -> Result<(u32, u32), GeneratorError> {
         let data = match value {
             clarity::vm::Value::Int(i) => {
                 let mut data = (((*i as u128) & 0xFFFFFFFFFFFFFFFF) as i64)
@@ -607,9 +611,19 @@ impl WasmGenerator {
             },
             clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
             clarity::vm::Value::Sequence(SequenceData::String(string_data)) => {
-                return self.add_clarity_string_literal(string_data);
+                return Ok(self.add_clarity_string_literal(string_data));
             }
-            _ => unimplemented!("Unsupported literal: {}", value),
+            clarity::vm::Value::Bool(_)
+            | clarity::vm::Value::Tuple(_)
+            | clarity::vm::Value::Optional(_)
+            | clarity::vm::Value::Response(_)
+            | clarity::vm::Value::CallableContract(_)
+            | clarity::vm::Value::Sequence(_) => {
+                return Err(GeneratorError::TypeError(format!(
+                    "Not a valid literal type: {:?}",
+                    value
+                )))
+            }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
@@ -623,7 +637,7 @@ impl WasmGenerator {
         );
         self.literal_memory_end += data.len() as u32;
 
-        (offset, len)
+        Ok((offset, len))
     }
 
     pub(crate) fn block_from_expr(
@@ -704,7 +718,7 @@ impl WasmGenerator {
         offset_local: LocalId,
         offset: u32,
         ty: &TypeSignature,
-    ) -> u32 {
+    ) -> Result<u32, GeneratorError> {
         let memory = self.module.memories.iter().next().expect("no memory found");
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -728,7 +742,7 @@ impl WasmGenerator {
                         offset: offset + 8,
                     },
                 );
-                16
+                Ok(16)
             }
             TypeSignature::PrincipalType
             | TypeSignature::CallableType(_)
@@ -754,7 +768,7 @@ impl WasmGenerator {
                         offset: offset + 4,
                     },
                 );
-                8
+                Ok(8)
             }
             TypeSignature::BoolType => {
                 // Data stack: TOP | Value | ...
@@ -768,7 +782,7 @@ impl WasmGenerator {
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
-                4
+                Ok(4)
             }
             TypeSignature::NoType => {
                 // Data stack: TOP | (Place holder i32)
@@ -778,7 +792,7 @@ impl WasmGenerator {
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
-                4
+                Ok(4)
             }
             TypeSignature::OptionalType(some_ty) => {
                 let memory_id = memory.id();
@@ -786,7 +800,7 @@ impl WasmGenerator {
                 // recursively store the inner value
 
                 let bytes_written =
-                    self.write_to_memory(builder, offset_local, offset + 4, some_ty);
+                    self.write_to_memory(builder, offset_local, offset + 4, some_ty)?;
 
                 // Save the variant to a local and store it to memory
                 let variant_val = self.module.locals.add(ValType::I32);
@@ -801,7 +815,7 @@ impl WasmGenerator {
                     );
 
                 // recursively store the inner value
-                4 + bytes_written
+                Ok(4 + bytes_written)
             }
             TypeSignature::ResponseType(ok_err_ty) => {
                 // Data stack: TOP | err_value | ok_value | (ok|err) variant
@@ -814,11 +828,11 @@ impl WasmGenerator {
                     offset_local,
                     offset + 4 + get_type_size(&ok_err_ty.0) as u32,
                     &ok_err_ty.1,
-                );
+                )?;
 
                 // write ok value at offset + size of variant (4)
                 bytes_written +=
-                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0);
+                    self.write_to_memory(builder, offset_local, offset + 4, &ok_err_ty.0)?;
 
                 let variant_val = self.module.locals.add(ValType::I32);
                 builder
@@ -831,7 +845,7 @@ impl WasmGenerator {
                         MemArg { align: 4, offset },
                     );
 
-                bytes_written + 4
+                Ok(bytes_written + 4)
             }
             TypeSignature::TupleType(tuple_ty) => {
                 // Data stack: TOP | last_value | value_before_last | ... | first_value
@@ -850,12 +864,18 @@ impl WasmGenerator {
                     )
                     .collect();
                 for (elem_ty, offset_delta) in types.into_iter().zip(offsets_delta).rev() {
-                    bytes_written +=
-                        self.write_to_memory(builder, offset_local, offset + offset_delta, elem_ty);
+                    bytes_written += self.write_to_memory(
+                        builder,
+                        offset_local,
+                        offset + offset_delta,
+                        elem_ty,
+                    )?;
                 }
-                bytes_written
+                Ok(bytes_written)
             }
-            _ => unimplemented!("Type not yet supported for writing to memory: {ty}"),
+            TypeSignature::ListUnionType(_) => Err(GeneratorError::TypeError(
+                "Not a valid value type: ListUnionType".to_owned(),
+            ))?,
         }
     }
 
@@ -867,9 +887,9 @@ impl WasmGenerator {
         offset: LocalId,
         literal_offset: u32,
         ty: &TypeSignature,
-    ) -> i32 {
+    ) -> Result<i32, GeneratorError> {
         let memory = self.module.memories.iter().next().expect("no memory found");
-        let size = match ty {
+        match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Memory: Offset -> | Low | High |
                 builder.local_get(offset).load(
@@ -888,7 +908,7 @@ impl WasmGenerator {
                         offset: literal_offset + 8,
                     },
                 );
-                16
+                Ok(16)
             }
             TypeSignature::OptionalType(inner) => {
                 // Memory: Offset -> | Indicator | Value |
@@ -900,7 +920,7 @@ impl WasmGenerator {
                         offset: literal_offset,
                     },
                 );
-                4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)
+                Ok(4 + self.read_from_memory(builder, offset, literal_offset + 4, inner)?)
             }
             TypeSignature::ResponseType(inner) => {
                 // Memory: Offset -> | Indicator | Ok Value | Err Value |
@@ -918,14 +938,14 @@ impl WasmGenerator {
                     offset,
                     literal_offset + offset_adjust,
                     &inner.0,
-                ) as u32;
+                )? as u32;
                 offset_adjust += self.read_from_memory(
                     builder,
                     offset,
                     literal_offset + offset_adjust,
                     &inner.1,
-                ) as u32;
-                offset_adjust as i32
+                )? as u32;
+                Ok(offset_adjust as i32)
             }
             // Principals and sequence types are stored in-memory and
             // represented by an offset and length.
@@ -950,22 +970,22 @@ impl WasmGenerator {
                         offset: literal_offset + 4,
                     },
                 );
-                8
+                Ok(8)
             }
             TypeSignature::TupleType(tuple) => {
                 // Memory: Offset -> | Value1 | Value2 | ... |
                 let mut offset_adjust = 0;
                 for ty in tuple.get_type_map().values() {
                     offset_adjust +=
-                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)
+                        self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)?
                             as u32;
                 }
-                offset_adjust as i32
+                Ok(offset_adjust as i32)
             }
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
                 builder.i32_const(0);
-                4
+                Ok(4)
             }
             TypeSignature::BoolType => {
                 builder.local_get(offset).load(
@@ -976,11 +996,12 @@ impl WasmGenerator {
                         offset: literal_offset,
                     },
                 );
-                4
+                Ok(4)
             }
-            _ => unimplemented!("Type not yet supported for reading from memory: {ty}"),
-        };
-        size
+            TypeSignature::ListUnionType(_) => Err(GeneratorError::TypeError(
+                "Not a valid value type: ListUnionType".to_owned(),
+            ))?,
+        }
     }
 
     pub(crate) fn traverse_statement_list(
@@ -1170,7 +1191,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         name: &str,
         expr: &SymbolicExpression,
-    ) -> bool {
+    ) -> Result<bool, GeneratorError> {
         if let Some(offset) = self.constants.get(name) {
             // Load the offset into a local variable
             let offset_local = self.module.locals.add(ValType::I32);
@@ -1194,14 +1215,14 @@ impl WasmGenerator {
                 builder
                     .local_get(offset_local)
                     .i32_const(get_type_in_memory_size(&ty, false));
-                true
+                Ok(true)
             } else {
                 // Otherwise, we need to load the value from memory.
-                self.read_from_memory(builder, offset_local, 0, &ty);
-                true
+                self.read_from_memory(builder, offset_local, 0, &ty)?;
+                Ok(true)
             }
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -1274,12 +1295,20 @@ impl WasmGenerator {
             }
             clarity::vm::Value::Principal(_)
             | clarity::vm::Value::Sequence(SequenceData::Buffer(_)) => {
-                let (offset, len) = self.add_literal(value);
+                let (offset, len) = self.add_literal(value)?;
                 builder.i32_const(offset as i32);
                 builder.i32_const(len as i32);
                 Ok(())
             }
-            _ => Err(GeneratorError::NotImplemented),
+            clarity::vm::Value::Bool(_)
+            | clarity::vm::Value::Tuple(_)
+            | clarity::vm::Value::Optional(_)
+            | clarity::vm::Value::Response(_)
+            | clarity::vm::Value::CallableContract(_)
+            | clarity::vm::Value::Sequence(_) => Err(GeneratorError::TypeError(format!(
+                "Not a valid literal type: {:?}",
+                value
+            ))),
         }
     }
 
@@ -1294,7 +1323,7 @@ impl WasmGenerator {
             return Ok(());
         }
 
-        if self.lookup_constant_variable(builder, atom.as_str(), expr) {
+        if self.lookup_constant_variable(builder, atom.as_str(), expr)? {
             return Ok(());
         }
 
