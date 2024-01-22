@@ -179,13 +179,15 @@ impl SimpleWord for Sqrti {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "sqrti")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::TestEnvironment;
+    use clarity::vm::Value;
+
+    use crate::tools::{evaluate, TestEnvironment};
 
     #[test]
     fn test_overflow() {
@@ -199,5 +201,47 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet("snippet", "(- u0 u1)")
             .expect_err("should error");
+    }
+
+    #[test]
+    fn test_add() {
+        assert_eq!(evaluate("(+ 1 2 3)"), Ok(Some(Value::Int(6))),);
+    }
+
+    #[test]
+    #[ignore = "see issue #282"]
+    fn test_sub() {
+        assert_eq!(evaluate("(- 1 2 3)"), Ok(Some(Value::Int(-4))));
+    }
+
+    #[test]
+    fn test_mul() {
+        assert_eq!(evaluate("(* 1 2 3)"), Ok(Some(Value::Int(6))));
+    }
+
+    #[test]
+    #[ignore = "see issue #282"]
+    fn test_div() {
+        assert_eq!(evaluate("(/ 8 2 2)"), Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_mod() {
+        assert_eq!(evaluate("(mod 8 3)"), Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_log2() {
+        assert_eq!(evaluate("(log2 8)"), Ok(Some(Value::Int(3))));
+    }
+
+    #[test]
+    fn test_pow() {
+        assert_eq!(evaluate("(pow 2 3)"), Ok(Some(Value::Int(8))));
+    }
+
+    #[test]
+    fn test_sqrti() {
+        assert_eq!(evaluate("(sqrti 8)"), Ok(Some(Value::Int(2))));
     }
 }

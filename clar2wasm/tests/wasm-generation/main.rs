@@ -1,3 +1,4 @@
+pub mod arithmetic;
 pub mod conditionals;
 pub mod default_to;
 pub mod equal;
