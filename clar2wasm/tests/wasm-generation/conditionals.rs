@@ -18,3 +18,19 @@ proptest! {
         )
     }
 }
+
+proptest! {
+    #[test]
+    fn if_false_returns_second_value(
+        (v1, v2) in prop_signature()
+            .prop_flat_map(|ty| {
+                (PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+            })
+        )
+    {
+        crosscheck(
+            &format!(r#"(if false {v1} {v2})"#),
+            Ok(Some(v2.into()))
+        )
+    }
+}
