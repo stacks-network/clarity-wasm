@@ -1,10 +1,10 @@
 use clar2wasm::tools::{crosscheck, TestEnvironment};
 use clarity::vm::Value;
-use proptest::prelude::ProptestConfig;
 use proptest::proptest;
 use proptest::strategy::Strategy;
+use proptest::{prelude::ProptestConfig, strategy::Just};
 
-use crate::{PropValue, TypePrinter};
+use crate::{prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(ProptestConfig {
@@ -47,6 +47,22 @@ proptest! {
         crosscheck(
             &format!(r#"(define-constant cst {val}) cst"#),
             Ok(Some(val.into()))
+        )
+    }
+}
+
+proptest! {
+    #[test]
+    fn data_var_define_set_and_get(
+        (ty, v1, v2) in prop_signature()
+            .prop_flat_map(|ty| {
+                (Just(ty.clone()), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+            })
+        )
+    {
+        crosscheck(
+            &format!(r#"(define-data-var v {} {v1}) (var-set v {v2}) (var-get v)"#, type_string(&ty)),
+            Ok(Some(v2.into()))
         )
     }
 }
