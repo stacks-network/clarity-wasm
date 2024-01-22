@@ -22,12 +22,20 @@ impl ComplexWord for If {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
+
+        // WORKAROUND: have to set the expression result type to the true and false branch
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("if expression must be typed".to_owned()))?
+            .clone();
+        generator.set_expr_type(true_branch, expr_ty.clone());
+        generator.set_expr_type(false_branch, expr_ty);
 
         let id_true = generator.block_from_expr(builder, true_branch)?;
         let id_false = generator.block_from_expr(builder, false_branch)?;
