@@ -4,6 +4,29 @@ use clarity::vm::ClarityName;
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
+fn simple_typed_one_call(
+    generator: &mut WasmGenerator,
+    builder: &mut walrus::InstrSeqBuilder,
+    _arg_types: &[TypeSignature],
+    return_type: &TypeSignature,
+    name: &str,
+) -> Result<(), GeneratorError> {
+    let type_suffix = match return_type {
+        TypeSignature::IntType => "int",
+        TypeSignature::UIntType => "uint",
+        _ => {
+            return Err(GeneratorError::TypeError(
+                "invalid type for arithmetic".to_string(),
+            ));
+        }
+    };
+
+    let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
+    builder.call(func);
+
+    Ok(())
+}
+
 fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -122,7 +145,7 @@ impl SimpleWord for Modulo {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "mod")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "mod")
     }
 }
 
@@ -141,7 +164,7 @@ impl SimpleWord for Log2 {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "log2")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "log2")
     }
 }
 
@@ -160,7 +183,7 @@ impl SimpleWord for Power {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "pow")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "pow")
     }
 }
 

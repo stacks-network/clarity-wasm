@@ -148,6 +148,8 @@ pub trait SimpleWord: Sync + core::fmt::Debug {
 pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &arithmetic::Add,
     &arithmetic::Div,
+    &arithmetic::Log2,
+    &arithmetic::Modulo,
     &arithmetic::Mul,
     &arithmetic::Power,
     &arithmetic::Sqrti,
