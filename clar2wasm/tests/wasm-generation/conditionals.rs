@@ -1,5 +1,6 @@
 use clar2wasm::tools::crosscheck;
-use proptest::{proptest, strategy::Strategy};
+use proptest::proptest;
+use proptest::strategy::Strategy;
 
 use crate::{prop_signature, PropValue};
 
