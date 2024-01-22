@@ -338,7 +338,7 @@ impl TypePrinter for TupleData {
     }
 }
 
-fn type_string(ty: &TypeSignature) -> String {
+pub fn type_string(ty: &TypeSignature) -> String {
     match ty {
         TypeSignature::IntType => "int".to_owned(),
         TypeSignature::UIntType => "uint".to_owned(),

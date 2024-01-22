@@ -42,6 +42,8 @@ pub struct WasmGenerator {
     early_return_block_id: Option<InstrSeqId>,
     /// The return type of the current function.
     pub(crate) return_type: Option<TypeSignature>,
+    /// The types of defined data-vars
+    pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
 
     /// The locals for the current function.
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
@@ -238,6 +240,7 @@ impl WasmGenerator {
             early_return_block_id: None,
             return_type: None,
             frame_size: 0,
+            datavars_types: HashMap::new(),
         })
     }
 
