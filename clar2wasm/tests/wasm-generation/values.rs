@@ -1,8 +1,8 @@
 use clar2wasm::tools::{crosscheck, TestEnvironment};
 use clarity::vm::Value;
+use proptest::prelude::ProptestConfig;
 use proptest::proptest;
-use proptest::strategy::Strategy;
-use proptest::{prelude::ProptestConfig, strategy::Just};
+use proptest::strategy::{Just, Strategy};
 
 use crate::{prop_signature, type_string, PropValue, TypePrinter};
 
