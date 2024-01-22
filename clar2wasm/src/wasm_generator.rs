@@ -575,7 +575,10 @@ impl WasmGenerator {
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
-    pub(crate) fn add_literal(&mut self, value: &clarity::vm::Value) -> (u32, u32) {
+    pub(crate) fn add_literal(
+        &mut self,
+        value: &clarity::vm::Value,
+    ) -> Result<(u32, u32), GeneratorError> {
         let data = match value {
             clarity::vm::Value::Int(i) => {
                 let mut data = (((*i as u128) & 0xFFFFFFFFFFFFFFFF) as i64)
@@ -608,9 +611,19 @@ impl WasmGenerator {
             },
             clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.clone(),
             clarity::vm::Value::Sequence(SequenceData::String(string_data)) => {
-                return self.add_clarity_string_literal(string_data);
+                return Ok(self.add_clarity_string_literal(string_data));
             }
-            _ => unimplemented!("Unsupported literal: {}", value),
+            clarity::vm::Value::Bool(_)
+            | clarity::vm::Value::Tuple(_)
+            | clarity::vm::Value::Optional(_)
+            | clarity::vm::Value::Response(_)
+            | clarity::vm::Value::CallableContract(_)
+            | clarity::vm::Value::Sequence(_) => {
+                return Err(GeneratorError::TypeError(format!(
+                    "Not a valid literal type: {:?}",
+                    value
+                )))
+            }
         };
         let memory = self.module.memories.iter().next().expect("no memory found");
         let offset = self.literal_memory_end;
@@ -624,7 +637,7 @@ impl WasmGenerator {
         );
         self.literal_memory_end += data.len() as u32;
 
-        (offset, len)
+        Ok((offset, len))
     }
 
     pub(crate) fn block_from_expr(
@@ -1282,12 +1295,20 @@ impl WasmGenerator {
             }
             clarity::vm::Value::Principal(_)
             | clarity::vm::Value::Sequence(SequenceData::Buffer(_)) => {
-                let (offset, len) = self.add_literal(value);
+                let (offset, len) = self.add_literal(value)?;
                 builder.i32_const(offset as i32);
                 builder.i32_const(len as i32);
                 Ok(())
             }
-            _ => Err(GeneratorError::NotImplemented),
+            clarity::vm::Value::Bool(_)
+            | clarity::vm::Value::Tuple(_)
+            | clarity::vm::Value::Optional(_)
+            | clarity::vm::Value::Response(_)
+            | clarity::vm::Value::CallableContract(_)
+            | clarity::vm::Value::Sequence(_) => Err(GeneratorError::TypeError(format!(
+                "Not a valid literal type: {:?}",
+                value
+            ))),
         }
     }
 

@@ -26,7 +26,7 @@ impl ComplexWord for DefineConstant {
         // If the initial value is a literal, then we can directly add it to
         // the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
-            let (offset, _len) = generator.add_literal(value);
+            let (offset, _len) = generator.add_literal(value)?;
             offset
         } else {
             // Traverse the initial value expression.

@@ -59,7 +59,8 @@ impl ComplexWord for ContractCall {
             // This is a static contract call.
             // Push the contract identifier onto the stack
             // TODO(#111): These should be tracked for reuse, similar to the string literals
-            let (id_offset, id_length) = generator.add_literal(&contract_identifier.clone().into());
+            let (id_offset, id_length) =
+                generator.add_literal(&contract_identifier.clone().into())?;
             builder
                 .i32_const(id_offset as i32)
                 .i32_const(id_length as i32);
