@@ -73,6 +73,14 @@ impl ComplexWord for DefineDataVar {
                     GeneratorError::InternalError("stdlib.define_variable not found".to_owned())
                 })?,
         );
+
+        // Add type to the datavars_types (for var-set workaround)
+        if generator.datavars_types.insert(name.clone(), ty).is_some() {
+            return Err(GeneratorError::InternalError(format!(
+                "Data var defined twice: {name}"
+            )));
+        }
+
         Ok(())
     }
 }
@@ -94,6 +102,19 @@ impl ComplexWord for SetDataVar {
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
+
+        // WORKAROUND: need to set the correct type of the data var to the argument.
+        let ty = generator
+            .datavars_types
+            .get(name)
+            .ok_or_else(|| {
+                GeneratorError::InternalError(
+                    "Data var should have been defined with a type before var-set".to_owned(),
+                )
+            })?
+            .clone();
+        generator.set_expr_type(value, ty.clone());
+
         generator.traverse_expr(builder, value)?;
 
         // Get the offset and length for this identifier in the literal memory
@@ -104,12 +125,6 @@ impl ComplexWord for SetDataVar {
         let id_length = name.len();
 
         // Create space on the call stack to write the value
-        let ty = generator
-            .get_expr_type(value)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("var-set value expression must be typed".to_owned())
-            })?
-            .clone();
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
 
         // Write the value to the memory, to be read by the host
