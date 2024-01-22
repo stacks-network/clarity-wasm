@@ -55,7 +55,7 @@ proptest! {
   // TODO: Renable this test once issue #281 is fixed
   #[test]
   #[ignore = "This must be re-enabled once issue #281 is fixed"]
-  fn multi_value_int(values in proptest::collection::vec(int(), 1..=10)) {
+  fn crossprop_multi_value_int(values in proptest::collection::vec(int(), 1..=10)) {
     for op in &MULTI_VALUE_OPS {
       let values_str = values.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
       crosscheck_compare_only(
@@ -67,7 +67,7 @@ proptest! {
 
 proptest! {
   #[test]
-  fn multi_value_uint(v1 in uint(), v2 in uint()) {
+  fn crossprop_multi_value_uint(v1 in uint(), v2 in uint()) {
     for op in &MULTI_VALUE_OPS {
       crosscheck_compare_only(
           &format!("({op} {v1} {v2})")
