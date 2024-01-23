@@ -4,6 +4,29 @@ use clarity::vm::ClarityName;
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
+fn simple_typed_one_call(
+    generator: &mut WasmGenerator,
+    builder: &mut walrus::InstrSeqBuilder,
+    _arg_types: &[TypeSignature],
+    return_type: &TypeSignature,
+    name: &str,
+) -> Result<(), GeneratorError> {
+    let type_suffix = match return_type {
+        TypeSignature::IntType => "int",
+        TypeSignature::UIntType => "uint",
+        _ => {
+            return Err(GeneratorError::TypeError(
+                "invalid type for arithmetic".to_string(),
+            ));
+        }
+    };
+
+    let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
+    builder.call(func);
+
+    Ok(())
+}
+
 fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -122,7 +145,7 @@ impl SimpleWord for Modulo {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "mod")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "mod")
     }
 }
 
@@ -141,7 +164,7 @@ impl SimpleWord for Log2 {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "log2")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "log2")
     }
 }
 
@@ -160,7 +183,7 @@ impl SimpleWord for Power {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "pow")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "pow")
     }
 }
 
@@ -179,13 +202,15 @@ impl SimpleWord for Sqrti {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "sqrti")
+        simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::TestEnvironment;
+    use clarity::vm::Value;
+
+    use crate::tools::{crosscheck, TestEnvironment};
 
     #[test]
     fn test_overflow() {
@@ -199,5 +224,47 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet("snippet", "(- u0 u1)")
             .expect_err("should error");
+    }
+
+    #[test]
+    fn test_add() {
+        crosscheck("(+ 1 2 3)", Ok(Some(Value::Int(6))));
+    }
+
+    #[test]
+    #[ignore = "see issue #282"]
+    fn test_sub() {
+        crosscheck("(- 1 2 3)", Ok(Some(Value::Int(-4))));
+    }
+
+    #[test]
+    fn test_mul() {
+        crosscheck("(* 1 2 3)", Ok(Some(Value::Int(6))));
+    }
+
+    #[test]
+    #[ignore = "see issue #282"]
+    fn test_div() {
+        crosscheck("(/ 8 2 2)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_mod() {
+        crosscheck("(mod 8 3)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_log2() {
+        crosscheck("(log2 8)", Ok(Some(Value::Int(3))));
+    }
+
+    #[test]
+    fn test_pow() {
+        crosscheck("(pow 2 3)", Ok(Some(Value::Int(8))));
+    }
+
+    #[test]
+    fn test_sqrti() {
+        crosscheck("(sqrti 8)", Ok(Some(Value::Int(2))));
     }
 }
