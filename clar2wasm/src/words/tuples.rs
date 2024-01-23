@@ -102,6 +102,10 @@ impl ComplexWord for TupleGet {
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))
             .and_then(|lhs_ty| match lhs_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
+                TypeSignature::OptionalType(boxed) => match **boxed {
+                    TypeSignature::TupleType(ref tuple) => Ok(tuple),
+                    _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
+                },
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
             .clone();
@@ -232,5 +236,29 @@ impl ComplexWord for TupleMerge {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use clarity::vm::Value;
+
+    use crate::tools::crosscheck;
+
+    #[test]
+    fn test_get_optional() {
+        let preamble = "
+(define-read-only (get-optional-tuple (o (optional { a: int })))
+  (get a o))";
+
+        crosscheck(
+            &format!("{preamble} (get-optional-tuple none)"),
+            Ok(Some(Value::none())),
+        );
+
+        crosscheck(
+            &format!("{preamble} (get-optional-tuple (some {{ a: 3 }} ))"),
+            Ok(Some(Value::some(Value::Int(3)).unwrap())),
+        );
     }
 }
