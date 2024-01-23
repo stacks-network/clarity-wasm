@@ -1460,7 +1460,7 @@ impl ComplexWord for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, evaluate, unicode_scalars_from_string};
 
     #[test]
     fn test_fold_sub() {
@@ -1551,7 +1551,7 @@ mod tests {
 (fold concat-string u"cdef" u"ab\u{1F98A}")
     "#,
             Ok(Some(
-                Value::string_utf8_from_bytes("fedcab🦊".into()).unwrap(),
+                unicode_scalars_from_string("fedcab🦊".into()),
             )),
         )
     }
@@ -1565,7 +1565,7 @@ mod tests {
 )
 (fold concat-string u"" u"ab\u{1F98A}")
     "#,
-            Ok(Some(Value::string_utf8_from_bytes("ab🦊".into()).unwrap())),
+            Ok(Some(unicode_scalars_from_string("ab🦊".into()))),
         )
     }
 

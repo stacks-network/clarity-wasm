@@ -6,6 +6,7 @@ use crate::{prop_signature, PropValue};
 proptest! {
     #[test]
     fn default_to_with_none_is_always_default(val in PropValue::any()) {
+        println!("Snippet: (default-to {val} none)"); 
         crosscheck(&format!(r#"(default-to {val} none)"#), Ok(Some(val.into())));
     }
 }
@@ -18,6 +19,7 @@ prop_compose! {
             (default, value)
         }
 }
+
 
 proptest! {
     #[test]

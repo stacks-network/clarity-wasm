@@ -5,10 +5,14 @@ pub mod regression;
 pub mod response;
 pub mod values;
 
-use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
-    SequenceData, SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
-    TypeSignature, Value, MAX_VALUE_SIZE,
+use clarity::vm::{
+    types::{
+        ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, PrincipalData,
+        QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
+        StandardPrincipalData, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+        TypeSignature, UTF8Data, Value, MAX_VALUE_SIZE,
+    },
+    ContractName,
 };
 use proptest::prelude::*;
 
@@ -23,8 +27,12 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
-        // TODO: principal,
-        // TODO: string-utf8
+        (1u32..2).prop_map(|v| {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                StringUTF8Length::try_from(v).unwrap(),
+            )))
+        }),
+        // Just(TypeSignature::PrincipalType),
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
         prop_oneof![
@@ -88,6 +96,40 @@ impl std::fmt::Display for PropValue {
                 }
                 write!(f, "\"")
             }
+            Value::Sequence(SequenceData::String(clarity::vm::types::CharType::UTF8(
+                UTF8Data { data },
+            ))) => {
+                write!(f, "u\"")?;
+                for a in data {
+                    if a.len() > 1 {
+                        write!(
+                            f,
+                            "\\u{{{}}}",
+                            a.iter()
+                                .map(|&scalar| format!("{:x}", scalar))
+                                .collect::<Vec<String>>()
+                                .join("")
+                        )?;
+                    } else {
+                        for b in a {
+                            if [b'\\', b'"'].contains(b) {
+                                write!(f, "\\")?;
+                            }
+
+                            if b > &127 {
+                                write!(f, "\\u{{{:x}}}", b)?;
+                            } else {
+                                write!(f, "{}", *b as char)?;
+                            }
+                            //         // println!("b={b}");
+                            //         if b > &127 {
+                            //             write!(f, "\\")?;
+                            //         }
+                        }
+                    }
+                }
+                write!(f, "\"")
+            }
             Value::Optional(OptionalData { data }) => match data {
                 Some(inner) => write!(f, "(some {})", PropValue(*inner.clone())),
                 None => write!(f, "none"),
@@ -114,6 +156,13 @@ impl std::fmt::Display for PropValue {
                     write!(f, "({} {})", &**key, PropValue(value.clone()))?;
                 }
                 write!(f, ")")
+            }
+            Value::Principal(PrincipalData::Contract(contract_identifider)) => {
+                write!(
+                    f,
+                    "\'{}.{}",
+                    contract_identifider.issuer, contract_identifider.name
+                )
             }
             otherwise => write!(f, "{otherwise}"),
         }
@@ -150,8 +199,10 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::TupleType(tuple_ty) => tuple(tuple_ty).boxed(),
 
         // TODO
-        TypeSignature::PrincipalType => todo!(),
-        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
+        TypeSignature::PrincipalType => principal().boxed(),
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(size))) => {
+            string_utf8(size.into()).boxed()
+        }
         TypeSignature::CallableType(_) => todo!(),
         TypeSignature::ListUnionType(_) => todo!(),
         TypeSignature::TraitReferenceType(_) => todo!(),
@@ -170,6 +221,15 @@ fn bool() -> impl Strategy<Value = Value> {
     any::<bool>().prop_map(Value::Bool)
 }
 
+fn principal() -> impl Strategy<Value = Value> {
+    ((1u8..32), (1u8..=255)).prop_map(|(version, value)| {
+        Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier::new(
+            StandardPrincipalData(version, [value; 20]),
+            ContractName::from("proptest-principal"),
+        )))
+    })
+}
+
 pub fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
     let size = size as usize;
     prop::collection::vec(0x20u8..0x7e, size..=size).prop_map(|bytes| {
@@ -177,6 +237,91 @@ pub fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
             clarity::vm::types::ASCIIData { data: bytes },
         )))
     })
+}
+
+pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
+    let _size = size as usize;
+
+    "[\\p{L}\\p{N}\\p{P}\\p{S}\\p{Z}]{1,4}".prop_map(|str| {
+        let str: String = str
+            .chars()
+            .filter(|&c| {
+                let len = c.len_utf8();
+                len == 2
+            })
+            .collect();
+
+        println!("Str: {str}");
+        let validated_utf8_str = std::str::from_utf8(str.as_bytes()).unwrap();
+        println!("Validated Str: {validated_utf8_str}");
+        let mut data = vec![];
+
+        for char in validated_utf8_str.chars() {
+            let scalar_value = char as u32; // Get the Unicode scalar value of the character
+            let mut scalar_bytes = scalar_value.to_be_bytes().to_vec(); // Convert scalar value to little-endian bytes
+            scalar_bytes.retain(|&x| x != 0); // Remove trailing zeros
+
+            data.push(scalar_bytes);
+        }
+
+        println!("Unicode Scalar Data: {:?}", data);
+
+        Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
+
+        // Value::string_utf8_from_bytes(str.into()).unwrap()
+        // let mut data: Vec<Vec<u8>> = Vec::new();
+        // for ch in str.chars() {
+        //     let mut bytes = vec![0; ch.len_utf8()];
+        //     ch.encode_utf8(&mut bytes);
+        //     data.push(bytes);
+        // }
+        // println!("str:{:?}", str);
+        // println!("Data:{:?}", data);
+        // Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
+    })
+    // prop::collection::vec(0x80u32..=0xFF, size..=size).prop_map(|data| {
+    //     let new_data = data
+    //         .iter()
+    //         .filter_map(|&num| std::char::from_u32(num))
+    //         .map(|ch| ch.to_string().into_bytes())
+    //         // .map(|&num| {
+    //         //     let hex_string = format!("{:05x}", num);
+    //         //     let hex_bytes = hex_string
+    //         //         .as_bytes()
+    //         //         .chunks(3)
+    //         //         .map(|chunk| {
+    //         //             u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16).unwrap()
+    //         //         })
+    //         //         .collect();
+    //         //     println!("Hex String: {hex_string}, Hex Bytes: {:?}", hex_bytes);
+    //         //     hex_bytes
+    //         // })
+    //         // .map(|u| u.to_be_bytes().to_vec())
+    //         // .into_iter()
+    //         // .filter_map(char::from_u32)
+    //         // .map(|c| {
+    //         //     let mut buf = [0; 4]; // UTF-8 encoding of a char may be up to 4 bytes
+    //         //     c.encode_utf8(&mut buf).chars().to_vec() // Encode char as UTF-8 and convert to Vec<u8>
+    //         // })
+    //         // .filter_map(|v| String::from_utf8(v).ok()) // Filter out invalid UTF-8 sequences
+    //         // .map(|s| s.bytes().collect::<Vec<u8>>()) // Collect bytes of valid UTF-8 strings
+    //         .collect();
+    //     // println!("Generated data: {:?}", new_data);
+    //     Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
+    //         data: new_data,
+    //     })))
+    // })
+    // prop::collection::vec(0x30u32..=0x7e, size..=size).prop_map(|data| {
+    //     let new_data = data
+    //         .into_iter()
+    //         .map(|n| n.to_be_bytes().to_vec())
+    //         .map(|v| String::from_utf8(v).expect("Invalid UTF-8 sequence"))
+    //         .map(|s| s.bytes().collect())
+    //         .collect();
+    //     Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
+    //         data: new_data,
+    //     })))
+    // })
 }
 
 fn buffer(size: u32) -> impl Strategy<Value = Value> {

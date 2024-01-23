@@ -24,6 +24,7 @@ proptest! {
         let mut env = TestEnvironment::default();
         env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
     })) {
+        println!("Snippet:{:?}",&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val));
         crosscheck(
             &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
             Ok(Some(Value::some(val.into()).unwrap()))
