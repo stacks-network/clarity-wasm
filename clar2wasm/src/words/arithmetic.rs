@@ -210,7 +210,7 @@ impl SimpleWord for Sqrti {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, TestEnvironment};
 
     #[test]
     fn test_overflow() {
@@ -228,43 +228,43 @@ mod tests {
 
     #[test]
     fn test_add() {
-        assert_eq!(evaluate("(+ 1 2 3)"), Ok(Some(Value::Int(6))),);
+        crosscheck("(+ 1 2 3)", Ok(Some(Value::Int(6))));
     }
 
     #[test]
     #[ignore = "see issue #282"]
     fn test_sub() {
-        assert_eq!(evaluate("(- 1 2 3)"), Ok(Some(Value::Int(-4))));
+        crosscheck("(- 1 2 3)", Ok(Some(Value::Int(-4))));
     }
 
     #[test]
     fn test_mul() {
-        assert_eq!(evaluate("(* 1 2 3)"), Ok(Some(Value::Int(6))));
+        crosscheck("(* 1 2 3)", Ok(Some(Value::Int(6))));
     }
 
     #[test]
     #[ignore = "see issue #282"]
     fn test_div() {
-        assert_eq!(evaluate("(/ 8 2 2)"), Ok(Some(Value::Int(2))));
+        crosscheck("(/ 8 2 2)", Ok(Some(Value::Int(2))));
     }
 
     #[test]
     fn test_mod() {
-        assert_eq!(evaluate("(mod 8 3)"), Ok(Some(Value::Int(2))));
+        crosscheck("(mod 8 3)", Ok(Some(Value::Int(2))));
     }
 
     #[test]
     fn test_log2() {
-        assert_eq!(evaluate("(log2 8)"), Ok(Some(Value::Int(3))));
+        crosscheck("(log2 8)", Ok(Some(Value::Int(3))));
     }
 
     #[test]
     fn test_pow() {
-        assert_eq!(evaluate("(pow 2 3)"), Ok(Some(Value::Int(8))));
+        crosscheck("(pow 2 3)", Ok(Some(Value::Int(8))));
     }
 
     #[test]
     fn test_sqrti() {
-        assert_eq!(evaluate("(sqrti 8)"), Ok(Some(Value::Int(2))));
+        crosscheck("(sqrti 8)", Ok(Some(Value::Int(2))));
     }
 }
