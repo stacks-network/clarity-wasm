@@ -195,7 +195,7 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
         compiled.as_ref().map_err(|_| &()),
         expected.as_ref(),
         "Not the expected result {:?}",
-        compiled.as_ref().unwrap_err()
+        compiled.as_ref()
     );
 }
 
