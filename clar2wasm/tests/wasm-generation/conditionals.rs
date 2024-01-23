@@ -44,7 +44,7 @@ proptest! {
         )
     {
         crosscheck(
-            &format!(r#"(match (some {initial}) value {some_val} {none_val})"#),
+            &format!("(match (some {initial}) value {some_val} {none_val})"),
             Ok(Some(some_val.into()))
         )
     }
