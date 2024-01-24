@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
+use clarity::vm::analysis::run_analysis;
+use clarity::vm::ast::build_ast;
 use clarity::vm::clarity_wasm::initialize_contract;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::contracts::Contract;
@@ -14,7 +16,7 @@ use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{execute_v2 as execute, ClarityVersion, ContractContext, Value};
+use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -153,6 +155,74 @@ impl TestEnvironment {
         self.burn_datastore.advance_chain_tip(count);
         self.datastore.advance_chain_tip(count)
     }
+
+    pub fn interpret_contract_with_snippet(
+        &mut self,
+        contract_name: &str,
+        snippet: &str,
+    ) -> Result<Option<Value>, Error> {
+        let contract_id = QualifiedContractIdentifier::new(
+            StandardPrincipalData::transient(),
+            (*contract_name).into(),
+        );
+
+        let mut cost_tracker = LimitedCostTracker::new_free();
+        std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
+
+        let mut contract_analysis = self.datastore.as_analysis_db().execute(|analysis_db| {
+            // Parse the contract
+            let mut ast = build_ast(
+                &contract_id,
+                snippet,
+                &mut self.cost_tracker,
+                self.version,
+                self.epoch,
+            )
+            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
+
+            // Run the analysis passes
+            run_analysis(
+                &contract_id,
+                &mut ast.expressions,
+                analysis_db,
+                false,
+                cost_tracker,
+                self.epoch,
+                self.version,
+            )
+            .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
+        })?;
+
+        let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
+
+        let conn = ClarityDatabase::new(
+            &mut self.datastore,
+            &self.burn_datastore,
+            &self.burn_datastore,
+        );
+        let mut global_context = GlobalContext::new(
+            false,
+            CHAIN_ID_TESTNET,
+            conn,
+            contract_analysis.cost_track.take().unwrap(),
+            self.epoch,
+        );
+        global_context.begin();
+        global_context
+            .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
+            .expect("Failed to insert contract hash.");
+
+        eval_all(
+            &contract_analysis.expressions,
+            &mut contract_context,
+            &mut global_context,
+            None,
+        )
+    }
+
+    pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
+        self.interpret_contract_with_snippet("snippet", snippet)
+    }
 }
 
 impl Default for TestEnvironment {
@@ -179,9 +249,27 @@ pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
     evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
 }
 
+/// Interpret a Clarity snippet at a specific epoch and version.
+/// Returns an optional value -- the result of the evaluation.
+pub fn interpret_at(
+    snippet: &str,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) -> Result<Option<Value>, Error> {
+    let mut env = TestEnvironment::new(epoch, version);
+    env.interpret(snippet)
+}
+
+/// Interprets a Clarity snippet at the latest epoch and clarity version.
+/// Returns an optional value -- the result of the evaluation.
+#[allow(clippy::result_unit_err)]
+pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
+    interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
+}
+
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
-    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
-    let interpreted = execute(snippet);
+    let compiled = evaluate(snippet);
+    let interpreted = interpret(snippet);
 
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
@@ -200,8 +288,8 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
 }
 
 pub fn crosscheck_compare_only(snippet: &str) {
-    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
-    let interpreted = execute(snippet);
+    let compiled = evaluate(snippet);
+    let interpreted = interpret(snippet);
 
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
