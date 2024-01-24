@@ -66,6 +66,15 @@ impl ComplexWord for Match {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        // WORKAROUND: we'll have to set the types of arguments to the type of expression,
+        //             since the typechecker didn't do it for us
+        let expr_ty = generator
+            .get_expr_type(_expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("match expression should have a type".to_owned())
+            })?
+            .clone();
+
         let match_on = args.get_expr(0)?;
         let success_binding = args.get_name(1)?;
 
@@ -77,6 +86,8 @@ impl ComplexWord for Match {
         }
 
         let success_body = args.get_expr(2)?;
+        // WORKAROND: type set on some/ok body
+        generator.set_expr_type(success_body, expr_ty.clone());
 
         // save the current set of named locals, for later restoration
         let saved_bindings = generator.bindings.clone();
@@ -86,6 +97,10 @@ impl ComplexWord for Match {
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
                 let none_body = args.get_expr(3)?;
+
+                // WORKAROUND: set type on none body
+                generator.set_expr_type(none_body, expr_ty);
+
                 let some_locals = generator.save_to_locals(builder, &inner_type, true);
 
                 generator
@@ -118,6 +133,8 @@ impl ComplexWord for Match {
                 }
 
                 let err_body = args.get_expr(4)?;
+                // Workaround: set type on err body
+                generator.set_expr_type(err_body, expr_ty);
 
                 let err_locals = generator.save_to_locals(builder, err_ty, true);
                 let ok_locals = generator.save_to_locals(builder, ok_ty, true);

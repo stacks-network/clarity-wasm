@@ -45,6 +45,10 @@ path = "src/lib.rs"
 name = "clar2wasm"
 path = "src/bin/main.rs"
 
+[[bin]]
+name = "crosscheck"
+path = "src/bin/crosscheck.rs"
+
 [[bench]]
 name = "benchmark"
 harness = false

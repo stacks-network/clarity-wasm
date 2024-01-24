@@ -196,7 +196,21 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
         compiled.as_ref().map_err(|_| &()),
         expected.as_ref(),
         "Not the expected result {:?}",
-        compiled.as_ref().unwrap_err()
+        compiled.as_ref()
+    );
+}
+
+pub fn crosscheck_compare_only(snippet: &str) {
+    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
+    let interpreted = execute(snippet);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet,
+        &compiled,
+        &interpreted
     );
 }
 
