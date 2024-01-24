@@ -166,7 +166,32 @@ impl SimpleWord for Div {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "div")
+        let type_suffix = match return_type {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "invalid type for arithmetic".to_string(),
+                ));
+            }
+        };
+
+        match arg_types.len() {
+            0 => {
+                return Err(GeneratorError::TypeError(
+                    "`/` takes at least 1 argument".to_string(),
+                ))
+            }
+            1 => return Ok(()),
+            2 => (),
+            _ => {
+                simple_typed_multi_value(generator, builder, &arg_types[1..], return_type, "mul")?;
+            }
+        }
+
+        let func = generator.func_by_name(&format!("stdlib.div-{type_suffix}"));
+        builder.call(func);
+        Ok(())
     }
 }
 
@@ -280,6 +305,11 @@ mod tests {
     }
 
     #[test]
+    fn test_subtraction_nullary() {
+        crosscheck("(-)", Err(()));
+    }
+
+    #[test]
     fn test_subtraction_2() {
         crosscheck("(- 1 2 3 4)", Ok(Some(Value::Int(-8))))
     }
@@ -290,7 +320,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue #282"]
     fn test_sub() {
         crosscheck("(- 1 2 3)", Ok(Some(Value::Int(-4))));
     }
@@ -301,9 +330,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue #282"]
     fn test_div() {
         crosscheck("(/ 8 2 2)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_div_unary() {
+        crosscheck("(/ 8)", Ok(Some(Value::Int(8))));
     }
 
     #[test]
