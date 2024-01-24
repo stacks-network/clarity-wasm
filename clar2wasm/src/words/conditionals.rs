@@ -87,7 +87,7 @@ impl ComplexWord for Match {
 
         let success_body = args.get_expr(2)?;
         // WORKAROND: type set on some/ok body
-        generator.set_expr_type(success_body, expr_ty.clone());
+        generator.set_expr_type(success_body, expr_ty.clone())?;
 
         // save the current set of named locals, for later restoration
         let saved_bindings = generator.bindings.clone();
@@ -99,7 +99,7 @@ impl ComplexWord for Match {
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
-                generator.set_expr_type(none_body, expr_ty);
+                generator.set_expr_type(none_body, expr_ty)?;
 
                 let some_locals = generator.save_to_locals(builder, &inner_type, true);
 
@@ -134,7 +134,7 @@ impl ComplexWord for Match {
 
                 let err_body = args.get_expr(4)?;
                 // Workaround: set type on err body
-                generator.set_expr_type(err_body, expr_ty);
+                generator.set_expr_type(err_body, expr_ty)?;
 
                 let err_locals = generator.save_to_locals(builder, err_ty, true);
                 let ok_locals = generator.save_to_locals(builder, ok_ty, true);
