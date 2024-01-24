@@ -74,7 +74,7 @@ impl ComplexWord for ContractOf {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;

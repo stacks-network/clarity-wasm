@@ -144,7 +144,7 @@ impl ComplexWord for AtBlock {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;

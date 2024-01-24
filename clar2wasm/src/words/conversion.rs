@@ -143,7 +143,7 @@ impl SimpleWord for IntToUtf8 {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{ASCIIData, CharType, SequenceData, UTF8Data};
     use clarity::vm::Value;

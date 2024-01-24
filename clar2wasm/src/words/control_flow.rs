@@ -274,7 +274,7 @@ impl ComplexWord for UnwrapErrPanic {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::Value;

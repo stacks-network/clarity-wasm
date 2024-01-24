@@ -297,7 +297,7 @@ impl ComplexWord for PrincipalOf {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{PrincipalData, TupleData};
     use clarity::vm::Value;
