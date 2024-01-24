@@ -155,7 +155,7 @@ impl ComplexWord for IndexOf {
 
         let else_id = {
             let else_case = &mut builder.dangling_instr_seq(ty);
-            let item = args.get_expr(1).unwrap();
+            let item = args.get_expr(1)?;
             generator.traverse_expr(else_case, item)?;
             // STACK: [item]
 
@@ -707,8 +707,13 @@ fn wasm_equal_tuple(
 
     // if this is a 1-tuple, we can just check for equality of element
     if depth == 1 {
-        let (ty, range) = wasm_ranges.next().unwrap();
-        let nth_ty = nth_types.next().unwrap();
+        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
+        })?;
+        let nth_ty = nth_types.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
+        })?;
+
         return wasm_equal(
             ty,
             nth_ty,
@@ -722,8 +727,12 @@ fn wasm_equal_tuple(
     // bottom equality statement
     let mut instr_id = {
         let mut instr = builder.dangling_instr_seq(ValType::I32);
-        let (ty, range) = wasm_ranges.next().unwrap();
-        let nth_ty = nth_types.next().unwrap();
+        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
+        })?;
+        let nth_ty = nth_types.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
+        })?;
 
         wasm_equal(
             ty,
@@ -740,8 +749,12 @@ fn wasm_equal_tuple(
 
     // intermediary if-else statements
     while depth > 1 {
-        let (ty, range) = wasm_ranges.next().unwrap();
-        let nth_ty = nth_types.next().unwrap();
+        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
+        })?;
+        let nth_ty = nth_types.next().ok_or_else(|| {
+            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
+        })?;
 
         let else_id = {
             let mut else_ = builder.dangling_instr_seq(ValType::I32);
@@ -773,8 +786,12 @@ fn wasm_equal_tuple(
     }
 
     // top if-else statement
-    let (ty, range) = wasm_ranges.next().unwrap();
-    let nth_ty = nth_types.next().unwrap();
+    let (ty, range) = wasm_ranges.next().ok_or_else(|| {
+        GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
+    })?;
+    let nth_ty = nth_types.next().ok_or_else(|| {
+        GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
+    })?;
     let top_else_id = {
         let mut else_ = builder.dangling_instr_seq(ValType::I32);
         else_.i32_const(0);
@@ -949,6 +966,7 @@ fn wasm_equal_list(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;

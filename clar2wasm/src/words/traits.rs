@@ -21,7 +21,7 @@ impl ComplexWord for DefineTrait {
         let name = args.get_name(0)?;
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
 
         // Push the name onto the data stack
         builder
@@ -87,7 +87,7 @@ impl ComplexWord for ImplTrait {
 
         // Store the trait identifier as a string literal in the memory
         let (trait_offset, trait_length) =
-            generator.add_string_literal(&trait_identifier.to_string());
+            generator.add_string_literal(&trait_identifier.to_string())?;
 
         // Push the name onto the data stack
         builder
@@ -108,6 +108,7 @@ impl ComplexWord for ImplTrait {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;

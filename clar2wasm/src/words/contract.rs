@@ -75,7 +75,7 @@ impl ComplexWord for ContractCall {
         let args = if args.len() >= 2 { &args[2..] } else { &[] };
 
         // Push the function name onto the stack
-        let (fn_offset, fn_length) = generator.add_string_literal(function_name);
+        let (fn_offset, fn_length) = generator.add_string_literal(function_name)?;
         builder
             .i32_const(fn_offset as i32)
             .i32_const(fn_length as i32);
@@ -128,6 +128,7 @@ impl ComplexWord for ContractCall {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::Value;
 

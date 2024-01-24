@@ -1,3 +1,5 @@
+#![deny(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+
 use std::fs;
 
 use clap::Parser;

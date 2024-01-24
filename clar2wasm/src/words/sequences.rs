@@ -51,7 +51,7 @@ impl ComplexWord for ListCons {
             // This means that the placeholder will be represented with a different number of `ValType`, and will
             // cause errors (example: function called with wrong number of arguments).
             // While we wait for a real fix in the typechecker, here is a workaround to set all the elements types.
-            generator.set_expr_type(expr, elem_ty.clone());
+            generator.set_expr_type(expr, elem_ty.clone())?;
 
             generator.traverse_expr(builder, expr)?;
             // Write this element to memory
@@ -255,7 +255,9 @@ impl ComplexWord for Append {
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
             .clone();
 
-        let memory = generator.get_memory();
+        let memory = generator
+            .get_memory()
+            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
 
         // Allocate stack space for the new list.
         let (write_ptr, length) = generator.create_call_stack_local(builder, &ty, false, true);
@@ -416,7 +418,9 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let memory = generator.get_memory();
+        let memory = generator
+            .get_memory()
+            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
 
         // Create a new sequence to hold the result in the stack frame
         let ty = generator
@@ -984,8 +988,11 @@ impl ComplexWord for ReplaceAt {
         // Traverse the list, leaving the offset and length on top of the stack.
         generator.traverse_expr(builder, seq)?;
 
+        let memory = generator
+            .get_memory()
+            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+
         // Copy the input list to the new stack local
-        let memory = generator.get_memory();
         builder.memory_copy(memory, memory);
 
         // Extend the sequence length to 64-bits.
@@ -1427,6 +1434,7 @@ impl ComplexWord for Slice {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::Value;
 

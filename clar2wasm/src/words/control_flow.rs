@@ -41,7 +41,7 @@ impl ComplexWord for Begin {
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
-        );
+        )?;
         generator.traverse_statement_list(builder, args)
     }
 }
@@ -274,6 +274,7 @@ impl ComplexWord for UnwrapErrPanic {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::Value;

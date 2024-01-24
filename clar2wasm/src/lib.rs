@@ -1,3 +1,5 @@
+#![deny(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
+
 extern crate lazy_static;
 
 use clarity::types::StacksEpochId;
@@ -78,7 +80,7 @@ pub fn compile(
         &mut ast.expressions,
         analysis_db,
         false,
-        cost_tracker,
+        cost_tracker.clone(),
         epoch,
         clarity_version,
     ) {
@@ -102,11 +104,19 @@ pub fn compile(
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            Err(CompileError::Generic {
-                ast,
-                diagnostics,
-                cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
-            })
+            if let Some(inner_cost_tracker) = contract_analysis.cost_track.take() {
+                Err(CompileError::Generic {
+                    ast,
+                    diagnostics,
+                    cost_tracker: Box::new(inner_cost_tracker),
+                })
+            } else {
+                Err(CompileError::Generic {
+                    ast,
+                    diagnostics,
+                    cost_tracker: Box::new(cost_tracker),
+                })
+            }
         }
     }
 }

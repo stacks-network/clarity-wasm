@@ -34,7 +34,9 @@ impl SimpleWord for IsStandard {
 
         // Read the version byte from the principal in memory
         builder.load(
-            generator.get_memory(),
+            generator
+                .get_memory()
+                .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?,
             walrus::ir::LoadKind::I32_8 {
                 kind: walrus::ir::ExtendedLoad::ZeroExtend,
             },
@@ -201,7 +203,9 @@ impl SimpleWord for Destruct {
 
         // Load the version byte
         builder.load(
-            generator.get_memory(),
+            generator
+                .get_memory()
+                .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?,
             LoadKind::I32_8 {
                 kind: ExtendedLoad::ZeroExtend,
             },
@@ -214,6 +218,7 @@ impl SimpleWord for Destruct {
         // Check if the version matches the network.
         builder.call(generator.func_by_name("stdlib.is-version-valid"));
 
+        #[allow(clippy::unwrap_used)]
         let tuple_ty = TypeSignature::TupleType(
             vec![
                 ("hash-bytes".into(), BUFF_20.clone()),
@@ -292,6 +297,7 @@ impl ComplexWord for PrincipalOf {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
 mod tests {
     use clarity::vm::types::{PrincipalData, TupleData};
     use clarity::vm::Value;

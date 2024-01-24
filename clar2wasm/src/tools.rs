@@ -2,6 +2,7 @@
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production. The `tools` module is only available when the
 //! `developer-mode` feature is enabled.
+#![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
 

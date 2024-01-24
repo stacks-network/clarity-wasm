@@ -34,8 +34,8 @@ impl ComplexWord for If {
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("if expression must be typed".to_owned()))?
             .clone();
-        generator.set_expr_type(true_branch, expr_ty.clone());
-        generator.set_expr_type(false_branch, expr_ty);
+        generator.set_expr_type(true_branch, expr_ty.clone())?;
+        generator.set_expr_type(false_branch, expr_ty)?;
 
         let id_true = generator.block_from_expr(builder, true_branch)?;
         let id_false = generator.block_from_expr(builder, false_branch)?;
@@ -205,7 +205,9 @@ impl ComplexWord for Filter {
         // reserve space for the length of the output list
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
-        let memory = generator.get_memory();
+        let memory = generator
+            .get_memory()
+            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
 
         let mut loop_result = Ok(());
 
@@ -502,7 +504,7 @@ impl ComplexWord for Unwrap {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
@@ -585,7 +587,7 @@ impl ComplexWord for UnwrapErr {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
@@ -673,7 +675,7 @@ impl ComplexWord for Asserts {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;

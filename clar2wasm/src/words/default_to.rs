@@ -39,8 +39,8 @@ impl ComplexWord for DefaultTo {
                 "default-to expression should be typed".to_owned(),
             ));
         };
-        generator.set_expr_type(default, expr_type.clone());
-        generator.set_expr_type(optional, TypeSignature::OptionalType(Box::new(expr_type)));
+        generator.set_expr_type(default, expr_type.clone())?;
+        generator.set_expr_type(optional, TypeSignature::OptionalType(Box::new(expr_type)))?;
 
         generator.traverse_args(builder, args)?;
 

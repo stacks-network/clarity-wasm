@@ -4,6 +4,7 @@
 //! in production. The `datastore` module is only available when the
 //! `developer-mode` feature is enabled. Many of these methods are just
 //! mock implementations that do nothing.
+#![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
 

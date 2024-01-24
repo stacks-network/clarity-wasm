@@ -23,7 +23,7 @@ impl ComplexWord for DefineFungibleToken {
         let supply = args.get(1);
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
 
         // Push the name onto the data stack
         builder
@@ -64,7 +64,7 @@ impl ComplexWord for BurnFungibleToken {
         let sender = args.get_expr(2)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -101,7 +101,7 @@ impl ComplexWord for TransferFungibleToken {
         let recipient = args.get_expr(3)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -137,7 +137,7 @@ impl ComplexWord for MintFungibleToken {
         let amount = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
 
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -170,7 +170,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
     ) -> Result<(), GeneratorError> {
         let token = args.get_name(0)?;
 
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -200,7 +200,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         let owner = args.get_expr(1)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -236,7 +236,7 @@ impl ComplexWord for DefineNonFungibleToken {
         let _nft_type = args.get_expr(1)?;
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
 
         // Push the name onto the data stack
         builder
@@ -276,7 +276,7 @@ impl ComplexWord for BurnNonFungibleToken {
         let sender = args.get_expr(2)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -330,7 +330,7 @@ impl ComplexWord for TransferNonFungibleToken {
         let recipient = args.get_expr(3)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -386,7 +386,7 @@ impl ComplexWord for MintNonFungibleToken {
         let recipient = args.get_expr(2)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
@@ -438,7 +438,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         let identifier = args.get_expr(1)?;
 
         // Push the token name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(token);
+        let (id_offset, id_length) = generator.add_string_literal(token)?;
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);

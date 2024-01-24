@@ -488,7 +488,7 @@ impl WasmGenerator {
         };
 
         let size_non_zero_id = {
-            let mut size_non_zero = builder.dangling_instr_seq(ValType::I32);
+            let mut size_non_zero: InstrSeqBuilder<'_> = builder.dangling_instr_seq(ValType::I32);
 
             let element_ty = list_ty.get_list_item_type();
             let element_size = get_type_size(element_ty);
@@ -846,7 +846,7 @@ impl WasmGenerator {
                 .local_tee(write_ptr);
 
             // Serialize the key name
-            let (offset, length) = self.add_string_literal(key);
+            let (offset, length) = self.add_string_literal(key)?;
             builder
                 .i32_const(offset as i32)
                 .i32_const(length as i32)
@@ -899,7 +899,9 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let memory = self.get_memory();
+        let memory = self
+            .get_memory()
+            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {

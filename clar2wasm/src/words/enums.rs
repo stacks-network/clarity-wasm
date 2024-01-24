@@ -30,7 +30,7 @@ impl ComplexWord for ClaritySome {
             .ok_or_else(|| GeneratorError::TypeError("some expression must be typed".to_owned()))?
         {
             // WORKKAROUND: set inner value full type
-            generator.set_expr_type(value, *inner_type.clone());
+            generator.set_expr_type(value, *inner_type.clone())?;
 
             generator.traverse_expr(builder, value)
         } else {
@@ -73,7 +73,7 @@ impl ComplexWord for ClarityOk {
         builder.i32_const(1);
 
         //WORKAROUND: set full type to ok value
-        generator.set_expr_type(value, inner_types.0);
+        generator.set_expr_type(value, inner_types.0)?;
         generator.traverse_expr(builder, value)?;
 
         // deal with err placeholders
@@ -114,7 +114,7 @@ impl ComplexWord for ClarityErr {
                 add_placeholder_for_type(builder, *ok_type);
             }
             // WORKAROUND: set full type to err value
-            generator.set_expr_type(value, inner_types.1.clone())
+            generator.set_expr_type(value, inner_types.1.clone())?
         } else {
             return Err(GeneratorError::TypeError(
                 "expected response type".to_owned(),
