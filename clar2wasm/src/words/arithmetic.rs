@@ -1,7 +1,6 @@
-use walrus::ValType;
-
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
+use walrus::ValType;
 
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
