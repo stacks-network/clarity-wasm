@@ -243,13 +243,13 @@ pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
     let _size = size as usize;
 
     "[\\p{L}\\p{N}\\p{P}\\p{S}\\p{Z}]{1,4}".prop_map(|str| {
-        let str: String = str
-            .chars()
-            .filter(|&c| {
-                let len = c.len_utf8();
-                len == 2
-            })
-            .collect();
+        // let str: String = str
+        //     .chars()
+        //     .filter(|&c| {
+        //         let len = c.len_utf8();
+        //         len == 2
+        //     })
+        //     .collect();
 
         println!("Str: {str}");
         let validated_utf8_str = std::str::from_utf8(str.as_bytes()).unwrap();
@@ -267,61 +267,7 @@ pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
         println!("Unicode Scalar Data: {:?}", data);
 
         Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
-
-        // Value::string_utf8_from_bytes(str.into()).unwrap()
-        // let mut data: Vec<Vec<u8>> = Vec::new();
-        // for ch in str.chars() {
-        //     let mut bytes = vec![0; ch.len_utf8()];
-        //     ch.encode_utf8(&mut bytes);
-        //     data.push(bytes);
-        // }
-        // println!("str:{:?}", str);
-        // println!("Data:{:?}", data);
-        // Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
     })
-    // prop::collection::vec(0x80u32..=0xFF, size..=size).prop_map(|data| {
-    //     let new_data = data
-    //         .iter()
-    //         .filter_map(|&num| std::char::from_u32(num))
-    //         .map(|ch| ch.to_string().into_bytes())
-    //         // .map(|&num| {
-    //         //     let hex_string = format!("{:05x}", num);
-    //         //     let hex_bytes = hex_string
-    //         //         .as_bytes()
-    //         //         .chunks(3)
-    //         //         .map(|chunk| {
-    //         //             u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16).unwrap()
-    //         //         })
-    //         //         .collect();
-    //         //     println!("Hex String: {hex_string}, Hex Bytes: {:?}", hex_bytes);
-    //         //     hex_bytes
-    //         // })
-    //         // .map(|u| u.to_be_bytes().to_vec())
-    //         // .into_iter()
-    //         // .filter_map(char::from_u32)
-    //         // .map(|c| {
-    //         //     let mut buf = [0; 4]; // UTF-8 encoding of a char may be up to 4 bytes
-    //         //     c.encode_utf8(&mut buf).chars().to_vec() // Encode char as UTF-8 and convert to Vec<u8>
-    //         // })
-    //         // .filter_map(|v| String::from_utf8(v).ok()) // Filter out invalid UTF-8 sequences
-    //         // .map(|s| s.bytes().collect::<Vec<u8>>()) // Collect bytes of valid UTF-8 strings
-    //         .collect();
-    //     // println!("Generated data: {:?}", new_data);
-    //     Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
-    //         data: new_data,
-    //     })))
-    // })
-    // prop::collection::vec(0x30u32..=0x7e, size..=size).prop_map(|data| {
-    //     let new_data = data
-    //         .into_iter()
-    //         .map(|n| n.to_be_bytes().to_vec())
-    //         .map(|v| String::from_utf8(v).expect("Invalid UTF-8 sequence"))
-    //         .map(|s| s.bytes().collect())
-    //         .collect();
-    //     Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data {
-    //         data: new_data,
-    //     })))
-    // })
 }
 
 fn buffer(size: u32) -> impl Strategy<Value = Value> {
