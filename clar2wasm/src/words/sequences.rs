@@ -270,7 +270,7 @@ impl ComplexWord for Append {
         // top of the stack.
         let list = args.get_expr(0)?;
         // WORKAROUND: setting types of list argument
-        generator.set_expr_type(list, ty.clone());
+        generator.set_expr_type(list, ty.clone())?;
         generator.traverse_expr(builder, list)?;
 
         // The stack now has the destination, source and length arguments in
@@ -292,7 +292,7 @@ impl ComplexWord for Append {
         // WORKAROUND: setting type of elem
         match ty {
             TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
-                generator.set_expr_type(elem, ltd.get_list_item_type().clone())
+                generator.set_expr_type(elem, ltd.get_list_item_type().clone())?;
             }
             _ => {
                 return Err(GeneratorError::TypeError(
