@@ -45,7 +45,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: cargo clippy --no-deps --all-features --all-targets -- -D warnings
+      - run: cargo clippy --no-deps --all-features --all-targets -- -D warnings -D clippy::expect_used -D clippy::unwrap_used -D clippy::unimplemented
 
   coverage:
     runs-on: ubuntu-latest
