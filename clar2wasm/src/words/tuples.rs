@@ -240,7 +240,6 @@ impl ComplexWord for TupleMerge {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod test {
     use clarity::vm::Value;
 

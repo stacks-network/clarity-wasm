@@ -108,7 +108,6 @@ impl ComplexWord for ImplTrait {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;

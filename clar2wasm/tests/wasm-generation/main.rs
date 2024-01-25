@@ -1,3 +1,4 @@
+#![cfg(test)]
 pub mod arithmetic;
 pub mod bindings;
 pub mod conditionals;

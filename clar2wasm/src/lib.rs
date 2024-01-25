@@ -1,5 +1,3 @@
-#![deny(clippy::expect_used, clippy::unwrap_used, clippy::unimplemented)]
-
 extern crate lazy_static;
 
 use clarity::types::StacksEpochId;
@@ -80,7 +78,7 @@ pub fn compile(
         &mut ast.expressions,
         analysis_db,
         false,
-        cost_tracker.clone(),
+        cost_tracker,
         epoch,
         clarity_version,
     ) {
@@ -95,6 +93,7 @@ pub fn compile(
         }
     };
 
+    #[allow(clippy::expect_used)]
     match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
         Ok(module) => Ok(CompileResult {
             ast,
@@ -104,19 +103,16 @@ pub fn compile(
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            if let Some(inner_cost_tracker) = contract_analysis.cost_track.take() {
-                Err(CompileError::Generic {
-                    ast,
-                    diagnostics,
-                    cost_tracker: Box::new(inner_cost_tracker),
-                })
-            } else {
-                Err(CompileError::Generic {
-                    ast,
-                    diagnostics,
-                    cost_tracker: Box::new(cost_tracker),
-                })
-            }
+            Err(CompileError::Generic {
+                ast,
+                diagnostics,
+                cost_tracker: Box::new(
+                    contract_analysis
+                        .cost_track
+                        .take()
+                        .expect("Failed to take cost tracker from contract analysis"),
+                ),
+            })
         }
     }
 }

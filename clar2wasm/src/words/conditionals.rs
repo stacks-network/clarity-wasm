@@ -222,9 +222,7 @@ impl ComplexWord for Filter {
         // reserve space for the length of the output list
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
-        let memory = generator
-            .get_memory()
-            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+        let memory = generator.get_memory()?;
 
         let mut loop_result = Ok(());
 

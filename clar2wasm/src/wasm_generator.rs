@@ -277,13 +277,14 @@ impl WasmGenerator {
         Ok(self.module)
     }
 
-    pub fn get_memory(&self) -> Option<MemoryId> {
-        self.module
+    pub fn get_memory(&self) -> Result<MemoryId, GeneratorError> {
+        Ok(self
+            .module
             .memories
             .iter()
             .next()
-            .map(|memory| Some(memory.id()))
-            .unwrap_or_else(|| None)
+            .ok_or(GeneratorError::InternalError("No memory found".to_owned()))?
+            .id())
     }
 
     pub fn traverse_expr(
@@ -391,14 +392,7 @@ impl WasmGenerator {
             .i32_const(id_length as i32);
 
         // Call the host interface function, `define_function`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.define_function")
-                .ok_or_else(|| {
-                    GeneratorError::InternalError("define_function not found".to_owned())
-                })?,
-        );
+        builder.call(self.func_by_name("stdlib.define_function"));
 
         let mut bindings = HashMap::new();
 
@@ -474,16 +468,9 @@ impl WasmGenerator {
             builder.instr(walrus::ir::Br { block: block_id });
         } else {
             // This must be from a top-leve statement, so it should cause a runtime error
-            builder.i32_const(7).call(
-                self.module
-                    .funcs
-                    .by_name("stdlib.runtime-error")
-                    .ok_or_else(|| {
-                        GeneratorError::InternalError(
-                            "function 'stdlib.runtime-error' not found".to_owned(),
-                        )
-                    })?,
-            );
+            builder
+                .i32_const(7)
+                .call(self.func_by_name("stdlib.runtime-error"));
             builder.unreachable();
         }
 
@@ -495,8 +482,7 @@ impl WasmGenerator {
         self.contract_analysis
             .type_map
             .as_ref()
-            .map(|ty| ty.get_type(expr))
-            .unwrap_or_else(|| None)
+            .and_then(|ty| ty.get_type(expr))
     }
 
     /// Sets the result type of the given `SymbolicExpression`. This is
@@ -1058,10 +1044,11 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         statements: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        assert!(
-            !statements.is_empty(),
-            "statement list must have at least one statement"
-        );
+        if statements.is_empty() {
+            return Err(GeneratorError::InternalError(
+                "statement list must have at least one statement".to_owned(),
+            ));
+        }
         // Traverse all but the last statement and drop any unused values.
         for stmt in &statements[..statements.len() - 1] {
             self.traverse_expr(builder, stmt)?;
@@ -1074,12 +1061,8 @@ impl WasmGenerator {
 
         // Traverse the last statement in the block, whose result is the result
         // of the `begin` expression.
-        self.traverse_expr(
-            builder,
-            statements.last().ok_or_else(|| {
-                GeneratorError::InternalError("Last statment not found while traversing".to_owned())
-            })?,
-        )
+        #[allow(clippy::unwrap_used)]
+        self.traverse_expr(builder, statements.last().unwrap())
     }
 
     /// If `name` is a reserved variable, push its value onto the data stack.
@@ -1107,13 +1090,7 @@ impl WasmGenerator {
                     // Push the offset and size to the data stack
                     builder.local_get(offset).i32_const(size);
 
-                    builder.call(self.module.funcs.by_name("stdlib.tx_sender").ok_or_else(
-                        || {
-                            GeneratorError::InternalError(
-                                "function 'stdlib.tx_sender' not found".to_owned(),
-                            )
-                        },
-                    )?);
+                    builder.call(self.func_by_name("stdlib.tx_sender"));
 
                     Ok(true)
                 }
@@ -1131,16 +1108,7 @@ impl WasmGenerator {
                     builder.local_get(offset).i32_const(size);
 
                     // Call the host interface function, `contract_caller`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.contract_caller")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.contract_caller' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.contract_caller"));
                     Ok(true)
                 }
                 NativeVariables::TxSponsor => {
@@ -1158,41 +1126,17 @@ impl WasmGenerator {
 
                     // Call the host interface function, `tx_sponsor`
 
-                    builder.call(self.module.funcs.by_name("stdlib.tx_sponsor").ok_or_else(
-                        || {
-                            GeneratorError::InternalError(
-                                "function 'stdlib.block_height' not found".to_owned(),
-                            )
-                        },
-                    )?);
+                    builder.call(self.func_by_name("stdlib.tx_sponsor"));
                     Ok(true)
                 }
                 NativeVariables::BlockHeight => {
                     // Call the host interface function, `block_height`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.block_height")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.block_height' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.block_height"));
                     Ok(true)
                 }
                 NativeVariables::BurnBlockHeight => {
                     // Call the host interface function, `burn_block_height`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.burn_block_height")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.burn_block_height' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.burn_block_height"));
                     Ok(true)
                 }
                 NativeVariables::NativeNone => {
@@ -1212,55 +1156,22 @@ impl WasmGenerator {
                 }
                 NativeVariables::TotalLiquidMicroSTX => {
                     // Call the host interface function, `stx_liquid_supply`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.stx_liquid_supply")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.stx_liquid_supply' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.stx_liquid_supply"));
                     Ok(true)
                 }
                 NativeVariables::Regtest => {
                     // Call the host interface function, `is_in_regtest`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.is_in_regtest")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.is_in_regtest' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.is_in_regtest"));
                     Ok(true)
                 }
                 NativeVariables::Mainnet => {
                     // Call the host interface function, `is_in_mainnet`
-                    builder.call(
-                        self.module
-                            .funcs
-                            .by_name("stdlib.is_in_mainnet")
-                            .ok_or_else(|| {
-                                GeneratorError::InternalError(
-                                    "function 'stdlib.is_in_mainnet' not found".to_owned(),
-                                )
-                            })?,
-                    );
+                    builder.call(self.func_by_name("stdlib.is_in_mainnet"));
                     Ok(true)
                 }
                 NativeVariables::ChainId => {
                     // Call the host interface function, `chain_id`
-                    builder.call(self.module.funcs.by_name("stdlib.chain_id").ok_or_else(
-                        || {
-                            GeneratorError::InternalError(
-                                "function 'stdlib.chain_id' not found".to_owned(),
-                            )
-                        },
-                    )?);
+                    builder.call(self.func_by_name("stdlib.chain_id"));
                     Ok(true)
                 }
             }
@@ -1491,9 +1402,7 @@ impl WasmGenerator {
                 .binop(BinaryOp::I32Add)
                 .global_set(self.stack_pointer);
 
-            let memory = self
-                .get_memory()
-                .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+            let memory = self.get_memory()?;
 
             // Copy the result to our frame.
             builder
@@ -1515,12 +1424,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         name: &ClarityName,
     ) -> Result<(), GeneratorError> {
-        builder.call(
-            self.module
-                .funcs
-                .by_name(name.as_str())
-                .ok_or_else(|| GeneratorError::TypeError(format!("function not found: {name}")))?,
-        );
+        builder.call(self.func_by_name(name.as_str()));
 
         Ok(())
     }
@@ -1534,16 +1438,7 @@ impl WasmGenerator {
         name: &ClarityName,
     ) -> Result<(), GeneratorError> {
         // Call the host interface function, `begin_public_call`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.begin_public_call")
-                .ok_or_else(|| {
-                    GeneratorError::InternalError(
-                        "function 'stdlib.begin_public_call' not found".to_owned(),
-                    )
-                })?,
-        );
+        builder.call(self.func_by_name("stdlib.begin_public_call"));
 
         self.local_call(builder, name)?;
 
@@ -1555,31 +1450,13 @@ impl WasmGenerator {
         // response indicator (all public functions return a response).
         let if_id = {
             let mut if_case: InstrSeqBuilder<'_> = builder.dangling_instr_seq(None);
-            if_case.call(
-                self.module
-                    .funcs
-                    .by_name("stdlib.commit_call")
-                    .ok_or_else(|| {
-                        GeneratorError::InternalError(
-                            "function 'stdlib.commit_call' not found".to_owned(),
-                        )
-                    })?,
-            );
+            if_case.call(self.func_by_name("stdlib.commit_call"));
             if_case.id()
         };
 
         let else_id = {
             let mut else_case: InstrSeqBuilder<'_> = builder.dangling_instr_seq(None);
-            else_case.call(
-                self.module
-                    .funcs
-                    .by_name("stdlib.roll_back_call")
-                    .ok_or_else(|| {
-                        GeneratorError::InternalError(
-                            "function 'stdlib.roll_back_call' not found".to_owned(),
-                        )
-                    })?,
-            );
+            else_case.call(self.func_by_name("stdlib.roll_back_call"));
             else_case.id()
         };
 
@@ -1603,30 +1480,12 @@ impl WasmGenerator {
         name: &ClarityName,
     ) -> Result<(), GeneratorError> {
         // Call the host interface function, `begin_readonly_call`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.begin_read_only_call")
-                .ok_or_else(|| {
-                    GeneratorError::InternalError(
-                        "function 'stdlib.begin_read_only_call' not found".to_owned(),
-                    )
-                })?,
-        );
+        builder.call(self.func_by_name("stdlib.begin_read_only_call"));
 
         self.local_call(builder, name)?;
 
         // Call the host interface function, `roll_back_call`
-        builder.call(
-            self.module
-                .funcs
-                .by_name("stdlib.roll_back_call")
-                .ok_or_else(|| {
-                    GeneratorError::InternalError(
-                        "function 'stdlib.roll_back_call' not found".to_owned(),
-                    )
-                })?,
-        );
+        builder.call(self.func_by_name("stdlib.roll_back_call"));
 
         Ok(())
     }

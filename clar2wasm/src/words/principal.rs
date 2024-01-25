@@ -34,9 +34,7 @@ impl SimpleWord for IsStandard {
 
         // Read the version byte from the principal in memory
         builder.load(
-            generator
-                .get_memory()
-                .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?,
+            generator.get_memory()?,
             walrus::ir::LoadKind::I32_8 {
                 kind: walrus::ir::ExtendedLoad::ZeroExtend,
             },
@@ -203,9 +201,7 @@ impl SimpleWord for Destruct {
 
         // Load the version byte
         builder.load(
-            generator
-                .get_memory()
-                .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?,
+            generator.get_memory()?,
             LoadKind::I32_8 {
                 kind: ExtendedLoad::ZeroExtend,
             },
@@ -297,7 +293,6 @@ impl ComplexWord for PrincipalOf {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::types::{PrincipalData, TupleData};
     use clarity::vm::Value;

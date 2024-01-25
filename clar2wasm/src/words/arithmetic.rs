@@ -207,7 +207,6 @@ impl SimpleWord for Sqrti {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::Value;
 

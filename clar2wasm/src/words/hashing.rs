@@ -223,7 +223,6 @@ impl SimpleWord for Sha512_256 {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::Value;
 

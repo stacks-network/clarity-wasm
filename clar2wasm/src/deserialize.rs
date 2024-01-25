@@ -1638,9 +1638,7 @@ impl WasmGenerator {
         end_local: LocalId,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let memory = self
-            .get_memory()
-            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+        let memory = self.get_memory()?;
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {

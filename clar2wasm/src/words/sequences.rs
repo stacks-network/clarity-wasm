@@ -255,9 +255,7 @@ impl ComplexWord for Append {
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
             .clone();
 
-        let memory = generator
-            .get_memory()
-            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+        let memory = generator.get_memory()?;
 
         // Allocate stack space for the new list.
         let (write_ptr, length) = generator.create_call_stack_local(builder, &ty, false, true);
@@ -418,9 +416,7 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        let memory = generator
-            .get_memory()
-            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+        let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
         let ty = generator
@@ -988,9 +984,7 @@ impl ComplexWord for ReplaceAt {
         // Traverse the list, leaving the offset and length on top of the stack.
         generator.traverse_expr(builder, seq)?;
 
-        let memory = generator
-            .get_memory()
-            .ok_or_else(|| GeneratorError::InternalError("Unable to find memory".to_owned()))?;
+        let memory = generator.get_memory()?;
 
         // Copy the input list to the new stack local
         builder.memory_copy(memory, memory);
@@ -1434,7 +1428,6 @@ impl ComplexWord for Slice {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use clarity::vm::Value;
 
