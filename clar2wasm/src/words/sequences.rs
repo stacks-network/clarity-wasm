@@ -268,7 +268,10 @@ impl ComplexWord for Append {
 
         // Traverse the list to append to, leaving the offset and length on
         // top of the stack.
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
+        let list = args.get_expr(0)?;
+        // WORKAROUND: setting types of list argument
+        generator.set_expr_type(list, ty.clone());
+        generator.traverse_expr(builder, list)?;
 
         // The stack now has the destination, source and length arguments in
         // right order for `memory.copy` to copy the source list into the new
@@ -286,6 +289,17 @@ impl ComplexWord for Append {
 
         // Traverse the element that we're appending to the list.
         let elem = args.get_expr(1)?;
+        // WORKAROUND: setting type of elem
+        match ty {
+            TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+                generator.set_expr_type(elem, ltd.get_list_item_type().clone())
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "append result should be a list".to_owned(),
+                ))
+            }
+        }
         generator.traverse_expr(builder, elem)?;
 
         // Get the type of the element that we're appending.
