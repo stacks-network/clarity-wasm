@@ -1,4 +1,5 @@
 /// Generate the standard library as a Wasm binary from the WAT source.
+#[allow(clippy::expect_used)]
 fn main() {
     match wat::parse_file("src/standard/standard.wat") {
         Ok(binary) => {

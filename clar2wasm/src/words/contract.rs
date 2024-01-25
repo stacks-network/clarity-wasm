@@ -75,7 +75,7 @@ impl ComplexWord for ContractCall {
         let args = if args.len() >= 2 { &args[2..] } else { &[] };
 
         // Push the function name onto the stack
-        let (fn_offset, fn_length) = generator.add_string_literal(function_name);
+        let (fn_offset, fn_length) = generator.add_string_literal(function_name)?;
         builder
             .i32_const(fn_offset as i32)
             .i32_const(fn_length as i32);

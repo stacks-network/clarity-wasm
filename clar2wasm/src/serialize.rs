@@ -846,7 +846,7 @@ impl WasmGenerator {
                 .local_tee(write_ptr);
 
             // Serialize the key name
-            let (offset, length) = self.add_string_literal(key);
+            let (offset, length) = self.add_string_literal(key)?;
             builder
                 .i32_const(offset as i32)
                 .i32_const(length as i32)
@@ -899,7 +899,7 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let memory = self.get_memory();
+        let memory = self.get_memory()?;
 
         use clarity::vm::types::signatures::TypeSignature::*;
         match ty {

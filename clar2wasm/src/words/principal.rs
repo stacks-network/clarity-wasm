@@ -34,7 +34,7 @@ impl SimpleWord for IsStandard {
 
         // Read the version byte from the principal in memory
         builder.load(
-            generator.get_memory(),
+            generator.get_memory()?,
             walrus::ir::LoadKind::I32_8 {
                 kind: walrus::ir::ExtendedLoad::ZeroExtend,
             },
@@ -201,7 +201,7 @@ impl SimpleWord for Destruct {
 
         // Load the version byte
         builder.load(
-            generator.get_memory(),
+            generator.get_memory()?,
             LoadKind::I32_8 {
                 kind: ExtendedLoad::ZeroExtend,
             },
@@ -214,6 +214,7 @@ impl SimpleWord for Destruct {
         // Check if the version matches the network.
         builder.call(generator.func_by_name("stdlib.is-version-valid"));
 
+        #[allow(clippy::unwrap_used)]
         let tuple_ty = TypeSignature::TupleType(
             vec![
                 ("hash-bytes".into(), BUFF_20.clone()),

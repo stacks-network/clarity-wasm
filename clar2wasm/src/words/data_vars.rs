@@ -24,7 +24,7 @@ impl ComplexWord for DefineDataVar {
         let initial = args.get_expr(2)?;
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
 
         // Traverse the initial value for the data variable (result is on the
         // data stack)
@@ -113,7 +113,7 @@ impl ComplexWord for SetDataVar {
                 )
             })?
             .clone();
-        generator.set_expr_type(value, ty.clone());
+        generator.set_expr_type(value, ty.clone())?;
 
         generator.traverse_expr(builder, value)?;
 

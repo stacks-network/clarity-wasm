@@ -63,7 +63,7 @@ impl ComplexWord for TupleCons {
             // does not have the same amount of values in the Wasm code than the correct type.
             // While we wait for a real fix in the typechecker, here is a workaround to make sure that the type
             // is correct.
-            generator.set_expr_type(value, ty.clone());
+            generator.set_expr_type(value, ty.clone())?;
 
             generator.traverse_expr(builder, value)?;
         }

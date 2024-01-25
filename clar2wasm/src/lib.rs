@@ -93,6 +93,7 @@ pub fn compile(
         }
     };
 
+    #[allow(clippy::expect_used)]
     match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
         Ok(module) => Ok(CompileResult {
             ast,
@@ -105,7 +106,12 @@ pub fn compile(
             Err(CompileError::Generic {
                 ast,
                 diagnostics,
-                cost_tracker: Box::new(contract_analysis.cost_track.take().unwrap()),
+                cost_tracker: Box::new(
+                    contract_analysis
+                        .cost_track
+                        .take()
+                        .expect("Failed to take cost tracker from contract analysis"),
+                ),
             })
         }
     }

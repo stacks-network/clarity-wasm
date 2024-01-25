@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use std::borrow::BorrowMut;
 
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};

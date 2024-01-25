@@ -34,8 +34,8 @@ impl ComplexWord for If {
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("if expression must be typed".to_owned()))?
             .clone();
-        generator.set_expr_type(true_branch, expr_ty.clone());
-        generator.set_expr_type(false_branch, expr_ty);
+        generator.set_expr_type(true_branch, expr_ty.clone())?;
+        generator.set_expr_type(false_branch, expr_ty)?;
 
         let id_true = generator.block_from_expr(builder, true_branch)?;
         let id_false = generator.block_from_expr(builder, false_branch)?;
@@ -87,7 +87,7 @@ impl ComplexWord for Match {
 
         let success_body = args.get_expr(2)?;
         // WORKAROND: type set on some/ok body
-        generator.set_expr_type(success_body, expr_ty.clone());
+        generator.set_expr_type(success_body, expr_ty.clone())?;
 
         // save the current set of named locals, for later restoration
         let saved_bindings = generator.bindings.clone();
@@ -99,7 +99,7 @@ impl ComplexWord for Match {
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
-                generator.set_expr_type(none_body, expr_ty);
+                generator.set_expr_type(none_body, expr_ty)?;
 
                 let some_locals = generator.save_to_locals(builder, &inner_type, true);
 
@@ -134,7 +134,7 @@ impl ComplexWord for Match {
 
                 let err_body = args.get_expr(4)?;
                 // Workaround: set type on err body
-                generator.set_expr_type(err_body, expr_ty);
+                generator.set_expr_type(err_body, expr_ty)?;
 
                 let err_locals = generator.save_to_locals(builder, err_ty, true);
                 let ok_locals = generator.save_to_locals(builder, ok_ty, true);
@@ -222,7 +222,7 @@ impl ComplexWord for Filter {
         // reserve space for the length of the output list
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
-        let memory = generator.get_memory();
+        let memory = generator.get_memory()?;
 
         let mut loop_result = Ok(());
 
@@ -519,7 +519,7 @@ impl ComplexWord for Unwrap {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
@@ -602,7 +602,7 @@ impl ComplexWord for UnwrapErr {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;
@@ -690,7 +690,7 @@ impl ComplexWord for Asserts {
         // type is not set, then we are not in a function, and the type can't
         // be determined.
         if let Some(return_ty) = &generator.return_type {
-            generator.set_expr_type(throw, return_ty.clone());
+            generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
         generator.return_early(&mut throw_branch)?;

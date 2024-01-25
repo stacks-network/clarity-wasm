@@ -23,7 +23,7 @@ impl ComplexWord for MapDefinition {
         let _value_type = args.get_expr(2)?;
 
         // Store the identifier as a string literal in the memory
-        let (name_offset, name_length) = generator.add_string_literal(name);
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
 
         // Push the name onto the data stack
         builder

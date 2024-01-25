@@ -41,7 +41,7 @@ impl ComplexWord for Begin {
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
-        );
+        )?;
         generator.traverse_statement_list(builder, args)
     }
 }

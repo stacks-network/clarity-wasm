@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, clippy::unwrap_used)]
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clarity::consts::CHAIN_ID_TESTNET;
