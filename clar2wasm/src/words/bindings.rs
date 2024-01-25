@@ -54,6 +54,20 @@ impl ComplexWord for Let {
             generator.bindings.insert(name.to_string(), locals);
         }
 
+        // WORKAROUND: need to set the last statement type to the type of the let expression
+        let expr_ty = generator
+            .get_expr_type(_expr)
+            .ok_or_else(|| GeneratorError::TypeError("let expression should be typed".to_owned()))?
+            .clone();
+        generator.set_expr_type(
+            args.last().ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "let expression should have at least one statement".to_owned(),
+                )
+            })?,
+            expr_ty,
+        );
+
         // Traverse the body
         generator.traverse_statement_list(builder, &args[1..])?;
 
@@ -66,7 +80,7 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_compare_only};
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -88,5 +102,21 @@ mod tests {
     test))";
 
         crosscheck(&format!("{ERR} (test)"), Err(()));
+    }
+
+    #[test]
+    fn let_with_multiple_statements() {
+        crosscheck_compare_only(
+            r#"
+                (define-data-var count uint u0)
+
+                (define-public (decrement)
+                    (let ((current-count (var-get count)))
+                        (asserts! (> current-count u0) (err u1))
+                        (ok (var-set count (- current-count u1)))
+                    )
+                )
+            "#,
+        )
     }
 }

@@ -9,7 +9,7 @@ const MULTI_VALUE_OPS: [&str; 4] = ["+", "-", "*", "/"];
 
 proptest! {
   #[test]
-  fn one_value_int(v1 in int()) {
+  fn crossprop_one_value_int(v1 in int()) {
     for op in &ONE_VALUE_OPS {
         crosscheck_compare_only(
             &format!("({op} {v1})")
@@ -20,7 +20,7 @@ proptest! {
 
 proptest! {
   #[test]
-  fn one_value_uint(v1 in uint()) {
+  fn crossprop_one_value_uint(v1 in uint()) {
     for op in &ONE_VALUE_OPS {
         crosscheck_compare_only(
             &format!("({op} {v1})")
@@ -31,10 +31,10 @@ proptest! {
 
 proptest! {
   #[test]
-  fn two_value_int(v1 in int()) {
+  fn crossprop_two_value_int(v1 in int(), v2 in int()) {
     for op in &TWO_VALUE_OPS {
         crosscheck_compare_only(
-            &format!("({op} {v1})")
+            &format!("({op} {v1} {v2})")
         )
     }
 }
@@ -42,10 +42,10 @@ proptest! {
 
 proptest! {
   #[test]
-  fn two_value_uint(v1 in int()) {
+  fn crossprop_two_value_uint(v1 in uint(), v2 in uint()) {
     for op in &TWO_VALUE_OPS {
         crosscheck_compare_only(
-            &format!("({op} {v1})")
+            &format!("({op} {v1} {v2})")
         )
     }
 }

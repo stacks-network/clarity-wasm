@@ -1,5 +1,6 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
+use walrus::ValType;
 
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
@@ -88,7 +89,46 @@ impl SimpleWord for Sub {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "sub")
+        let type_suffix = match return_type {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "invalid type for arithmetic".to_string(),
+                ));
+            }
+        };
+
+        match arg_types.len() {
+            0 => {
+                return Err(GeneratorError::TypeError(
+                    "argument to `-` missing".to_string(),
+                ))
+            }
+            1 => {
+                // save the value in locals, add a 0, and restore
+
+                let a = generator.module.locals.add(ValType::I64);
+                let b = generator.module.locals.add(ValType::I64);
+
+                builder.local_set(a);
+                builder.local_set(b);
+
+                builder.i64_const(0);
+                builder.i64_const(0);
+
+                builder.local_get(b);
+                builder.local_get(a);
+            }
+            2 => (),
+            _ => {
+                simple_typed_multi_value(generator, builder, &arg_types[1..], return_type, "add")?;
+            }
+        }
+
+        let func = generator.func_by_name(&format!("stdlib.sub-{type_suffix}"));
+        builder.call(func);
+        Ok(())
     }
 }
 
@@ -126,7 +166,32 @@ impl SimpleWord for Div {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "div")
+        let type_suffix = match return_type {
+            TypeSignature::IntType => "int",
+            TypeSignature::UIntType => "uint",
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "invalid type for arithmetic".to_string(),
+                ));
+            }
+        };
+
+        match arg_types.len() {
+            0 => {
+                return Err(GeneratorError::TypeError(
+                    "`/` takes at least 1 argument".to_string(),
+                ))
+            }
+            1 => return Ok(()),
+            2 => (),
+            _ => {
+                simple_typed_multi_value(generator, builder, &arg_types[1..], return_type, "mul")?;
+            }
+        }
+
+        let func = generator.func_by_name(&format!("stdlib.div-{type_suffix}"));
+        builder.call(func);
+        Ok(())
     }
 }
 
@@ -210,20 +275,43 @@ impl SimpleWord for Sqrti {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::crosscheck;
 
     #[test]
     fn test_overflow() {
-        let mut env = TestEnvironment::default();
-        env.evaluate("(+ u340282366920938463463374607431768211455 u1)")
-            .expect_err("should error");
+        crosscheck("(+ u340282366920938463463374607431768211455 u1)", Err(()));
     }
 
     #[test]
     fn test_underflow() {
-        let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet("snippet", "(- u0 u1)")
-            .expect_err("should error");
+        crosscheck("(- u0 u1)", Err(()))
+    }
+
+    #[test]
+    fn test_subtraction_small() {
+        crosscheck("(- 1 3)", Ok(Some(Value::Int(-2))))
+    }
+
+    #[test]
+    fn test_subtraction() {
+        crosscheck("(- 4 3 2 1)", Ok(Some(Value::Int(-2))))
+    }
+
+    #[test]
+    fn test_subtraction_unary() {
+        crosscheck("(- 1)", Ok(Some(Value::Int(-1))));
+        crosscheck("(- 2)", Ok(Some(Value::Int(-2))));
+        crosscheck("(- 123239)", Ok(Some(Value::Int(-123239))));
+    }
+
+    #[test]
+    fn test_subtraction_nullary() {
+        crosscheck("(-)", Err(()));
+    }
+
+    #[test]
+    fn test_subtraction_2() {
+        crosscheck("(- 1 2 3 4)", Ok(Some(Value::Int(-8))))
     }
 
     #[test]
@@ -232,7 +320,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue #282"]
     fn test_sub() {
         crosscheck("(- 1 2 3)", Ok(Some(Value::Int(-4))));
     }
@@ -243,9 +330,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue #282"]
     fn test_div() {
         crosscheck("(/ 8 2 2)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_div_unary() {
+        crosscheck("(/ 8)", Ok(Some(Value::Int(8))));
     }
 
     #[test]
