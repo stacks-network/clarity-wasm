@@ -66,7 +66,7 @@ impl ComplexWord for Let {
                 )
             })?,
             expr_ty,
-        );
+        )?;
 
         // Traverse the body
         generator.traverse_statement_list(builder, &args[1..])?;
