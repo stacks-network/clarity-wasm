@@ -8,6 +8,7 @@ pub mod equal;
 pub mod optional;
 pub mod regression;
 pub mod response;
+pub mod sequences;
 pub mod values;
 
 use clarity::vm::types::{
@@ -58,6 +59,7 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
     })
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct PropValue(Value);
 
 impl From<Value> for PropValue {
@@ -135,6 +137,19 @@ impl PropValue {
 
     pub fn from_type(ty: TypeSignature) -> impl Strategy<Value = Self> {
         prop_value(ty).prop_map_into()
+    }
+
+    pub fn many_from_type(ty: TypeSignature, count: usize) -> impl Strategy<Value = Vec<Self>> {
+        prop::collection::vec(Self::from_type(ty.clone()), count)
+    }
+}
+
+impl TryFrom<Vec<PropValue>> for PropValue {
+    type Error = clarity::vm::errors::Error;
+
+    fn try_from(values: Vec<PropValue>) -> Result<Self, Self::Error> {
+        let values = values.into_iter().map(Value::from).collect();
+        Value::cons_list_unsanitized(values).map(PropValue::from)
     }
 }
 
