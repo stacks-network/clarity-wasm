@@ -386,7 +386,7 @@ impl ComplexWord for AsMaxLen {
         builder.drop();
 
         // Compare the length of the list to the desired length.
-        builder.binop(BinaryOp::I64GeU);
+        builder.binop(BinaryOp::I64GtU);
 
         // Select from the `0` and `1` that we pushed to the stack earlier,
         // based on the result of the comparison.
@@ -1744,5 +1744,51 @@ mod tests {
   (list false false false))
 ";
         crosscheck(a, evaluate("(list true false true)"));
+    }
+
+    #[test]
+    fn as_max_len_string_utf8() {
+        crosscheck(
+            r#"(as-max-len? u"hello" u16)"#,
+            Ok(Some(
+                Value::some(
+                    Value::string_utf8_from_string_utf8_literal("hello".to_owned()).unwrap(),
+                )
+                .unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn as_max_len_list() {
+        crosscheck(
+            r#"(as-max-len? (list 42 21) u2)"#,
+            Ok(Some(
+                Value::some(
+                    Value::cons_list_unsanitized(vec![Value::Int(42), Value::Int(21)]).unwrap(),
+                )
+                .unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn as_max_len_string_0() {
+        crosscheck(
+            r#"(as-max-len? "" u0)"#,
+            Ok(Some(
+                Value::some(Value::string_ascii_from_bytes(vec![]).unwrap()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn as_max_len_list_0() {
+        crosscheck(
+            r#"(as-max-len? (list) u0)"#,
+            Ok(Some(
+                Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap(),
+            )),
+        );
     }
 }
