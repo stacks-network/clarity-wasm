@@ -142,6 +142,24 @@ impl PropValue {
     pub fn many_from_type(ty: TypeSignature, count: usize) -> impl Strategy<Value = Vec<Self>> {
         prop::collection::vec(Self::from_type(ty.clone()), count)
     }
+
+    pub fn any_sequence(size: usize) -> impl Strategy<Value = Self> {
+        let any_list = prop_signature()
+            .prop_ind_flat_map2(move |ty| prop::collection::vec(prop_value(ty), size))
+            .prop_map(move |(ty, vec)| {
+                Value::Sequence(SequenceData::List(ListData {
+                    data: vec,
+                    type_signature: ListTypeData::new_list(ty, size as u32).unwrap(),
+                }))
+            });
+        // TODO: add string-utf8
+        prop_oneof![
+            1 => buffer(size as u32),
+            1 => string_ascii(size as u32),
+            8 => any_list
+        ]
+        .prop_map_into()
+    }
 }
 
 impl TryFrom<Vec<PropValue>> for PropValue {
