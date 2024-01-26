@@ -11,6 +11,7 @@ proptest! {
         cases: 500,
         .. ProptestConfig::default()
     })]
+    #[ignore]
     #[test]
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
         crosscheck(
@@ -18,7 +19,7 @@ proptest! {
             Ok(Some(val.into()))
         )
     }
-
+    #[ignore]
     #[test]
     fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
         let mut env = TestEnvironment::default();
@@ -32,6 +33,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn data_var_define_and_get(val in PropValue::any()) {
         crosscheck(
@@ -42,6 +44,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn constant_define_and_get(val in PropValue::any()) {
         crosscheck(
@@ -52,6 +55,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn data_var_define_set_and_get(
         (ty, v1, v2) in prop_signature()

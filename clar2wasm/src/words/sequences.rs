@@ -1805,6 +1805,22 @@ mod tests {
     }
 
     #[test]
+    fn fold() {
+        crosscheck(
+            "
+(define-private (sub (x int) (y int))
+    (- x y))
+
+(define-public (fold-sub)
+    (ok (fold sub (list 1 2 3 4) 0)))
+
+(fold-sub)
+",
+            evaluate("(ok 2)"),
+        )
+    }
+
+    #[test]
     fn as_max_len_list() {
         crosscheck(
             r#"(as-max-len? (list 42 21) u2)"#,
@@ -1834,6 +1850,22 @@ mod tests {
             Ok(Some(
                 Value::some(Value::cons_list_unsanitized(vec![]).unwrap()).unwrap(),
             )),
+        )
+    }
+
+    #[test]
+    fn fold_bench() {
+        crosscheck(
+            "
+(define-private (add-square (x int) (y int))
+    (+ (* x x) y))
+
+(define-public (fold-add-square (l (list 8192 int)) (init int))
+    (ok (fold add-square l init)))
+
+(fold-add-square (list 1 2 3 4) 3)
+",
+            evaluate("(ok 33)"),
         );
     }
 }

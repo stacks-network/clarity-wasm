@@ -275,7 +275,7 @@ impl SimpleWord for Sqrti {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_overflow() {
@@ -357,5 +357,44 @@ mod tests {
     #[test]
     fn test_sqrti() {
         crosscheck("(sqrti 8)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn add() {
+        crosscheck(
+            "
+(define-public (simple)
+  (ok (+ 1 2)))
+(simple)
+",
+            evaluate("(ok 3)"),
+        );
+    }
+
+    const ARITH: &str = "
+(define-public (less-uint)
+    (ok (< u1 u2)))
+
+(define-public (greater-int)
+    (ok (> -1000 -2000)))
+
+(define-public (less-or-equal-uint)
+    (ok (<= u42 u42)))
+
+(define-public (greater-or-equal-int)
+    (ok (>= 42 -5130)))
+";
+
+    #[test]
+    fn test_less_than() {
+        crosscheck(&format!("{ARITH} (less-uint)"), evaluate("(ok true)"));
+    }
+
+    #[test]
+    fn test_greater_or_equal_int() {
+        crosscheck(
+            &format!("{ARITH} (greater-or-equal-int)"),
+            evaluate("(ok true)"),
+        );
     }
 }

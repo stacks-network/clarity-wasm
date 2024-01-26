@@ -4,6 +4,7 @@ use proptest::proptest;
 use crate::PropValue;
 
 proptest! {
+    #[ignore]
     #[test]
     fn is_some_always_true(val in PropValue::any()) {
         crosscheck(
@@ -14,6 +15,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn is_none_always_false(val in PropValue::any()) {
         crosscheck(

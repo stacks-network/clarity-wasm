@@ -196,11 +196,23 @@ impl TestEnvironment {
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
-        let conn = ClarityDatabase::new(
+        let mut conn = ClarityDatabase::new(
             &mut self.datastore,
             &self.burn_datastore,
             &self.burn_datastore,
         );
+
+        // Give one account a starting balance, to be used for testing.
+        let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
+        let amount = 1_000_000_000;
+        conn.execute(|database| {
+            let mut snapshot = database.get_stx_balance_snapshot(&recipient);
+            snapshot.credit(amount);
+            snapshot.save();
+            database.increment_ustx_liquid_supply(amount)
+        })
+        .expect("Failed to increment liquid supply.");
+
         let mut global_context = GlobalContext::new(
             false,
             CHAIN_ID_TESTNET,
@@ -208,6 +220,7 @@ impl TestEnvironment {
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
         );
+
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -269,7 +282,7 @@ pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
-    let compiled = evaluate(snippet);
+    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
     let interpreted = interpret(snippet);
 
     assert_eq!(
@@ -283,8 +296,8 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
         expected.as_ref(),
-        "Not the expected result {:?}",
-        compiled.as_ref()
+        "value is not the expected {:?}",
+        compiled
     );
 }
 
@@ -300,6 +313,23 @@ pub fn crosscheck_compare_only(snippet: &str) {
         &compiled,
         &interpreted
     );
+}
+
+pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
+    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
+    let interpreted = interpret(snippet);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet,
+        &compiled,
+        &interpreted
+    );
+
+    let value = compiled.unwrap().unwrap();
+    validator(value)
 }
 
 #[test]

@@ -476,3 +476,28 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck;
+
+    #[test]
+    fn bar_mint_too_many() {
+        crosscheck("(ft-mint? bar u1000001 tx-sender)", Err(()));
+    }
+
+    #[test]
+    fn bar_mint_too_many_2() {
+        crosscheck(
+            "
+(define-public (bar-mint-too-many-2)
+  (begin
+    (unwrap-panic (ft-mint? bar u5555555 tx-sender))
+    (ft-mint? bar u5555555 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)))
+
+(bar-mint-too-many-2)
+",
+            Err(()),
+        );
+    }
+}

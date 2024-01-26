@@ -148,7 +148,7 @@ mod tests {
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     //- Block Info
 
@@ -275,7 +275,7 @@ mod tests {
 
     //- Burn Block Info
 
-    #[ignore = "FIXME: This panics the interpreter"]
+    #[ignore = "INCONSISTENCY This panics the interpreter"]
     #[test]
     fn get_burn_block_info_non_existent() {
         crosscheck(
@@ -334,7 +334,7 @@ mod tests {
 
     //- At Block
 
-    #[ignore = "FIXME: This fails in interpreter"]
+    #[ignore = "INCONSISTENCY: This fails in interpreter"]
     #[test]
     fn at_block() {
         crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
@@ -358,5 +358,35 @@ mod tests {
             )
             .unwrap_err();
         println!("{:?}", e);
+    }
+
+    #[ignore = "INCONSISTENCY - starting block height"]
+    #[test]
+    fn test_block_height() {
+        let snpt = "
+(define-public (block)
+  (ok block-height))
+
+(define-public (burn-block)
+  (ok burn-block-height))
+";
+
+        crosscheck(&format!("{snpt} (block)"), evaluate("(ok 1)"));
+
+        crosscheck(&format!("{snpt} (burn-block)"), evaluate("(ok 1)"));
+    }
+
+    #[ignore = "INCONSISTENCY - starting block height"]
+    #[test]
+    fn test_chain_id() {
+        crosscheck(
+            "
+(define-public (get-chain-id)
+  (ok chain-id))
+
+(get-chain-id)
+",
+            evaluate("(ok 2147483648)"),
+        );
     }
 }

@@ -35,7 +35,7 @@ lazy_static! {
 /// 5. `visit_atom`: `a`
 /// 6. `traverse_expr`: `1`
 /// 7. `visit_literal_value`: `1`
-t/// 8. `visit_arithmetic`: `(+ a 1)`
+/// 8. `visit_arithmetic`: `(+ a 1)`
 ///
 /// When implementing the `ASTVisitor` trait, the default `traverse_*` methods
 /// should be used when possible, implementing only the `visit_*` methods.

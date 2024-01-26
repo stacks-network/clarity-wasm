@@ -215,3 +215,40 @@ impl ComplexWord for GetDataVar {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::tools::{crosscheck, evaluate};
+
+    #[test]
+    fn test_var_get() {
+        crosscheck(
+            "
+(define-data-var something int 123)
+
+(define-public (simple)
+    (ok (var-get something)))
+
+(simple)
+",
+            evaluate("(ok 123)"),
+        );
+    }
+
+    #[test]
+    fn test_var_set() {
+        crosscheck(
+            "
+(define-data-var something int 123)
+
+(define-public (simple)
+  (begin
+    (var-set something 5368002525449479521366)
+    (ok (var-get something))))
+
+(simple)
+",
+            evaluate("(ok 5368002525449479521366)"),
+        );
+    }
+}

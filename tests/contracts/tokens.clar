@@ -18,13 +18,6 @@
   (ft-mint? bar u1000001 tx-sender)
 )
 
-(define-public (bar-mint-too-many-2)
-  (begin
-    (unwrap-panic (ft-mint? bar u5555555 tx-sender))
-    (ft-mint? bar u5555555 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
-  )
-)
-
 (define-public (ft-balance-0)
   (ok (ft-get-balance foo tx-sender))
 )

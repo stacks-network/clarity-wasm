@@ -10,7 +10,7 @@ use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::errors::Error;
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
@@ -220,31 +220,6 @@ macro_rules! test_multi_contract_call {
             &[],
             $test
         );
-    };
-}
-
-/// This macro provides a convenient way to test functions inside contracts.
-/// In order, it takes as parameters:
-/// - the name of the test to create,
-/// - the name of the contract containing the function,
-/// - the name of the function to test,
-/// - an optional list of parameters,
-/// - a closure with type `|result: Result<Value, Error>|`, and
-///   that contains all the assertions we want to test.
-macro_rules! test_contract_call {
-    ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
-        test_multi_contract_call!(
-            $func,
-            [$contract_name],
-            $contract_name,
-            $contract_func,
-            $params,
-            $test
-        );
-    };
-
-    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
-        test_contract_call!($func, $contract_name, $contract_func, &[], $test);
     };
 }
 
@@ -494,51 +469,6 @@ macro_rules! test_contract_call_response_events {
 // ****************************************************************************
 
 test_contract_init!(
-    test_top_level,
-    "top-level",
-    |_global_context: &mut GlobalContext,
-     _contract_context: &ContractContext,
-     return_val: Option<Value>| {
-        assert_eq!(return_val, Some(Value::Int(42)));
-    }
-);
-
-test_contract_init!(
-    test_top_level_multi_statement,
-    "multi-statement",
-    |_global_context: &mut GlobalContext,
-     _contract_context: &ContractContext,
-     return_val: Option<Value>| {
-        assert_eq!(return_val, Some(Value::Int(4)));
-    }
-);
-
-test_contract_init!(
-    test_top_level_define_first,
-    "top-level-define-first",
-    |_global_context: &mut GlobalContext,
-     _contract_context: &ContractContext,
-     return_val: Option<Value>| {
-        assert_eq!(return_val, Some(Value::UInt(123456789)));
-    }
-);
-
-test_contract_init!(
-    test_top_level_define_last,
-    "top-level-define-last",
-    |_global_context: &mut GlobalContext,
-     _contract_context: &ContractContext,
-     return_val: Option<Value>| {
-        assert_eq!(return_val, None);
-    }
-);
-
-test_contract_call_response!(test_add, "add", "simple", |response: ResponseData| {
-    assert!(response.committed);
-    assert_eq!(*response.data, Value::Int(3));
-});
-
-test_contract_init!(
     test_define_private,
     "call-private-with-args",
     |_global_context: &mut GlobalContext,
@@ -554,57 +484,6 @@ test_contract_init!(
             public_function.get_return_type(),
             &Some(TypeSignature::IntType)
         );
-    }
-);
-
-test_contract_call_response!(
-    test_call_private_with_args_nested,
-    "call-private-with-args",
-    "call-it",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(3));
-    }
-);
-
-test_contract_call_response!(
-    test_call_public,
-    "call-public",
-    "simple",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_response!(
-    test_call_public_nested,
-    "call-public",
-    "call-it",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_response!(
-    test_call_public_with_args,
-    "call-public-with-args",
-    "simple",
-    &[Value::Int(20), Value::Int(22)],
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_response!(
-    test_call_public_with_args_nested,
-    "call-public-with-args",
-    "call-it",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(3));
     }
 );
 
@@ -627,26 +506,6 @@ test_contract_init!(
     }
 );
 
-test_contract_call_response!(
-    test_define_public_err,
-    "define-public-err",
-    "simple",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_response!(
-    test_define_public_ok,
-    "define-public-ok",
-    "simple",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
 test_contract_init!(
     test_define_data_var,
     "var-get",
@@ -657,242 +516,6 @@ test_contract_init!(
         assert_eq!(metadata.value_type, TypeSignature::IntType);
     }
 );
-
-test_contract_call_response!(
-    test_var_get,
-    "var-get",
-    "simple",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(123));
-    }
-);
-
-test_contract_call_response!(
-    test_var_set,
-    "var-set",
-    "simple",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(0x123_0000_0000_0000_0456));
-    }
-);
-
-test_contract_call_response!(test_fold, "fold", "fold-sub", |response: ResponseData| {
-    assert!(response.committed);
-    assert_eq!(*response.data, Value::Int(2));
-});
-
-test_contract_call_response!(test_begin, "begin", "simple", |response: ResponseData| {
-    assert!(response.committed);
-    assert_eq!(*response.data, Value::Int(7));
-});
-
-test_contract_call_response!(
-    test_less_than,
-    "cmp-arith",
-    "less-uint",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_greater_or_equal,
-    "cmp-arith",
-    "greater-or-equal-int",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_and,
-    "bit-and",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(3));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_not,
-    "bit-not",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(-4));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_or,
-    "bit-or",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(3));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_shift_left,
-    "bit-shift-left",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(6));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_shift_right,
-    "bit-shift-right",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(3));
-    }
-);
-
-test_contract_call_response!(
-    test_bitwise_xor,
-    "bit-xor",
-    "assert",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(1));
-    }
-);
-
-test_contract_call_response!(
-    test_fold_bench,
-    "fold-bench",
-    "fold-add-square",
-    &[
-        Value::cons_list_unsanitized((1..=8192).map(Value::Int).collect())
-            .expect("failed to construct list argument"),
-        Value::Int(1)
-    ],
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(183285493761));
-    }
-);
-
-test_contract_call_response!(
-    test_ret_true,
-    "bool",
-    "ret-true",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_ret_false,
-    "bool",
-    "ret-false",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(false));
-    }
-);
-
-test_contract_call_response!(
-    test_block_height,
-    "block-heights",
-    "block",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call_response!(
-    test_burn_block_height,
-    "block-heights",
-    "burn-block",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call_response!(
-    test_chain_id,
-    "chain-id",
-    "get-chain-id",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(2147483648));
-    }
-);
-
-test_contract_call_response!(
-    test_tx_sender,
-    "builtins-principals",
-    "get-tx-sender",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_contract_caller,
-    "builtins-principals",
-    "get-contract-caller",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_tx_sponsor,
-    "builtins-principals",
-    "get-tx-sponsor",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::none(),);
-    }
-);
-
-test_contract_call_response!(
-    test_is_in_mainnet,
-    "network",
-    "mainnet",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(false));
-    }
-);
-
-test_contract_call_response!(
-    test_is_in_regtest,
-    "network",
-    "regtest",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(false));
-    }
-);
-
-test_contract_call_response!(test_none, "none", "ret-none", |response: ResponseData| {
-    assert!(response.committed);
-    assert_eq!(*response.data, Value::none());
-});
 
 test_contract_call_response!(
     test_as_contract_sender,
@@ -922,163 +545,6 @@ test_contract_call_response!(
                 issuer: StandardPrincipalData::transient(),
                 name: "as-contract".into()
             }))
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_stx_get_balance,
-    "stx-funcs",
-    "test-stx-get-balance",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(0));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_account,
-    "stx-funcs",
-    "test-stx-account",
-    |response: ResponseData| {
-        assert!(response.committed);
-        match *response.data {
-            Value::Tuple(tuple_data) => {
-                assert_eq!(tuple_data.data_map.len(), 3);
-                assert_eq!(tuple_data.data_map.get("locked").unwrap(), &Value::UInt(0));
-                assert_eq!(
-                    tuple_data.data_map.get("unlocked").unwrap(),
-                    &Value::UInt(0)
-                );
-                assert_eq!(
-                    tuple_data.data_map.get("unlock-height").unwrap(),
-                    &Value::UInt(0)
-                );
-            }
-            _ => panic!("Unexpected result received from Wasm function call."),
-        }
-    }
-);
-
-test_contract_call_response!(
-    test_stx_burn_ok,
-    "stx-funcs",
-    "test-stx-burn-ok",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_burn_err1,
-    "stx-funcs",
-    "test-stx-burn-err1",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_burn_err3,
-    "stx-funcs",
-    "test-stx-burn-err3",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(3));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_burn_err4,
-    "stx-funcs",
-    "test-stx-burn-err4",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(4));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_ok,
-    "stx-funcs",
-    "test-stx-transfer-ok",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_memo_ok,
-    "stx-funcs",
-    "test-stx-transfer-memo-ok",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Bool(true));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_err1,
-    "stx-funcs",
-    "test-stx-transfer-err1",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_err2,
-    "stx-funcs",
-    "test-stx-transfer-err2",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(2));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_err3,
-    "stx-funcs",
-    "test-stx-transfer-err3",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(3));
-    }
-);
-
-test_contract_call_response!(
-    test_stx_transfer_err4,
-    "stx-funcs",
-    "test-stx-transfer-err4",
-    |response: ResponseData| {
-        assert!(!response.committed);
-        assert_eq!(*response.data, Value::UInt(4));
-    }
-);
-
-test_contract_call_response!(
-    test_pow_int,
-    "power",
-    "with-int",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(230539333248));
-    }
-);
-
-test_contract_call_response!(
-    test_pow_uint,
-    "power",
-    "with-uint",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(311973482284542371301330321821976049)
         );
     }
 );
@@ -1221,26 +687,6 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(!response.committed);
         assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call!(
-    test_ft_mint_too_many,
-    "tokens",
-    "bar-mint-too-many",
-    |result: Result<Value, Error>| {
-        // Expecting a RuntimeErrorType::SupplyOverflow(1000001, 1000000)
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
-    }
-);
-
-test_contract_call!(
-    test_ft_mint_too_many_2,
-    "tokens",
-    "bar-mint-too-many-2",
-    |result: Result<Value, Error>| {
-        // Expecting a RuntimeErrorType::SupplyOverflow(11111110, 1000000)
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );
 
@@ -1521,46 +967,6 @@ test_contract_call_response!(
 );
 
 test_contract_call_response!(
-    test_unwrap_panic_some,
-    "unwrap-panic",
-    "unwrap-some",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call!(
-    test_unwrap_panic_none,
-    "unwrap-panic",
-    "unwrap-none",
-    |result: Result<Value, Error>| {
-        // Expecting a RuntimeErrorType::Panic
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
-    }
-);
-
-test_contract_call_response!(
-    test_unwrap_panic_ok,
-    "unwrap-panic",
-    "unwrap-ok",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(1));
-    }
-);
-
-test_contract_call!(
-    test_unwrap_panic_error,
-    "unwrap-panic",
-    "unwrap-error",
-    |result: Result<Value, Error>| {
-        // Expecting a RuntimeErrorType::Panic
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
-    }
-);
-
-test_contract_call_response!(
     test_map_insert,
     "maps",
     "test-map-insert",
@@ -1795,15 +1201,15 @@ test_contract_call_response!(
 // chain, which is not the case when running the tests. Once the test framework
 // supports this, these tests can be re-enabled.
 
-// test_contract_call_response!(
-//     test_gbi_non_existent,
-//     "get-block-info",
-//     "non-existent",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::none());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_non_existent,
+    "get-block-info",
+    "non-existent",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
 
 // test_contract_call_response!(
 //     test_gbi_bhh,
@@ -1877,25 +1283,25 @@ test_contract_call_response!(
 //     }
 // );
 
-// test_contract_call_response!(
-//     test_gbi_miner_spend_total,
-//     "get-block-info",
-//     "get-miner-spend-total",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_miner_spend_total,
+    "get-block-info",
+    "get-miner-spend-total",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+    }
+);
 
-// test_contract_call_response!(
-//     test_gbi_miner_spend_winner,
-//     "get-block-info",
-//     "get-miner-spend-winner",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_miner_spend_winner,
+    "get-block-info",
+    "get-miner-spend-winner",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+    }
+);
 
 test_multi_contract_call_response!(
     test_contract_call_no_args,
@@ -4648,56 +4054,5 @@ test_contract_call_response!(
             Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
                 .unwrap()
         );
-    }
-);
-
-test_contract_call_response!(
-    test_to_int,
-    "noop",
-    "test-to-int",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_response!(
-    test_to_int_limit,
-    "noop",
-    "test-to-int-limit",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::Int(170141183460469231731687303715884105727)
-        );
-    }
-);
-
-test_contract_call!(
-    test_to_int_out_of_boundary,
-    "noop",
-    "test-to-int-out-of-boundary",
-    |result: Result<Value, Error>| {
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
-    }
-);
-
-test_contract_call_response!(
-    test_to_uint,
-    "noop",
-    "test-to-uint",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::UInt(767));
-    }
-);
-
-test_contract_call!(
-    test_to_uint_error,
-    "noop",
-    "test-to-uint-error",
-    |result: Result<Value, Error>| {
-        assert!(matches!(result, Err(Error::Wasm(WasmError::Runtime(_)))));
     }
 );

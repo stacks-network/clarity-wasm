@@ -154,4 +154,58 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_to_int_oob() {
+        crosscheck(
+            "
+(define-public (test-to-int-out-of-boundary)
+  (ok (to-int u170141183460469231731687303715884105728)))
+(test-to-int-out-of-boundary)
+    ",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn test_to_uint_err() {
+        crosscheck(
+            "
+(define-public (test-to-uint-error)
+    (ok (to-uint -47)))
+(test-to-uint-error)
+    ",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn test_to_int() {
+        crosscheck(
+            "
+(to-int u42)
+    ",
+            Ok(Some(Value::Int(42))),
+        );
+    }
+
+    #[test]
+    fn test_to_uint() {
+        crosscheck(
+            "
+(to-uint 767)
+    ",
+            Ok(Some(Value::UInt(767))),
+        );
+    }
+
+    #[test]
+    fn test_to_int_limit() {
+        crosscheck(
+            "
+(to-int u170141183460469231731687303715884105727)
+    ",
+            Ok(Some(Value::Int(170141183460469231731687303715884105727))),
+        );
+    }
 }

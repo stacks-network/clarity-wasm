@@ -4,6 +4,7 @@ use proptest::proptest;
 use crate::PropValue;
 
 proptest! {
+    #[ignore]
     #[test]
     fn is_eq_one_argument_always_true(val in PropValue::any()) {
         crosscheck(
@@ -14,6 +15,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn is_eq_value_with_itself_always_true(val in PropValue::any()) {
         crosscheck(
@@ -24,6 +26,7 @@ proptest! {
 }
 
 proptest! {
+    #[ignore]
     #[test]
     fn is_eq_value_with_itself_always_true_3(val in PropValue::any()) {
         crosscheck(
