@@ -1,5 +1,5 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::types::{FunctionType, SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
@@ -95,6 +95,22 @@ impl ComplexWord for Fold {
         // ```
         // (- 6 (- 4 (- 2 0)))
         // ```
+
+        // WORKAROUND: Get the type of the function being called, and set the
+        // type of the initial value to match the functions parameter type.
+        // This is a workaround for the typechecker not being able to infer
+        // the complete type of initial value.
+        if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(func) {
+            let initial_ty = fixed
+                .args
+                .get(1)
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("expected function with 2 arguments".into())
+                })?
+                .signature
+                .clone();
+            generator.set_expr_type(initial, initial_ty)?;
+        }
 
         // The result type must match the type of the initial value
         let result_clar_ty = generator
@@ -1580,6 +1596,20 @@ mod tests {
 ",
             Ok(Some(Value::buff_from(vec![0x01, 0x02]).unwrap())),
         )
+    }
+
+    #[test]
+    fn fold_init() {
+        crosscheck(
+            "(define-private (foo (index uint) (res (response bool uint)))
+            (if (< index u1) (err u0) (ok true))
+          )
+          (define-private (bar)
+            (fold foo (list u0) (ok true))
+          )
+          (bar)",
+            Ok(Some(Value::err_uint(0))),
+        );
     }
 
     #[test]

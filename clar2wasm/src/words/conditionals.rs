@@ -738,9 +738,20 @@ impl ComplexWord for Try {
                     &clar2wasm_ty(full_type),
                 ));
 
-                // in the case of throw, we need to restore the value, and re-push the discriminant
+                // In the case of throw, we need to re-push the discriminant,
+                // then add a placeholder for the some-type of the return type.
                 throw_branch.i32_const(0);
-                add_placeholder_for_clarity_type(&mut throw_branch, some_type);
+                let placeholder_ty = match generator.return_type.as_ref() {
+                    Some(TypeSignature::OptionalType(inner_type)) => inner_type,
+                    Some(other) => {
+                        return Err(GeneratorError::TypeError(format!(
+                            "expected optional type, got {:?}",
+                            other
+                        )));
+                    }
+                    None => &TypeSignature::NoType,
+                };
+                add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
                 generator.return_early(&mut throw_branch)?;
 
                 let throw_branch_id = throw_branch.id();
@@ -775,9 +786,21 @@ impl ComplexWord for Try {
                     &clar2wasm_ty(full_type),
                 ));
 
-                // in the case of throw, we need to re-push the discriminant, and restore both values
+                // In the case of throw, we need to re-push the discriminant,
+                // then add a placeholder for the ok-type of the return type
+                // and restore the err value from the locals.
                 throw_branch.i32_const(0);
-                add_placeholder_for_clarity_type(&mut throw_branch, ok_type);
+                let placeholder_ty = match generator.return_type.as_ref() {
+                    Some(TypeSignature::ResponseType(inner_types)) => &inner_types.0,
+                    Some(other) => {
+                        return Err(GeneratorError::TypeError(format!(
+                            "expected response type, got {:?}",
+                            other
+                        )));
+                    }
+                    None => &TypeSignature::NoType,
+                };
+                add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
                 for local in &err_locals {
                     throw_branch.local_get(*local);
                 }
@@ -1074,6 +1097,27 @@ mod tests {
     fn try_b() {
         assert_eq!(
             evaluate(&format!("{TRY_FN} (tryhard (err 1))")),
+            evaluate("(err 1)"),
+        );
+    }
+
+    const TRY_FN2: &str = "
+(define-private (tryhard (x (response bool int)))
+  (ok (if (try! x) u1 u2))
+)";
+
+    #[test]
+    fn try_2a() {
+        assert_eq!(
+            evaluate(&format!("{TRY_FN2} (tryhard (ok true))")),
+            evaluate("(ok u1)"),
+        );
+    }
+
+    #[test]
+    fn try_2b() {
+        assert_eq!(
+            evaluate(&format!("{TRY_FN2} (tryhard (err 1))")),
             evaluate("(err 1)"),
         );
     }
