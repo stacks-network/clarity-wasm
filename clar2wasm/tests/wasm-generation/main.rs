@@ -154,8 +154,11 @@ impl PropValue {
             });
         // TODO: add string-utf8
         prop_oneof![
+            // 10% chance for a buffer
             1 => buffer(size as u32),
+            // 10% chance for a string-ascii
             1 => string_ascii(size as u32),
+            // 80% chance for a list
             8 => any_list
         ]
         .prop_map_into()
