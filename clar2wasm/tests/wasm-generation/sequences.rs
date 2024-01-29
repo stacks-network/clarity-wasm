@@ -63,3 +63,17 @@ proptest! {
         crosscheck(&snippet, Ok(Some(expected)));
     }
 }
+
+proptest! {
+    #[test]
+    fn len_crosscheck(seq in (1usize..=32).prop_flat_map(PropValue::any_sequence)) {
+        let snippet = format!("(len {seq})");
+
+        let expected = {
+            let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
+            Value::UInt(seq_data.len() as u128)
+        };
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
