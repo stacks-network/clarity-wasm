@@ -111,7 +111,7 @@ mod tests {
         );
     }
 
-    #[ignore = "INCONSISTENCY interpreter returning last Some-value"]
+    #[ignore = "see issue #316"]
     #[test]
     fn top_level_define_last() {
         crosscheck(

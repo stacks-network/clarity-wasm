@@ -274,8 +274,6 @@ mod tests {
     }
 
     //- Burn Block Info
-
-    #[ignore = "INCONSISTENCY This panics the interpreter"]
     #[test]
     fn get_burn_block_info_non_existent() {
         crosscheck(
@@ -333,8 +331,6 @@ mod tests {
     }
 
     //- At Block
-
-    #[ignore = "INCONSISTENCY: This fails in interpreter"]
     #[test]
     fn at_block() {
         crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
@@ -360,7 +356,6 @@ mod tests {
         println!("{:?}", e);
     }
 
-    #[ignore = "INCONSISTENCY - starting block height"]
     #[test]
     fn test_block_height() {
         let snpt = "
@@ -371,12 +366,10 @@ mod tests {
   (ok burn-block-height))
 ";
 
-        crosscheck(&format!("{snpt} (block)"), evaluate("(ok 1)"));
-
-        crosscheck(&format!("{snpt} (burn-block)"), evaluate("(ok 1)"));
+        crosscheck(&format!("{snpt} (block)"), evaluate("(ok u0)"));
+        crosscheck(&format!("{snpt} (burn-block)"), evaluate("(ok u0)"));
     }
 
-    #[ignore = "INCONSISTENCY - starting block height"]
     #[test]
     fn test_chain_id() {
         crosscheck(
@@ -386,7 +379,7 @@ mod tests {
 
 (get-chain-id)
 ",
-            evaluate("(ok 2147483648)"),
+            evaluate("(ok u2147483648)"),
         );
     }
 }
