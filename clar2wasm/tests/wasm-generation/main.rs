@@ -274,7 +274,7 @@ fn response(ok_ty: TypeSignature, err_ty: TypeSignature) -> impl Strategy<Value 
 fn list(list_type_data: ListTypeData) -> impl Strategy<Value = Value> {
     prop::collection::vec(
         prop_value(list_type_data.get_list_item_type().clone()),
-        0..list_type_data.get_max_len() as usize,
+        0..=list_type_data.get_max_len() as usize,
     )
     .prop_map(move |v| {
         Value::Sequence(SequenceData::List(ListData {
