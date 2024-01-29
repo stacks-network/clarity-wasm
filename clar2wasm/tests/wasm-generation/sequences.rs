@@ -1,5 +1,8 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::{types::TypeSignature, Value};
+use clarity::vm::{
+    types::{SequenceData, TypeSignature},
+    Value,
+};
 use proptest::prelude::*;
 
 use crate::{prop_signature, PropValue};
@@ -75,5 +78,35 @@ proptest! {
         };
 
         crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
+
+proptest! {
+    #[test]
+    fn slice_crosscheck_valid_range(
+        (seq, lo, hi) in (1usize..=32)
+        .prop_flat_map(PropValue::any_sequence)
+        .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
+        .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
+        .prop_map(|((seq, lo), hi)| (seq, lo, hi))
+    )
+    {
+        let snippet = format!("(slice? {seq} u{lo} u{hi})");
+
+        let expected =
+            Value::some(
+                extract_sequence(seq)
+                .slice(&clarity::types::StacksEpochId::latest(), lo, hi)
+                .expect("Could not take a slice from sequence")
+            ).unwrap();
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
+
+fn extract_sequence(sequence: PropValue) -> SequenceData {
+    match Value::from(sequence) {
+        Value::Sequence(seq_data) => seq_data,
+        _ => unreachable!(),
     }
 }
