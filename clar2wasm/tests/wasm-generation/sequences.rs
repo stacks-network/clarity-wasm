@@ -1,5 +1,5 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::Value;
+use clarity::vm::{types::TypeSignature, Value};
 use proptest::prelude::*;
 
 use crate::{prop_signature, PropValue};
@@ -31,5 +31,21 @@ proptest! {
             &format!("(as-max-len? {value} u{})", max_len-1),
             Ok(Some(Value::none()))
         )
+    }
+}
+
+proptest! {
+    #[test]
+    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(dbg!(TypeSignature::type_of(&seq1.into()))))) {
+        let snippet = dbg!(format!("(concat {seq1} {seq2})"));
+
+        let expected = {
+            let Value::Sequence(mut seq_data1) = seq1.into() else { unreachable!() };
+            let Value::Sequence(seq_data2) = seq2.into() else { unreachable!() };
+            seq_data1.concat(&clarity::types::StacksEpochId::latest(), seq_data2).expect("Unable to concat sequences");
+            Value::Sequence(seq_data1)
+        };
+
+        crosscheck(&snippet, Ok(Some(expected)));
     }
 }
