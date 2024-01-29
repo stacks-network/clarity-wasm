@@ -49,3 +49,17 @@ proptest! {
         crosscheck(&snippet, Ok(Some(expected)));
     }
 }
+
+proptest! {
+    #[test]
+    fn element_at_crosscheck((seq, idx) in (1usize..=32).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
+        let snippet = format!("(element-at? {seq} u{idx})");
+
+        let expected = {
+            let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
+            seq_data.element_at(idx).map_or_else(Value::none, |v| Value::some(v).unwrap())
+        };
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
