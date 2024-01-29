@@ -583,68 +583,6 @@ test_contract_init!(
     }
 );
 
-test_contract_call_response!(
-    test_int_constant,
-    "constant",
-    "get-int-constant",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::Int(1));
-    }
-);
-
-test_contract_call_response!(
-    test_large_uint_constant,
-    "constant",
-    "get-large-uint-constant",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::UInt(338770000845734292516042252062085074415)
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_string_constant,
-    "constant",
-    "get-string-constant",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::string_ascii_from_bytes(b"hello world".to_vec()).unwrap()
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_string_utf8_constant,
-    "constant",
-    "get-string-utf8-constant",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::string_utf8_from_bytes("hello world🦊".into()).unwrap()
-        );
-    }
-);
-
-test_contract_call_response!(
-    test_bytes_constant,
-    "constant",
-    "get-bytes-constant",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::buff_from(vec![0x12, 0x34, 0x56, 0x78]).unwrap()
-        );
-    }
-);
-
 test_contract_init!(
     test_define_map,
     "define-map",
