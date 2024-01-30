@@ -1,8 +1,6 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::{
-    types::{SequenceData, TypeSignature},
-    Value,
-};
+use clarity::vm::types::{SequenceData, TypeSignature};
+use clarity::vm::Value;
 use proptest::prelude::*;
 
 use crate::{prop_signature, PropValue};
