@@ -16,7 +16,7 @@ use std::env;
 const DEFAULT_CASES: u32 = 10;
 
 fn runtime_config() -> ProptestConfig {
-    let cases_string = env::var("PROPTEST_CASES").unwrap_or(String::new());
+    let cases_string = env::var("PROPTEST_CASES").unwrap_or_default();
     let cases = cases_string.parse().unwrap_or(DEFAULT_CASES);
 
     ProptestConfig {
