@@ -4,7 +4,7 @@ use proptest::prelude::ProptestConfig;
 use proptest::proptest;
 use proptest::strategy::Strategy;
 
-use crate::{PropValue, TypePrinter};
+use crate::{PropValue, TypePrinter, unicode_to_byte_sequence};
 
 proptest! {
     #![proptest_config(ProptestConfig {
@@ -15,7 +15,7 @@ proptest! {
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
         crosscheck(
             &val.to_string(),
-            Ok(Some(val.into()))
+            Ok(Some(unicode_to_byte_sequence(val.into())))
         )
     }
 
@@ -27,7 +27,7 @@ proptest! {
         println!("Snippet:{:?}",&format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val));
         crosscheck(
             &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
-            Ok(Some(Value::some(val.into()).unwrap()))
+            Ok(Some(Value::some(unicode_to_byte_sequence(val.into())).unwrap()))
         )
     }
 }

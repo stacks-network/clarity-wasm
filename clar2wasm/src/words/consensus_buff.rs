@@ -157,7 +157,7 @@ mod tests {
     use clarity::vm::Value;
     use hex::FromHex as _;
 
-    use crate::tools::{crosscheck, unicode_scalars_from_string};
+    use crate::tools::{crosscheck, /* unicode_scalars_from_string */};
 
     #[test]
     fn to_consensus_buff_int() {
@@ -708,8 +708,12 @@ mod tests {
     fn from_consensus_buff_string_utf8_exact_size() {
         crosscheck(
             r#"(from-consensus-buff? (string-utf8 13) 0x0e0000000d48656c6c6f2c20776f726c6421)"#,
+            // Ok(Some(
+            //     Value::some(unicode_scalars_from_string("Hello, world!".into())).unwrap(),
+            // )),
             Ok(Some(
-                Value::some(unicode_scalars_from_string("Hello, world!".into())).unwrap(),
+                Value::some(Value::string_utf8_from_bytes("Hello, world!".into()).unwrap())
+                    .unwrap(),
             )),
         )
     }
@@ -719,7 +723,8 @@ mod tests {
         crosscheck(
             r#"(from-consensus-buff? (string-utf8 20) 0x0e0000001468656cc5816f20776f726c6420e6849bf09fa68a)"#,
             Ok(Some(
-                Value::some(unicode_scalars_from_string("helŁo world 愛🦊".to_string())).unwrap(),
+                Value::some(Value::string_utf8_from_bytes("helŁo world 愛🦊".into()).unwrap())
+                    .unwrap(),
             )),
         )
     }
@@ -729,7 +734,7 @@ mod tests {
         crosscheck(
             r#"(from-consensus-buff? (string-utf8 20) 0x0e00000000)"#,
             Ok(Some(
-                Value::some(unicode_scalars_from_string("".into())).unwrap(),
+                Value::some(Value::string_utf8_from_bytes("".into()).unwrap()).unwrap(),
             )),
         );
     }

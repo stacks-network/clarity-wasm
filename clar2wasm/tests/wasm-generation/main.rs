@@ -5,6 +5,8 @@ pub mod regression;
 pub mod response;
 pub mod values;
 
+use std::collections::BTreeMap;
+
 use clarity::vm::{
     types::{
         ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, PrincipalData,
@@ -61,6 +63,52 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
     })
 }
 
+// fn str_utf8_encode(val: Value) -> Value {
+//     unicode_to_byte_sequence(val)
+// }
+pub fn unicode_to_byte_sequence(input: Value) -> Value {
+    match &input {
+        Value::Sequence(SequenceData::List(list_data)) => {
+            let mut processed_data = Vec::new();
+
+            for val in &list_data.data {
+                processed_data.push(unicode_to_byte_sequence(val.clone()));
+            }
+
+            Value::Sequence(SequenceData::List(ListData {
+                data: processed_data,
+                type_signature: list_data.type_signature.clone(),
+            }))
+        }
+        Value::Response(response_data) => Value::Response(ResponseData {
+            committed: response_data.committed,
+            data: Box::new(unicode_to_byte_sequence(*(response_data.data).clone())),
+        }),
+        Value::Optional(optional_data) => {
+            if let Some(data) = &optional_data.data {
+                Value::Optional(OptionalData {
+                    data: Some(Box::new(unicode_to_byte_sequence(*data.clone()))),
+                })
+            } else {
+                Value::Optional(optional_data.clone())
+            }
+        }
+        Value::Tuple(tuple_data) => {
+            let mut btree_map = BTreeMap::new();
+            for (name, value) in tuple_data.data_map.iter() {
+                btree_map.insert(name.clone(), unicode_to_byte_sequence(value.clone()));
+            }
+            Value::Tuple(TupleData {
+                data_map: btree_map,
+                type_signature: tuple_data.type_signature.clone(),
+            })
+        }
+        Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data }))) => {
+            Value::string_utf8_from_bytes(data[0].clone()).unwrap()
+        }
+        _ => input,
+    }
+}
 pub struct PropValue(Value);
 
 impl From<Value> for PropValue {
@@ -100,32 +148,10 @@ impl std::fmt::Display for PropValue {
                 UTF8Data { data },
             ))) => {
                 write!(f, "u\"")?;
-                for a in data {
-                    if a.len() > 1 {
-                        write!(
-                            f,
-                            "\\u{{{}}}",
-                            a.iter()
-                                .map(|&scalar| format!("{:x}", scalar))
-                                .collect::<Vec<String>>()
-                                .join("")
-                        )?;
-                    } else {
-                        for b in a {
-                            if [b'\\', b'"'].contains(b) {
-                                write!(f, "\\")?;
-                            }
-
-                            if b > &127 {
-                                write!(f, "\\u{{{:x}}}", b)?;
-                            } else {
-                                write!(f, "{}", *b as char)?;
-                            }
-                            //         // println!("b={b}");
-                            //         if b > &127 {
-                            //             write!(f, "\\")?;
-                            //         }
-                        }
+                for vec in data {
+                    let s = String::from_utf8(vec.clone()).unwrap();
+                    for ch in s.chars() {
+                        write!(f, "\\u{{{:x}}}", ch as u32)?;
                     }
                 }
                 write!(f, "\"")
@@ -243,29 +269,7 @@ pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
     let _size = size as usize;
 
     "[\\p{L}\\p{N}\\p{P}\\p{S}\\p{Z}]{1,4}".prop_map(|str| {
-        // let str: String = str
-        //     .chars()
-        //     .filter(|&c| {
-        //         let len = c.len_utf8();
-        //         len == 2
-        //     })
-        //     .collect();
-
-        println!("Str: {str}");
-        let validated_utf8_str = std::str::from_utf8(str.as_bytes()).unwrap();
-        println!("Validated Str: {validated_utf8_str}");
-        let mut data = vec![];
-
-        for char in validated_utf8_str.chars() {
-            let scalar_value = char as u32; // Get the Unicode scalar value of the character
-            let mut scalar_bytes = scalar_value.to_be_bytes().to_vec(); // Convert scalar value to little-endian bytes
-            scalar_bytes.retain(|&x| x != 0); // Remove trailing zeros
-
-            data.push(scalar_bytes);
-        }
-
-        println!("Unicode Scalar Data: {:?}", data);
-
+        let data = vec![str.into()];
         Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
     })
 }
