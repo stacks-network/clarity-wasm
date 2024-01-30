@@ -37,7 +37,7 @@ proptest! {
 
 proptest! {
     #[test]
-    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(dbg!(TypeSignature::type_of(&seq1.into()))))) {
+    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into())))) {
         let snippet = format!("(concat {seq1} {seq2})");
 
         let expected = {
