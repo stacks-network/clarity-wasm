@@ -454,10 +454,14 @@ impl ComplexWord for Concat {
             .ok_or_else(|| GeneratorError::TypeError("concat expression must be typed".to_owned()))?
             .clone();
         let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
+
         builder.local_get(offset);
 
         // Traverse the lhs, leaving it on the data stack (offset, size)
-        generator.traverse_expr(builder, args.get_expr(0)?)?;
+        let lhs = args.get_expr(0)?;
+        // WORKAROUND: typechecker issue for lists
+        generator.set_expr_type(lhs, ty.clone())?;
+        generator.traverse_expr(builder, lhs)?;
 
         // Save the length of the lhs
         let lhs_length = generator.module.locals.add(ValType::I32);
@@ -473,7 +477,10 @@ impl ComplexWord for Concat {
             .binop(BinaryOp::I32Add);
 
         // Traverse the rhs, leaving it on the data stack (offset, size)
-        generator.traverse_expr(builder, args.get_expr(1)?)?;
+        let rhs = args.get_expr(1)?;
+        // WORKAROUND: typechecker issue for lists
+        generator.set_expr_type(rhs, ty.clone())?;
+        generator.traverse_expr(builder, rhs)?;
 
         // Save the length of the rhs
         let rhs_length = generator.module.locals.add(ValType::I32);
