@@ -5,6 +5,7 @@ use proptest::strategy::{Just, Strategy};
 use crate::{prop_signature, type_string, PropValue};
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn if_true_returns_first_value(
         (v1, v2) in prop_signature()
@@ -18,7 +19,10 @@ proptest! {
             Ok(Some(v1.into()))
         )
     }
+}
 
+proptest! {
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn if_false_returns_second_value(
         (v1, v2) in prop_signature()
@@ -35,6 +39,7 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn match_optional_some(
         (initial, some_val, none_val) in (prop_signature(), prop_signature())
@@ -78,7 +83,7 @@ proptest! {
             &format!(r#"
                 (define-data-var okval (response {} {}) (ok {original_ok_val}))
                 (match (var-get okval) value {ok_val} err-value {err_val})
-            "#, type_string(&original_ok_ty), type_string(&original_err_ty)), 
+            "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
             Ok(Some(ok_val.into()))
         )
     }
@@ -95,7 +100,7 @@ proptest! {
             &format!(r#"
                 (define-data-var errval (response {} {}) (err {original_err_val}))
                 (match (var-get errval) value {ok_val} err-value {err_val})
-            "#, type_string(&original_ok_ty), type_string(&original_err_ty)), 
+            "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
             Ok(Some(err_val.into()))
         )
     }

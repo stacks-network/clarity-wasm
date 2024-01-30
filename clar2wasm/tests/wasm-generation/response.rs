@@ -4,6 +4,8 @@ use proptest::proptest;
 use crate::PropValue;
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn is_ok_always_true(val in PropValue::any()) {
         crosscheck(
@@ -14,6 +16,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn is_ok_always_false(val in PropValue::any()) {
         crosscheck(
@@ -24,6 +28,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn is_err_always_true(val in PropValue::any()) {
         crosscheck(
@@ -34,6 +40,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn is_err_always_false(val in PropValue::any()) {
         crosscheck(

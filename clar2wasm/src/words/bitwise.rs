@@ -172,3 +172,80 @@ impl SimpleWord for Xor {
         traverse_bitwise("bit-xor", generator, builder, arg_types)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::tools::{crosscheck, evaluate};
+
+    #[test]
+    fn test_bitwise_and() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-and 3 3)))
+
+(assert)",
+            evaluate("(ok 3)"),
+        )
+    }
+
+    #[test]
+    fn test_bitwise_not() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-not 3)))
+
+(assert)",
+            evaluate("(ok -4)"),
+        )
+    }
+
+    #[test]
+    fn test_bitwise_or() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-or 1 2 3)))
+
+(assert)",
+            evaluate("(ok 3)"),
+        )
+    }
+
+    #[test]
+    fn test_bit_shift_left() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-shift-left 3 u1)))
+
+(assert)",
+            evaluate("(ok 6)"),
+        )
+    }
+
+    #[test]
+    fn test_bit_shift_right() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-shift-right 6 u1)))
+
+(assert)",
+            evaluate("(ok 3)"),
+        )
+    }
+
+    #[test]
+    fn test_bitwise_xor() {
+        crosscheck(
+            "
+(define-public (assert)
+  (ok (bit-xor 3 2)))
+
+(assert)",
+            evaluate("(ok 1)"),
+        )
+    }
+}

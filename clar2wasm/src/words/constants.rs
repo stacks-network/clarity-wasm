@@ -66,7 +66,7 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -97,5 +97,67 @@ mod tests {
                 .unwrap(),
             })))),
         )
+    }
+
+    #[test]
+    fn test_int_constant() {
+        crosscheck(
+            "
+(define-constant small-int 1)
+(define-public (get-int-constant)
+  (ok small-int))
+(get-int-constant)",
+            evaluate("(ok 1)"),
+        );
+    }
+
+    #[test]
+    fn test_large_uint_constant() {
+        crosscheck(
+            "
+(define-constant large-uint u338770000845734292516042252062085074415)
+(define-public (get-large-uint-constant)
+  (ok large-uint))
+(get-large-uint-constant)",
+            evaluate("(ok u338770000845734292516042252062085074415)"),
+        );
+    }
+
+    #[test]
+    fn test_string_constant() {
+        crosscheck(
+            r#"
+(define-constant string "hello world")
+(define-public (get-string-constant)
+  (ok string))
+(get-string-constant)"#,
+            evaluate(r#"(ok "hello world")"#),
+        );
+    }
+
+    #[test]
+    fn test_string_utf8_constant() {
+        crosscheck(
+            r#"
+(define-constant string-utf8 u"hello world\u{1F98A}")
+(define-public (get-string-utf8-constant)
+  (ok string-utf8))
+(get-string-utf8-constant)
+"#,
+            evaluate(r#"(ok u"hello world\u{1F98A}")"#),
+        );
+    }
+
+    #[test]
+    fn test_bytes_constant() {
+        crosscheck(
+            "
+(define-constant bytes 0x12345678)
+(define-public (get-bytes-constant)
+  (ok bytes))
+(get-bytes-constant)
+",
+            evaluate("(ok 0x12345678)"),
+        );
     }
 }

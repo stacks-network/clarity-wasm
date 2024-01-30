@@ -294,7 +294,7 @@ impl ComplexWord for PrincipalOf {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{PrincipalData, TupleData};
+    use clarity::vm::types::{PrincipalData, ResponseData, StandardPrincipalData, TupleData};
     use clarity::vm::Value;
 
     use crate::tools::crosscheck;
@@ -677,6 +677,48 @@ mod tests {
         crosscheck(
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)",
             Ok(Some(Value::err_uint(1))),
+        );
+    }
+
+    #[test]
+    fn builtins_principals() {
+        let snpt = "
+(define-public (get-tx-sender)
+  (ok tx-sender))
+
+(define-public (get-contract-caller)
+  (ok contract-caller))
+
+(define-public (get-tx-sponsor)
+  (ok tx-sponsor?))
+        ";
+
+        crosscheck(
+            &format!("{snpt} (get-tx-sender)"),
+            Ok(Some(Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(Value::Principal(PrincipalData::Standard(
+                    StandardPrincipalData::transient(),
+                ))),
+            }))),
+        );
+
+        crosscheck(
+            &format!("{snpt} (get-contract-caller)"),
+            Ok(Some(Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(Value::Principal(PrincipalData::Standard(
+                    StandardPrincipalData::transient(),
+                ))),
+            }))),
+        );
+
+        crosscheck(
+            &format!("{snpt} (get-tx-sponsor)"),
+            Ok(Some(Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(Value::none()),
+            }))),
         );
     }
 }

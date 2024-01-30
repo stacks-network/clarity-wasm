@@ -361,4 +361,77 @@ mod tests {
         )?;
         Ok(())
     }
+
+    #[test]
+    fn unwrap_none() {
+        crosscheck(
+            "
+(define-public (unwrap-none)
+  (ok (try-opt none)))
+
+(unwrap-none)
+",
+            Err(()),
+        )
+    }
+
+    #[test]
+    fn unwrap_error() {
+        crosscheck(
+            "
+(define-public (unwrap-error)
+  (ok (try-res (err u1))))
+(unwrap-error)
+",
+            Err(()),
+        )
+    }
+
+    #[test]
+    fn unwrap_some() {
+        crosscheck(
+            "
+    (define-private (try-opt (x (optional uint)))
+      (unwrap-panic x))
+
+    (define-public (unwrap-some)
+      (ok (try-opt (some u1))))
+
+    (unwrap-some)
+    ",
+            evaluate("(ok u1)"),
+        )
+    }
+
+    #[test]
+    fn unwrap_ok() {
+        crosscheck(
+            "
+    (define-private (try-res (x (response uint uint)))
+      (unwrap-panic x))
+
+    (define-public (unwrap-ok)
+      (ok (try-res (ok u1))))
+
+    (unwrap-ok)
+    ",
+            evaluate("(ok u1)"),
+        );
+    }
+
+    #[test]
+    fn begin() {
+        crosscheck(
+            "
+ (define-public (simple)
+   (ok
+     (begin
+       (+ 1 2)
+       (+ 3 4))))
+
+(simple)
+",
+            evaluate("(ok 7)"),
+        )
+    }
 }

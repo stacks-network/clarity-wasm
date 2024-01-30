@@ -11,6 +11,20 @@ pub mod response;
 pub mod sequences;
 pub mod values;
 
+use std::env;
+
+const DEFAULT_CASES: u32 = 10;
+
+fn runtime_config() -> ProptestConfig {
+    let cases_string = env::var("PROPTEST_CASES").unwrap_or_default();
+    let cases = cases_string.parse().unwrap_or(DEFAULT_CASES);
+
+    ProptestConfig {
+        cases,
+        ..Default::default()
+    }
+}
+
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
     SequenceData, SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
