@@ -8,19 +8,21 @@ const TWO_VALUE_OPS: [&str; 2] = ["pow", "mod"];
 const MULTI_VALUE_OPS: [&str; 4] = ["+", "-", "*", "/"];
 
 proptest! {
-  #[ignore]
-  #[test]
-  fn crossprop_one_value_int(v1 in int()) {
-    for op in &ONE_VALUE_OPS {
-        crosscheck_compare_only(
-            &format!("({op} {v1})")
-        )
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crossprop_one_value_int(v1 in int()) {
+        for op in &ONE_VALUE_OPS {
+            crosscheck_compare_only(
+                &format!("({op} {v1})")
+            )
+        }
     }
-  }
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_one_value_uint(v1 in uint()) {
         for op in &ONE_VALUE_OPS {
@@ -32,7 +34,8 @@ proptest! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_two_value_int(v1 in int(), v2 in int()) {
         for op in &TWO_VALUE_OPS {
@@ -44,7 +47,8 @@ proptest! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_two_value_uint(v1 in uint(), v2 in uint()) {
         for op in &TWO_VALUE_OPS {
@@ -56,9 +60,10 @@ proptest! {
 }
 
 proptest! {
-    // TODO: Renable this test once issue #281 is fixed
+    #![proptest_config(super::runtime_config())]
+
     #[test]
-    #[ignore]
+    #[ignore = "This must be re-enabled once issue #281 is fixed"]
     fn crossprop_multi_value_int(values in proptest::collection::vec(int(), 1..=10)) {
         for op in &MULTI_VALUE_OPS {
             let values_str = values.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
@@ -70,13 +75,14 @@ proptest! {
 }
 
 proptest! {
-  #[ignore]
-  #[test]
-  fn crossprop_multi_value_uint(v1 in uint(), v2 in uint()) {
-    for op in &MULTI_VALUE_OPS {
-      crosscheck_compare_only(
-          &format!("({op} {v1} {v2})")
-      )
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crossprop_multi_value_uint(v1 in uint(), v2 in uint()) {
+        for op in &MULTI_VALUE_OPS {
+            crosscheck_compare_only(
+                &format!("({op} {v1} {v2})")
+            )
+        }
     }
-  }
 }

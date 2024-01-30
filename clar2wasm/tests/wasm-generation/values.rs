@@ -1,17 +1,11 @@
 use clar2wasm::tools::{crosscheck, TestEnvironment};
 use clarity::vm::Value;
-use proptest::prelude::ProptestConfig;
-use proptest::proptest;
-use proptest::strategy::{Just, Strategy};
+use proptest::prelude::*;
 
 use crate::{prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
-    #![proptest_config(ProptestConfig {
-        cases: 500,
-        .. ProptestConfig::default()
-    })]
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn evaluated_value_is_the_value_itself(val in PropValue::any()) {
         crosscheck(
@@ -19,7 +13,7 @@ proptest! {
             Ok(Some(val.into()))
         )
     }
-    #[ignore]
+
     #[test]
     fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
         let mut env = TestEnvironment::default();
@@ -33,7 +27,7 @@ proptest! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn data_var_define_and_get(val in PropValue::any()) {
         crosscheck(
@@ -44,7 +38,7 @@ proptest! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn constant_define_and_get(val in PropValue::any()) {
         crosscheck(
@@ -55,7 +49,7 @@ proptest! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
     #[test]
     fn data_var_define_set_and_get(
         (ty, v1, v2) in prop_signature()

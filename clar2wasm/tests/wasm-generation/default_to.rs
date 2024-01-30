@@ -1,10 +1,11 @@
 use clar2wasm::tools::crosscheck;
-use proptest::{prop_compose, proptest};
+use proptest::prelude::*;
 
 use crate::{prop_signature, PropValue};
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn default_to_with_none_is_always_default(val in PropValue::any()) {
         crosscheck(&format!(r#"(default-to {val} none)"#), Ok(Some(val.into())));
@@ -21,7 +22,8 @@ prop_compose! {
 }
 
 proptest! {
-    #[ignore]
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn default_to_with_some_is_always_value((default, value) in default_and_value_of_same_type()) {
         crosscheck(
