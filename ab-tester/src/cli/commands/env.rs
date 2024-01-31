@@ -1,9 +1,8 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write, Seek};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
 
 use color_eyre::Result;
 use color_eyre::eyre::{bail, anyhow};
@@ -21,7 +20,6 @@ use crate::context::{Runtime, Network};
 use crate::db::appdb::AppDb;
 use crate::environments::{RuntimeEnvBuilder, ReadableEnv};
 use crate::{ok, DeleteEnvArgs};
-use crate::utils::{zstd_compress, append_to_path};
 
 pub async fn exec(
     config: &Config, 
@@ -68,6 +66,8 @@ async fn exec_snapshot(
 ) -> Result<()> {
     let app_db = Rc::new(app_db);
 
+    // TODO: Do not allow snapshotting of read-only environments
+
     // Handle id vs. name environment identifiers
     let env = if let Some(id) = args.env_id {
             app_db.get_env_by_id(id)?
@@ -78,6 +78,10 @@ async fn exec_snapshot(
         } else {
             bail!("one of env-id or env-name must be provided.")
         }?;
+
+    if env.is_read_only {
+        bail!("snapshotting of read-only environments is not supported.");
+    }
 
     // Attempt to parse the type of environment.
     let env_type: EnvironmentType = env.environment_type_id.try_into()?;
@@ -106,8 +110,7 @@ async fn exec_snapshot(
 
     let alias = args.alias.clone().unwrap_or_else(|| {
         let mut alias = env.name;
-        alias.push_str("-");
-        alias.push_str(&Utc::now().format("%Y%m%d%H%M%S").to_string());
+        alias.push_str(&Utc::now().format("-%Y%m%d%H%M%S").to_string());
         alias.to_string()
     });
     
@@ -234,6 +237,7 @@ async fn exec_list(
         .set_header(Row::from(vec![
             console::style("id").bold(),
             console::style("name").bold(),
+            console::style("type").bold(),
             console::style("runtime").bold(),
             console::style("network").bold(),
             console::style("chain-id").bold(),
@@ -252,10 +256,12 @@ async fn exec_list(
     for env in envs {
         let runtime: Runtime = env.runtime_id.try_into()?;
         let network = Network::new(env.network_id as u32, env.chain_id as u32)?;
+        let env_type = EnvironmentType::try_from(env.environment_type_id)?;
 
         let row = Row::from(vec![
             env.id.to_string(),
             env.name,
+            env_type.to_string(),
             runtime.to_string(),
             network.to_string(),
             env.chain_id.to_string(),
@@ -279,17 +285,23 @@ fn snapshot_environment(
     let name = target.name();
     let working_dir = target.cfg().working_dir();
 
+    let target_path = PathBuf::from_str(&config.app.working_dir)?
+        .join(format!("snapshots/{}/{}.tar.zstd", name, snapshot_name));
+    debug!("target path: {:?}", target_path);
+
     debug!("creating new tar archive of the environment's working directory: '{:?}'", working_dir);
     let mut tar_file = tempfile::tempfile()?;
     {
         let mut tar = tar::Builder::new(&mut tar_file);
-        tar.append_path(working_dir)?;
-        tar.finish()?;
+        tar.append_dir_all("snapshot", working_dir)?;
+        tar.into_inner()?;
     }
     tar_file.flush()?;
+    debug!("tar file size: {}", tar_file.metadata()?.len());
 
-    let target_path = PathBuf::from_str(&config.app.working_dir)?
-        .join(format!("snapshots/{:?}/{:?}.tar.zstd", name, snapshot_name));
+    // Recursively create target directory path if needed.
+    debug!("creating snapshot directory structure");
+    std::fs::create_dir_all(target_path.clone().parent().unwrap())?;
 
     debug!("opening target file for compression: {}", target_path.display());
     let mut target_file = File::options()
@@ -300,9 +312,13 @@ fn snapshot_environment(
     let target_writer = BufWriter::new(&mut target_file);
 
     debug!("compressing file");
+    tar_file.rewind()?;
     zstd::stream::copy_encode(tar_file, target_writer, 5)?;
+
     debug!("compression finished, flushing file");
     target_file.sync_all()?;
+
+    /*
 
     std::thread::sleep(Duration::from_millis(500));
 
@@ -346,7 +362,7 @@ fn snapshot_environment(
             .open(&init_burnstate_snapshot_path)?;
         let file_writer = BufWriter::new(file);
         zstd::stream::copy_encode(db_reader, file_writer, 5)?;
-    }
+    }*/
 
     ok!()
 }
@@ -356,6 +372,16 @@ pub enum EnvironmentType {
     StacksNode = 0,
     NetworkSynced = 1,
     Instrumented = 2
+}
+
+impl std::fmt::Display for EnvironmentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EnvironmentType::StacksNode => write!(f, "Stacks Node"),
+            EnvironmentType::NetworkSynced => write!(f, "Network Synced"),
+            EnvironmentType::Instrumented => write!(f, "Instrumented"),
+        }
+    }
 }
 
 impl TryFrom<i32> for EnvironmentType {

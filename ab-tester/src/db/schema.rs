@@ -28,7 +28,7 @@ table! {
     environment_snapshot (id) {
         id -> Integer,
         environment_id -> Integer,
-        name -> Text,
+        alias -> Text,
         block_height -> Integer,
         file_path -> Text
     }

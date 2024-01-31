@@ -39,7 +39,7 @@ pub struct Environment {
 pub struct EnvironmentSnapshot {
     pub id: i32,
     pub environment_id: i32,
-    pub name: String,
+    pub alias: String,
     pub block_height: i32,
     pub file_path: String,
 }

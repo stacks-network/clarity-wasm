@@ -643,7 +643,7 @@ impl AppDb {
             block::marf_trie_root_hash.eq(marf_trie_root_hash),
         ));
 
-        info!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
+        trace_sql!("SQL: {}", debug_query::<diesel::sqlite::Sqlite, _>(&query));
 
         let result = query
             .get_result::<Block>(&mut *self.conn.borrow_mut())
@@ -712,13 +712,13 @@ impl AppDb {
     pub fn insert_environment_snapshot(
         &self,
         environment_id: i32,
-        name: &str,
+        alias: &str,
         block_height: i32,
         path: &str
     ) -> Result<EnvironmentSnapshot> {
         let query = insert_into(environment_snapshot::table)
             .values((
-                environment_snapshot::name.eq(name),
+                environment_snapshot::alias.eq(alias),
                 environment_snapshot::environment_id.eq(environment_id),
                 environment_snapshot::block_height.eq(block_height),
                 environment_snapshot::file_path.eq(path)

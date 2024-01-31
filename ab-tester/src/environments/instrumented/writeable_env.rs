@@ -150,7 +150,7 @@ impl WriteableEnv for InstrumentedEnv {
                             }
                         },
                         TransactionPayload::ContractCall(call) => {
-                            info!("contract call: {:?}", call);
+                            info!("contract call: {}.{} by {}", call.contract_name, call.function_name, call.address);
                                 
                             // Construct a `QualifiedContractIdentifier` from the contract details.
                             let contract_id = call.to_clarity_contract_id();
@@ -165,6 +165,7 @@ impl WriteableEnv for InstrumentedEnv {
                             // Begin a new Clarity transaction in `target` and replay the 
                             // contract call from `source`.
                             block_conn.as_transaction(|tx| {
+                                let start = std::time::Instant::now();
                                 let contract_call_result = tx.run_contract_call(
                                     &sender_addr,
                                     sponsor_addr.as_ref(), 
@@ -182,9 +183,11 @@ impl WriteableEnv for InstrumentedEnv {
                                             asset_map,
                                         )
                                     });
+                                let elapsed = start.elapsed();
 
                                 match contract_call_result {
                                     Ok(result) => {
+                                        info!("contract call success: {}ms", elapsed.as_millis());
                                         trace!("contract call result: {:?}", result);
                                     },
                                     Err(err) => {
@@ -242,13 +245,13 @@ impl WriteableEnv for InstrumentedEnv {
                     }
                 }
 
-                info!("block processed, committing");
+                debug!("block processed, committing");
                 block_conn.seal();
                 block_conn.commit_to_block(&stacks::StacksBlockId::new(&new_consensus_hash, &new_block_hash));
                 //block_conn.commit_mined_block(&StacksBlockId::new(&ctx.new_consensus_hash, &ctx.new_block_hash));
                 chainstate_tx.0.commit()?;
 
-                info!("writing block to blocks directory");
+                debug!("writing block to blocks directory");
                 stacks::StacksChainState::store_block(blocks_dir.to_str().expect("failed to fetch block dir"), &new_consensus_hash, &inner.stacks_block)?;
             }
         };

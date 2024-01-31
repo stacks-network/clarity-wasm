@@ -14,6 +14,7 @@ mod runtime;
 mod stacks;
 mod types;
 mod utils;
+mod telemetry;
 
 use std::process::exit;
 
@@ -26,8 +27,16 @@ use diesel::connection::SimpleConnection;
 use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
+use tracing::{field, Instrument, Subscriber};
+use tracing_subscriber::filter::DynFilterFn;
+use tracing_subscriber::fmt::time;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{Layer, Registry};
+use tracing_subscriber::{layer::SubscriberExt, fmt::format::*};
+use tracing_tree::HierarchicalLayer;
 
 use crate::errors::AppError;
+use crate::telemetry::{ClarityTracingLayer, PrintTreeLayer};
 
 // Embed our database migrations at compile-time so that they can easily be
 // run at applicaton execution without needing external SQL files.
@@ -35,6 +44,26 @@ pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 #[tokio::main]
 async fn main() -> Result<()> {
+
+
+    tracing_subscriber::registry()
+        .with(ClarityTracingLayer::default())
+        .with(PrintTreeLayer::default())
+        .init();
+
+    tracing::info!(hello = "world", "no span");
+    let outer_span = tracing::info_span!("outer", level = 0, parting = field::Empty);
+    let _outer_entered = outer_span.enter();
+    {
+        let inner_span = tracing::debug_span!("inner", level = 1);
+        let _inner_entered = inner_span.enter();
+        outer_span.record("parting", "goodbye, world!");
+    }
+
+    tracing::info!(a_bool = true, answer = 42, message = "first example");
+    drop(_outer_entered);
+    exit(0);
+
     // Initialize error reporting.
     color_eyre::install()?;
 
@@ -142,9 +171,50 @@ fn configure_logging(cli: &Cli) {
             }
         }
     }
+        
+    // Only enable spans or events within a span named "interesting_span".
+    /*let my_filter = DynFilterFn::new(|metadata, cx| {
+        return true;
+        
+        if metadata.fields().iter().any(|f| f.name() == "execute_contract") {
+            return true;
+        }
+        false
+    });*/
+
+    /*tracing_span_tree::span_tree()
+        .aggregate(false)
+        .enable();*/
+
+    /*let subscriber = Registry::default()
+        .with(HierarchicalLayer::new(2)
+            .with_indent_lines(true)
+            .with_span_modes(true)
+            .with_bracketed_fields(true)
+            .with_timer(tracing_tree::time::LocalDateTime)
+            .
+            .with_higher_precision(true)
+        );
+    tracing::subscriber::set_global_default(subscriber).unwrap();*/
+        
+    
+    let my_layer = tracing_subscriber::fmt::layer()
+        .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+        .with_target(true)
+        .with_level(true)
+        .compact()
+        //.with_filter(my_filter)
+        ;
+
+    tracing_subscriber::registry()
+        .with(my_layer)
+        .init();
+
+
 
     // Initialize logging.
-    env_logger::Builder::new()
+    /*let _ = env_logger::Builder::new()
+        .format_timestamp_millis()
         .filter_level(cli.verbosity.log_level_filter())
-        .init();
+        .build();*/
 }

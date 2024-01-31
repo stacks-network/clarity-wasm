@@ -44,6 +44,12 @@ zstd = "0.13.0"
 tar = "0.4.40"
 tempfile = "3.9.0"
 chrono = "0.4.31"
+pathdiff = "0.2.1"
+tracing-tree = { version = "0.3.0", features = ["tracing-log", "time"] }
+tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "ansi", "registry", "tracing-log"] }
+tracing = "0.1.40"
+tracing-span-tree = "0.1.1"
+cpu-time = "1.0.0"
 
 [profile.dev.package.backtrace]
 opt-level = 3

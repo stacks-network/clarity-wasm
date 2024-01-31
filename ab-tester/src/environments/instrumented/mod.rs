@@ -17,7 +17,7 @@ use crate::context::{Network, Runtime};
 use crate::db::appdb::burnstate_db::{AppDbBurnStateWrapper, AsBurnStateDb};
 use crate::db::appdb::headers_db::AsHeadersDb;
 use crate::db::appdb::AppDb;
-use crate::db::model;
+use crate::db::{model, stacks_instrumentation};
 use crate::db::schema::{self};
 use crate::environments::stacks_node::db::stacks_headers_db::StacksHeadersDb;
 use crate::types::BlockHeader;
@@ -284,8 +284,10 @@ impl RuntimeEnv for InstrumentedEnv {
         debug!("[{name}] loading clarity db...");
         self.callbacks
             .open_clarity_db_start(self, paths.clarity_db_path());
-        let clarity_db_conn =
+        let mut clarity_db_conn =
             SqliteConnection::establish(&paths.clarity_db_path().display().to_string())?;
+        debug!("[{name}] installing instrumentation tables and triggers to the clarity db...");
+        stacks_instrumentation::install_clarity_db_instrumentation(&mut clarity_db_conn)?;
         self.callbacks.open_clarity_db_finish(self);
         info!("[{name}] successfully connected to clarity db");
 

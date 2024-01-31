@@ -144,7 +144,7 @@ pub struct NewInstrumentedEnvArgs {
         long = "read-only",
         help = "Whether or not this environment should be read-only, i.e. can only be used as a source",
         required = false,
-        default_value = "true"
+        default_value = "false"
     )]
     pub is_read_only: bool,
 
