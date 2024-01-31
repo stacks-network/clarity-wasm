@@ -18,6 +18,8 @@ const STACKS_BLOCK_HEIGHT_LIMIT: u32 = 100;
 const BURN_BLOCK_HEIGHT_LIMIT: u32 = 100;
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_blockinfo_within_controlled_range(block_height in 1..=STACKS_BLOCK_HEIGHT_LIMIT) {
         for info in &BLOCK_INFO {
@@ -29,6 +31,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_blockinfo(block_height in uint()) {
         for info in &BLOCK_INFO {
@@ -40,7 +44,9 @@ proptest! {
 }
 
 proptest! {
-    #[test]
+    #![proptest_config(super::runtime_config())]
+
+    # [test]
     fn crossprop_blockinfo_burnchain_within_controlled_range(block_height in 1..=BURN_BLOCK_HEIGHT_LIMIT) {
         for info in &BURN_BLOCK_INFO {
             crosscheck_compare_advancing_tip_by(
@@ -51,6 +57,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn crossprop_blockinfo_burnchain(block_height in uint()) {
         for info in &BURN_BLOCK_INFO {

@@ -2,6 +2,7 @@
 pub mod arithmetic;
 pub mod bindings;
 pub mod bitwise;
+pub mod blockinfo;
 pub mod conditionals;
 pub mod default_to;
 pub mod equal;
