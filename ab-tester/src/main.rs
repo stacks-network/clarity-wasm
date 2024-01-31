@@ -55,9 +55,14 @@ async fn main() -> Result<()> {
     let outer_span = tracing::info_span!("outer", level = 0, parting = field::Empty);
     let _outer_entered = outer_span.enter();
     {
-        let inner_span = tracing::debug_span!("inner", level = 1);
-        let _inner_entered = inner_span.enter();
+        let inner_span_1 = tracing::debug_span!("inner_1", level = 1);
+        let _inner_1_entered = inner_span_1.enter();
         outer_span.record("parting", "goodbye, world!");
+
+        let inner_span_2 = tracing::debug_span!("inner_2", level = 2);
+        let _inner_2_entered = inner_span_2.enter();
+
+        tracing::info!(inner = true, "an event in inner span");
     }
 
     tracing::info!(a_bool = true, answer = 42, message = "first example");

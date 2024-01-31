@@ -1,8 +1,9 @@
-use std::{collections::BTreeMap, time::{Duration, Instant}};
+use std::{collections::BTreeMap, fmt::Write, time::{Duration, Instant}};
 
+use console::style;
 use parking_lot::Mutex;
 use tracing::{field::{Field, Visit}, span, Event, Subscriber};
-use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
+use tracing_subscriber::{layer::Context, registry::{LookupSpan, SpanRef}, Layer};
 
 #[derive(Debug, Default)]
 pub struct ClarityTracingLayer {
@@ -163,8 +164,6 @@ where
             .get_mut::<Data>()
             .expect("data should exist");
 
-        //println!("{}on_enter for span: {:?}", str::repeat(".", span_data.level * 2), id);
-
         self.data.lock().active_spans += 1;
 
         let now = Instant::now();
@@ -194,7 +193,9 @@ where
         span_data.last_entered_at = None;
         span_data.accumulated_time += elapsed;
 
-        self.data.lock().active_spans -= 1;
+        let mut layer_data = self.data.lock();
+        layer_data.active_spans -= 1;
+        layer_data.current_span_id = span_data.parent_span.clone();
     }
 
     /// Called when the [tracing::Span] has been dropped. This is guaranteed to
@@ -227,12 +228,12 @@ where
     }
 
     fn on_event(&self, _event: &Event<'_>, ctx: Context<'_, S>) {
-        println!("event [current span {:?}]: {:?}", ctx.current_span().id(), _event);
+        //println!("event [current span {:?}]: {:?}", ctx.current_span().id(), _event);
     }
 }
 
 #[derive(Clone, Default)]
-pub struct PrintTreeLayer {}
+pub struct PrintTreeLayer;
 
 impl<S> Layer<S> for PrintTreeLayer
 where
@@ -248,7 +249,8 @@ where
             .get::<Data>()
             .expect("data should exist");
 
-        println!("{}on_enter for span: {:?}", str::repeat(".", span_data.level * 2), id);
+        //println!("{}on_enter for span: {:?}", str::repeat(".", span_data.level * 2), id);
+        self.print_enter(id, span_data);
     }
 
     fn on_exit(&self, id: &span::Id, ctx: Context<'_, S>) {
@@ -261,7 +263,8 @@ where
             .get::<Data>()
             .expect("data should exist");
 
-        println!("{}on_exit for span: {:?}", str::repeat(".", span_data.level * 2), id);
+        //println!("{}on_exit for span: {:?}", str::repeat(".", span_data.level * 2), id);
+        self.print_exit(id, span_data);
     }
 
     fn on_close(&self, id: span::Id, ctx: Context<'_, S>) {
@@ -274,6 +277,118 @@ where
             .get::<Data>()
             .expect("data should exist");
 
-        println!("{}on_close for span: {:?}", str::repeat(".", span_data.level * 2), id);
+        //println!("{}on_close for span: {:?}, level = {}", str::repeat(".", span_data.level * 2), id, span_data.level);
+        let _ = self.print_close(&id, span_data);
+    }
+
+    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        let current = ctx.current_span();
+        let current_span_id = event.parent().or(current.id());
+
+        if let Some(span_id) = current_span_id {
+            let span = ctx.span(span_id)
+                .expect("span should exist");
+
+            let span_extensions = span.extensions();
+            
+            let span_data = span_extensions
+                .get::<Data>()
+                .expect("data should exist");
+
+            //println!("{}on_event for span: {:?}", str::repeat(".", span_data.level * 2), span_id);
+            let _ = self.print_event_with_span(span_id, span_data, event);
+        } else {
+            let _ = self.print_event_without_span(event);
+        }
+    }
+}
+
+impl PrintTreeLayer {
+    fn print_enter(&self, id: &span::Id, data: &Data) {
+        let mut buffer = String::new();
+        for i in 1..=data.level {
+            if i == data.level {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("├── ");
+            } else {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("│  ");
+            }
+        }
+        buffer.push_str(&style("⥂").green().dim().to_string());
+        buffer.push_str(&format!(" enter for span: {:?}", id));
+        println!("{}", buffer);
+    }
+
+    fn print_exit(&self, id: &span::Id, data: &Data) {
+        let mut buffer = String::new();
+        for i in 1..=data.level {
+            if i == data.level {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("└── ");
+            } else {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("│  ");
+            }
+        }
+        buffer.push_str(&style("⥄").red().dim().to_string());
+        buffer.push_str(&format!(" exit for span: {:?}", id));
+        println!("{}", buffer);
+    }
+
+    fn print_close(&self, id: &span::Id, data: &Data) -> color_eyre::Result<()> {
+        let mut f = String::new();
+        for i in 0..=data.level - 1 {
+            if i < data.level - 1 {
+                if i > 1 { f.push(' ') }
+                f.push_str("│  ");
+            } else {
+                if i > 0 { f.push(' ') }
+                f.push_str("    ");
+            }
+        }
+        //write!(f, "{}", style("[ ").dim().bold())?;
+        
+        write!(f, "{}", style("⟳").dim())?;
+        write!(f, "{}", style(" runtime ").dim().bold())?;
+        write!(f, "{}", style("total: ").dim())?;
+        write!(f, "{}", style("5ns, ").cyan().dim())?;
+        write!(f, "{}", style("busy: ").dim())?;
+        write!(f, "{}", style("4ns, ").cyan().dim())?;
+        write!(f, "{}", style("idle: ").dim())?;
+        write!(f, "{}", style("4ns").cyan().dim())?;
+        //write!(f, "{}", style(" ]").dim().bold())?;
+
+        println!("{}",  f);
+
+        Ok(())
+    }
+
+    fn print_event_with_span(&self, span_id: &span::Id, span_data: &Data, event: &Event) -> color_eyre::Result<()> {
+        let mut buffer = String::new();
+
+        for i in 1..=span_data.level {
+            if i == span_data.level {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("├── ");
+            } else {
+                if i > 1 { buffer.push(' ') }
+                buffer.push_str("│  ");
+            }
+        }
+
+        let mut event_data = Data::default();
+        event.record(&mut event_data);
+
+        buffer.push_str(&style("⚡").yellow().dim().to_string());
+        buffer.push_str(&format!("event: {:?}", event_data.fields["message"]));
+        println!("{}", buffer);
+
+        Ok(())
+    }
+
+    fn print_event_without_span(&self, event: &Event) -> color_eyre::Result<()> {
+        println!("without span: {:?}", event);
+        Ok(())
     }
 }
