@@ -27,6 +27,7 @@ use diesel::connection::SimpleConnection;
 use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::*;
+use telemetry::CleanupLayer;
 use tracing::{field, Instrument, Subscriber};
 use tracing_subscriber::filter::DynFilterFn;
 use tracing_subscriber::fmt::time;
@@ -46,7 +47,7 @@ pub const DB_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 async fn main() -> Result<()> {
 
 
-    tracing_subscriber::registry()
+    /*tracing_subscriber::registry()
         .with(ClarityTracingLayer::default())
         .with(PrintTreeLayer::default())
         .init();
@@ -67,7 +68,7 @@ async fn main() -> Result<()> {
 
     tracing::info!(a_bool = true, answer = 42, message = "first example");
     drop(_outer_entered);
-    exit(0);
+    exit(0);*/
 
     // Initialize error reporting.
     color_eyre::install()?;
@@ -176,6 +177,12 @@ fn configure_logging(cli: &Cli) {
             }
         }
     }
+
+    tracing_subscriber::registry()
+        .with(ClarityTracingLayer::default())
+        .with(PrintTreeLayer)
+        .with(CleanupLayer)
+        .init();
         
     // Only enable spans or events within a span named "interesting_span".
     /*let my_filter = DynFilterFn::new(|metadata, cx| {
@@ -203,7 +210,7 @@ fn configure_logging(cli: &Cli) {
     tracing::subscriber::set_global_default(subscriber).unwrap();*/
         
     
-    let my_layer = tracing_subscriber::fmt::layer()
+    /*let my_layer = tracing_subscriber::fmt::layer()
         .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
         .with_target(true)
         .with_level(true)
@@ -213,7 +220,7 @@ fn configure_logging(cli: &Cli) {
 
     tracing_subscriber::registry()
         .with(my_layer)
-        .init();
+        .init();*/
 
 
 

@@ -50,6 +50,7 @@ tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "ans
 tracing = "0.1.40"
 tracing-span-tree = "0.1.1"
 cpu-time = "1.0.0"
+time = { version = "0.3.31", features = ["formatting", "local-offset"] }
 
 [profile.dev.package.backtrace]
 opt-level = 3
