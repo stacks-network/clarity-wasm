@@ -1,5 +1,6 @@
-use std::{collections::BTreeMap, time::SystemTime, fmt::Write as _, io::Write};
+use std::{collections::BTreeMap, fmt::Write as _, io::Write};
 
+use cpu_time::ProcessTime;
 use time::{macros::format_description, Duration, Instant, OffsetDateTime};
 use console::style;
 use parking_lot::Mutex;
@@ -20,9 +21,14 @@ struct LayerData {
 
 #[derive(Debug, Default)]
 struct Data {
-    first_entered_at: Option<Instant>,
-    last_entered_at: Option<Instant>,
-    accumulated_time: Duration,
+    //real_first_entered_at: Option<Instant>,
+    real_last_entered_at: Option<Instant>,
+    real_accumulated_time: Duration,
+    real_wait_time: Duration,
+    cpu_last_entered_at: Option<ProcessTime>,
+    cpu_accumulated_time: Duration,
+    cpu_wait_time: Duration,
+    cpu_system_time: Duration,
     fields: BTreeMap<&'static str, FieldValue>,
     parent_span: Option<span::Id>,
     level: usize
@@ -187,8 +193,9 @@ where
         self.data.lock().active_spans += 1;
 
         let now = Instant::now();
-        span_data.first_entered_at = Some(now);
-        span_data.last_entered_at = Some(now);
+        //span_data.real_first_entered_at = Some(now);
+        span_data.real_last_entered_at = Some(now);
+        span_data.cpu_last_entered_at = Some(ProcessTime::now());
     }
 
     /// Called when a [tracing::Span] is exited. This may occur multiple times
@@ -207,11 +214,33 @@ where
             .get_mut::<Data>()
             .expect("data should exist");
 
-        let now = Instant::now();
-        let elapsed = now - span_data.last_entered_at
+        let real_now = Instant::now();
+        let real_elapsed = real_now - span_data.real_last_entered_at
             .expect("span should have last_entered_at set");
-        span_data.last_entered_at = None;
-        span_data.accumulated_time += elapsed;
+        span_data.real_last_entered_at = None;
+        span_data.real_accumulated_time += real_elapsed;
+
+        span_data.cpu_accumulated_time += span_data.cpu_last_entered_at
+            .expect("span should have cpu_last_entered_at set")
+            .elapsed();
+        span_data.cpu_last_entered_at = None;
+        span_data.cpu_system_time = span_data.cpu_accumulated_time - span_data.cpu_wait_time;
+
+        if let Some(parent_span_id) = span_data.parent_span_id() {
+            let parent_span = ctx.span(parent_span_id)
+                .expect("parent span should exist");
+
+            let mut parent_span_extensions = parent_span.extensions_mut();
+            let parent_span_data = parent_span_extensions
+                .get_mut::<Data>()
+                .expect("parent data should exist");
+
+            parent_span_data.real_wait_time += span_data.real_accumulated_time;
+            parent_span_data.cpu_wait_time += span_data.cpu_accumulated_time;
+            parent_span_data.cpu_system_time += span_data.cpu_system_time;
+        }
+        // /Moved from close
+        
 
         let mut layer_data = self.data.lock();
         layer_data.active_spans -= 1;
@@ -228,10 +257,12 @@ where
         let span = ctx.span(&id)
             .expect("span should exist");
 
-        let mut span_extensions = span.extensions_mut();
+        /*let mut span_extensions = span.extensions_mut();
         let span_data = span_extensions
             .get_mut::<Data>()
-            .expect("data should exist");
+            .expect("data should exist");*/
+
+        
 
         let mut level_data = self.data.lock();
         level_data.total_spans -= 1;
@@ -270,8 +301,7 @@ where
             .get::<Data>()
             .expect("data should exist");
 
-        //println!("{}on_enter for span: {:?}", str::repeat(".", span_data.level * 2), id);
-        let _ = self.print_enter(span.metadata().level(), id, span.name(), span_data);
+        let _ = self.print_enter(span.metadata().level(), span.name(), span_data);
     }
 
     fn on_exit(&self, id: &span::Id, ctx: Context<'_, S>) {
@@ -284,8 +314,7 @@ where
             .get::<Data>()
             .expect("data should exist");      
 
-        //println!("{}on_exit for span: {:?}", str::repeat(".", span_data.level * 2), id);
-        let _ = self.print_exit(span.metadata().level(), id, span.name(), span_data);
+        let _ = self.print_exit(span.metadata().level(), span.name(), span_data, span.metadata().file(), span.metadata().line());
     }
 
     fn on_close(&self, id: span::Id, ctx: Context<'_, S>) {
@@ -298,28 +327,7 @@ where
             .get::<Data>()
             .expect("data should exist");
 
-        let print_data = span_extensions
-            .get::<PrintData>()
-            .expect("print data should exist");
-
-        let mut has_parent_had_children = false;
-        if let Some(parent_span_id) = span_data.parent_span_id() {
-            let parent_span = ctx.span(parent_span_id)
-                .expect("parent span should exist");
-
-            let mut parent_span_extensions = parent_span.extensions_mut();
-            let print_data = parent_span_extensions
-                .get_mut::<PrintData>()
-                .expect("print data should exist");
-
-            if print_data.has_had_child {
-                has_parent_had_children = true;
-            } else {
-                print_data.has_had_child = true;
-            }
-        }
-
-        let _ = self.print_close(span.metadata().level(), &id, has_parent_had_children,  span_data);
+        let _ = self.print_close(span.metadata().level(), span_data);
 
         
     }
@@ -339,14 +347,66 @@ where
                 .expect("data should exist");
 
             //println!("{}on_event for span: {:?}", str::repeat(".", span_data.level * 2), span_id);
-            let _ = self.print_event_with_span(span_id, span_data, event);
+            let _ = self.print_event_with_span(span_data, event);
         } else {
             let _ = self.print_event_without_span(event);
         }
     }
 }
 
+enum PrintColor {
+    Green,
+    Red,
+    Orange,
+    Yellow,
+    Default
+}
+
 impl PrintTreeLayer {
+    fn format_duration(duration: Duration, ansi: bool) -> color_eyre::Result<String> {
+        let mut buff = String::new();
+        let total_seconds = duration.whole_seconds();
+        let nanos = duration.subsec_nanoseconds();
+
+        let print_color: PrintColor;
+
+        if total_seconds > 0 {
+            write!(buff, "{}", total_seconds)?;
+            if nanos > 0 {
+                let fractional_seconds = nanos as f64 / 1_000_000_000.0;
+                write!(buff, ".{}", format!("{:.3}", fractional_seconds).trim_start_matches("0.").trim_end_matches('0'))?;
+            }
+            write!(buff, "s")?;
+            print_color = PrintColor::Red;
+        } else if nanos >= 1_000_000 {
+            let fractional_milliseconds = nanos as f64 / 1_000_000.0;
+            write!(buff, "{}", format!("{:.3}", fractional_milliseconds).trim_end_matches('0').trim_end_matches('.'))?;
+            write!(buff, "ms")?;
+            print_color = PrintColor::Orange;
+        } else if nanos >= 1_000 {
+            let fractional_microseconds = nanos as f64 / 1_000.0;
+            write!(buff, "{}", format!("{:.3}", fractional_microseconds).trim_end_matches('0').trim_end_matches('.'))?;
+            write!(buff, "µs")?;
+            print_color = PrintColor::Yellow;
+        } else {
+            write!(buff, "{}ns", nanos)?;
+            print_color = PrintColor::Green;
+        }
+
+        if ansi {
+            let str = match print_color {
+                PrintColor::Green => format!("{}", style(buff).green().dim()),
+                PrintColor::Red => format!("{}", style(buff).red().dim()),
+                PrintColor::Orange => format!("{}", style(buff).yellow().dim()),
+                PrintColor::Yellow => format!("{}", style(buff).yellow().dim()),
+                PrintColor::Default => format!("{}", style(buff).dim()),
+            };
+            Ok(str)
+        } else {
+            Ok(buff)
+        }
+    }
+
     fn format_time() -> color_eyre::Result<String> {
         let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]Z");
         Ok(OffsetDateTime::now_utc().format(&format)?)
@@ -373,7 +433,7 @@ impl PrintTreeLayer {
         Ok(())
     }
 
-    fn print_enter(&self, level: &Level, id: &span::Id, name: &str, data: &Data) -> color_eyre::Result<()> {
+    fn print_enter(&self, level: &Level, name: &str, data: &Data) -> color_eyre::Result<()> {
         Self::print_prefix(level)?;
 
         let mut f = std::io::stdout();
@@ -387,33 +447,46 @@ impl PrintTreeLayer {
             }
         }
         write!(f, "{}", style("⥂ ").green())?;
-        write!(f, "{}", style(name).bold())?;
+        write!(f, "{} ", style(name).bold())?;
+
+        for field in data.fields.iter() {
+            write!(f, "{}=", style(field.0).italic().cyan().dim())?;
+            write!(f, "{} ", style(field.1).dim().italic())?;
+        }
+
         write!(f, "\r\n")?;
 
         Ok(())
     }
 
-    fn print_exit(&self, level: &Level, id: &span::Id, name: &str, data: &Data) -> color_eyre::Result<()> {
+    fn print_exit(&self, level: &Level, name: &str, data: &Data, file: Option<&str>, line_no: Option<u32>) -> color_eyre::Result<()> {
         Self::print_prefix(level)?;
 
         let mut f = std::io::stdout();
         for i in 1..=data.level {
             if i == data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "└── ")?;
+                write!(f, "├── ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
                 write!(f, "│  ")?;
             }
         }
         write!(f, "{}", style("⥄ ").red())?;
-        write!(f, "{}", style(name).bold())?;
+        write!(f, "{} ", style(name).bold())?;
+        if let Some(file) = file {
+            write!(f, "{}", style(file).magenta().italic().dim())?;
+            if let Some(line_no) = line_no {
+                write!(f, "{}", style(":").italic().dim())?;
+                write!(f, "{}", style(line_no).magenta().italic().dim())?;
+            }
+        }
         write!(f, "\r\n")?;
 
         Ok(())
     }
 
-    fn print_close(&self, level: &Level, id: &span::Id, has_had_child: bool, data: &Data) -> color_eyre::Result<()> {
+    fn print_close(&self, level: &Level, data: &Data) -> color_eyre::Result<()> {
         Self::print_prefix(level)?;
 
         let mut f = std::io::stdout();
@@ -421,30 +494,41 @@ impl PrintTreeLayer {
         for i in 1..=data.level {
             if i == data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "    ")?;
+                write!(f, "┊   ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
                 write!(f, "│  ")?;
             }
         }
 
-        //if data.level == 0 { write!(f, " ")?; }
         write!(f, "{}", style("⟳").dim())?;
-        write!(f, " level: {}, has_parent_had_child: {} ", data.level, has_had_child)?;
-        write!(f, "{}", style(" runtime ").dim().bold())?;
+        write!(f, "{}", style(" runtime [").dim().bold())?;
+        write!(f, "{}", style("clock ").cyan().bold().dim())?;
         write!(f, "{}", style("⇝ total: ").dim())?;
-        write!(f, "{}", style("5ns, ").cyan().dim())?;
-        write!(f, "{}", style("busy: ").dim())?;
-        write!(f, "{}", style("4ns, ").cyan().dim())?;
-        write!(f, "{}", style("idle: ").dim())?;
-        write!(f, "{}", style("4ns").cyan().dim())?;
+        write!(f, "{}", Self::format_duration(data.real_accumulated_time, true)?)?;
+        write!(f, "{}", style(" busy: ").dim())?;
+        write!(f, "{}", Self::format_duration(data.real_accumulated_time - data.real_wait_time, true)?)?;
+        write!(f, "{}", style(" wait: ").dim())?;
+        write!(f, "{}", Self::format_duration(data.real_wait_time, true)?)?;
+
+        write!(f, "{}", style("] [").dim().bold())?;
+        write!(f, "{}", style("cpu ").cyan().bold().dim())?;
+        write!(f, "{}", style("⇝ user: ").dim())?;
+        write!(f, "{}", Self::format_duration(data.cpu_accumulated_time - data.cpu_system_time, true)?)?;
+        write!(f, "{}", style(" system: ").dim())?;
+        if data.cpu_accumulated_time == data.cpu_system_time {
+            write!(f, "{}", style("-").dim())?;
+        } else {
+            write!(f, "{}", Self::format_duration(data.cpu_system_time, true)?)?;
+        }
+        write!(f, "{}", style("]").dim().bold())?;
 
         write!(f, "\r\n")?;
 
         Ok(())
     }
 
-    fn print_event_with_span(&self, span_id: &span::Id, span_data: &Data, event: &Event) -> color_eyre::Result<()> {
+    fn print_event_with_span(&self, span_data: &Data, event: &Event) -> color_eyre::Result<()> {
         Self::print_prefix(event.metadata().level())?;
 
         let mut f = std::io::stdout();
@@ -465,7 +549,7 @@ impl PrintTreeLayer {
         let mut event_data = Data::default();
         event.record(&mut event_data);
     
-        write!(f, "{}", style("⚡").yellow().dim())?;
+        write!(f, "{}", style("⚡ ").yellow().dim())?;
         write!(f, "{}", event_data.fields["message"])?;
         write!(f, "\r\n")?;
 
@@ -480,7 +564,7 @@ impl PrintTreeLayer {
         let mut event_data = Data::default();
         event.record(&mut event_data);
 
-        write!(f, "{}", style("⚡").yellow().dim())?;
+        write!(f, "{}", style("⚡ ").yellow().dim())?;
         write!(f, "{}", event_data.fields["message"])?;
         write!(f, "\r\n")?;
         Ok(())
@@ -501,5 +585,81 @@ where
         if let Some(data) = span_extensions.remove::<Data>() {
             drop(data);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use time::Duration;
+
+    use crate::telemetry::PrintTreeLayer;
+
+    #[test]
+    fn test_format_duration_seconds() {
+        let duration = Duration::seconds(1) + Duration::nanoseconds(500_000_000);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.5s");
+
+        let duration = Duration::seconds(1) + Duration::nanoseconds(250_000_000);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.25s");
+
+        // Test truncating to three decimal places with rounding.
+        let duration = Duration::seconds(1) + Duration::nanoseconds(678_900_000);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.679s");
+
+        let duration = Duration::seconds(1);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1s");
+
+        let duration = Duration::milliseconds(1);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        // We can't just check for 's' here because it could be 'ms', 'μs' or 'ns'.
+        assert!(formatted.ends_with("ms"));
+    }
+
+    #[test]
+    fn test_format_duration_milliseconds() {
+        let duration = Duration::milliseconds(1);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1ms");
+
+        let duration = Duration::milliseconds(1) + Duration::microseconds(500);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.5ms");
+
+        let duration = Duration::milliseconds(1) + Duration::microseconds(123);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.123ms");
+
+        // Test truncating to three decimal places with rounding.
+        let duration = Duration::milliseconds(1) + Duration::nanoseconds(678_900);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.679ms");
+
+        let duration = Duration::seconds(1);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert!(!formatted.ends_with("ms"));
+    }
+
+    #[test]
+    fn test_format_duration_microseconds() {
+        let duration = Duration::microseconds(1);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1µs");
+
+        let duration = Duration::microseconds(1) + Duration::nanoseconds(500);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.5µs");
+
+        let duration = Duration::microseconds(1) + Duration::nanoseconds(123);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.123µs");
+
+        // Test truncating to three decimal places with rounding.
+        let duration = Duration::microseconds(1) + Duration::nanoseconds(123);
+        let formatted = PrintTreeLayer::format_duration(duration, false).unwrap();
+        assert_eq!(formatted, "1.123µs");
     }
 }
