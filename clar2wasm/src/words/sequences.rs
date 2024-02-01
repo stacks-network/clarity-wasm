@@ -177,38 +177,62 @@ impl ComplexWord for Fold {
         let mut loop_ = else_.dangling_instr_seq(None);
         let loop_id = loop_.id();
 
-        // Load the element from the sequence
-        let elem_size = match &elem_ty {
-            SequenceElementType::Other(elem_ty) => {
-                generator.read_from_memory(&mut loop_, offset, 0, elem_ty)?
+        let mut variadic = false;
+        let mut simple = words::lookup_simple(func);
+        if simple.is_none() {
+            if let Some(simple_variadic) = words::lookup_simple_variadic(func) {
+                variadic = true;
+                simple = Some(simple_variadic)
             }
-            SequenceElementType::Byte => {
-                // The element type is a byte, so we can just push the
-                // offset and length (1) to the stack.
-                loop_.local_get(offset).i32_const(1);
-                1
-            }
-            SequenceElementType::UnicodeScalar => {
-                // The element type is a 32-bit unicode scalar, so we can just push the
-                // offset and length (4) to the stack.
-                loop_.local_get(offset).i32_const(4);
-                4
+        }
+
+        let mut load_element = |loop_: &mut _| {
+            match &elem_ty {
+                SequenceElementType::Other(elem_ty) => {
+                    generator.read_from_memory(loop_, offset, 0, elem_ty)
+                }
+                SequenceElementType::Byte => {
+                    // The element type is a byte, so we can just push the
+                    // offset and length (1) to the stack.
+                    loop_.local_get(offset).i32_const(1);
+                    Ok(1)
+                }
+                SequenceElementType::UnicodeScalar => {
+                    // The element type is a 32-bit unicode scalar, so we can just push the
+                    // offset and length (4) to the stack.
+                    loop_.local_get(offset).i32_const(4);
+                    Ok(4)
+                }
             }
         };
+
+        let mut elem_size = 0;
+
+        if !variadic {
+            elem_size = load_element(&mut loop_)?;
+        }
 
         // Push the locals to the stack
         for result_local in &result_locals {
             loop_.local_get(*result_local);
         }
 
-        if let Some(simple) = words::lookup_simple(func) {
+        if variadic {
+            elem_size = load_element(&mut loop_)?;
+        }
+
+        if let Some(simple) = simple {
             // Call simple builtin
 
             let arg_a_ty = type_from_sequence_element(&elem_ty);
 
-            let arg_types = &[arg_a_ty, result_clar_ty.clone()];
+            let arg_types = if variadic {
+                [result_clar_ty.clone(), arg_a_ty]
+            } else {
+                [arg_a_ty, result_clar_ty.clone()]
+            };
 
-            simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
+            simple.visit(generator, &mut loop_, &arg_types, &result_clar_ty)?;
         } else {
             // Call user defined function
             generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
@@ -1905,6 +1929,19 @@ mod tests {
 (fold-add-square (list 1 2 3 4) 3)
 ",
             evaluate("(ok 33)"),
+        );
+    }
+
+    #[test]
+    fn fold_sub() {
+        crosscheck(
+            "
+(define-private (subalot (a int) (b int))
+    (- a b))
+
+(fold subalot (list 1 2 3 4) 399)
+",
+            Ok(Some(Value::Int(401))),
         );
     }
 }

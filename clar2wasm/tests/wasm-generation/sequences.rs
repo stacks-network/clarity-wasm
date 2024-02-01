@@ -19,6 +19,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn as_max_len_equal_max_len_is_some((max_len, value) in (0usize..=16).prop_ind_flat_map2(PropValue::any_sequence)) {
         crosscheck(
@@ -37,6 +39,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into())))) {
         let snippet = format!("(concat {seq1} {seq2})");
@@ -53,6 +57,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn element_at_crosscheck((seq, idx) in (1usize..=32).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
         let snippet = format!("(element-at? {seq} u{idx})");
@@ -67,6 +73,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn len_crosscheck(seq in (1usize..=32).prop_flat_map(PropValue::any_sequence)) {
         let snippet = format!("(len {seq})");
@@ -81,6 +89,8 @@ proptest! {
 }
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn slice_crosscheck_valid_range(
         (seq, lo, hi) in (1usize..=32)

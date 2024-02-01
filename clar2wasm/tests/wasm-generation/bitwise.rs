@@ -4,10 +4,11 @@ use proptest::proptest;
 use crate::{int, uint};
 
 proptest! {
-  #[test]
-  fn crossprop_bit_shift_left(val in int(), shamt in uint()) {
-    crosscheck_compare_only(
-        &format!("(bit-shift-left {val} {shamt})"),
-    )
-  }
+    #![proptest_config(super::runtime_config())]
+    #[test]
+    fn crossprop_bit_shift_left(val in int(), shamt in uint()) {
+        crosscheck_compare_only(
+            &format!("(bit-shift-left {val} {shamt})"),
+        )
+    }
 }

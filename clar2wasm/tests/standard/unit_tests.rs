@@ -175,7 +175,7 @@ fn test_sub_uint() {
     // 3 - 2 = 1
     sub.call(
         &mut store,
-        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(3), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-uint failed");
@@ -186,7 +186,7 @@ fn test_sub_uint() {
     // 0x1_0000_0000_0000_0000 - 1 = 0xffff_ffff_ffff_ffff
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut sum,
     )
     .expect("call to sub-uint failed");
@@ -198,10 +198,10 @@ fn test_sub_uint() {
     sub.call(
         &mut store,
         &[
-            Val::I64(0),
-            Val::I64(-9223372036854775808),
             Val::I64(1),
             Val::I64(0),
+            Val::I64(0),
+            Val::I64(-9223372036854775808),
         ],
         &mut sum,
     )
@@ -213,7 +213,7 @@ fn test_sub_uint() {
     // 1 - 2 = Underflow
     sub.call(
         &mut store,
-        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect_err("expected underflow");
@@ -238,7 +238,7 @@ fn test_sub_int() {
     // 3 - 2 = 1
     sub.call(
         &mut store,
-        &[Val::I64(3), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(3), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-int failed");
@@ -248,7 +248,7 @@ fn test_sub_int() {
     // 1 - 2 = -1
     sub.call(
         &mut store,
-        &[Val::I64(1), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(1), Val::I64(0)],
         &mut sum,
     )
     .expect("call to sub-int failed");
@@ -259,7 +259,7 @@ fn test_sub_int() {
     // 0x1_0000_0000_0000_0000 - 1 = 0xffff_ffff_ffff_ffff
     sub.call(
         &mut store,
-        &[Val::I64(0), Val::I64(1), Val::I64(1), Val::I64(0)],
+        &[Val::I64(1), Val::I64(0), Val::I64(0), Val::I64(1)],
         &mut sum,
     )
     .expect("call to sub-int failed");
@@ -271,10 +271,10 @@ fn test_sub_int() {
     sub.call(
         &mut store,
         &[
-            Val::I64(0),
-            Val::I64(-9223372036854775808),
             Val::I64(1),
             Val::I64(0),
+            Val::I64(0),
+            Val::I64(-9223372036854775808),
         ],
         &mut sum,
     )
@@ -618,7 +618,7 @@ fn test_div_uint() {
     // 4 / 2 = 2
     div.call(
         &mut store,
-        &[Val::I64(4), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(4), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -628,7 +628,7 @@ fn test_div_uint() {
     // 7 / 4 = 1
     div.call(
         &mut store,
-        &[Val::I64(7), Val::I64(0), Val::I64(4), Val::I64(0)],
+        &[Val::I64(4), Val::I64(0), Val::I64(7), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -638,7 +638,7 @@ fn test_div_uint() {
     // 123 / 456 = 0
     div.call(
         &mut store,
-        &[Val::I64(123), Val::I64(0), Val::I64(456), Val::I64(0)],
+        &[Val::I64(456), Val::I64(0), Val::I64(123), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -648,7 +648,7 @@ fn test_div_uint() {
     // 0 / 0x123_0000_0000_0000_0456 = 0
     div.call(
         &mut store,
-        &[Val::I64(0), Val::I64(0), Val::I64(0x456), Val::I64(0x123)],
+        &[Val::I64(0x456), Val::I64(0x123), Val::I64(0), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -658,7 +658,7 @@ fn test_div_uint() {
     // 0x123_0000_0000_0000_0456 / 0 = DivideByZero
     div.call(
         &mut store,
-        &[Val::I64(0x456), Val::I64(0x123), Val::I64(0), Val::I64(0)],
+        &[Val::I64(0), Val::I64(0), Val::I64(0x456), Val::I64(0x123)],
         &mut result,
     )
     .expect_err("expected divide by zero");
@@ -666,7 +666,7 @@ fn test_div_uint() {
     // 0x123_0000_0000_0000_0456 / 22 = 0xd_3a2e_8ba2_e8ba_2ebe
     div.call(
         &mut store,
-        &[Val::I64(0x456), Val::I64(0x123), Val::I64(22), Val::I64(0)],
+        &[Val::I64(22), Val::I64(0), Val::I64(0x456), Val::I64(0x123)],
         &mut result,
     )
     .expect("call to div-uint failed");
@@ -696,7 +696,7 @@ fn test_div_int() {
     // 4 / 2 = 2
     div.call(
         &mut store,
-        &[Val::I64(4), Val::I64(0), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(4), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-int failed");
@@ -706,7 +706,7 @@ fn test_div_int() {
     // -4 / 2 = -2
     div.call(
         &mut store,
-        &[Val::I64(-4), Val::I64(-1), Val::I64(2), Val::I64(0)],
+        &[Val::I64(2), Val::I64(0), Val::I64(-4), Val::I64(-1)],
         &mut result,
     )
     .expect("call to div-int failed");
@@ -716,7 +716,7 @@ fn test_div_int() {
     // 4 / -2 = -2
     div.call(
         &mut store,
-        &[Val::I64(4), Val::I64(0), Val::I64(-2), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(4), Val::I64(0)],
         &mut result,
     )
     .expect("call to div-int failed");
@@ -726,7 +726,7 @@ fn test_div_int() {
     // -4 / -2 = 2
     div.call(
         &mut store,
-        &[Val::I64(-4), Val::I64(-1), Val::I64(-2), Val::I64(-1)],
+        &[Val::I64(-2), Val::I64(-1), Val::I64(-4), Val::I64(-1)],
         &mut result,
     )
     .expect("call to div-int failed");
@@ -737,10 +737,10 @@ fn test_div_int() {
     div.call(
         &mut store,
         &[
-            Val::I64(0),
-            Val::I64(-9223372036854775808),
             Val::I64(2),
             Val::I64(0),
+            Val::I64(0),
+            Val::I64(-9223372036854775808),
         ],
         &mut result,
     )

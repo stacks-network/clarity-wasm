@@ -2543,7 +2543,7 @@
         (if (i64.ne (local.get $hi) (i64.const 0))
             (then
                 (loop $loop
-                    (call $stdlib.div-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                    (call $stdlib.div-int128 (i64.const 10) (i64.const 0) (local.get $lo) (local.get $hi))
                     ;; remainder on the stack
                     drop ;; drop remainder_hi
                     (local.set $lo (i64.add (i64.const 48))) ;; to ascii
@@ -2652,7 +2652,7 @@
         (if (i64.ne (local.get $hi) (i64.const 0))
             (then
                 (loop $loop
-                    (call $stdlib.div-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
+                    (call $stdlib.div-int128 (i64.const 10) (i64.const 0) (local.get $lo) (local.get $hi))
                     ;; remainder on the stack
                     drop ;; drop remainder_hi
                     (local.set $lo (i64.add (i64.const 48))) ;; to ascii

@@ -30,14 +30,14 @@ fn prop_add_int() {
 #[test]
 fn prop_sub_uint() {
     utils::test_export_two_unsigned_args_checked("stdlib.sub-uint", |a: u128, b: u128| {
-        a.checked_sub(b)
+        b.checked_sub(a)
     })
 }
 
 #[test]
 fn prop_sub_int() {
     utils::test_export_two_signed_args_checked("stdlib.sub-int", |a: i128, b: i128| {
-        a.checked_sub(b)
+        b.checked_sub(a)
     })
 }
 
@@ -58,14 +58,14 @@ fn prop_mul_int() {
 #[test]
 fn prop_div_uint() {
     utils::test_export_two_unsigned_args_checked("stdlib.div-uint", |a: u128, b: u128| {
-        a.checked_div(b)
+        b.checked_div(a)
     })
 }
 
 #[test]
 fn prop_div_int() {
     utils::test_export_two_signed_args_checked("stdlib.div-int", |a: i128, b: i128| {
-        a.checked_div(b)
+        b.checked_div(a)
     })
 }
 
