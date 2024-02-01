@@ -693,7 +693,7 @@ impl ComplexWord for Map {
         let mut put_element_on_stack = |offset: &LocalId, ty: &SequenceElementType, size| {
             match ty {
                 SequenceElementType::Other(elem_ty) => {
-                    generator.read_from_memory(&mut loop_, *offset, 0, &elem_ty)?;
+                    generator.read_from_memory(&mut loop_, *offset, 0, elem_ty)?;
                 }
                 SequenceElementType::Byte => {
                     // The element type is a byte, so we can just push the
@@ -723,7 +723,7 @@ impl ComplexWord for Map {
                 .zip(&input_element_types)
                 .zip(&input_element_sizes)
             {
-                put_element_on_stack(offset, &ty, *size)?
+                put_element_on_stack(offset, ty, *size)?
             }
         } else {
             for ((offset, ty), size) in input_offsets
@@ -732,13 +732,13 @@ impl ComplexWord for Map {
                 .zip(&input_element_sizes)
                 .rev()
             {
-                put_element_on_stack(offset, &ty, *size)?
+                put_element_on_stack(offset, ty, *size)?
             }
         }
 
         if let Some(simple) = simple {
             // Call simple builtin
-            let arg_types: Vec<_> = (&input_element_types)
+            let arg_types: Vec<_> = input_element_types
                 .iter()
                 .map(type_from_sequence_element)
                 .collect();
