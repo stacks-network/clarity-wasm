@@ -341,6 +341,27 @@ impl WasmGenerator {
                         })?
                         .clone();
                     simpleword.visit(self, builder, &arg_types?, &return_type)?;
+                } else if let Some(simpleword) = words::lookup_simple_variadic(function_name) {
+                    // traverse arguments
+                    for arg in args.iter().rev() {
+                        self.traverse_expr(builder, arg)?;
+                    }
+                    let arg_types: Result<Vec<TypeSignature>, GeneratorError> = args
+                        .iter()
+                        .rev()
+                        .map(|e| {
+                            self.get_expr_type(e).cloned().ok_or_else(|| {
+                                GeneratorError::TypeError("expected valid argument type".to_owned())
+                            })
+                        })
+                        .collect();
+                    let return_type = self
+                        .get_expr_type(expr)
+                        .ok_or_else(|| {
+                            GeneratorError::TypeError("Simple words must be typed".to_owned())
+                        })?
+                        .clone();
+                    simpleword.visit(self, builder, &arg_types?, &return_type)?;
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
@@ -1518,6 +1539,7 @@ impl WasmGenerator {
     pub(crate) fn is_reserved_name(&self, name: &ClarityName) -> bool {
         words::lookup_complex(name).is_some()
             || words::lookup_simple(name).is_some()
+            || words::lookup_simple_variadic(name).is_some()
             || self
                 .contract_analysis
                 .get_public_function_type(name.as_str())

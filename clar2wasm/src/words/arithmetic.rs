@@ -1,6 +1,5 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
-use walrus::ValType;
 
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
@@ -31,7 +30,7 @@ fn simple_typed_one_call(
 fn simple_typed_multi_value(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
-    arg_types: &[TypeSignature],
+    n_args: usize,
     return_type: &TypeSignature,
     name: &str,
 ) -> Result<(), GeneratorError> {
@@ -48,7 +47,7 @@ fn simple_typed_multi_value(
     let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
 
     // call one time less than the number of args
-    for _ in 1..arg_types.len() {
+    for _ in 1..n_args {
         builder.call(func);
     }
 
@@ -70,7 +69,7 @@ impl SimpleWord for Add {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "add")
+        simple_typed_multi_value(generator, builder, arg_types.len(), return_type, "add")
     }
 }
 
@@ -89,46 +88,15 @@ impl SimpleWord for Sub {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let type_suffix = match return_type {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "invalid type for arithmetic".to_string(),
-                ));
-            }
+        let n_args = if arg_types.len() == 1 {
+            builder.i64_const(0);
+            builder.i64_const(0);
+
+            arg_types.len() + 1
+        } else {
+            arg_types.len()
         };
-
-        match arg_types.len() {
-            0 => {
-                return Err(GeneratorError::TypeError(
-                    "argument to `-` missing".to_string(),
-                ))
-            }
-            1 => {
-                // save the value in locals, add a 0, and restore
-
-                let a = generator.module.locals.add(ValType::I64);
-                let b = generator.module.locals.add(ValType::I64);
-
-                builder.local_set(a);
-                builder.local_set(b);
-
-                builder.i64_const(0);
-                builder.i64_const(0);
-
-                builder.local_get(b);
-                builder.local_get(a);
-            }
-            2 => (),
-            _ => {
-                simple_typed_multi_value(generator, builder, &arg_types[1..], return_type, "add")?;
-            }
-        }
-
-        let func = generator.func_by_name(&format!("stdlib.sub-{type_suffix}"));
-        builder.call(func);
-        Ok(())
+        simple_typed_multi_value(generator, builder, n_args, return_type, "sub")
     }
 }
 
@@ -147,7 +115,7 @@ impl SimpleWord for Mul {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_multi_value(generator, builder, arg_types, return_type, "mul")
+        simple_typed_multi_value(generator, builder, arg_types.len(), return_type, "mul")
     }
 }
 
@@ -166,32 +134,7 @@ impl SimpleWord for Div {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let type_suffix = match return_type {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "invalid type for arithmetic".to_string(),
-                ));
-            }
-        };
-
-        match arg_types.len() {
-            0 => {
-                return Err(GeneratorError::TypeError(
-                    "`/` takes at least 1 argument".to_string(),
-                ))
-            }
-            1 => return Ok(()),
-            2 => (),
-            _ => {
-                simple_typed_multi_value(generator, builder, &arg_types[1..], return_type, "mul")?;
-            }
-        }
-
-        let func = generator.func_by_name(&format!("stdlib.div-{type_suffix}"));
-        builder.call(func);
-        Ok(())
+        simple_typed_multi_value(generator, builder, arg_types.len(), return_type, "div")
     }
 }
 
@@ -320,12 +263,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sub() {
+    fn test_sub_three() {
         crosscheck("(- 1 2 3)", Ok(Some(Value::Int(-4))));
     }
 
     #[test]
-    fn test_mul() {
+    fn test_mul_three() {
         crosscheck("(* 1 2 3)", Ok(Some(Value::Int(6))));
     }
 
@@ -395,6 +338,14 @@ mod tests {
         crosscheck(
             &format!("{ARITH} (greater-or-equal-int)"),
             evaluate("(ok true)"),
+        );
+    }
+
+    #[test]
+    fn test_regress_three() {
+        crosscheck(
+            &format!("(* 0 5 -34028236692093846346337460743176821146)"),
+            Ok(Some(Value::Int(0))),
         );
     }
 }

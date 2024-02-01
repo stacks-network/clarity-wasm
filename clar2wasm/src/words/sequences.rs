@@ -2,7 +2,7 @@ use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::{FunctionType, SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
-use walrus::ValType;
+use walrus::{LocalId, ValType};
 
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
@@ -652,12 +652,24 @@ impl ComplexWord for Map {
             .binop(BinaryOp::I32GeU)
             .br_if(loop_exit_id);
 
+        // Check if we're calling a variadic or normal simple function.
+        let mut variadic = false;
+        let mut simple = words::lookup_simple(fname);
+
+        if simple.is_none() {
+            if let Some(simple_variadic) = words::lookup_simple_variadic(fname) {
+                variadic = true;
+                simple = Some(simple_variadic);
+            }
+        }
+
         // For each input sequence, load the next element, and adjust the
         // offset for the next iteration.
-        for (i, offset) in input_offsets.iter().enumerate() {
-            match &input_element_types[i] {
+
+        let mut put_element_on_stack = |offset: &LocalId, ty: &SequenceElementType, size| {
+            match ty {
                 SequenceElementType::Other(elem_ty) => {
-                    generator.read_from_memory(&mut loop_, *offset, 0, elem_ty)?;
+                    generator.read_from_memory(&mut loop_, *offset, 0, &elem_ty)?;
                 }
                 SequenceElementType::Byte => {
                     // The element type is a byte, so we can just push the
@@ -670,19 +682,39 @@ impl ComplexWord for Map {
                     loop_.local_get(*offset).i32_const(4);
                 }
             }
-
             // Increment the offset by the size of the element.
             loop_
                 .local_get(*offset)
-                .i32_const(input_element_sizes[i])
+                .i32_const(size)
                 .binop(BinaryOp::I32Add)
                 .local_set(*offset);
+
+            Ok(())
+        };
+
+        // if we're calling a variadic function, we perform the iteration in reverse
+        if !variadic {
+            for ((offset, ty), size) in input_offsets
+                .iter()
+                .zip(&input_element_types)
+                .zip(&input_element_sizes)
+            {
+                put_element_on_stack(offset, &ty, *size)?
+            }
+        } else {
+            for ((offset, ty), size) in input_offsets
+                .iter()
+                .zip(&input_element_types)
+                .zip(&input_element_sizes)
+                .rev()
+            {
+                put_element_on_stack(offset, &ty, *size)?
+            }
         }
 
-        if let Some(simple) = words::lookup_simple(fname) {
+        if let Some(simple) = simple {
             // Call simple builtin
-
-            let arg_types: Vec<_> = input_element_types
+            let arg_types: Vec<_> = (&input_element_types)
                 .iter()
                 .map(type_from_sequence_element)
                 .collect();
