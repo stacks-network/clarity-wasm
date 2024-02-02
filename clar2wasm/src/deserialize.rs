@@ -227,7 +227,7 @@ impl WasmGenerator {
 
                     // Push the offset and length onto the stack
                     then.local_get(result_offset)
-                        .i32_const(PRINCIPAL_BYTES as i32);
+                        .i32_const(STANDARD_PRINCIPAL_BYTES as i32);
 
                     // Break out of the block
                     then.br(block_id);
