@@ -22,6 +22,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
+#[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
     epoch: StacksEpochId,
@@ -263,35 +264,6 @@ pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
     evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
 }
 
-/// Evaluate a Clarity snippet at the latest epoch and clarity version,
-/// advancing the chain tip `count` time.
-/// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
-pub fn evaluate_advancing_tip(snippet: &str, count: u32) -> Result<Option<Value>, ()> {
-    evaluate_advancing_tip_at(
-        snippet,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
-        count,
-    )
-    .map_err(|_| ())
-}
-
-/// Evaluate a Clarity snippet at a specific epoch and version,
-/// advancing the chain tip `count` times.
-/// Returns an optional value -- the result of the evaluation.
-pub fn evaluate_advancing_tip_at(
-    snippet: &str,
-    epoch: StacksEpochId,
-    version: ClarityVersion,
-    count: u32,
-) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
-    env.advance_chain_tip(count);
-
-    env.evaluate(snippet)
-}
-
 /// Interpret a Clarity snippet at a specific epoch and version.
 /// Returns an optional value -- the result of the evaluation.
 pub fn interpret_at(
@@ -308,35 +280,6 @@ pub fn interpret_at(
 #[allow(clippy::result_unit_err)]
 pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
-}
-
-/// Interpret a Clarity snippet at a specific epoch and version,
-/// advancing the chain tip `count` times.
-/// Returns an optional value -- the result of the evaluation.
-pub fn interpret_advancing_tip_at(
-    snippet: &str,
-    epoch: StacksEpochId,
-    version: ClarityVersion,
-    count: u32,
-) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
-    env.advance_chain_tip(count);
-
-    env.interpret(snippet)
-}
-
-/// Interprets a Clarity snippet at the latest epoch and clarity version,
-/// advancing the chain tip `count` times.
-/// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
-pub fn interpret_advancing_tip(snippet: &str, count: u32) -> Result<Option<Value>, ()> {
-    interpret_advancing_tip_at(
-        snippet,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
-        count,
-    )
-    .map_err(|_| ())
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
@@ -363,21 +306,25 @@ pub fn crosscheck_compare_only(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);
 
-    crosscheck_compare_assertion(snippet, compiled, interpreted);
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet,
+        &compiled,
+        &interpreted
+    );
 }
 
-pub fn crosscheck_compare_advancing_tip_by(snippet: &str, count: u32) {
-    let compiled = evaluate_advancing_tip(snippet, count);
-    let interpreted = interpret_advancing_tip(snippet, count);
+pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
+    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+    compiler_env.advance_chain_tip(count);
 
-    crosscheck_compare_assertion(snippet, compiled, interpreted);
-}
+    let mut interpreter_env = compiler_env.clone();
 
-fn crosscheck_compare_assertion(
-    snippet: &str,
-    compiled: Result<Option<Value>, ()>,
-    interpreted: Result<Option<Value>, ()>,
-) {
+    let compiled = compiler_env.evaluate(snippet).map_err(|_| ());
+    let interpreted = interpreter_env.interpret(snippet).map_err(|_| ());
+
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
         interpreted.as_ref().map_err(|_| &()),

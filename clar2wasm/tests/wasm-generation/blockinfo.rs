@@ -1,4 +1,4 @@
-use clar2wasm::tools::{crosscheck_compare_advancing_tip_by, crosscheck_compare_only};
+use clar2wasm::tools::{crosscheck_compare_only, crosscheck_compare_only_advancing_tip};
 use proptest::proptest;
 
 use crate::uint;
@@ -23,9 +23,7 @@ proptest! {
     #[test]
     fn crossprop_blockinfo_within_controlled_range(block_height in 1..=STACKS_BLOCK_HEIGHT_LIMIT) {
         for info in &BLOCK_INFO {
-            crosscheck_compare_advancing_tip_by(
-                &format!("(get-block-info? {info} u{block_height})"), 80
-            )
+            crosscheck_compare_only_advancing_tip(&format!("(get-block-info? {info} u{block_height})"), 80)
         }
     }
 }
@@ -49,7 +47,7 @@ proptest! {
     # [test]
     fn crossprop_blockinfo_burnchain_within_controlled_range(block_height in 1..=BURN_BLOCK_HEIGHT_LIMIT) {
         for info in &BURN_BLOCK_INFO {
-            crosscheck_compare_advancing_tip_by(
+            crosscheck_compare_only_advancing_tip(
                 &format!("(get-burn-block-info? {info} u{block_height})"), 80
             )
         }
