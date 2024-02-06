@@ -117,6 +117,6 @@ proptest! {
 fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
-        _ => unreachable!(),
+        _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
     }
 }
