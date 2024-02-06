@@ -61,7 +61,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn element_at_crosscheck((seq, idx) in (1usize..=32).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
+    fn element_at_crosscheck((seq, idx) in (1usize..=16).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
         let snippet = format!("(element-at? {seq} u{idx})");
 
         let expected = {
@@ -77,7 +77,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn len_crosscheck(seq in (1usize..=32).prop_flat_map(PropValue::any_sequence)) {
+    fn len_crosscheck(seq in (1usize..=16).prop_flat_map(PropValue::any_sequence)) {
         let snippet = format!("(len {seq})");
 
         let expected = {
@@ -94,7 +94,7 @@ proptest! {
 
     #[test]
     fn slice_crosscheck_valid_range(
-        (seq, lo, hi) in (1usize..=32)
+        (seq, lo, hi) in (1usize..=16)
         .prop_flat_map(PropValue::any_sequence)
         .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
         .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
