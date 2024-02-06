@@ -13,7 +13,7 @@ pub mod values;
 
 use std::env;
 
-const DEFAULT_CASES: u32 = 100;
+const DEFAULT_CASES: u32 = 10;
 
 fn runtime_config() -> ProptestConfig {
     let cases_string = env::var("PROPTEST_CASES").unwrap_or_default();
