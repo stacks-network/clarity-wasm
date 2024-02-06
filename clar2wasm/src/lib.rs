@@ -95,6 +95,7 @@ pub fn compile(
 
     // Now that the typechecker pass is done, we can concretize the expressions types which
     // might contain `ListUnionType` or `CallableType`
+    #[allow(clippy::expect_used)]
     match contract_analysis.type_map.as_mut() {
         Some(typemap) => typemap.concretize().map_err(|e| {
             diagnostics.push(e.diagnostic);
