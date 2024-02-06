@@ -212,10 +212,10 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::PrincipalType => {
             prop_oneof![standard_principal(), qualified_principal()].boxed()
         }
+        TypeSignature::ListUnionType(_) => todo!(),
         // TODO
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
         TypeSignature::CallableType(_) => todo!(),
-        TypeSignature::ListUnionType(_) => todo!(),
         TypeSignature::TraitReferenceType(_) => todo!(),
     }
 }
@@ -330,7 +330,7 @@ fn standard_principal() -> impl Strategy<Value = Value> {
         .no_shrink()
 }
 
-pub fn qualified_principal() -> impl Strategy<Value = Value> {
+fn qualified_principal() -> impl Strategy<Value = Value> {
     (standard_principal(), "[a-zA-Z]{1,40}").prop_map(|(issuer_value, name)| {
         let Value::Principal(PrincipalData::Standard(issuer)) = issuer_value else {
             unreachable!()
