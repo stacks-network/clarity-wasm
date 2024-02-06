@@ -368,7 +368,7 @@ impl WasmGenerator {
                     if arg_types.len() == 1 {
                         variadic.visit(self, builder, &arg_types[..1], &return_type)?;
                     } else {
-                        while let Some((i, expr)) = args_enumerated.next() {
+                        for (i, expr) in args_enumerated {
                             self.traverse_expr(builder, expr)?;
                             variadic.visit(self, builder, &arg_types[i - 1..=i], &return_type)?;
                         }
