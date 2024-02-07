@@ -1589,8 +1589,13 @@ impl WasmGenerator {
 
 #[cfg(test)]
 mod misc_tests {
+    use walrus::Module;
+
     // Tests that don't relate to specific words
-    use crate::tools::{crosscheck, evaluate};
+    use crate::{
+        tools::{crosscheck, evaluate},
+        wasm_generator::END_OF_STANDARD_DATA,
+    };
 
     #[test]
     fn is_in_mainnet() {
@@ -1616,5 +1621,15 @@ mod misc_tests {
 ",
             evaluate("(ok false)"),
         );
+    }
+
+    #[test]
+    fn end_of_standard_data_is_correct() {
+        let standard_lib_wasm =
+            std::fs::read("src/standard/standard.wasm").expect("Failed to read WASM file");
+        let module = Module::from_buffer(&standard_lib_wasm).unwrap();
+        let initial_data_size: usize = module.data.iter().map(|d| d.value.len()).sum();
+
+        assert!((initial_data_size as u32) == END_OF_STANDARD_DATA);
     }
 }
