@@ -383,6 +383,11 @@ mod tests {
     }
 
     #[test]
+    fn test_regress_sub_unary_uint() {
+        crosscheck("(- u5)", Err(()));
+    }
+
+    #[test]
     fn sub_ordering() {
         crosscheck(
             "
