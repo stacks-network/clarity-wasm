@@ -217,7 +217,7 @@ impl ComplexWord for GetDataVar {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::tools::{crosscheck, evaluate};
 
     #[test]

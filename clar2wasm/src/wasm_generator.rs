@@ -10,7 +10,7 @@ use clarity::vm::types::{
     TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
-use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ir::{
     BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp,
 };
@@ -247,9 +247,97 @@ impl WasmGenerator {
         })
     }
 
+    fn calculate_data_size(&self, expressions: &[SymbolicExpression], data_size: &mut usize) {
+        for expr in expressions {
+            match &expr.expr {
+                SymbolicExpressionType::Atom(_name) => (),
+                SymbolicExpressionType::List(exprs) => {
+                    self.calculate_data_size(exprs, data_size);
+                }
+                SymbolicExpressionType::LiteralValue(value) => {
+                    *data_size += self.literal_value_size(value);
+                }
+                _ => println!("No value"),
+            }
+        }
+    }
+
+    fn literal_value_size(&self, value: &Value) -> usize {
+        match value {
+            clarity::vm::Value::Int(_) | clarity::vm::Value::UInt(_) => 16,
+            clarity::vm::Value::Principal(p) => match p {
+                PrincipalData::Standard(_) => 22,
+                PrincipalData::Contract(contract) => 22 + (contract.name.len() as usize),
+            },
+            clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.len(),
+            clarity::vm::Value::Sequence(SequenceData::String(string_data)) => match string_data {
+                CharType::ASCII(ascii) => ascii.data.len(),
+                CharType::UTF8(utf8) => utf8.data.len() * 4,
+            },
+            clarity::vm::Value::Bool(_)
+            | clarity::vm::Value::Tuple(_)
+            | clarity::vm::Value::Optional(_)
+            | clarity::vm::Value::Response(_)
+            | clarity::vm::Value::CallableContract(_)
+            | clarity::vm::Value::Sequence(_) => 0,
+        }
+    }
+
+    fn should_increase_initial_memory(
+        &mut self,
+        expressions: &[SymbolicExpression],
+    ) -> Result<(bool, u32, u32), GeneratorError> {
+        let mut data_size = self.literal_memory_end as usize;
+        self.calculate_data_size(expressions, &mut data_size);
+
+        let data_size = data_size as u32;
+        let memory = self
+            .module
+            .memories
+            .iter_mut()
+            .next()
+            .ok_or_else(|| GeneratorError::InternalError("Memory not found".to_owned()))?;
+
+        let initial_memory_bytes = memory.initial * 64 * 1024;
+        Ok((
+            initial_memory_bytes < data_size,
+            initial_memory_bytes,
+            data_size,
+        ))
+    }
+
+    pub fn increase_initial_memory_pages(
+        &mut self,
+        initial_memory_bytes: u32,
+        data_size: u32,
+    ) -> Result<(), GeneratorError> {
+        let memory = self
+            .module
+            .memories
+            .iter_mut()
+            .next()
+            .ok_or_else(|| GeneratorError::InternalError("Memory not found".to_owned()))?;
+
+        let pages_required = (data_size - initial_memory_bytes) / (64 * 1024);
+        let remainder = (data_size - initial_memory_bytes) % (64 * 1024);
+        if remainder > 0 {
+            memory.initial += pages_required + 1;
+        } else {
+            memory.initial += pages_required;
+        }
+
+        Ok(())
+    }
+
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
+
+        let (should_increase, initial_memory_bytes, data_size) =
+            self.should_increase_initial_memory(&expressions)?;
+        if should_increase {
+            self.increase_initial_memory_pages(initial_memory_bytes, data_size)?;
+        }
 
         // Get the type of the last top-level expression
         let return_ty = expressions
@@ -539,17 +627,12 @@ impl WasmGenerator {
                 (data, entry)
             }
         };
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("no memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = data.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             data,
@@ -571,17 +654,12 @@ impl WasmGenerator {
             return Ok((*offset, name.len() as u32));
         }
 
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = name.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             name.as_bytes().to_vec(),
@@ -645,17 +723,12 @@ impl WasmGenerator {
                 )))
             }
         };
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = data.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             data.clone(),
@@ -744,12 +817,7 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> Result<u32, GeneratorError> {
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Data stack: TOP | High | Low | ...
@@ -760,12 +828,12 @@ impl WasmGenerator {
 
                 // Store the high/low to memory.
                 builder.local_get(offset_local).local_get(low).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
                 builder.local_get(offset_local).local_get(high).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I64 { atomic: false },
                     MemArg {
                         align: 8,
@@ -786,12 +854,12 @@ impl WasmGenerator {
 
                 // Store the offset/length to memory.
                 builder.local_get(offset_local).local_get(seq_offset).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
                 builder.local_get(offset_local).local_get(seq_length).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg {
                         align: 4,
@@ -808,7 +876,7 @@ impl WasmGenerator {
 
                 // Store the value to memory.
                 builder.local_get(offset_local).local_get(bool_val).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
@@ -818,14 +886,13 @@ impl WasmGenerator {
                 // Data stack: TOP | (Place holder i32)
                 // We just have to drop the placeholder and write a i32
                 builder.drop().local_get(offset_local).i32_const(0).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
                 Ok(4)
             }
             TypeSignature::OptionalType(some_ty) => {
-                let memory_id = memory.id();
                 // Data stack: TOP | inner value | (some|none) variant
                 // recursively store the inner value
 
@@ -839,7 +906,7 @@ impl WasmGenerator {
                     .local_get(offset_local)
                     .local_get(variant_val)
                     .store(
-                        memory_id,
+                        memory,
                         StoreKind::I32 { atomic: false },
                         MemArg { align: 4, offset },
                     );
@@ -849,7 +916,6 @@ impl WasmGenerator {
             }
             TypeSignature::ResponseType(ok_err_ty) => {
                 // Data stack: TOP | err_value | ok_value | (ok|err) variant
-                let memory_id = memory.id();
                 let mut bytes_written = 0;
 
                 // write err value at offset + size of variant (4) + size of ok_value
@@ -870,7 +936,7 @@ impl WasmGenerator {
                     .local_get(offset_local)
                     .local_get(variant_val)
                     .store(
-                        memory_id,
+                        memory,
                         StoreKind::I32 { atomic: false },
                         MemArg { align: 4, offset },
                     );
@@ -1581,5 +1647,17 @@ mod misc_tests {
 ",
             evaluate("(ok false)"),
         );
+    }
+
+    #[test]
+    fn should_expand_initial_pages() {
+        let string_size = 262000;
+        let a = "a".repeat(string_size);
+        let b = "b".repeat(string_size);
+        let c = "c".repeat(string_size);
+        let d = "d".repeat(string_size);
+
+        let snippet = format!("(is-eq u\"{}\" u\"{}\" u\"{}\" u\"{}\")", a, b, c, d);
+        crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(false))));
     }
 }
