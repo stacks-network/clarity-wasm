@@ -10,7 +10,7 @@ use clarity::vm::types::{
     TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
-use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
+use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{
     BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp,
 };
@@ -247,83 +247,26 @@ impl WasmGenerator {
         })
     }
 
-    fn calculate_data_size(&self, expressions: &[SymbolicExpression], data_size: &mut usize) {
-        for expr in expressions {
-            match &expr.expr {
-                SymbolicExpressionType::Atom(_name) => (),
-                SymbolicExpressionType::List(exprs) => {
-                    self.calculate_data_size(exprs, data_size);
-                }
-                SymbolicExpressionType::LiteralValue(value) => {
-                    *data_size += self.literal_value_size(value);
-                }
-                _ => println!("No value"),
+    pub fn expand_memory_conditionally(&mut self) -> Result<(), GeneratorError> {
+        let memory = self
+            .module
+            .memories
+            .iter_mut()
+            .next()
+            .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
+
+        let total_module_space = memory.initial * 64 * 1024;
+        let new_memory_required = self.literal_memory_end;
+
+        if new_memory_required > total_module_space {
+            let pages_required = (new_memory_required - total_module_space) / (64 * 1024);
+            let remainder = (new_memory_required - total_module_space) % (64 * 1024);
+
+            if remainder > 0 {
+                memory.initial += pages_required + 1;
+            } else {
+                memory.initial += pages_required;
             }
-        }
-    }
-
-    fn literal_value_size(&self, value: &Value) -> usize {
-        match value {
-            clarity::vm::Value::Int(_) | clarity::vm::Value::UInt(_) => 16,
-            clarity::vm::Value::Principal(p) => match p {
-                PrincipalData::Standard(_) => 22,
-                PrincipalData::Contract(contract) => 22 + (contract.name.len() as usize),
-            },
-            clarity::vm::Value::Sequence(SequenceData::Buffer(buff_data)) => buff_data.data.len(),
-            clarity::vm::Value::Sequence(SequenceData::String(string_data)) => match string_data {
-                CharType::ASCII(ascii) => ascii.data.len(),
-                CharType::UTF8(utf8) => utf8.data.len() * 4,
-            },
-            clarity::vm::Value::Bool(_)
-            | clarity::vm::Value::Tuple(_)
-            | clarity::vm::Value::Optional(_)
-            | clarity::vm::Value::Response(_)
-            | clarity::vm::Value::CallableContract(_)
-            | clarity::vm::Value::Sequence(_) => 0,
-        }
-    }
-
-    fn should_increase_initial_memory(
-        &mut self,
-        expressions: &[SymbolicExpression],
-    ) -> Result<(bool, u32, u32), GeneratorError> {
-        let mut data_size = self.literal_memory_end as usize;
-        self.calculate_data_size(expressions, &mut data_size);
-
-        let data_size = data_size as u32;
-        let memory = self
-            .module
-            .memories
-            .iter_mut()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("Memory not found".to_owned()))?;
-
-        let initial_memory_bytes = memory.initial * 64 * 1024;
-        Ok((
-            initial_memory_bytes < data_size,
-            initial_memory_bytes,
-            data_size,
-        ))
-    }
-
-    pub fn increase_initial_memory_pages(
-        &mut self,
-        initial_memory_bytes: u32,
-        data_size: u32,
-    ) -> Result<(), GeneratorError> {
-        let memory = self
-            .module
-            .memories
-            .iter_mut()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("Memory not found".to_owned()))?;
-
-        let pages_required = (data_size - initial_memory_bytes) / (64 * 1024);
-        let remainder = (data_size - initial_memory_bytes) % (64 * 1024);
-        if remainder > 0 {
-            memory.initial += pages_required + 1;
-        } else {
-            memory.initial += pages_required;
         }
 
         Ok(())
@@ -332,12 +275,6 @@ impl WasmGenerator {
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
-
-        let (should_increase, initial_memory_bytes, data_size) =
-            self.should_increase_initial_memory(&expressions)?;
-        if should_increase {
-            self.increase_initial_memory_pages(initial_memory_bytes, data_size)?;
-        }
 
         // Get the type of the last top-level expression
         let return_ty = expressions
@@ -355,6 +292,8 @@ impl WasmGenerator {
 
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
+
+        self.expand_memory_conditionally()?;
 
         // Update the initial value of the stack-pointer to point beyond the
         // literal memory.
