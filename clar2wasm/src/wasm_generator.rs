@@ -1628,7 +1628,7 @@ mod misc_tests {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
         let module = Module::from_buffer(standard_lib_wasm).unwrap();
         let initial_data_size: usize = module.data.iter().map(|d| d.value.len()).sum();
-        
+
         assert!((initial_data_size as u32) == END_OF_STANDARD_DATA);
     }
 }
