@@ -316,7 +316,7 @@ pub fn crosscheck_compare_only(snippet: &str) {
     );
 }
 
-/// Advance the block height to `count`, and uses the same TestEnvironment instance
+/// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
