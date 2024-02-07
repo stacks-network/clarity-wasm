@@ -201,11 +201,10 @@ impl ComplexWord for Fold {
             loop_.local_get(*result_local);
         }
 
-        if let Some(simple) = words::lookup_simple(func) {
+        if let Some(simple) = words::lookup_simple(func).or(words::lookup_variadic_simple(func)) {
             // Call simple builtin
 
             let arg_a_ty = type_from_sequence_element(&elem_ty);
-
             let arg_types = &[arg_a_ty, result_clar_ty.clone()];
 
             simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
@@ -645,6 +644,23 @@ impl ComplexWord for Map {
         let mut loop_ = loop_exit.dangling_instr_seq(None);
         let loop_id = loop_.id();
 
+        // See if we're calling a simple function, and if it's variadic
+
+        let mut simple = words::lookup_simple(fname);
+        let mut variadic = false;
+
+        if simple.is_none() {
+            if let Some(simple_variadic) = words::lookup_variadic_simple(fname) {
+                variadic = true;
+                simple = Some(simple_variadic)
+            }
+        }
+
+        let arg_types: Vec<_> = input_element_types
+            .iter()
+            .map(type_from_sequence_element)
+            .collect();
+
         // Check if we've reached the min_num_elements
         loop_
             .local_get(index)
@@ -671,6 +687,19 @@ impl ComplexWord for Map {
                 }
             }
 
+            // If we have variadics, we need to interleave the calls
+            // if the arg length is 1, this is a no-op
+            if let Some(simple) = simple {
+                if variadic && i > 0 {
+                    simple.visit(
+                        generator,
+                        &mut loop_,
+                        &arg_types[i - 1..=i],
+                        return_element_type,
+                    )?;
+                }
+            }
+
             // Increment the offset by the size of the element.
             loop_
                 .local_get(*offset)
@@ -679,15 +708,11 @@ impl ComplexWord for Map {
                 .local_set(*offset);
         }
 
-        if let Some(simple) = words::lookup_simple(fname) {
-            // Call simple builtin
-
-            let arg_types: Vec<_> = input_element_types
-                .iter()
-                .map(type_from_sequence_element)
-                .collect();
-
-            simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
+        if let Some(simple) = simple {
+            // If not variadic, _or_ if the arg length is one (unary operations)
+            if !variadic || arg_types.len() == 1 {
+                simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
+            }
         } else {
             // Call user defined function.
             generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
@@ -1874,5 +1899,43 @@ mod tests {
 ",
             evaluate("(ok 33)"),
         );
+    }
+
+    #[test]
+    fn fold_sub() {
+        crosscheck(
+            "
+(define-private (subalot (a int) (b int))
+    (- b a))
+
+(fold subalot (list 1 2 3 4 5) 399)
+",
+            Ok(Some(Value::Int(384))),
+        );
+    }
+
+    #[test]
+    fn map_sub() {
+        crosscheck(
+            "
+(map - (list 1 2 3 4) (list 4 5 7 9) (list 41 51 71 9999))
+",
+            evaluate("(list -44 -54 -75 -10004)"),
+        );
+    }
+
+    #[test]
+    fn map_mul_regression() {
+        crosscheck(
+            "
+(map * (list 0) (list 5) (list -34028236692093846346337460743176821146))
+",
+            evaluate("(list 0)"),
+        );
+    }
+
+    #[test]
+    fn map_unary() {
+        crosscheck("(map - (list 10 20 30))", evaluate("(list -10 -20 -30)"));
     }
 }

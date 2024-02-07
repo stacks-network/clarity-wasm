@@ -93,6 +93,26 @@ pub fn compile(
         }
     };
 
+    // Now that the typechecker pass is done, we can concretize the expressions types which
+    // might contain `ListUnionType` or `CallableType`
+    #[allow(clippy::expect_used)]
+    match contract_analysis.type_map.as_mut() {
+        Some(typemap) => typemap.concretize().map_err(|e| {
+            diagnostics.push(e.diagnostic);
+            CompileError::Generic {
+                ast: ast.clone(),
+                diagnostics: diagnostics.clone(),
+                cost_tracker: Box::new(
+                    contract_analysis
+                        .cost_track
+                        .take()
+                        .expect("Failed to take cost tracker from contract analysis"),
+                ),
+            }
+        })?,
+        None => unreachable!("Typechecker was called at that moment"),
+    }
+
     #[allow(clippy::expect_used)]
     match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
         Ok(module) => Ok(CompileResult {

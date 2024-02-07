@@ -404,16 +404,8 @@ impl WasmGenerator {
                 },
                 args,
             )) => {
-                // Complex words handle their own argument traversal, and have priority
-                // since we need to have a slight overlap for the words `and` and `or`
-                // which exist in both complex and simple forms
-                if let Some(word) = words::lookup_complex(function_name) {
-                    word.traverse(self, builder, expr, args)?;
-                } else if let Some(simpleword) = words::lookup_simple(function_name) {
-                    // traverse arguments
-                    for arg in args {
-                        self.traverse_expr(builder, arg)?;
-                    }
+                // Extract the types from the args and return
+                let get_types = || {
                     let arg_types: Result<Vec<TypeSignature>, GeneratorError> = args
                         .iter()
                         .map(|e| {
@@ -426,9 +418,51 @@ impl WasmGenerator {
                         .get_expr_type(expr)
                         .ok_or_else(|| {
                             GeneratorError::TypeError("Simple words must be typed".to_owned())
+                        })
+                        .cloned();
+                    Ok((arg_types?, return_type?))
+                };
+
+                // Complex words handle their own argument traversal, and have priority
+                // since we need to have a slight overlap for the words `and` and `or`
+                // which exist in both complex and simple forms
+                if let Some(word) = words::lookup_complex(function_name) {
+                    word.traverse(self, builder, expr, args)?;
+                } else if let Some(simpleword) = words::lookup_simple(function_name) {
+                    let (arg_types, return_type) = get_types()?;
+
+                    // traverse arguments
+                    for arg in args {
+                        self.traverse_expr(builder, arg)?;
+                    }
+
+                    simpleword.visit(self, builder, &arg_types, &return_type)?;
+                } else if let Some(variadic) = words::lookup_variadic_simple(function_name) {
+                    let (arg_types, return_type) = get_types()?;
+
+                    let mut args_enumerated = args.iter().enumerate();
+
+                    let first_arg = args_enumerated
+                        .next()
+                        .ok_or_else(|| {
+                            GeneratorError::InternalError(
+                                "Variadic called without arguments".to_owned(),
+                            )
                         })?
-                        .clone();
-                    simpleword.visit(self, builder, &arg_types?, &return_type)?;
+                        .1;
+
+                    self.traverse_expr(builder, first_arg)?;
+
+                    if arg_types.len() == 1 {
+                        variadic.visit(self, builder, &arg_types[..1], &return_type)?;
+                    } else {
+                        for (i, expr) in args_enumerated {
+                            self.traverse_expr(builder, expr)?;
+                            variadic.visit(self, builder, &arg_types[i - 1..=i], &return_type)?;
+                        }
+                    }
+
+                    // first argument is traversed outside loop
                 } else {
                     self.traverse_call_user_defined(builder, expr, function_name, args)?;
                 }
@@ -1584,6 +1618,7 @@ impl WasmGenerator {
     pub(crate) fn is_reserved_name(&self, name: &ClarityName) -> bool {
         words::lookup_complex(name).is_some()
             || words::lookup_simple(name).is_some()
+            || words::lookup_variadic_simple(name).is_some()
             || self
                 .contract_analysis
                 .get_public_function_type(name.as_str())

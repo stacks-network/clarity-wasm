@@ -26,10 +26,12 @@ fn runtime_config() -> ProptestConfig {
 }
 
 use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, ResponseData,
-    SequenceData, SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+    ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, PrincipalData,
+    QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
+    StandardPrincipalData, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
     TypeSignature, Value, MAX_VALUE_SIZE,
 };
+use clarity::vm::ContractName;
 use proptest::prelude::*;
 
 pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
@@ -43,7 +45,7 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
         (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
-        // TODO: principal,
+        Just(TypeSignature::PrincipalType),
         // TODO: string-utf8
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
@@ -112,6 +114,7 @@ impl std::fmt::Display for PropValue {
                 }
                 write!(f, "\"")
             }
+            Value::Principal(p) => write!(f, "'{p}"),
             Value::Optional(OptionalData { data }) => match data {
                 Some(inner) => write!(f, "(some {})", PropValue(*inner.clone())),
                 None => write!(f, "none"),
@@ -206,12 +209,13 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
             list(list_type_data).boxed()
         }
         TypeSignature::TupleType(tuple_ty) => tuple(tuple_ty).boxed(),
-
+        TypeSignature::PrincipalType => {
+            prop_oneof![standard_principal(), qualified_principal()].boxed()
+        }
+        TypeSignature::ListUnionType(_) => todo!(),
         // TODO
-        TypeSignature::PrincipalType => todo!(),
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
         TypeSignature::CallableType(_) => todo!(),
-        TypeSignature::ListUnionType(_) => todo!(),
         TypeSignature::TraitReferenceType(_) => todo!(),
     }
 }
@@ -312,6 +316,30 @@ fn tuple(tuple_ty: TupleTypeSignature) -> impl Strategy<Value = Value> {
             data_map: fields.clone().into_iter().zip(vec_values).collect(),
         }
         .into()
+    })
+}
+
+fn standard_principal() -> impl Strategy<Value = Value> {
+    (0u8..32, prop::collection::vec(any::<u8>(), 20))
+        .prop_map(|(v, hash)| {
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData(
+                v,
+                hash.try_into().unwrap(),
+            )))
+        })
+        .no_shrink()
+}
+
+fn qualified_principal() -> impl Strategy<Value = Value> {
+    (standard_principal(), "[a-zA-Z]{1,40}").prop_map(|(issuer_value, name)| {
+        let Value::Principal(PrincipalData::Standard(issuer)) = issuer_value else {
+            unreachable!()
+        };
+        let name = ContractName::from(&*name);
+        Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier {
+            issuer,
+            name,
+        }))
     })
 }
 
