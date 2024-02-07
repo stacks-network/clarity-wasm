@@ -146,14 +146,10 @@ pub trait SimpleWord: Sync + core::fmt::Debug {
 }
 
 pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
-    &arithmetic::Add,
-    &arithmetic::Div,
     &arithmetic::Log2,
     &arithmetic::Modulo,
-    &arithmetic::Mul,
     &arithmetic::Power,
     &arithmetic::Sqrti,
-    &arithmetic::Sub,
     &bitwise::BitwiseAnd,
     &bitwise::BitwiseLShift,
     &bitwise::BitwiseNot,
@@ -190,6 +186,13 @@ pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &stx::StxGetBalance,
 ];
 
+pub(crate) static SIMPLE_VARIADIC_WORDS: &[&'static dyn SimpleWord] = &[
+    &arithmetic::Sub,
+    &arithmetic::Div,
+    &arithmetic::Add,
+    &arithmetic::Mul,
+];
+
 lazy_static! {
     static ref COMPLEX_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn ComplexWord> = {
         let mut cwbn = HashMap::new();
@@ -209,14 +212,27 @@ lazy_static! {
 
         swbn
     };
+    static ref SIMPLE_VARIADIC_WORDS_BY_NAME: HashMap<ClarityName, &'static dyn SimpleWord> = {
+        let mut svwbn = HashMap::new();
+
+        for word in SIMPLE_VARIADIC_WORDS {
+            svwbn.insert(word.name(), &**word);
+        }
+
+        svwbn
+    };
+}
+
+pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
+    COMPLEX_WORDS_BY_NAME.get(name).copied()
 }
 
 pub fn lookup_simple(name: &str) -> Option<&'static dyn SimpleWord> {
     SIMPLE_WORDS_BY_NAME.get(name).copied()
 }
 
-pub fn lookup_complex(name: &str) -> Option<&'static dyn ComplexWord> {
-    COMPLEX_WORDS_BY_NAME.get(name).copied()
+pub fn lookup_variadic_simple(name: &str) -> Option<&'static dyn SimpleWord> {
+    SIMPLE_VARIADIC_WORDS_BY_NAME.get(name).copied()
 }
 
 #[cfg(test)]
