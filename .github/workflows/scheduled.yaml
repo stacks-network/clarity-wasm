@@ -1,12 +1,8 @@
+name: Property Testings
+
 on:
-  push:
-    branches: [ci/faster-ci]
-
-  workflow_dispatch:
-  # schedule:
-  #   - cron: '0 */3 * * *'
-
-name: Property testing
+  schedule:
+    - cron: '0 */4 * * *'
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,7 +12,7 @@ jobs:
     name: Property Testing
     runs-on: ubuntu-latest
     env:
-      PROPTEST_CASE: 1
+      PROPTEST_CASE: 1000
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
