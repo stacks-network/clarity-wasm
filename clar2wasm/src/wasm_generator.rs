@@ -247,7 +247,7 @@ impl WasmGenerator {
         })
     }
 
-    pub fn expand_memory_conditionally(&mut self) -> Result<(), GeneratorError> {
+    pub fn set_memory_conditionally(&mut self) -> Result<(), GeneratorError> {
         let memory = self
             .module
             .memories
@@ -289,7 +289,7 @@ impl WasmGenerator {
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
-        self.expand_memory_conditionally()?;
+        self.set_memory_conditionally()?;
 
         // Update the initial value of the stack-pointer to point beyond the
         // literal memory.
@@ -1625,7 +1625,7 @@ mod misc_tests {
     }
 
     #[test]
-    fn should_expand_initial_pages() {
+    fn should_set_initial_pages() {
         let string_size = 262000;
         let a = "a".repeat(string_size);
         let b = "b".repeat(string_size);
