@@ -1632,6 +1632,14 @@ mod misc_tests {
     }
 
     #[test]
+    fn should_set_memory_pages_fixture() {
+        let snippet = std::fs::read_to_string("tests/fixtures/clarity-files/memory-oob.clar")
+            .expect("Failed to read memory-oob.clar");
+
+        crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
     fn end_of_standard_data_is_correct() {
         let standard_lib_wasm =
             std::fs::read("src/standard/standard.wasm").expect("Failed to read WASM file");
