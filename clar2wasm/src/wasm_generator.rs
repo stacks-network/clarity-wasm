@@ -262,11 +262,7 @@ impl WasmGenerator {
             let pages_required = (new_memory_required - total_module_space) / (64 * 1024);
             let remainder = (new_memory_required - total_module_space) % (64 * 1024);
 
-            if remainder > 0 {
-                memory.initial += pages_required + 1;
-            } else {
-                memory.initial += pages_required;
-            }
+        memory.initial += pages_required + (remainder > 0) as u32;
         }
 
         Ok(())
