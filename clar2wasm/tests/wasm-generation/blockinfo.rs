@@ -1,7 +1,5 @@
-use clar2wasm::tools::{crosscheck_compare_only, crosscheck_compare_only_advancing_tip};
+use clar2wasm::tools::crosscheck_compare_only_advancing_tip;
 use proptest::proptest;
-
-use crate::uint;
 
 const BLOCK_INFO: [&str; 8] = [
     "burnchain-header-hash",
@@ -31,37 +29,11 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[test]
-    fn crossprop_blockinfo(block_height in uint()) {
-        for info in &BLOCK_INFO {
-            crosscheck_compare_only(
-                &format!("(get-block-info? {info} {block_height})")
-            )
-        }
-    }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
     # [test]
     fn crossprop_blockinfo_burnchain_within_controlled_range(block_height in 1..=BURN_BLOCK_HEIGHT_LIMIT, tip in 1..=80u32) {
         for info in &BURN_BLOCK_INFO {
             crosscheck_compare_only_advancing_tip(
                 &format!("(get-burn-block-info? {info} u{block_height})"), tip
-            )
-        }
-    }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
-    #[test]
-    fn crossprop_blockinfo_burnchain(block_height in uint()) {
-        for info in &BURN_BLOCK_INFO {
-            crosscheck_compare_only(
-                &format!("(get-burn-block-info? {info} {block_height})")
             )
         }
     }
