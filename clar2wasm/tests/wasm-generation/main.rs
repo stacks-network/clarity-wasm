@@ -31,7 +31,7 @@ use clarity::vm::types::{
     ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, PrincipalData,
     QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
     StandardPrincipalData, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
-    TypeSignature, Value, MAX_VALUE_SIZE,
+    TypeSignature, UTF8Data, Value, MAX_VALUE_SIZE,
 };
 use clarity::vm::ContractName;
 use proptest::prelude::*;
@@ -240,6 +240,18 @@ pub fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
         Value::Sequence(SequenceData::String(clarity::vm::types::CharType::ASCII(
             clarity::vm::types::ASCIIData { data: bytes },
         )))
+    })
+}
+
+pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
+    prop::collection::vec(any::<char>(), size as usize).prop_map(|chars| {
+        let mut data = Vec::with_capacity(chars.len());
+        for c in chars {
+            let mut encoded_char = vec![0; c.len_utf8()];
+            c.encode_utf8(encoded_char.as_mut());
+            data.push(encoded_char);
+        }
+        Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
     })
 }
 
