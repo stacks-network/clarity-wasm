@@ -116,6 +116,19 @@ impl std::fmt::Display for PropValue {
                 }
                 write!(f, "\"")
             }
+            Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data }))) => {
+                write!(f, "u\"")?;
+                for bytes in data {
+                    // SAFETY: a utf8 sequence always contains a valid sequence of utf8 chars as vec of bytes
+                    let c = unsafe { std::str::from_utf8_unchecked(bytes).chars().next().unwrap() };
+                    match c {
+                        '\\' | '\"' => write!(f, "\\{c}")?,
+                        _ if c.is_ascii_graphic() => write!(f, "{c}")?,
+                        _ => write!(f, r#"\u{{{:X}}}"#, c as u32)?,
+                    }
+                }
+                write!(f, "\"")
+            }
             Value::Principal(p) => write!(f, "'{p}"),
             Value::Optional(OptionalData { data }) => match data {
                 Some(inner) => write!(f, "(some {})", PropValue(*inner.clone())),
