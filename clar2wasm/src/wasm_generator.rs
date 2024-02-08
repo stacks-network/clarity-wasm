@@ -247,7 +247,7 @@ impl WasmGenerator {
         })
     }
 
-    pub fn set_memory_conditionally(&mut self) -> Result<(), GeneratorError> {
+    pub fn set_memory_pages(&mut self) -> Result<(), GeneratorError> {
         let memory = self
             .module
             .memories
@@ -255,15 +255,10 @@ impl WasmGenerator {
             .next()
             .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
 
-        let total_module_space = memory.initial * 64 * 1024;
-        let new_memory_required = self.literal_memory_end;
+        let pages_required = self.literal_memory_end / (64 * 1024);
+        let remainder = self.literal_memory_end % (64 * 1024);
 
-        if new_memory_required > total_module_space {
-            let pages_required = (new_memory_required - total_module_space) / (64 * 1024);
-            let remainder = (new_memory_required - total_module_space) % (64 * 1024);
-
-            memory.initial += pages_required + (remainder > 0) as u32;
-        }
+        memory.initial = pages_required + (remainder > 0) as u32;
 
         Ok(())
     }
@@ -289,7 +284,7 @@ impl WasmGenerator {
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
 
-        self.set_memory_conditionally()?;
+        self.set_memory_pages()?;
 
         // Update the initial value of the stack-pointer to point beyond the
         // literal memory.
@@ -1625,7 +1620,7 @@ mod misc_tests {
     }
 
     #[test]
-    fn should_set_initial_pages() {
+    fn should_set_memory_pages() {
         let string_size = 262000;
         let a = "a".repeat(string_size);
         let b = "b".repeat(string_size);
