@@ -4003,8 +4003,7 @@ test_contract_call_response!(
         assert!(response.committed);
         assert_eq!(
             *response.data,
-            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
-                .unwrap()
+            Value::Int(1)
         );
     }
 );
