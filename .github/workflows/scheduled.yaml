@@ -1,0 +1,24 @@
+name: Property Testings
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  property-testing:
+    name: Property Testing
+    runs-on: ubuntu-latest
+    env:
+      PROPTEST_CASE: 100
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Use Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run
+        run: PROPTEST_CASE=${{env.PROPTEST_CASE}} cargo test --test wasm-generation --test standard
