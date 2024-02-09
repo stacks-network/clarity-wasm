@@ -48,7 +48,9 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
         Just(TypeSignature::PrincipalType),
-        // TODO: string-utf8
+        (0u32..32).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
+            StringSubtype::UTF8(s.try_into().unwrap())
+        )))
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
         prop_oneof![
@@ -220,6 +222,9 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(size))) => {
             string_ascii(size.into()).boxed()
         }
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(size))) => {
+            string_utf8(size.into()).boxed()
+        }
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)) => {
             list(list_type_data).boxed()
         }
@@ -227,9 +232,8 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::PrincipalType => {
             prop_oneof![standard_principal(), qualified_principal()].boxed()
         }
-        TypeSignature::ListUnionType(_) => todo!(),
         // TODO
-        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
+        TypeSignature::ListUnionType(_) => todo!(),
         TypeSignature::CallableType(_) => todo!(),
         TypeSignature::TraitReferenceType(_) => todo!(),
     }
