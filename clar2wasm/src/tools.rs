@@ -22,6 +22,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
+#[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
     epoch: StacksEpochId,
@@ -304,6 +305,27 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
 pub fn crosscheck_compare_only(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet,
+        &compiled,
+        &interpreted
+    );
+}
+
+/// Advance the block height to `count`, and uses identical TestEnvironment copies
+/// to assert the results of a contract snippet running against the compiler and the interpreter.
+pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
+    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+    compiler_env.advance_chain_tip(count);
+
+    let mut interpreter_env = compiler_env.clone();
+
+    let compiled = compiler_env.evaluate(snippet).map_err(|_| ());
+    let interpreted = interpreter_env.interpret(snippet).map_err(|_| ());
 
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
