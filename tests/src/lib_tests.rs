@@ -4001,9 +4001,6 @@ test_contract_call_response!(
     "memory-out-of-bounds",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::Int(1)
-        );
+        assert_eq!(*response.data, Value::Int(1));
     }
 );
