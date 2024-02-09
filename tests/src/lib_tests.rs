@@ -3994,3 +3994,17 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_memory_out_of_bounds,
+    "memory-oob",
+    "memory-out-of-bounds",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap()
+        );
+    }
+);
