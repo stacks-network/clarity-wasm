@@ -3994,3 +3994,13 @@ test_contract_call_response!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_memory_out_of_bounds,
+    "memory-oob",
+    "memory-out-of-bounds",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(1));
+    }
+);

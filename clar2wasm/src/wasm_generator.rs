@@ -247,6 +247,22 @@ impl WasmGenerator {
         })
     }
 
+    pub fn set_memory_pages(&mut self) -> Result<(), GeneratorError> {
+        let memory = self
+            .module
+            .memories
+            .iter_mut()
+            .next()
+            .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
+
+        let pages_required = self.literal_memory_end / (64 * 1024);
+        let remainder = self.literal_memory_end % (64 * 1024);
+
+        memory.initial = pages_required + (remainder > 0) as u32;
+
+        Ok(())
+    }
+
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
         // println!("{:?}", expressions);
@@ -267,6 +283,8 @@ impl WasmGenerator {
 
         let top_level = current_function.finish(vec![], &mut self.module.funcs);
         self.module.exports.add(".top-level", top_level);
+
+        self.set_memory_pages()?;
 
         // Update the initial value of the stack-pointer to point beyond the
         // literal memory.
@@ -573,17 +591,12 @@ impl WasmGenerator {
                 (data, entry)
             }
         };
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("no memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = data.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             data,
@@ -605,17 +618,12 @@ impl WasmGenerator {
             return Ok((*offset, name.len() as u32));
         }
 
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = name.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             name.as_bytes().to_vec(),
@@ -679,17 +687,12 @@ impl WasmGenerator {
                 )))
             }
         };
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         let offset = self.literal_memory_end;
         let len = data.len() as u32;
         self.module.data.add(
             DataKind::Active(ActiveData {
-                memory: memory.id(),
+                memory,
                 location: walrus::ActiveDataLocation::Absolute(offset),
             }),
             data.clone(),
@@ -778,12 +781,7 @@ impl WasmGenerator {
         offset: u32,
         ty: &TypeSignature,
     ) -> Result<u32, GeneratorError> {
-        let memory = self
-            .module
-            .memories
-            .iter()
-            .next()
-            .ok_or_else(|| GeneratorError::InternalError("No memory found".to_owned()))?;
+        let memory = self.get_memory()?;
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Data stack: TOP | High | Low | ...
@@ -794,12 +792,12 @@ impl WasmGenerator {
 
                 // Store the high/low to memory.
                 builder.local_get(offset_local).local_get(low).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
                 builder.local_get(offset_local).local_get(high).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I64 { atomic: false },
                     MemArg {
                         align: 8,
@@ -820,12 +818,12 @@ impl WasmGenerator {
 
                 // Store the offset/length to memory.
                 builder.local_get(offset_local).local_get(seq_offset).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
                 builder.local_get(offset_local).local_get(seq_length).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg {
                         align: 4,
@@ -842,7 +840,7 @@ impl WasmGenerator {
 
                 // Store the value to memory.
                 builder.local_get(offset_local).local_get(bool_val).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
@@ -852,14 +850,13 @@ impl WasmGenerator {
                 // Data stack: TOP | (Place holder i32)
                 // We just have to drop the placeholder and write a i32
                 builder.drop().local_get(offset_local).i32_const(0).store(
-                    memory.id(),
+                    memory,
                     StoreKind::I32 { atomic: false },
                     MemArg { align: 4, offset },
                 );
                 Ok(4)
             }
             TypeSignature::OptionalType(some_ty) => {
-                let memory_id = memory.id();
                 // Data stack: TOP | inner value | (some|none) variant
                 // recursively store the inner value
 
@@ -873,7 +870,7 @@ impl WasmGenerator {
                     .local_get(offset_local)
                     .local_get(variant_val)
                     .store(
-                        memory_id,
+                        memory,
                         StoreKind::I32 { atomic: false },
                         MemArg { align: 4, offset },
                     );
@@ -883,7 +880,6 @@ impl WasmGenerator {
             }
             TypeSignature::ResponseType(ok_err_ty) => {
                 // Data stack: TOP | err_value | ok_value | (ok|err) variant
-                let memory_id = memory.id();
                 let mut bytes_written = 0;
 
                 // write err value at offset + size of variant (4) + size of ok_value
@@ -904,7 +900,7 @@ impl WasmGenerator {
                     .local_get(offset_local)
                     .local_get(variant_val)
                     .store(
-                        memory_id,
+                        memory,
                         StoreKind::I32 { atomic: false },
                         MemArg { align: 4, offset },
                     );
@@ -1621,6 +1617,18 @@ mod misc_tests {
 ",
             evaluate("(ok false)"),
         );
+    }
+
+    #[test]
+    fn should_set_memory_pages() {
+        let string_size = 262000;
+        let a = "a".repeat(string_size);
+        let b = "b".repeat(string_size);
+        let c = "c".repeat(string_size);
+        let d = "d".repeat(string_size);
+
+        let snippet = format!("(is-eq u\"{}\" u\"{}\" u\"{}\" u\"{}\")", a, b, c, d);
+        crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(false))));
     }
 
     #[test]
