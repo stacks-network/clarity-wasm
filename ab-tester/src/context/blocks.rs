@@ -119,7 +119,7 @@ impl<'env> BlockCursor<'env> {
         }
 
         let header = self.headers[height].clone();
-        trace!("header: {header:?}");
+        //trace!("header: {header:?}");
 
         // Attempt to load the next (child) block header of this block. Note that
         // we can do this here because we know that we're using a canonical chain
@@ -145,7 +145,7 @@ impl<'env> BlockCursor<'env> {
         // Load the block from chainstate.
         debug!("loading block with id {block_id} and path '{block_path}'");
         let stacks_block = stacks::StacksChainState::consensus_load(&block_path)?;
-        trace!("block loaded: {stacks_block:?}");
+        //trace!("block loaded: {stacks_block:?}");
 
         let block = Block::new_regular(
             header,

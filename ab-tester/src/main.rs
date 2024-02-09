@@ -179,7 +179,7 @@ fn configure_logging(cli: &Cli) {
     }
 
     tracing_subscriber::registry()
-        .with(ClarityTracingLayer::default())
+        .with(ClarityTracingLayer)
         .with(PrintTreeLayer)
         .with(CleanupLayer)
         .init();

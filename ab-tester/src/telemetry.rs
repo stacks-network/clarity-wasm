@@ -3,21 +3,19 @@ use std::{collections::BTreeMap, fmt::Write as _, io::Write};
 use cpu_time::ProcessTime;
 use time::{macros::format_description, Duration, Instant, OffsetDateTime};
 use console::style;
-use parking_lot::Mutex;
+//use parking_lot::Mutex;
 use tracing::{field::{Field, Visit}, span, Event, Level, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 #[derive(Debug, Default)]
-pub struct ClarityTracingLayer {
-    data: Mutex<LayerData>
-}
+pub struct ClarityTracingLayer;
 
-#[derive(Debug, Default)]
+/*#[derive(Debug, Default)]
 struct LayerData {
     current_span_id: Option<span::Id>,
     total_spans: u32,
     active_spans: u32,
-}
+}*/
 
 #[derive(Debug, Default)]
 struct Data {
@@ -31,7 +29,8 @@ struct Data {
     cpu_system_time: Duration,
     fields: BTreeMap<&'static str, FieldValue>,
     parent_span: Option<span::Id>,
-    level: usize
+    level: usize,
+    has_had_children: bool
 }
 
 impl Data {
@@ -128,10 +127,12 @@ where
         if let Some(parent_span) = current_span {
             span_data.parent_span = Some(parent_span.id());
 
-            let parent_extensions = parent_span.extensions();
+            let mut parent_extensions = parent_span.extensions_mut();
             let parent_data = parent_extensions
-                .get::<Data>()
+                .get_mut::<Data>()
                 .expect("parent data should exist");
+
+            parent_data.has_had_children = true;
 
             span_data.level = parent_data.level + 1;
 
@@ -147,9 +148,9 @@ where
         let mut span_extensions = span.extensions_mut();
         span_extensions.insert::<Data>(span_data);
 
-        let mut layer_data = self.data.lock();
-        layer_data.total_spans += 1;
-        layer_data.current_span_id = Some(id.clone());
+        //let mut layer_data = self.data.lock();
+        //layer_data.total_spans += 1;
+        //layer_data.current_span_id = Some(id.clone());
     }
 
     /// Called when a span has been modified after creation. Note that new fields
@@ -190,7 +191,7 @@ where
             .get_mut::<Data>()
             .expect("data should exist");
 
-        self.data.lock().active_spans += 1;
+        //self.data.lock().active_spans += 1;
 
         let now = Instant::now();
         //span_data.real_first_entered_at = Some(now);
@@ -240,11 +241,10 @@ where
             parent_span_data.cpu_system_time += span_data.cpu_system_time;
         }
         // /Moved from close
-        
 
-        let mut layer_data = self.data.lock();
-        layer_data.active_spans -= 1;
-        layer_data.current_span_id = span_data.parent_span.clone();
+        //let mut layer_data = self.data.lock();
+        //layer_data.active_spans -= 1;
+        //layer_data.current_span_id = span_data.parent_span.clone();
     }
 
     /// Called when the [tracing::Span] has been dropped. This is guaranteed to
@@ -254,8 +254,8 @@ where
         id: span::Id, 
         ctx: Context<'_, S>
     ) {
-        let span = ctx.span(&id)
-            .expect("span should exist");
+        //let span = ctx.span(&id)
+        //    .expect("span should exist");
 
         /*let mut span_extensions = span.extensions_mut();
         let span_data = span_extensions
@@ -264,8 +264,8 @@ where
 
         
 
-        let mut level_data = self.data.lock();
-        level_data.total_spans -= 1;
+        //let mut level_data = self.data.lock();
+        //level_data.total_spans -= 1;
     }
 }
 
@@ -397,7 +397,7 @@ impl PrintTreeLayer {
             let str = match print_color {
                 PrintColor::Green => format!("{}", style(buff).green().dim()),
                 PrintColor::Red => format!("{}", style(buff).red().dim()),
-                PrintColor::Orange => format!("{}", style(buff).yellow().dim()),
+                PrintColor::Orange => format!("{}", style(buff).color256(166).dim()),
                 PrintColor::Yellow => format!("{}", style(buff).yellow().dim()),
                 PrintColor::Default => format!("{}", style(buff).dim()),
             };
@@ -440,10 +440,10 @@ impl PrintTreeLayer {
         for i in 1..=data.level {
             if i == data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "├── ")?;
+                write!(f, "├ ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "│  ")?;
+                write!(f, "│")?;
             }
         }
         write!(f, "{}", style("⥂ ").green())?;
@@ -466,21 +466,30 @@ impl PrintTreeLayer {
         for i in 1..=data.level {
             if i == data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "├── ")?;
+                write!(f, "├ ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "│  ")?;
+                write!(f, "│")?;
             }
         }
         write!(f, "{}", style("⥄ ").red())?;
         write!(f, "{} ", style(name).bold())?;
-        if let Some(file) = file {
+
+        if data.has_had_children {
+            for field in data.fields.iter() {
+                write!(f, "{}=", style(field.0).italic().cyan().dim())?;
+                write!(f, "{} ", style(field.1).dim().italic())?;
+            }
+        }
+        
+        /*if let Some(file) = file {
             write!(f, "{}", style(file).magenta().italic().dim())?;
             if let Some(line_no) = line_no {
                 write!(f, "{}", style(":").italic().dim())?;
                 write!(f, "{}", style(line_no).magenta().italic().dim())?;
             }
-        }
+        }*/
+
         write!(f, "\r\n")?;
 
         Ok(())
@@ -494,10 +503,10 @@ impl PrintTreeLayer {
         for i in 1..=data.level {
             if i == data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "┊   ")?;
+                write!(f, "┊ ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "│  ")?;
+                write!(f, "│")?;
             }
         }
 
@@ -513,14 +522,10 @@ impl PrintTreeLayer {
 
         write!(f, "{}", style("] [").dim().bold())?;
         write!(f, "{}", style("cpu ").cyan().bold().dim())?;
-        write!(f, "{}", style("⇝ user: ").dim())?;
-        write!(f, "{}", Self::format_duration(data.cpu_accumulated_time - data.cpu_system_time, true)?)?;
-        write!(f, "{}", style(" system: ").dim())?;
-        if data.cpu_accumulated_time == data.cpu_system_time {
-            write!(f, "{}", style("-").dim())?;
-        } else {
-            write!(f, "{}", Self::format_duration(data.cpu_system_time, true)?)?;
-        }
+        write!(f, "{}", style("⇝ busy: ").dim())?;
+        write!(f, "{}", Self::format_duration(data.cpu_accumulated_time - data.cpu_wait_time, true)?)?;
+        write!(f, "{}", style(" wait: ").dim())?;
+        write!(f, "{}", Self::format_duration(data.cpu_wait_time, true)?)?;
         write!(f, "{}", style("]").dim().bold())?;
 
         write!(f, "\r\n")?;
@@ -539,10 +544,10 @@ impl PrintTreeLayer {
             }
             if i == span_data.level {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "├── ")?;
+                write!(f, "├ ")?;
             } else {
                 if i > 1 { write!(f, " ")?; }
-                write!(f, "│  ")?;
+                write!(f, "│")?;
             }
         }
 

@@ -1,5 +1,7 @@
+use ::clarity::vm::types::ResponseData;
 use color_eyre::eyre::{Result, bail};
 use log::*;
+use tracing::trace_span;
 
 use crate::{
     clarity, 
@@ -20,6 +22,8 @@ impl WriteableEnv for InstrumentedEnv {
         block: &crate::context::Block
     ) -> Result<()>
     {
+        let _ = trace_span!("process_block");
+
         use clarity::{
             PrincipalData, QualifiedContractIdentifier, 
             ClarityVersion, ASTRules, StandardPrincipalData, TransactionConnection
@@ -32,7 +36,7 @@ impl WriteableEnv for InstrumentedEnv {
             bail!("[{}] environment is read-only.", self.name);
         }
 
-        trace!("block: {block:?}");
+        //trace!("block: {block:?}");
 
         // Insert this block into the app database.
         debug!("creating block in app datastore");
@@ -224,8 +228,16 @@ impl WriteableEnv for InstrumentedEnv {
 
                             match result {
                                 Ok(result) => {
-                                    info!("token transfer: {:?} -> {:?} ({:?})", block_tx.origin_address().to_string(), to_principal, amount);
-                                    trace!("token transfer result: {:?}", result);
+                                    match result.0 {
+                                        ::clarity::vm::Value::Response(data) => {
+                                            if data.committed {
+                                                info!("token transfer: {:?} -> {:?} (STX {:?})", block_tx.origin_address().to_string(), to_principal, amount);
+                                            }
+                                        },
+                                        _ => {
+                                            warn!("token transfer: {:?} -> {:?} ({:?}): unexpected result", block_tx.origin_address(), address, amount);
+                                        }
+                                    }
                                 },
                                 Err(err) => {
                                     match err {
