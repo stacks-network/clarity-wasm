@@ -3,13 +3,23 @@ name: Continuous Integration
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "**.yml"
+      - "**.yaml"
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "**.yml"
+      - "**.yaml"
   merge_group:
     types: [checks_requested]
-  paths-ignore:
-    - "**.md"
-    - "**.yml"
 
 env:
   CARGO_TERM_COLOR: always
