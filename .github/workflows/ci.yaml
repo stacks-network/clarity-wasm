@@ -77,10 +77,18 @@ jobs:
             --archive-file nextest-archive.tar.zst
 
       - name: Upload archive to workflow
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nextest-archive
           path: nextest-archive.tar.zst
+          if-no-files-found: error
+
+      - name: Upload standard.wasm file
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard.wasm
+          path: ${{github.workspace}}/clar2wasm/src/standard/standard.wasm
+          if-no-files-found: error
 
   run-tests:
     name: Run Tests
@@ -96,8 +104,14 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Download standard.wasm file
+        uses: actions/download-artifact@v4
+        with:
+          name: standard.wasm
+          path: ${{github.workspace}}/clar2wasm/src/standard/
+
       - name: Download archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: nextest-archive
 
@@ -120,8 +134,14 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Download standard.wasm file
+        uses: actions/download-artifact@v4
+        with:
+          name: standard.wasm
+          path: ${{github.workspace}}/clar2wasm/src/standard/
+
       - name: Download archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: nextest-archive
 

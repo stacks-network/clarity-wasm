@@ -1585,6 +1585,8 @@ impl WasmGenerator {
 
 #[cfg(test)]
 mod misc_tests {
+    use std::env;
+
     use walrus::Module;
 
     // Tests that don't relate to specific words
