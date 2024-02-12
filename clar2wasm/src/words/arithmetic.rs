@@ -392,7 +392,6 @@ mod tests {
         crosscheck(
             "
 (define-data-var foo int 123)
-
 (- (begin
      (var-set foo 23)
      100)
