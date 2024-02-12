@@ -1,5 +1,5 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{SequenceData, TypeSignature};
+use clarity::vm::types::{ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
@@ -111,6 +111,59 @@ proptest! {
             ).unwrap();
 
         crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_not(
+        seq in (0usize..=20).prop_flat_map(PropValue::any_sequence),
+        val in any::<u32>()
+    ) {
+        let expected = !extract_sequence(seq.clone()).len() > val as usize;
+        let snippet = format!("(map not (list (> (len {seq}) u{val})))");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(
+                Value::Sequence(
+                    SequenceData::List(
+                        ListData {
+                            data: vec![Value::Bool(expected)],
+                            type_signature: ListTypeData::new_list(TypeSignature::BoolType, 1).unwrap()
+                        }
+                    )
+                )
+            ))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_add(
+        (seq_1, seq_2) in (0usize..=20).prop_flat_map(|v| (PropValue::any_sequence(v), PropValue::any_sequence(v)))
+    ) {
+        let expected = extract_sequence(seq_1.clone()).len() + extract_sequence(seq_2.clone()).len();
+        let snippet = format!("(map + (list (len {seq_1})) (list (len {seq_2})))");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(
+                Value::Sequence(
+                    SequenceData::List(
+                        ListData {
+                            data: vec![Value::UInt(expected as u128)],
+                            type_signature: ListTypeData::new_list(TypeSignature::UIntType, 1).unwrap()
+                        }
+                    )
+                )
+            ))
+        )
     }
 }
 
