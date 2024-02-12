@@ -4009,3 +4009,13 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Int(1));
     }
 );
+
+test_contract_call_response!(
+    test_memory_out_of_bounds_runtime,
+    "memory-oob-runtime",
+    "memory-out-of-bounds-runtime",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(12));
+    }
+);

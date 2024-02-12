@@ -255,8 +255,9 @@ impl WasmGenerator {
             .next()
             .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
 
-        let pages_required = self.literal_memory_end / (64 * 1024);
-        let remainder = self.literal_memory_end % (64 * 1024);
+        let total_memory_bytes = self.literal_memory_end + (self.frame_size as u32);
+        let pages_required = total_memory_bytes / (64 * 1024);
+        let remainder = total_memory_bytes % (64 * 1024);
 
         memory.initial = pages_required + (remainder > 0) as u32;
 
