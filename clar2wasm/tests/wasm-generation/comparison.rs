@@ -4,7 +4,7 @@ use clarity::vm::Value;
 use proptest::strategy::{Just, Strategy};
 use proptest::{prop_oneof, proptest};
 
-use crate::{buffer, int, string_ascii, uint, PropValue};
+use crate::{string_ascii, PropValue};
 
 const COMPARISONS_FUNC: [&str; 4] = ["<", "<=", ">", ">="];
 const INVALID_CHAR: char = '\'';
