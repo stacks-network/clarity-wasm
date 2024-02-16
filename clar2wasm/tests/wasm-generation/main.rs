@@ -7,6 +7,7 @@ pub mod comparison;
 pub mod conditionals;
 pub mod default_to;
 pub mod equal;
+pub mod noop;
 pub mod optional;
 pub mod regression;
 pub mod response;
