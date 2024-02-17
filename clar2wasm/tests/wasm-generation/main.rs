@@ -11,6 +11,7 @@ pub mod optional;
 pub mod regression;
 pub mod response;
 pub mod sequences;
+pub mod tuple;
 pub mod values;
 
 use std::env;
