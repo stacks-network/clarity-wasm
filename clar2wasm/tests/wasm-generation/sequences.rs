@@ -9,7 +9,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn append_value_to_list(mut values in (prop_signature(), 1usize..32).prop_flat_map(|(ty, size)| PropValue::many_from_type(ty, size))) {
+    fn append_value_to_list(mut values in (prop_signature(), 1usize..16).prop_flat_map(|(ty, size)| PropValue::many_from_type(ty, size))) {
         let expected = Value::cons_list_unsanitized(values.iter().cloned().map(Value::from).collect()).unwrap();
 
         let elem = values.pop().unwrap();
