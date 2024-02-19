@@ -6,8 +6,8 @@ use clarity::vm::clarity_wasm::{get_type_in_memory_size, get_type_size, is_in_me
 use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
-    CharType, FunctionType, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
-    TypeSignature,
+    CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
+    StringSubtype, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -1371,6 +1371,22 @@ impl WasmGenerator {
         name: &ClarityName,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        // WORKAROUND: the typechecker in epoch < 2.1 fails to set correct types for functions
+        //             arguments. We set them ourselves. We don't make the distinction between
+        //             epochs since it would require a deeper modification and it doesn't impact
+        //             the newer ones.
+        if let Some(FunctionType::Fixed(FixedFunction {
+            args: function_args,
+            ..
+        })) = self.get_function_type(name)
+        {
+            for (arg, signature) in args
+                .iter()
+                .zip(function_args.clone().into_iter().map(|a| a.signature))
+            {
+                self.set_expr_type(arg, signature)?;
+            }
+        }
         self.traverse_args(builder, args)?;
 
         let return_ty = self
@@ -1642,5 +1658,25 @@ mod misc_tests {
         let initial_data_size: usize = module.data.iter().map(|d| d.value.len()).sum();
 
         assert!((initial_data_size as u32) == END_OF_STANDARD_DATA);
+    }
+
+    #[test]
+    fn function_argument_have_correct_type() {
+        let snippet = r#"
+            (define-private (foo (arg (optional uint)))
+                true
+            )
+
+            (foo none)
+        "#;
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+
+        // issue 340 showed a bug for epoch < 2.1
+        assert!(crate::tools::evaluate_at(
+            snippet,
+            clarity::types::StacksEpochId::Epoch20,
+            clarity::vm::version::ClarityVersion::latest(),
+        )
+        .is_ok());
     }
 }
