@@ -1659,4 +1659,24 @@ mod misc_tests {
 
         assert!((initial_data_size as u32) == END_OF_STANDARD_DATA);
     }
+
+    #[test]
+    fn function_argument_have_correct_type() {
+        let snippet = r#"
+            (define-private (foo (arg (optional uint)))
+                true
+            )
+
+            (foo none)
+        "#;
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+
+        // issue 340 showed a bug for epoch < 2.1
+        assert!(crate::tools::evaluate_at(
+            snippet,
+            clarity::types::StacksEpochId::Epoch20,
+            clarity::vm::version::ClarityVersion::latest(),
+        )
+        .is_ok());
+    }
 }
