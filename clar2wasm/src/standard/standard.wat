@@ -3273,6 +3273,114 @@
         (i32.const 1)
     )
 
+    (func $stdlib.utf8-to-string-utf8
+        (param $offset i32) (param $len i32) (param $output-offset i32) (param $max-len i32)
+        (result i32 i32 i32)
+        (local $scalar i32) (local $byte i32) (local $writeptr i32)
+
+        ;; return ok if empty string
+        (if (i32.eqz (local.get $len)) 
+            (then (return (i32.const 1) (local.get $output-offset) (i32.const 0)))
+        )
+
+        (local.set $writeptr (local.get $output-offset))
+
+        (loop $chars-decode-loop
+            (if (i32.lt_s (local.tee $max-len (i32.sub (local.get $max-len) (i32.const 1))) (i32.const 0))
+                (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
+            )
+            (local.set $scalar (i32.load8_u (local.get $offset)))
+            (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
+                (then
+                    (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+                    (local.set $len (i32.sub (local.get $len) (i32.const 1)))
+                )
+                (else 
+                    (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xe0)) (i32.const 0xc0))
+                        (then 
+                            (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x1f)) (i32.const 6)))
+                            (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                            )
+                            (local.set $offset (i32.add (local.get $offset) (i32.const 2)))
+                            (local.set $len (i32.sub (local.get $len) (i32.const 2)))
+                        )
+                        (else 
+                            (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf0)) (i32.const 0xe0))
+                                (then 
+                                    (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0xf)) (i32.const 12)))
+                                    (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                                    (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                        (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6)))))
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                    )
+                                    (local.set $byte (i32.load8_u offset=2 (local.get $offset)))
+                                    (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                        (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                    )
+                                    (local.set $offset (i32.add (local.get $offset) (i32.const 3)))
+                                    (local.set $len (i32.sub (local.get $len) (i32.const 3)))
+                                )
+                                (else 
+                                    (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf8)) (i32.const 0xf0))
+                                        (then
+                                            (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x7)) (i32.const 18)))
+                                            (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 12)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )
+                                            (local.set $byte (i32.load8_u offset=2 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )                                   
+                                            (local.set $byte (i32.load8_u offset=3 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )
+                                            ;; max utf8 char is U+10ffff
+                                            (if (i32.gt_u (local.get $scalar) (i32.const 0x10ffff))
+                                                (then  (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )
+                                            (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+                                            (local.set $len (i32.sub (local.get $len) (i32.const 4)))
+                                        )
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                    )
+                                )
+                            )
+                            ;; this size could create surrogate ((0xd800..=0xdfff).contains($scalar)) -> invalid
+                            (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xfffff800)) (i32.const 0xd800))
+                                (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                            )
+                        )
+                    )
+                )
+            )
+            (i32.store (local.get $writeptr)
+                (i32.or 
+                    (i32.or 
+                        (i32.shl (local.get $scalar) (i32.const 24))
+                        (i32.shl (i32.and (local.get $scalar) (i32.const 0xff00)) (i32.const 8))
+                    )
+                    (i32.or
+                        (i32.and (i32.shr_u (local.get $scalar) (i32.const 8)) (i32.const 0xff00))
+                        (i32.shr_u (local.get $scalar) (i32.const 24))
+                    )
+                )
+            )
+            (local.set $writeptr (i32.add (local.get $writeptr) (i32.const 4)))
+            (br_if 0 (local.get $len))
+        )
+
+        (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
+    )
+
     ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
     ;; Returns two i32s:
     ;; - i32:0: the number of bytes read from the input
@@ -3565,4 +3673,5 @@
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
     (export "stdlib.convert-utf8-to-scalars" (func $stdlib.convert-utf8-to-scalars))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
+    (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
 )
