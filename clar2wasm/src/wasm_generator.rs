@@ -1084,7 +1084,6 @@ impl WasmGenerator {
         let mut last_ty = None;
         // Traverse the statements, saving the last non-none value.
         for stmt in statements {
-            self.traverse_expr(builder, stmt)?;
             // If stmt has a type, save that type. If there was a previous type
             // saved, then drop that value.
             if let Some(ty) = self.get_expr_type(stmt) {
@@ -1093,6 +1092,7 @@ impl WasmGenerator {
                 }
                 last_ty = Some(ty.clone());
             }
+            self.traverse_expr(builder, stmt)?;
         }
 
         Ok(())
