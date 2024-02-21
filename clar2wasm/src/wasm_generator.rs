@@ -265,9 +265,9 @@ impl WasmGenerator {
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
-        // println!("{:?}", expressions);
 
-        // Get the type of the last top-level expression
+        // Get the type of the last top-level expression with a return value
+        // or default to `None`.
         let return_ty = expressions
             .iter()
             .rev()
@@ -1698,7 +1698,20 @@ mod misc_tests {
     }
 
     #[test]
-    fn top_level_result_some() {
+    fn top_level_result_some_last() {
+        crosscheck(
+            "
+(define-private (foo) 42)
+(define-public (bar)
+  (ok true))
+(foo)
+",
+            evaluate("42"),
+        );
+    }
+
+    #[test]
+    fn top_level_result_some_not_last() {
         crosscheck(
             "
 (define-public (foo)

@@ -539,7 +539,7 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.2.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?rev=345553357be556fe53474071d09cd453549ed02e#345553357be556fe53474071d09cd453549ed02e"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=75ee7718db5b251adf7bc3fcd769b78859310d54#75ee7718db5b251adf7bc3fcd769b78859310d54"
 dependencies = [
  "integer-sqrt",
  "lazy_static",
