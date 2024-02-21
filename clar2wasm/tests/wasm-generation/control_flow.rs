@@ -1,26 +1,45 @@
-use clar2wasm::tools::crosscheck_compare_only;
-use clarity::vm::types::TypeSignature;
-use proptest::proptest;
-use proptest::strategy::Strategy;
+use clar2wasm::tools::crosscheck;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use proptest::strategy::{Just, Strategy};
+use proptest::{prop_oneof, proptest};
 
-use crate::{prop_signature, PropValue};
+use crate::PropValue;
 
-fn is_optional_type(ty: TypeSignature) -> bool {
-    matches!(ty, TypeSignature::OptionalType(_))
+fn strategies_for_control_flow() -> impl Strategy<Value = TypeSignature> {
+    prop_oneof![
+        Just(TypeSignature::IntType),
+        Just(TypeSignature::UIntType),
+        Just(TypeSignature::BoolType),
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
+            s.try_into().unwrap()
+        ))),
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
+            StringSubtype::ASCII(s.try_into().unwrap())
+        ))),
+        Just(TypeSignature::PrincipalType)
+    ]
 }
 
 proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_unwrap_panic(
-        vals in prop_signature().
-        prop_filter("filter", |ty| is_optional_type(ty.clone()) || ty.is_response_type()).
-        prop_flat_map(PropValue::from_type)
+    fn unwrap_panic(
+        val in strategies_for_control_flow()
+        .prop_flat_map(move |ty| {
+            prop_oneof![
+                Just(TypeSignature::new_option(ty.clone()).unwrap()),
+                Just(TypeSignature::new_response(ty.clone(), ty.clone()).unwrap()),
+                Just(TypeSignature::new_response(ty.clone(), TypeSignature::NoType).unwrap()),
+                Just(TypeSignature::new_response(TypeSignature::NoType, ty.clone()).unwrap())
+            ]
+        })
+        .prop_flat_map(PropValue::from_type)
     ) {
-        crosscheck_compare_only(
-            &format!("(unwrap-panic {vals})")
-        )
+        crosscheck(
+            &format!(r#"(unwrap-panic (some {val}))"#),
+            Ok(Some(val.into()))
+        );
     }
 }
 
@@ -28,13 +47,20 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_unwrap_err_panic(
-        vals in prop_signature().
-        prop_filter("filter", |ty| ty.is_response_type()).
-        prop_flat_map(PropValue::from_type)
+    fn unwrap_err_panic(
+        val in strategies_for_control_flow()
+        .prop_flat_map(move |ty| {
+            prop_oneof![
+                Just(TypeSignature::new_response(ty.clone(), ty.clone()).unwrap()),
+                Just(TypeSignature::new_response(ty.clone(), TypeSignature::NoType).unwrap()),
+                Just(TypeSignature::new_response(TypeSignature::NoType, ty.clone()).unwrap())
+            ]
+        })
+        .prop_flat_map(PropValue::from_type)
     ) {
-        crosscheck_compare_only(
-            &format!("(unwrap-err-panic {vals})")
-        )
+        crosscheck(
+            &format!(r#"(unwrap-err-panic (err {val}))"#),
+            Ok(Some(val.into()))
+        );
     }
 }
