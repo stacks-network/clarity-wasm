@@ -12,7 +12,7 @@ jobs:
     name: Property Testing
     runs-on: ubuntu-latest
     env:
-      PROPTEST_CASE: 100
+      PROPTEST_CASE: 1000
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
