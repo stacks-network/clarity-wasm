@@ -1,4 +1,4 @@
-use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clar2wasm::tools::crosscheck;
 use clarity::vm::Value;
 use proptest::proptest;
 
