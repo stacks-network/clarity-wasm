@@ -1,4 +1,5 @@
 use clar2wasm::tools::crosscheck;
+use clarity::vm::types::OptionalData;
 use clarity::vm::Value;
 use proptest::proptest;
 
@@ -44,15 +45,26 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_index_of(seq_data in PropValue::any_sequence(20usize), idx in (0..20usize)) {
-        let seq = seq_data.clone();
-        let snippet = format!("(element-at? {seq} u{idx})");
-
-        let expected = {
-            let Value::Sequence(seq) = seq.clone().into() else { unreachable!() };
-            seq.element_at(idx).map_or_else(Value::none, |v| Value::some(v).unwrap())
+    fn crosscheck_index_of(
+        seq in PropValue::any_sequence(10usize),
+        idx in (0usize..10)
+    ) {
+        let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+        let item = seq_data.clone().element_at(idx).unwrap();
+        let first = match seq_data.contains(item.clone()).unwrap() {
+            Some(v) => Value::UInt(v.try_into().unwrap()),
+            None => Value::none(),
         };
 
-        crosscheck(&format!("(index-of? {seq} (try! {snippet})"), Ok(Some(expected)));
+        let snippet = format!("(index-of? {} {})", seq, PropValue(item));
+
+        crosscheck(
+            &snippet,
+            Ok(Some(
+                Value::Optional(
+                    OptionalData {data: Some(Box::new(first))}
+                )
+            ))
+        )
     }
 }
