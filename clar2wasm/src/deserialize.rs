@@ -1492,7 +1492,7 @@ impl WasmGenerator {
             .i32_const(5)
             .binop(BinaryOp::I32Add)
             .local_get(end_local)
-            .binop(BinaryOp::I32LtU);
+            .binop(BinaryOp::I32LeU);
 
         // Check for the string-utf8 prefix (0x0e)
         builder
@@ -1534,6 +1534,7 @@ impl WasmGenerator {
                     .binop(BinaryOp::I32Add)
                     .local_get(end_local)
                     .binop(BinaryOp::I32LeU);
+
                 then.if_else(
                     return_type,
                     |then| {
