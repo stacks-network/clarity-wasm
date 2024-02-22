@@ -265,12 +265,13 @@ impl WasmGenerator {
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
-        // println!("{:?}", expressions);
 
-        // Get the type of the last top-level expression
+        // Get the type of the last top-level expression with a return value
+        // or default to `None`.
         let return_ty = expressions
-            .last()
-            .and_then(|last_expr| self.get_expr_type(last_expr))
+            .iter()
+            .rev()
+            .find_map(|expr| self.get_expr_type(expr))
             .map_or_else(Vec::new, clar2wasm_ty);
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
@@ -1079,20 +1080,22 @@ impl WasmGenerator {
                 "statement list must have at least one statement".to_owned(),
             ));
         }
-        // Traverse all but the last statement and drop any unused values.
-        for stmt in &statements[..statements.len() - 1] {
-            self.traverse_expr(builder, stmt)?;
-            // If stmt has a type, and is not the last statement, its value
-            // needs to be discarded.
+
+        let mut last_ty = None;
+        // Traverse the statements, saving the last non-none value.
+        for stmt in statements {
+            // If stmt has a type, save that type. If there was a previous type
+            // saved, then drop that value.
             if let Some(ty) = self.get_expr_type(stmt) {
-                drop_value(builder.borrow_mut(), ty);
+                if let Some(last_ty) = &last_ty {
+                    drop_value(builder.borrow_mut(), last_ty);
+                }
+                last_ty = Some(ty.clone());
             }
+            self.traverse_expr(builder, stmt)?;
         }
 
-        // Traverse the last statement in the block, whose result is the result
-        // of the `begin` expression.
-        #[allow(clippy::unwrap_used)]
-        self.traverse_expr(builder, statements.last().unwrap())
+        Ok(())
     }
 
     /// If `name` is a reserved variable, push its value onto the data stack.
@@ -1678,5 +1681,46 @@ mod misc_tests {
             clarity::vm::version::ClarityVersion::latest(),
         )
         .is_ok());
+    }
+
+    #[test]
+    fn top_level_result_none() {
+        crosscheck(
+            "
+(define-public (foo)
+  (ok true))
+
+(define-public (bar)
+  (ok true))
+",
+            Ok(None),
+        );
+    }
+
+    #[test]
+    fn top_level_result_some_last() {
+        crosscheck(
+            "
+(define-private (foo) 42)
+(define-public (bar)
+  (ok true))
+(foo)
+",
+            evaluate("42"),
+        );
+    }
+
+    #[test]
+    fn top_level_result_some_not_last() {
+        crosscheck(
+            "
+(define-public (foo)
+  (ok true))
+(foo)
+(define-public (bar)
+  (ok true))
+",
+            evaluate("(ok true)"),
+        );
     }
 }
