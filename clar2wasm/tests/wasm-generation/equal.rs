@@ -1,4 +1,5 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::Value;
 use proptest::proptest;
 
 use crate::PropValue;
@@ -43,9 +44,15 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_index_of(seq in PropValue::any_sequence(20usize), idx in (0..20u32)) {
-        crosscheck_compare_only(
-            &format!("(index-of? {seq} (try! (element-at? {seq} u{idx})))")
-        )
+    fn crossprop_index_of(seq_data in PropValue::any_sequence(20usize), idx in (0..20usize)) {
+        let seq = seq_data.clone();
+        let snippet = format!("(element-at? {seq} u{idx})");
+
+        let expected = {
+            let Value::Sequence(seq) = seq.clone().into() else { unreachable!() };
+            seq.element_at(idx).map_or_else(Value::none, |v| Value::some(v).unwrap())
+        };
+
+        crosscheck(&format!("(index-of? {seq} (try! {snippet})"), Ok(Some(expected)));
     }
 }
