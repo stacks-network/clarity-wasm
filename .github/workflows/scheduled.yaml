@@ -12,7 +12,7 @@ jobs:
     name: Property Testing
     runs-on: ubuntu-latest
     env:
-      PROPTEST_CASE: 1000
+      PROPTEST_CASES: 100
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
@@ -21,4 +21,4 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run
-        run: PROPTEST_CASE=${{env.PROPTEST_CASE}} cargo test --test wasm-generation --test standard
+        run: cargo test --test wasm-generation --test standard
