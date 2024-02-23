@@ -3274,33 +3274,47 @@
     )
 
     (func $stdlib.utf8-to-string-utf8
+        ;; This function translates a utf-8 encoded string into our representation of string-utf8, which
+        ;; is a sequence of unicode characters on 32 bits in big-endian
+        ;; The utf-8 encoding process is well explained on wikipedia: https://en.wikipedia.org/wiki/UTF-8#Encoding
         (param $offset i32) (param $len i32) (param $output-offset i32) (param $max-len i32)
         (result i32 i32 i32)
         (local $scalar i32) (local $byte i32) (local $writeptr i32)
 
-        ;; return ok if empty string
+        ;; returns (some u"") if empty string
         (if (i32.eqz (local.get $len)) 
             (then (return (i32.const 1) (local.get $output-offset) (i32.const 0)))
         )
 
+        ;; this will contain the offset at which we should write the next char
         (local.set $writeptr (local.get $output-offset))
 
+        ;; each iteration of this loop tries to parse 1 char and writes the result to $writeptr
         (loop $chars-decode-loop
+            ;; if we are in this loop, it means that we will parse another char, so we check that
+            ;; adding a new char won't make the string longer than $max-len
             (if (i32.lt_s (local.tee $max-len (i32.sub (local.get $max-len) (i32.const 1))) (i32.const 0))
                 (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
             )
+            ;; $scalar will contain the current char. for now we will parse the first byte
             (local.set $scalar (i32.load8_u (local.get $offset)))
+            ;; utf8 on 1 byte is of the form [0b0xxxxxxx]
             (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
                 (then
+                    ;; the next char to parse will be 1 byte further in $offset, and the remaining bytes are 1 less
                     (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
                     (local.set $len (i32.sub (local.get $len) (i32.const 1)))
                 )
                 (else 
+                    ;; utf8 on 2 bytes is of the form [0b110xxxxx 0b10xxxxxx]
                     (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xe0)) (i32.const 0xc0))
                         (then 
+                            ;; we shift the scalar so that we can add the next bits at the right position after
                             (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x1f)) (i32.const 6)))
+                            ;; reading and checking of the next byte
                             (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
                             (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                ;; if the 2nd byte is of the correct form, we use a mask to get the relevant bits and `or` it to $scalar
                                 (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
                                 (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
@@ -3308,12 +3322,15 @@
                             (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
                                 (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
+                            ;; the next char to parse will be 2 bytes further in $offset, and the remaining bytes are 2 less
                             (local.set $offset (i32.add (local.get $offset) (i32.const 2)))
                             (local.set $len (i32.sub (local.get $len) (i32.const 2)))
                         )
                         (else 
+                            ;; utf8 on 3 bytes is of the form [0b1110xxxx 0b10xxxxxx 0b10xxxxxx]
                             (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf0)) (i32.const 0xe0))
                                 (then 
+                                    ;; this will be the same principle as the 2-bytes case, but with 2 next bytes to parse
                                     (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0xf)) (i32.const 12)))
                                     (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
                                     (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
@@ -3332,12 +3349,15 @@
                                         )
                                         (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                     )
+                                    ;; the next char to parse will be 3 bytes further in $offset, and the remaining bytes are 3 less
                                     (local.set $offset (i32.add (local.get $offset) (i32.const 3)))
                                     (local.set $len (i32.sub (local.get $len) (i32.const 3)))
                                 )
                                 (else 
+                                    ;; utf8 on 4 bytes is of the form [0b11110xxx 0b10xxxxxx 0b10xxxxxx 0b10xxxxxx]
                                     (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf8)) (i32.const 0xf0))
                                         (then
+                                            ;; this will be the same principle as the 2-bytes case, but with 3 next bytes to parse
                                             (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x7)) (i32.const 18)))
                                             (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
                                             (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
@@ -3358,9 +3378,11 @@
                                             (if (i32.lt_u (i32.sub (local.get $scalar) (i32.const 0x110000)) (i32.const 0xfff00000))
                                                 (then  (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                             )
+                                            ;; the next char to parse will be 3 bytes further in $offset, and the remaining bytes are 4 less
                                             (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
                                             (local.set $len (i32.sub (local.get $len) (i32.const 4)))
                                         )
+                                        ;; this case is when the current byte pattern does not match a utf-8 first byte
                                         (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                     )
                                 )
@@ -3369,6 +3391,7 @@
                     )
                 )
             )
+            ;; we store the read character in big endian
             (i32.store (local.get $writeptr)
                 (i32.or 
                     (i32.or 
@@ -3381,10 +3404,13 @@
                     )
                 )
             )
+            ;; next character to write will be 4 bytes further
             (local.set $writeptr (i32.add (local.get $writeptr) (i32.const 4)))
-            (br_if 0 (local.get $len))
+            ;; we loop if there are still bytes to parse
+            (br_if $chars-decode-loop (local.get $len))
         )
 
+        ;; result is [some offset length]
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
