@@ -4006,3 +4006,158 @@ fn sha512_int() {
         Vec::from_hex("83b7d9d929320aa6a6898e4ce1dc11db78a8e4f01e47c379b49b18e3c0c8bfb98af99a758f44d4f4ee845205a4c90d6016e01d470ff95a19f1f1b37284c5afa6").unwrap();
     assert_eq!(&buffer, &expected_result);
 }
+
+#[test]
+fn utf8_to_string_utf8_valid() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let convert = instance
+        .get_func(&mut store, "stdlib.utf8-to-string-utf8")
+        .unwrap();
+    let mut result = [Val::I32(0), Val::I32(0), Val::I32(0)];
+
+    let mut check_valid_conversion = |utf8: &str, max_len: i32| {
+        let unicodes_result: Vec<_> = utf8.chars().map(|c| c as u32).collect();
+        let result_size = unicodes_result.len();
+
+        memory
+            .write(&mut store, 1500, utf8.as_bytes())
+            .expect("Could not write to memory");
+
+        convert
+            .call(
+                &mut store,
+                &[
+                    1500i32.into(),
+                    (utf8.len() as i32).into(),
+                    3000i32.into(),
+                    max_len.into(),
+                ],
+                &mut result,
+            )
+            .expect("call to utf8-to-string-utf8 failed");
+
+        assert_eq!(result[0].unwrap_i32(), 1);
+        assert_eq!(result[1].unwrap_i32(), 3000);
+        assert_eq!(result[2].unwrap_i32(), 4 * result_size as i32);
+
+        let mut buffer = vec![0u8; 4 * result_size];
+        memory
+            .read(&mut store, 3000, &mut buffer)
+            .expect("Could not read from memory");
+        let buffer: Vec<_> = buffer
+            .chunks_exact(4)
+            .map(|c| u32::from_be_bytes(c.try_into().unwrap()))
+            .collect();
+        assert_eq!(buffer, unicodes_result);
+    };
+
+    const CASES: [&str; 13] = [
+        // empty string
+        "",
+        // checks with one byte utf8 chars
+        "a",
+        "abc",
+        // checks with two bytes utf8 chars
+        "\u{80}",
+        "\u{7ff}",
+        "\u{80}\u{90}\u{7ff}",
+        // checks with three bytes utf8 chars
+        "\u{800}",
+        "\u{fff}",
+        "\u{800}\u{1000}\u{fff}",
+        // check with four bytes utf8 chars
+        "\u{10000}",
+        "\u{10ffff}",
+        "\u{10000}\u{10eeee}\u{10ffff}",
+        // mix
+        "a\u{80}\u{1000}bc\u{10ffff}",
+    ];
+
+    for c in CASES {
+        check_valid_conversion(c, c.chars().count() as i32);
+    }
+
+    // Tests with bigger max_len
+    for c in CASES {
+        check_valid_conversion(c, c.chars().count() as i32 + 1);
+    }
+}
+
+#[test]
+fn utf8_to_string_utf8_invalid() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let convert = instance
+        .get_func(&mut store, "stdlib.utf8-to-string-utf8")
+        .unwrap();
+    let mut result = [Val::I32(0), Val::I32(0), Val::I32(0)];
+
+    let mut check_invalid_conversion = |bytes: &[u8], expected_size: i32| {
+        memory
+            .write(&mut store, 1500, bytes)
+            .expect("Could not write to memory");
+
+        convert
+            .call(
+                &mut store,
+                &[
+                    1500i32.into(),
+                    (bytes.len() as i32).into(),
+                    3000i32.into(),
+                    expected_size.into(),
+                ],
+                &mut result,
+            )
+            .expect("call to utf8-to-string-utf8 failed");
+
+        assert_eq!(result[0].unwrap_i32(), 0);
+    };
+
+    // one byte invalid
+    check_invalid_conversion(&[0b10000000], 1);
+    // two bytes invalid
+    check_invalid_conversion(&[0b1101_0101, 0b1101_0101], 1);
+    // three bytes invalid
+    check_invalid_conversion(&[0b1110_0101, 0b1101_0101, 0b1011_0101], 1);
+    check_invalid_conversion(&[0b1110_0101, 0b1001_0101, 0b1111_0101], 1);
+    // four bytes invalid
+    check_invalid_conversion(&[0b1111_0111, 0b1100_0000, 0b1010_1010, 0b1011_0101], 1);
+    check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1110_1010, 0b1011_0101], 1);
+    check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1010_1010, 0b1111_0101], 1);
+
+    // invalid utf-16 surrogate characters
+    for n in 0xd800..=0xdfff {
+        // SAFETY: this is wrong! The purpose *is* to create an invalid char.
+        let surrogate_str: String = unsafe { char::from_u32_unchecked(n).into() };
+        check_invalid_conversion(surrogate_str.as_bytes(), 1);
+    }
+
+    // invalid too large chars > U+10FFFF (max 21 bits in a 4 bytes utf-8 char)
+    for n in ((char::MAX as u32) + 1..=0b1_1111_1111_1111_1111_1111).step_by(10000) {
+        // SAFETY: this is wrong! The purpose *is* to create an invalid char.
+        let surrogate_str: String = unsafe { char::from_u32_unchecked(n).into() };
+        check_invalid_conversion(surrogate_str.as_bytes(), 1);
+    }
+
+    // tests with too short max-size
+    for s in [
+        "a",
+        "abc",
+        "\u{80}",
+        "\u{80}\u{90}\u{7ff}",
+        "\u{fff}",
+        "\u{800}\u{1000}\u{fff}",
+        "\u{10000}",
+        "\u{10000}\u{10eeee}\u{10ffff}",
+        "a\u{80}\u{1000}bc\u{10ffff}",
+    ] {
+        check_invalid_conversion(s.as_bytes(), s.chars().count() as i32 - 1);
+    }
+}

@@ -1473,152 +1473,95 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
-        type_length: u32,
+        string_utf8_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        // Create a block for the body of this operation, so that we can
-        // early exit as needed.
-        let block_ty = InstrSeqType::new(
-            &mut self.module.types,
-            &[],
-            &[ValType::I32, ValType::I32, ValType::I32],
-        );
-        let mut block = builder.dangling_instr_seq(block_ty);
-        let block_id = block.id();
+        let max_len: u32 = match string_utf8_ty {
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                type_length,
+            ))) => type_length.into(),
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "Shouldn't call this function on anything but string-utf8".into(),
+                ))
+            }
+        };
 
         // Verify that reading 5 bytes from the offset is within the buffer
-        block
+        builder
             .local_get(offset_local)
             .i32_const(5)
             .binop(BinaryOp::I32Add)
             .local_get(end_local)
-            .binop(BinaryOp::I32GtU)
-            .if_else(
-                None,
-                |then| {
-                    // Return none
-                    then.i32_const(0).i32_const(0).i32_const(0);
-                    then.br(block_id);
-                },
-                |_| {},
-            );
+            .binop(BinaryOp::I32LeU);
 
-        // Read the prefix byte
-        block.local_get(offset_local).load(
-            memory,
-            LoadKind::I32_8 {
-                kind: ExtendedLoad::ZeroExtend,
+        // Check for the string-utf8 prefix (0x0e)
+        builder
+            .local_get(offset_local)
+            .load(
+                memory,
+                LoadKind::I32_8 {
+                    kind: ExtendedLoad::ZeroExtend,
+                },
+                MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            )
+            .i32_const(TypePrefix::StringUTF8 as i32)
+            .binop(BinaryOp::I32Eq);
+
+        let return_type = InstrSeqType::new(&mut self.module.types, &[], &[ValType::I32; 3]);
+
+        // If both previous conditions are met, we can try deserializing.
+        // Otherwise, it's a failure.
+        builder.binop(BinaryOp::I32And).if_else(
+            return_type,
+            |then| {
+                // Read the string length in bytes
+                let string_length = self.module.locals.add(ValType::I32);
+                then.local_get(offset_local)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .call(self.func_by_name("stdlib.load-i32-be"))
+                    .local_tee(string_length);
+
+                // If the (string length <= remaining bytes), we can try deserializing,
+                // otherwise it's a failure
+                then.local_get(offset_local)
+                    .i32_const(5)
+                    .binop(BinaryOp::I32Add)
+                    .local_tee(offset_local)
+                    .binop(BinaryOp::I32Add)
+                    .local_get(end_local)
+                    .binop(BinaryOp::I32LeU);
+
+                then.if_else(
+                    return_type,
+                    |then| {
+                        let (offset_result, _len) =
+                            self.create_call_stack_local(then, string_utf8_ty, false, true);
+
+                        then.local_get(offset_local)
+                            .local_get(string_length)
+                            .local_get(offset_result)
+                            .i32_const(max_len as i32)
+                            .call(self.func_by_name("stdlib.utf8-to-string-utf8"));
+
+                        // move offset-local to the end of the utf8 representation
+                        then.local_get(offset_local)
+                            .local_get(string_length)
+                            .binop(BinaryOp::I32Add)
+                            .local_set(offset_local);
+                    },
+                    |else_| {
+                        else_.i32_const(0).i32_const(0).i32_const(0);
+                    },
+                );
             },
-            MemArg {
-                align: 1,
-                offset: 0,
+            |else_| {
+                else_.i32_const(0).i32_const(0).i32_const(0);
             },
         );
-
-        // Check for the string-ascii prefix (0x0d)
-        block
-            .i32_const(TypePrefix::StringUTF8 as i32)
-            .binop(BinaryOp::I32Eq)
-            .if_else(
-                block_ty,
-                |then| {
-                    // Read the string length
-                    let string_length = self.module.locals.add(ValType::I32);
-                    then.local_get(offset_local)
-                        .i32_const(1)
-                        .binop(BinaryOp::I32Add)
-                        .call(self.func_by_name("stdlib.load-i32-be"))
-                        .local_tee(string_length);
-
-                    // Verify that the string length is within the
-                    // string type size.
-                    then.i32_const(type_length as i32)
-                        .binop(BinaryOp::I32GtU)
-                        .if_else(
-                            None,
-                            |inner| {
-                                // Return none
-                                inner.i32_const(0).i32_const(0).i32_const(0);
-                                inner.br(block_id);
-                            },
-                            |_| {},
-                        );
-
-                    // Verify that the string length is within the
-                    // buffer.
-                    let computed_end = self.module.locals.add(ValType::I32);
-                    then.local_get(string_length)
-                        .local_get(offset_local)
-                        .binop(BinaryOp::I32Add)
-                        .i32_const(5)
-                        .binop(BinaryOp::I32Add)
-                        .local_tee(computed_end)
-                        .local_get(end_local)
-                        .binop(BinaryOp::I32GtU)
-                        .if_else(
-                            None,
-                            |inner| {
-                                // Return none
-                                inner.i32_const(0).i32_const(0).i32_const(0);
-                                inner.br(block_id);
-                            },
-                            |_| {},
-                        );
-
-                    // Push the `some` indicator onto the stack
-                    then.i32_const(1);
-
-                    // Reserve space in the call stack to hold the deserialized
-                    // string.
-                    let result_offset = self.module.locals.add(ValType::I32);
-                    then.global_get(self.stack_pointer).local_tee(result_offset);
-                    then.i32_const((type_length * 4) as i32)
-                        .binop(BinaryOp::I32Add)
-                        .global_set(self.stack_pointer);
-
-                    // Push the offset of the result onto the stack
-                    then.local_get(result_offset);
-
-                    // Call utf8 to scalar conversion function. It will return
-                    // the length of the string and a success indicator.
-                    then.local_get(offset_local)
-                        .i32_const(5)
-                        .binop(BinaryOp::I32Add)
-                        .local_get(string_length)
-                        .local_get(result_offset)
-                        .call(self.func_by_name("stdlib.convert-utf8-to-scalars"));
-
-                    // Check if the conversion failed
-                    then.unop(UnaryOp::I32Eqz).if_else(
-                        InstrSeqType::new(
-                            &mut self.module.types,
-                            &[ValType::I32, ValType::I32, ValType::I32],
-                            &[ValType::I32, ValType::I32, ValType::I32],
-                        ),
-                        |inner| {
-                            // Drop the result and return none.
-                            inner
-                                .drop()
-                                .drop()
-                                .drop()
-                                .i32_const(0)
-                                .i32_const(0)
-                                .i32_const(0);
-                        },
-                        |_| {},
-                    );
-
-                    // Increment the offset by the length of the serialized
-                    // buffer.
-                    then.local_get(computed_end).local_set(offset_local);
-                },
-                |else_| {
-                    // Invalid prefix, return `none`.
-                    else_.i32_const(0).i32_const(0).i32_const(0);
-                },
-            );
-
-        // Add our main block to the builder.
-        builder.instr(walrus::ir::Block { seq: block_id });
 
         Ok(())
     }
@@ -1678,14 +1621,9 @@ impl WasmGenerator {
                     end_local,
                     type_length.into(),
                 ),
-            SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(type_length))) => self
-                .deserialize_string_utf8(
-                    builder,
-                    memory,
-                    offset_local,
-                    end_local,
-                    type_length.into(),
-                ),
+            utf8 @ SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                self.deserialize_string_utf8(builder, memory, offset_local, end_local, utf8)
+            }
             TupleType(tuple_ty) => {
                 self.deserialize_tuple(builder, memory, offset_local, end_local, tuple_ty)
             }

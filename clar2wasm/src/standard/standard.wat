@@ -3273,179 +3273,117 @@
         (i32.const 1)
     )
 
-    ;; Converts a span of UTF-8 characters into 4-byte unicode scalar values.
-    ;; Returns two i32s:
-    ;; - i32:0: the number of bytes read from the input
-    ;; - i32:1: 1 if the input is valid UTF-8, 0 otherwise
-    (func $stdlib.convert-utf8-to-scalars (param $offset i32) (param $length i32) (param $output-offset i32) (result i32 i32)
-        (local $i i32)          ;; Input loop counter
-        (local $j i32)          ;; Output loop counter
-        (local $byte1 i32)      ;; Current byte and following bytes
-        (local $byte2 i32)
-        (local $byte3 i32)
-        (local $byte4 i32)
-        (local $scalar i32)     ;; Scalar value
+    (func $stdlib.utf8-to-string-utf8
+        ;; This function translates a utf-8 encoded string into our representation of string-utf8, which
+        ;; is a sequence of unicode characters on 32 bits in big-endian
+        ;; The utf-8 encoding process is well explained on wikipedia: https://en.wikipedia.org/wiki/UTF-8#Encoding
+        (param $offset i32) (param $len i32) (param $output-offset i32) (param $max-len i32)
+        (result i32 i32 i32)
+        (local $scalar i32) (local $byte i32) (local $writeptr i32)
 
-        ;; If the length is 0, just return 0
-        (if (i32.eqz (local.get $length))
-            (then
-                (return 
-                    (i32.const 0) ;; length (0 bytes)
-                    (i32.const 1) ;; success status (1 = success)
-                )
-            )
+        ;; returns (some u"") if empty string
+        (if (i32.eqz (local.get $len)) 
+            (then (return (i32.const 1) (local.get $output-offset) (i32.const 0)))
         )
 
-        ;; Initialize loop counters
-        (local.set $i (i32.const 0))
-        (local.set $j (i32.const 0))
+        ;; this will contain the offset at which we should write the next char
+        (local.set $writeptr (local.get $output-offset))
 
-        (loop $loop
-            (local.set $byte1 (i32.load8_u (i32.add (local.get $offset) (local.get $i))))
-            ;; Check for 1-byte sequence (0xxx xxxx)
-            (if (i32.lt_u (local.get $byte1) (i32.const 0x80)) ;; 1-byte sequence
+        ;; each iteration of this loop tries to parse 1 char and writes the result to $writeptr
+        (loop $chars-decode-loop
+            ;; if we are in this loop, it means that we will parse another char, so we check that
+            ;; adding a new char won't make the string longer than $max-len
+            (if (i32.lt_s (local.tee $max-len (i32.sub (local.get $max-len) (i32.const 1))) (i32.const 0))
+                (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
+            )
+            ;; $scalar will contain the current char. for now we will parse the first byte
+            (local.set $scalar (i32.load8_u (local.get $offset)))
+            ;; utf8 on 1 byte is of the form [0b0xxxxxxx]
+            (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
                 (then
-                    (local.set $scalar (local.get $byte1))
-                    (local.set $i (i32.add (local.get $i) (i32.const 1))) ;; Increment for 1-byte
+                    ;; the next char to parse will be 1 byte further in $offset, and the remaining bytes are 1 less
+                    (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+                    (local.set $len (i32.sub (local.get $len) (i32.const 1)))
                 )
-                (else
-                    (if (i32.ge_u (i32.add (local.get $i) (i32.const 1)) (local.get $length))
-                        ;; Not enough bytes for 2-byte sequence, return error
-                        (then
-                            (return (i32.const 0) (i32.const 0))
-                        )
-                    )
-                    (local.set $byte2 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 1)))))
-                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xC0))
-                                 (i32.lt_u (local.get $byte1) (i32.const 0xE0))) ;; 2-byte sequence
-                        (then
-                            ;; Check if second byte is a continuation byte
-                            (if (i32.and (i32.ge_u (local.get $byte2) (i32.const 0x80))
-                                         (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
-                                (then
-                                    (local.set $scalar
-                                        (i32.or
-                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x1F)) (i32.const 6))
-                                            (i32.and (local.get $byte2) (i32.const 0x3F))
-                                        )
-                                    )
-                                    ;; Overlong encoding check for 2-byte sequence
-                                    (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
-                                        (then
-                                            ;; Overlong encoding detected, return error
-                                            (return (i32.const 0) (i32.const 0))
-                                        )
-                                    )
-                                    (local.set $i (i32.add (local.get $i) (i32.const 2))) ;; Increment for 2-byte
-                                )
-                                (else
-                                    ;; Second byte is not a valid continuation byte, exit with error
-                                    (return (i32.const 0) (i32.const 0))
-                                )
+                (else 
+                    ;; utf8 on 2 bytes is of the form [0b110xxxxx 0b10xxxxxx]
+                    (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xe0)) (i32.const 0xc0))
+                        (then 
+                            ;; we shift the scalar so that we can add the next bits at the right position after
+                            (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x1f)) (i32.const 6)))
+                            ;; reading and checking of the next byte
+                            (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                ;; if the 2nd byte is of the correct form, we use a mask to get the relevant bits and `or` it to $scalar
+                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
-                        )
-                        (else
-                            (if (i32.ge_u (i32.add (local.get $i) (i32.const 2)) (local.get $length))
-                                ;; Not enough bytes for 3-byte sequence, return error
-                                (then
-                                    (return (i32.const 0) (i32.const 0))
-                                )
+                            ;; The result number cannot be < 0x80 
+                            (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
+                                (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
-                            (local.set $byte3 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 2)))))
-                            (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xE0))
-                                         (i32.lt_u (local.get $byte1) (i32.const 0xF0))) ;; 3-byte sequence
-                                (then
-                                    ;; Check if second and third bytes are a continuation byte
-                                    (if (i32.and
-                                        (i32.and
-                                            (i32.ge_u (local.get $byte2) (i32.const 0x80))
-                                            (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
-                                        (i32.and
-                                            (i32.ge_u (local.get $byte3) (i32.const 0x80))
-                                            (i32.lt_u (local.get $byte3) (i32.const 0xC0)))
-                                        )
-                                        (then
-                                            (local.set $scalar
-                                                (i32.or
-                                                    (i32.shl (i32.and (local.get $byte1) (i32.const 0x0F)) (i32.const 12))
-                                                    (i32.or
-                                                        (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 6))
-                                                        (i32.and (local.get $byte3) (i32.const 0x3F))
-                                                    )
-                                                )
-                                            )
-                                            ;; 3-byte sequence overlong check
-                                            (if (i32.lt_u (local.get $scalar) (i32.const 0x800))
-                                                (then
-                                                    ;; Overlong encoding detected, return error
-                                                    (return (i32.const 0) (i32.const 0))
-                                                )
-                                            )
-                                            (local.set $i (i32.add (local.get $i) (i32.const 3))) ;; Increment for 3-byte
-                                        )
-                                        (else
-                                            ;; Second or third bytes are not a valid continuation byte, exit with error
-                                            (return (i32.const 0) (i32.const 0))
-                                        )
+                            ;; the next char to parse will be 2 bytes further in $offset, and the remaining bytes are 2 less
+                            (local.set $offset (i32.add (local.get $offset) (i32.const 2)))
+                            (local.set $len (i32.sub (local.get $len) (i32.const 2)))
+                        )
+                        (else 
+                            ;; utf8 on 3 bytes is of the form [0b1110xxxx 0b10xxxxxx 0b10xxxxxx]
+                            (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf0)) (i32.const 0xe0))
+                                (then 
+                                    ;; this will be the same principle as the 2-bytes case, but with 2 next bytes to parse
+                                    (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0xf)) (i32.const 12)))
+                                    (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                                    (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                        (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6)))))
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                     )
+                                    (local.set $byte (i32.load8_u offset=2 (local.get $offset)))
+                                    (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                        (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                    )
+                                    ;; The result number cannot be < 0x800, and cannot be surrogate [0xd800..=0xdfff]
+                                    (if (i32.or
+                                            (i32.eq (i32.and (local.get $scalar) (i32.const 0xfffff800)) (i32.const 0xd800))
+                                            (i32.lt_u (local.get $scalar) (i32.const 0x800))
+                                        )
+                                        (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                    )
+                                    ;; the next char to parse will be 3 bytes further in $offset, and the remaining bytes are 3 less
+                                    (local.set $offset (i32.add (local.get $offset) (i32.const 3)))
+                                    (local.set $len (i32.sub (local.get $len) (i32.const 3)))
                                 )
-                                (else ;; 4-byte sequence
-                                    (if (i32.ge_u (i32.add (local.get $i) (i32.const 3)) (local.get $length))
-                                        ;; Not enough bytes for 4-byte sequence, return error
+                                (else 
+                                    ;; utf8 on 4 bytes is of the form [0b11110xxx 0b10xxxxxx 0b10xxxxxx 0b10xxxxxx]
+                                    (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf8)) (i32.const 0xf0))
                                         (then
-                                            (return (i32.const 0) (i32.const 0))
-                                        )
-                                    )
-                                    (local.set $byte4 (i32.load8_u (i32.add (local.get $offset) (i32.add (local.get $i) (i32.const 3)))))
-                                    (if (i32.and (i32.ge_u (local.get $byte1) (i32.const 0xF0))
-                                                 (i32.le_u (local.get $byte1) (i32.const 0xF4))) ;; 4-byte sequence
-                                        (then
-                                            ;; Check if second, third, and forth bytes are a continuation byte
-                                            (if (i32.and
-                                                (i32.and
-                                                    (i32.and
-                                                        (i32.ge_u (local.get $byte2) (i32.const 0x80))
-                                                        (i32.lt_u (local.get $byte2) (i32.const 0xC0)))
-                                                    (i32.and
-                                                        (i32.ge_u (local.get $byte3) (i32.const 0x80))
-                                                        (i32.lt_u (local.get $byte3) (i32.const 0xC0)))
-                                                )
-                                                (i32.and
-                                                    (i32.ge_u (local.get $byte4) (i32.const 0x80))
-                                                    (i32.lt_u (local.get $byte4) (i32.const 0xC0)))
-                                                )
-                                                (then
-                                                    (local.set $scalar
-                                                        (i32.or
-                                                            (i32.shl (i32.and (local.get $byte1) (i32.const 0x07)) (i32.const 18))
-                                                            (i32.or
-                                                                (i32.shl (i32.and (local.get $byte2) (i32.const 0x3F)) (i32.const 12))
-                                                                (i32.or
-                                                                    (i32.shl (i32.and (local.get $byte3) (i32.const 0x3F)) (i32.const 6))
-                                                                    (i32.and (local.get $byte4) (i32.const 0x3F))
-                                                                )
-                                                            )
-                                                        )
-                                                    )
-                                                    ;; 4-byte sequence overlong check
-                                                    (if (i32.lt_u (local.get $scalar) (i32.const 0x10000))
-                                                        (then
-                                                            ;; Overlong encoding detected, return error
-                                                            (return (i32.const 0) (i32.const 0))
-                                                        )
-                                                    )
-                                                    (local.set $i (i32.add (local.get $i) (i32.const 4))) ;; Increment for 4-byte
-                                                )
-                                                (else
-                                                    ;; Second, third, or forth bytes are not a valid continuation byte, exit with error
-                                                    (return (i32.const 0) (i32.const 0))
-                                                )
+                                            ;; this will be the same principle as the 2-bytes case, but with 3 next bytes to parse
+                                            (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x7)) (i32.const 18)))
+                                            (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 12)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                             )
+                                            (local.set $byte (i32.load8_u offset=2 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )                                   
+                                            (local.set $byte (i32.load8_u offset=3 (local.get $offset)))
+                                            (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
+                                                (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
+                                                (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )
+                                            ;; this char should be in [U+10000 ..= U+10ffff]
+                                            (if (i32.lt_u (i32.sub (local.get $scalar) (i32.const 0x110000)) (i32.const 0xfff00000))
+                                                (then  (return (i32.const 0) (i32.const 0) (i32.const 0)))
+                                            )
+                                            ;; the next char to parse will be 3 bytes further in $offset, and the remaining bytes are 4 less
+                                            (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+                                            (local.set $len (i32.sub (local.get $len) (i32.const 4)))
                                         )
-                                        (else
-                                            ;; Invalid initial byte, exit with error
-                                            (return (i32.const 0) (i32.const 0))
-                                        )
+                                        ;; this case is when the current byte pattern does not match a utf-8 first byte
+                                        (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                                     )
                                 )
                             )
@@ -3453,43 +3391,27 @@
                     )
                 )
             )
-
-            ;; Check if the decoded scalar is a surrogate (U+D800 to U+DFFF)
-            (if (i32.and (i32.ge_u (local.get $scalar) (i32.const 0xD800))
-                         (i32.le_u (local.get $scalar) (i32.const 0xDFFF)))
-                (then
-                    ;; Surrogate pair detected, return error
-                    (return (i32.const 0) (i32.const 0))
+            ;; we store the read character in big endian
+            (i32.store (local.get $writeptr)
+                (i32.or 
+                    (i32.or 
+                        (i32.shl (local.get $scalar) (i32.const 24))
+                        (i32.shl (i32.and (local.get $scalar) (i32.const 0xff00)) (i32.const 8))
+                    )
+                    (i32.or
+                        (i32.and (i32.shr_u (local.get $scalar) (i32.const 8)) (i32.const 0xff00))
+                        (i32.shr_u (local.get $scalar) (i32.const 24))
+                    )
                 )
             )
-
-            ;; Unicode Range Check for all sequences, value within the Unicode range (U+0000 to U+10FFFF)
-            (if (i32.gt_u (local.get $scalar) (i32.const 0x10FFFF))
-                (then
-                    ;; Scalar value out of Unicode range, return error
-                    (return (i32.const 0) (i32.const 0))
-                )
-            )
-
-            ;; Store the scalar value in the output array in big-endian format
-            (call $stdlib.store-i32-be
-                (i32.add (local.get $output-offset) (local.get $j))
-                (local.get $scalar)
-            )
-            (local.set $j (i32.add (local.get $j) (i32.const 4)))
-
-            ;; Check if we have processed all input bytes
-            (if (i32.ge_u (local.get $i) (local.get $length))
-                ;; Return the number of bytes written and success indicator
-                (then (return (local.get $j) (i32.const 1)))
-            )
-            (br $loop)
+            ;; next character to write will be 4 bytes further
+            (local.set $writeptr (i32.add (local.get $writeptr) (i32.const 4)))
+            ;; we loop if there are still bytes to parse
+            (br_if $chars-decode-loop (local.get $len))
         )
 
-        ;; Return the number of bytes written to the output array and a
-        ;; success indicator
-        (local.get $j)
-        (i32.const 1)
+        ;; result is [some offset length]
+        (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
     (export "stdlib.add-uint" (func $stdlib.add-uint))
@@ -3563,6 +3485,6 @@
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
     (export "stdlib.sha512-int" (func $stdlib.sha512-int))  
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
-    (export "stdlib.convert-utf8-to-scalars" (func $stdlib.convert-utf8-to-scalars))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
+    (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
 )

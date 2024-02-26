@@ -31,7 +31,7 @@ use clarity::vm::types::{
     ASCIIData, BuffData, CharType, ListData, ListTypeData, OptionalData, PrincipalData,
     QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
     StandardPrincipalData, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
-    TypeSignature, Value, MAX_VALUE_SIZE,
+    TypeSignature, UTF8Data, Value, MAX_VALUE_SIZE,
 };
 use clarity::vm::ContractName;
 use proptest::prelude::*;
@@ -48,7 +48,9 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
             StringSubtype::ASCII(s.try_into().unwrap())
         ))),
         Just(TypeSignature::PrincipalType),
-        // TODO: string-utf8
+        (0u32..32).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
+            StringSubtype::UTF8(s.try_into().unwrap())
+        )))
     ];
     leaf.prop_recursive(5, 64, 10, |inner| {
         prop_oneof![
@@ -113,6 +115,19 @@ impl std::fmt::Display for PropValue {
                         write!(f, "\\")?;
                     }
                     write!(f, "{}", *b as char)?;
+                }
+                write!(f, "\"")
+            }
+            Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data }))) => {
+                write!(f, "u\"")?;
+                for bytes in data {
+                    // SAFETY: a utf8 sequence always contains a valid sequence of utf8 chars as vec of bytes
+                    let c = unsafe { std::str::from_utf8_unchecked(bytes).chars().next().unwrap() };
+                    match c {
+                        '\\' | '\"' => write!(f, "\\{c}")?,
+                        _ if c.is_ascii_graphic() => write!(f, "{c}")?,
+                        _ => write!(f, r#"\u{{{:X}}}"#, c as u32)?,
+                    }
                 }
                 write!(f, "\"")
             }
@@ -207,6 +222,9 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(size))) => {
             string_ascii(size.into()).boxed()
         }
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(size))) => {
+            string_utf8(size.into()).boxed()
+        }
         TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)) => {
             list(list_type_data).boxed()
         }
@@ -214,9 +232,8 @@ fn prop_value(ty: TypeSignature) -> impl Strategy<Value = Value> {
         TypeSignature::PrincipalType => {
             prop_oneof![standard_principal(), qualified_principal()].boxed()
         }
-        TypeSignature::ListUnionType(_) => todo!(),
         // TODO
-        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => todo!(),
+        TypeSignature::ListUnionType(_) => todo!(),
         TypeSignature::CallableType(_) => todo!(),
         TypeSignature::TraitReferenceType(_) => todo!(),
     }
@@ -240,6 +257,18 @@ pub fn string_ascii(size: u32) -> impl Strategy<Value = Value> {
         Value::Sequence(SequenceData::String(clarity::vm::types::CharType::ASCII(
             clarity::vm::types::ASCIIData { data: bytes },
         )))
+    })
+}
+
+pub fn string_utf8(size: u32) -> impl Strategy<Value = Value> {
+    prop::collection::vec(any::<char>(), size as usize).prop_map(|chars| {
+        let mut data = Vec::with_capacity(chars.len());
+        for c in chars {
+            let mut encoded_char = vec![0; c.len_utf8()];
+            c.encode_utf8(encoded_char.as_mut());
+            data.push(encoded_char);
+        }
+        Value::Sequence(SequenceData::String(CharType::UTF8(UTF8Data { data })))
     })
 }
 
