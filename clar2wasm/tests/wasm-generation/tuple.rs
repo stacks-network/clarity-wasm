@@ -1,19 +1,48 @@
-use clar2wasm::tools::crosscheck_compare_only;
-use proptest::proptest;
-use proptest::strategy::Strategy;
+use clar2wasm::tools::crosscheck;
+use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleData, TypeSignature};
+use clarity::vm::Value;
+use proptest::prelude::prop;
+use proptest::strategy::{Just, Strategy};
+use proptest::{prop_oneof, proptest};
 
-use crate::PropValue;
+use crate::{tuple, PropValue};
+
+fn strategies_base() -> impl Strategy<Value = TypeSignature> {
+    prop_oneof![
+        Just(TypeSignature::IntType),
+        Just(TypeSignature::UIntType),
+        Just(TypeSignature::BoolType),
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
+            s.try_into().unwrap()
+        ))),
+        (0u32..128).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::StringType(
+            StringSubtype::ASCII(s.try_into().unwrap())
+        )))
+    ]
+}
+
+fn tuple_gen() -> impl Strategy<Value = Value> {
+    let coll = prop::collection::btree_map(
+        r#"[a-zA-Z]{1,16}"#.prop_map(|name| name.try_into().unwrap()),
+        strategies_base(),
+        1..8,
+    )
+    .prop_map(|btree| btree.try_into().unwrap());
+
+    coll.prop_flat_map(tuple)
+}
 
 proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_tuple(
-        key in "[a-zA-Z]{1}([0-9][a-zA-Z]|[a-zA-Z][0-9]){1,20}".prop_map(|k| k),
-        expr_1 in (1..10usize).prop_flat_map(PropValue::any_sequence))
-    {
-        crosscheck_compare_only(
-            &format!("(tuple ({key} {expr_1}))")
+    fn crosscheck_merge(t1 in tuple_gen(), t2 in tuple_gen()) {
+
+        let expected = clarity::vm::functions::tuples::tuple_merge(t1.clone(), t2.clone()).unwrap();
+
+        crosscheck(
+            &format!("(merge {t1} {t2})"),
+            Ok(Some(expected))
         )
     }
 }
@@ -22,26 +51,17 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crossprop_merge(
-        key in "[a-zA-Z]{1}([0-9][a-zA-Z]|[a-zA-Z][0-9]){1,20}".prop_map(|k| k),
-        (expr_1, expr_2) in (1..10usize).prop_flat_map(|v| (PropValue::any_sequence(v), PropValue::any_sequence(v))))
-    {
-        crosscheck_compare_only(
-            &format!("(merge (tuple ({key} {expr_1})) (tuple ({key}_ {expr_2})))")
-        )
-    }
-}
+    fn crosscheck_get(t in tuple_gen(), v in strategies_base().prop_flat_map(PropValue::from_type)) {
+        let merged = clarity::vm::functions::tuples::tuple_merge(
+            t.clone(),
+            Value::Tuple(
+                TupleData::from_data(vec![("new".into(), v.clone().into())]).unwrap()
+            ))
+            .unwrap();
 
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
-    #[test]
-    fn crossprop_get(
-        key in "[a-zA-Z]{1}([0-9][a-zA-Z]|[a-zA-Z][0-9]){1,20}".prop_map(|k| k),
-        expr_1 in (1..10usize).prop_flat_map(PropValue::any_sequence))
-    {
-        crosscheck_compare_only(
-            &format!("(get {key} (tuple ({key} {expr_1})))")
+        crosscheck(
+            &format!("(get new {merged})"),
+            Ok(Some(v.into()))
         )
     }
 }
