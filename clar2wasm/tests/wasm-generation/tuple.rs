@@ -41,7 +41,7 @@ proptest! {
         let expected = clarity::vm::functions::tuples::tuple_merge(t1.clone(), t2.clone()).unwrap();
 
         crosscheck(
-            &format!("(merge {t1} {t2})"),
+            &format!("(merge {} {})", PropValue(t1), PropValue(t2)),
             Ok(Some(expected))
         )
     }
@@ -60,7 +60,7 @@ proptest! {
             .unwrap();
 
         crosscheck(
-            &format!("(get new {merged})"),
+            &format!("(get new {})", PropValue(merged)),
             Ok(Some(v.into()))
         )
     }
