@@ -16,7 +16,7 @@ use clarity::types::StacksEpochId;
 use clarity::util::hash::Sha512Trunc256Sum;
 use clarity::vm::analysis::AnalysisDatabase;
 use clarity::vm::database::{BurnStateDB, ClarityBackingStore, HeadersDB};
-use clarity::vm::errors::InterpreterResult as Result;
+use clarity::vm::errors::{InterpreterError, InterpreterResult as Result};
 use clarity::vm::types::{QualifiedContractIdentifier, TupleData};
 use clarity::vm::{StacksEpoch, Value};
 use rusqlite::Connection;
@@ -194,28 +194,36 @@ impl Default for Datastore {
 }
 
 impl ClarityBackingStore for Datastore {
-    fn put_all(&mut self, items: Vec<(String, String)>) {
+    fn put_all(&mut self, items: Vec<(String, String)>) -> Result<()> {
         for (key, value) in items {
             self.put(&key, &value);
         }
+        Ok(())
     }
 
     /// fetch K-V out of the committed datastore
-    fn get(&mut self, key: &str) -> Option<String> {
+    fn get(&mut self, key: &str) -> Result<Option<String>> {
         let lookup_id = self
             .block_id_lookup
             .get(&self.current_chain_tip)
-            .expect("Could not find current chain tip in block_id_lookup map");
+            .ok_or_else(|| {
+                InterpreterError::Expect(
+                    "Could not find current chain tip in block_id_lookup map".to_string(),
+                )
+            })?;
 
         if let Some(map) = self.store.get(lookup_id) {
-            map.get(key).cloned()
+            Ok(map.get(key).cloned())
         } else {
-            panic!("Block does not exist for current chain tip");
+            Err(
+                InterpreterError::Expect("Block does not exist for current chain tip".to_string())
+                    .into(),
+            )
         }
     }
 
-    fn has_entry(&mut self, key: &str) -> bool {
-        self.get(key).is_some()
+    fn has_entry(&mut self, key: &str) -> Result<bool> {
+        Ok(self.get(key)?.is_some())
     }
 
     /// change the current MARF context to service reads from a different chain_tip
@@ -255,11 +263,17 @@ impl ClarityBackingStore for Datastore {
         "".to_string()
     }
 
-    fn insert_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str, value: &str) {
+    fn insert_metadata(
+        &mut self,
+        contract: &QualifiedContractIdentifier,
+        key: &str,
+        value: &str,
+    ) -> Result<()> {
         // let bhh = self.get_open_chain_tip();
         // self.get_side_store().insert_metadata(&bhh, &contract.to_string(), key, value)
         self.metadata
             .insert((contract.to_string(), key.to_string()), value.to_string());
+        Ok(())
     }
 
     fn get_metadata(
@@ -277,8 +291,8 @@ impl ClarityBackingStore for Datastore {
         }
     }
 
-    fn get_with_proof(&mut self, _key: &str) -> Option<(String, Vec<u8>)> {
-        None
+    fn get_with_proof(&mut self, _key: &str) -> Result<Option<(String, Vec<u8>)>> {
+        Ok(None)
     }
 
     fn get_contract_hash(

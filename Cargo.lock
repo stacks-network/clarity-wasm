@@ -539,12 +539,13 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.2.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?rev=de3e3c679e2db0336b95f1c188a3dae73b3b336f#de3e3c679e2db0336b95f1c188a3dae73b3b336f"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=6377198635ec8ecc7d57a52b831fce63afed6bdf#6377198635ec8ecc7d57a52b831fce63afed6bdf"
 dependencies = [
+ "hashbrown 0.14.3",
  "integer-sqrt",
  "lazy_static",
- "rand 0.7.3",
- "rand_chacha 0.2.2",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "regex",
  "rstest",
  "rstest_reuse",
@@ -556,7 +557,6 @@ dependencies = [
  "sha2-asm",
  "slog",
  "stacks-common",
- "time 0.2.27",
  "wasmtime",
 ]
 

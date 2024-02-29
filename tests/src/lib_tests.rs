@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
+use clar2wasm::tools::execute;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::callables::DefineType;
@@ -10,7 +11,7 @@ use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::errors::Error;
+use clarity::vm::errors::{CheckErrors, Error};
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
@@ -40,8 +41,9 @@ macro_rules! test_multi_contract_init {
 
             let mut db = ClarityDatabase::new(&mut clarity_store, &burn_datastore, &burn_datastore);
             db.begin();
-            db.set_clarity_epoch_version(StacksEpochId::latest());
-            db.commit();
+            db.set_clarity_epoch_version(StacksEpochId::latest())
+                .expect("Failed to set epoch version.");
+            db.commit().expect("Failed to commit.");
 
             // Iterate through all of the contracts and initialize them,
             // saving the return value of the last one.
@@ -68,6 +70,7 @@ macro_rules! test_multi_contract_init {
                             StacksEpochId::latest(),
                             analysis_db,
                         )
+                        .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
                     })
                     .expect("Failed to compile contract.");
 
@@ -104,12 +107,15 @@ macro_rules! test_multi_contract_init {
                 .expect("Failed to initialize contract.");
 
                 let data_size = contract_context.data_size;
-                global_context.database.insert_contract(
-                    &contract_id,
-                    Contract {
-                        contract_context: contract_context.clone(),
-                    },
-                );
+                global_context
+                    .database
+                    .insert_contract(
+                        &contract_id,
+                        Contract {
+                            contract_context: contract_context.clone(),
+                        },
+                    )
+                    .expect("Failed to insert contract.");
                 global_context
                     .database
                     .set_contract_data_size(&contract_id, data_size)
@@ -124,15 +130,14 @@ macro_rules! test_multi_contract_init {
             // Do this once for all contracts
             let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
             let amount = 1_000_000_000;
-            clarity_store
-                .as_clarity_db()
-                .execute(|database| {
-                    let mut snapshot = database.get_stx_balance_snapshot(&recipient);
-                    snapshot.credit(amount);
-                    snapshot.save();
-                    database.increment_ustx_liquid_supply(amount)
-                })
-                .expect("Failed to increment liquid supply.");
+            let mut conn = clarity_store.as_clarity_db();
+            execute(&mut conn, |database| {
+                let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
+                snapshot.credit(amount)?;
+                snapshot.save()?;
+                database.increment_ustx_liquid_supply(amount)
+            })
+            .expect("Failed to increment liquid supply.");
 
             let mut global_context = GlobalContext::new(
                 false,
