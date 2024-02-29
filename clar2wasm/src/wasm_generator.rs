@@ -36,6 +36,8 @@ pub struct WasmGenerator {
     pub(crate) literal_memory_end: u32,
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
+    /// Global ID of the runtime cost global.
+    pub(crate) runtime_cost: GlobalId,
     /// Map strings saved in the literal memory to their offset.
     pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
@@ -214,29 +216,30 @@ impl WasmGenerator {
         let module = Module::from_buffer(standard_lib_wasm).map_err(|_err| {
             GeneratorError::InternalError("failed to load standard library".to_owned())
         })?;
-        // Get the stack-pointer global ID
-        let stack_pointer_name = "stack-pointer";
-        let global_id = module
-            .globals
-            .iter()
-            .find(|global| {
-                global
-                    .name
-                    .as_ref()
-                    .map_or(false, |name| name == stack_pointer_name)
-            })
-            .map(|global| global.id())
-            .ok_or_else(|| {
-                GeneratorError::InternalError(
-                    "Expected to find a global named $stack-pointer".to_owned(),
-                )
-            })?;
+
+        let get_global_id_by_name = |name| {
+            module
+                .globals
+                .iter()
+                .find(|global| global.name.as_ref().map_or(false, |n| n == name))
+                .map(|global| global.id())
+                .ok_or_else(|| {
+                    GeneratorError::InternalError(format!(
+                        "Expected to find a global named {}",
+                        name
+                    ))
+                })
+        };
+
+        let stack_pointer_global_id = get_global_id_by_name("stack-pointer")?;
+        let runtime_cost_global_id = get_global_id_by_name("runtime-cost")?;
 
         Ok(WasmGenerator {
             contract_analysis,
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
-            stack_pointer: global_id,
+            stack_pointer: stack_pointer_global_id,
+            runtime_cost: runtime_cost_global_id,
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
@@ -335,7 +338,7 @@ impl WasmGenerator {
                 },
                 args,
             )) => {
-                // Extract the types from the args and return
+                // Extract the types from the args and return value
                 let get_types = || {
                     let arg_types: Result<Vec<TypeSignature>, GeneratorError> = args
                         .iter()
@@ -381,6 +384,9 @@ impl WasmGenerator {
                             )
                         })?
                         .1;
+
+                    let cost = variadic.cost(args.len());
+                    self.emit_cost(cost, builder);
 
                     self.traverse_expr(builder, first_arg)?;
 
@@ -1600,6 +1606,13 @@ impl WasmGenerator {
             )),
         }
     }
+
+    pub fn emit_cost(&self, cost: u64, builder: &mut InstrSeqBuilder) {
+        builder.global_get(self.runtime_cost);
+        builder.i64_const(cost as i64);
+        builder.binop(BinaryOp::I64Add);
+        builder.global_set(self.runtime_cost);
+    }
 }
 
 #[cfg(test)]
@@ -1610,7 +1623,7 @@ mod misc_tests {
 
     // Tests that don't relate to specific words
     use crate::{
-        tools::{crosscheck, evaluate},
+        tools::{crosscheck, evaluate, TestEnvironment},
         wasm_generator::END_OF_STANDARD_DATA,
     };
 
@@ -1722,5 +1735,13 @@ mod misc_tests {
 ",
             evaluate("(ok true)"),
         );
+    }
+
+    #[test]
+    fn cost_track() {
+        let mut env = TestEnvironment::default();
+        env.evaluate("(+ 2 2)").unwrap();
+
+        assert_eq!(env.wasm_accumulated_cost(), 20);
     }
 }

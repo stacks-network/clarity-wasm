@@ -6,10 +6,12 @@ build = "build.rs"
 
 [dependencies]
 clarity = { git = "https://github.com/stacks-network/stacks-core.git", rev = "6377198635ec8ecc7d57a52b831fce63afed6bdf" }
+stacks-common = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next" }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"
 lazy_static = "1.4.0"
+wasmtime = "15.0.0"
 
 # For developer mode
 sha2 = { version = "0.10.7", optional = true }
@@ -25,7 +27,6 @@ flamegraph = []
 pb = []
 
 [dev-dependencies]
-wasmtime = "15.0.0"
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }

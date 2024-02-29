@@ -10,7 +10,6 @@ use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
-use clarity::vm::clarity_wasm::initialize_contract;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
@@ -21,6 +20,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
+use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
 pub struct TestEnvironment {
@@ -29,7 +29,7 @@ pub struct TestEnvironment {
     version: ClarityVersion,
     datastore: Datastore,
     burn_datastore: BurnDatastore,
-    cost_tracker: LimitedCostTracker,
+    wasm_runtime_cost: u64,
 }
 
 impl TestEnvironment {
@@ -37,7 +37,6 @@ impl TestEnvironment {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
-        let cost_tracker = LimitedCostTracker::new_free();
 
         let mut db = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
         db.begin();
@@ -63,7 +62,7 @@ impl TestEnvironment {
             version,
             datastore,
             burn_datastore,
-            cost_tracker,
+            wasm_runtime_cost: 0,
         }
     }
 
@@ -104,16 +103,18 @@ impl TestEnvironment {
         // compile_result.module.emit_wasm_file("test.wasm").unwrap();
         contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
-        let mut cost_tracker = LimitedCostTracker::new_free();
-        std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
-
         let conn = ClarityDatabase::new(
             &mut self.datastore,
             &self.burn_datastore,
             &self.burn_datastore,
         );
-        let mut global_context =
-            GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
+        let mut global_context = GlobalContext::new(
+            false,
+            CHAIN_ID_TESTNET,
+            conn,
+            LimitedCostTracker::new_free(),
+            self.epoch,
+        );
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -139,7 +140,6 @@ impl TestEnvironment {
             .expect("Failed to set contract data size.");
 
         global_context.commit().unwrap();
-        self.cost_tracker = global_context.cost_track;
 
         self.contract_contexts
             .insert(contract_name.to_string(), contract_context);
@@ -171,14 +171,13 @@ impl TestEnvironment {
         );
 
         let mut cost_tracker = LimitedCostTracker::new_free();
-        std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
 
         let mut contract_analysis = self.datastore.as_analysis_db().execute(|analysis_db| {
             // Parse the contract
             let ast = build_ast(
                 &contract_id,
                 snippet,
-                &mut self.cost_tracker,
+                &mut cost_tracker,
                 self.version,
                 self.epoch,
             )
@@ -239,6 +238,10 @@ impl TestEnvironment {
 
     pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
         self.interpret_contract_with_snippet("snippet", snippet)
+    }
+
+    pub fn wasm_accumulated_cost(&self) -> u64 {
+        self.wasm_runtime_cost
     }
 }
 

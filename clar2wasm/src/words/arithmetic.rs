@@ -57,6 +57,10 @@ impl SimpleWord for Add {
         }
         Ok(())
     }
+
+    fn cost(&self, n_args: usize) -> u64 {
+        10 * n_args as u64
+    }
 }
 
 #[derive(Debug)]

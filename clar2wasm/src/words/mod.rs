@@ -143,6 +143,10 @@ pub trait SimpleWord: Sync + core::fmt::Debug {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError>;
+
+    fn cost(&self, _args: usize) -> u64 {
+        0
+    }
 }
 
 pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
