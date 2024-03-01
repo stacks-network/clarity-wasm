@@ -269,8 +269,6 @@ impl ClarityBackingStore for Datastore {
         key: &str,
         value: &str,
     ) -> Result<()> {
-        // let bhh = self.get_open_chain_tip();
-        // self.get_side_store().insert_metadata(&bhh, &contract.to_string(), key, value)
         self.metadata
             .insert((contract.to_string(), key.to_string()), value.to_string());
         Ok(())
@@ -281,8 +279,6 @@ impl ClarityBackingStore for Datastore {
         contract: &QualifiedContractIdentifier,
         key: &str,
     ) -> Result<Option<String>> {
-        // let (bhh, _) = self.get_contract_hash(contract)?;
-        // Ok(self.get_side_store().get_metadata(&bhh, &contract.to_string(), key))
         let key = &(contract.to_string(), key.to_string());
 
         match self.metadata.get(key) {
