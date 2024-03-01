@@ -392,18 +392,26 @@ impl TypePrinter for Value {
             Value::Int(_) => type_string(&TypeSignature::IntType),
             Value::UInt(_) => type_string(&TypeSignature::UIntType),
             Value::Bool(_) => type_string(&TypeSignature::BoolType),
-            Value::Sequence(SequenceData::Buffer(length)) => type_string(
-                &TypeSignature::SequenceType(SequenceSubtype::BufferType(length.len())),
-            ),
-            Value::Sequence(SequenceData::String(CharType::ASCII(data))) => {
-                type_string(&TypeSignature::SequenceType(SequenceSubtype::StringType(
-                    StringSubtype::ASCII(data.len()),
+            Value::Sequence(SequenceData::Buffer(length)) => {
+                type_string(&TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                    length
+                        .len()
+                        .expect("Failed to get buffer length from sequence data"),
                 )))
             }
+            Value::Sequence(SequenceData::String(CharType::ASCII(data))) => type_string(
+                &TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    data.len()
+                        .expect("Failed to get ASCII string length from sequence data"),
+                ))),
+            ),
             Value::Sequence(SequenceData::String(CharType::UTF8(data))) => type_string(
                 &TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
-                    StringUTF8Length::try_from(u32::from(data.len()))
-                        .unwrap_or(StringUTF8Length::try_from(MAX_VALUE_SIZE / 4).unwrap()),
+                    StringUTF8Length::try_from(u32::from(
+                        data.len()
+                            .expect("Failed to get UTF8 string length from sequence data"),
+                    ))
+                    .unwrap_or(StringUTF8Length::try_from(MAX_VALUE_SIZE / 4).unwrap()),
                 ))),
             ),
             Value::Optional(inner) => inner.type_string(),

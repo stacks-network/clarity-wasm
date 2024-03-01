@@ -9,6 +9,7 @@ use clarity::vm::clarity_wasm::{call_function, initialize_contract};
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
+use clarity::vm::errors::CheckErrors;
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{
     eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
@@ -26,8 +27,9 @@ fn wasm_fold_add_square(c: &mut Criterion) {
     let mut clarity_store = MemoryBackingStore::new();
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
+    conn.set_clarity_epoch_version(StacksEpochId::latest())
+        .unwrap();
+    conn.commit().unwrap();
     let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
     let contract_str = std::fs::read_to_string("contracts/fold-bench.clar").unwrap();
@@ -42,6 +44,7 @@ fn wasm_fold_add_square(c: &mut Criterion) {
                 StacksEpochId::latest(),
                 analysis_db,
             )
+            .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
         })
         .expect("Failed to compile contract.");
 
@@ -82,7 +85,10 @@ fn wasm_fold_add_square(c: &mut Criterion) {
             None,
         )
         .expect("Function call failed");
-        assert_eq!(result.expect_result_ok().expect_i128(), 183285493761);
+        assert_eq!(
+            result.expect_result_ok().unwrap().expect_i128().unwrap(),
+            183285493761
+        );
 
         c.bench_function("wasm_fold_add_square", |b| {
             b.iter(|| {
@@ -115,15 +121,16 @@ fn interp_fold_add_square(c: &mut Criterion) {
     let mut clarity_store = MemoryBackingStore::new();
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
+    conn.set_clarity_epoch_version(StacksEpochId::latest())
+        .unwrap();
+    conn.commit().unwrap();
     let mut cost_tracker = LimitedCostTracker::new_free();
     let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
     let contract_str = std::fs::read_to_string("contracts/fold-bench.clar").unwrap();
 
     // Parse the contract
-    let (mut ast, _, success) = build_ast_with_diagnostics(
+    let (ast, _, success) = build_ast_with_diagnostics(
         &contract_id,
         &contract_str,
         &mut cost_tracker,
@@ -141,7 +148,7 @@ fn interp_fold_add_square(c: &mut Criterion) {
     // Run the analysis passes
     let mut contract_analysis = run_analysis(
         &contract_id,
-        &mut ast.expressions,
+        &ast.expressions,
         &mut analysis_db,
         false,
         cost_tracker,
@@ -191,7 +198,10 @@ fn interp_fold_add_square(c: &mut Criterion) {
         let result = func
             .execute_apply(&[list.clone(), Value::Int(1)], &mut env)
             .expect("Function call failed");
-        assert_eq!(result.expect_result_ok().expect_i128(), 183285493761);
+        assert_eq!(
+            result.expect_result_ok().unwrap().expect_i128().unwrap(),
+            183285493761
+        );
 
         c.bench_function("interp_fold_add_square", |b| {
             b.iter(|| {

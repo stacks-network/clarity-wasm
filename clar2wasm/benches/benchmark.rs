@@ -673,8 +673,9 @@ fn clarity_add(c: &mut Criterion) {
     let mut clarity_store = MemoryBackingStore::new();
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
+    conn.set_clarity_epoch_version(StacksEpochId::latest())
+        .unwrap();
+    conn.commit().unwrap();
     let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
     let mut contract_context: ContractContext =
         ContractContext::new(contract_id.clone(), ClarityVersion::latest());
@@ -687,7 +688,7 @@ fn clarity_add(c: &mut Criterion) {
     .to_string();
 
     // Parse the contract
-    let (mut ast, _, success) = build_ast_with_diagnostics(
+    let (ast, _, success) = build_ast_with_diagnostics(
         &contract_id,
         &contract_str,
         &mut cost_tracker,
@@ -705,7 +706,7 @@ fn clarity_add(c: &mut Criterion) {
     // Run the analysis passes
     let mut contract_analysis = run_analysis(
         &contract_id,
-        &mut ast.expressions,
+        &ast.expressions,
         &mut analysis_db,
         false,
         cost_tracker,
@@ -810,8 +811,9 @@ fn clarity_sha512(c: &mut Criterion) {
     let mut clarity_store = MemoryBackingStore::new();
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
+    conn.set_clarity_epoch_version(StacksEpochId::latest())
+        .unwrap();
+    conn.commit().unwrap();
 
     let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
     let mut contract_context: ContractContext =
@@ -825,7 +827,7 @@ fn clarity_sha512(c: &mut Criterion) {
     .to_string();
 
     // Parse the contract
-    let (mut ast, _, success) = build_ast_with_diagnostics(
+    let (ast, _, success) = build_ast_with_diagnostics(
         &contract_id,
         &contract_str,
         &mut cost_tracker,
@@ -843,7 +845,7 @@ fn clarity_sha512(c: &mut Criterion) {
     // Run the analysis passes
     let mut contract_analysis = run_analysis(
         &contract_id,
-        &mut ast.expressions,
+        &ast.expressions,
         &mut analysis_db,
         false,
         cost_tracker,
@@ -961,8 +963,9 @@ fn clarity_sha256(c: &mut Criterion) {
     let mut clarity_store = MemoryBackingStore::new();
     let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
     conn.begin();
-    conn.set_clarity_epoch_version(StacksEpochId::latest());
-    conn.commit();
+    conn.set_clarity_epoch_version(StacksEpochId::latest())
+        .unwrap();
+    conn.commit().unwrap();
 
     let mut cost_tracker: LimitedCostTracker = LimitedCostTracker::new_free();
     let mut contract_context: ContractContext =
@@ -976,7 +979,7 @@ fn clarity_sha256(c: &mut Criterion) {
     .to_string();
 
     // Parse the contract
-    let (mut ast, _, success) = build_ast_with_diagnostics(
+    let (ast, _, success) = build_ast_with_diagnostics(
         &contract_id,
         &contract_str,
         &mut cost_tracker,
@@ -994,7 +997,7 @@ fn clarity_sha256(c: &mut Criterion) {
     // Run the analysis passes
     let mut contract_analysis = run_analysis(
         &contract_id,
-        &mut ast.expressions,
+        &ast.expressions,
         &mut analysis_db,
         false,
         cost_tracker,

@@ -15,7 +15,7 @@ use clarity::vm::contexts::GlobalContext;
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
-use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
@@ -41,17 +41,18 @@ impl TestEnvironment {
 
         let mut db = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
         db.begin();
-        db.set_clarity_epoch_version(epoch);
-        db.commit();
+        db.set_clarity_epoch_version(epoch)
+            .expect("Failed to set epoch version.");
+        db.commit().expect("Failed to commit.");
 
         // Give one account a starting balance, to be used for testing.
         let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
         let amount = 1_000_000_000;
         let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
-        conn.execute(|database| {
-            let mut snapshot = database.get_stx_balance_snapshot(&recipient);
-            snapshot.credit(amount);
-            snapshot.save();
+        execute(&mut conn, |database| {
+            let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
+            snapshot.credit(amount)?;
+            snapshot.save()?;
             database.increment_ustx_liquid_supply(amount)
         })
         .expect("Failed to increment liquid supply.");
@@ -88,6 +89,7 @@ impl TestEnvironment {
                     self.epoch,
                     analysis_db,
                 )
+                .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
             })
             .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
 
@@ -130,7 +132,7 @@ impl TestEnvironment {
             Contract {
                 contract_context: contract_context.clone(),
             },
-        );
+        )?;
         global_context
             .database
             .set_contract_data_size(&contract_id, data_size)
@@ -173,7 +175,7 @@ impl TestEnvironment {
 
         let mut contract_analysis = self.datastore.as_analysis_db().execute(|analysis_db| {
             // Parse the contract
-            let mut ast = build_ast(
+            let ast = build_ast(
                 &contract_id,
                 snippet,
                 &mut self.cost_tracker,
@@ -185,7 +187,7 @@ impl TestEnvironment {
             // Run the analysis passes
             run_analysis(
                 &contract_id,
-                &mut ast.expressions,
+                &ast.expressions,
                 analysis_db,
                 false,
                 cost_tracker,
@@ -206,10 +208,10 @@ impl TestEnvironment {
         // Give one account a starting balance, to be used for testing.
         let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
         let amount = 1_000_000_000;
-        conn.execute(|database| {
-            let mut snapshot = database.get_stx_balance_snapshot(&recipient);
-            snapshot.credit(amount);
-            snapshot.save();
+        execute(&mut conn, |database| {
+            let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
+            snapshot.credit(amount)?;
+            snapshot.save()?;
             database.increment_ustx_liquid_supply(amount)
         })
         .expect("Failed to increment liquid supply.");
@@ -244,6 +246,19 @@ impl Default for TestEnvironment {
     fn default() -> Self {
         Self::new(StacksEpochId::latest(), ClarityVersion::latest())
     }
+}
+
+pub fn execute<F, T, E>(conn: &mut ClarityDatabase, f: F) -> std::result::Result<T, E>
+where
+    F: FnOnce(&mut ClarityDatabase) -> std::result::Result<T, E>,
+{
+    conn.begin();
+    let result = f(conn).map_err(|e| {
+        conn.roll_back().expect("Failed to roll back");
+        e
+    })?;
+    conn.commit().expect("Failed to commit");
+    Ok(result)
 }
 
 /// Evaluate a Clarity snippet at a specific epoch and version.

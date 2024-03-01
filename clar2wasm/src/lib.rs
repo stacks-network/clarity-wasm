@@ -56,7 +56,7 @@ pub fn compile(
     analysis_db: &mut AnalysisDatabase,
 ) -> Result<CompileResult, CompileError> {
     // Parse the contract
-    let (mut ast, mut diagnostics, success) = build_ast_with_diagnostics(
+    let (ast, mut diagnostics, success) = build_ast_with_diagnostics(
         contract_id,
         source,
         &mut cost_tracker,
@@ -75,7 +75,7 @@ pub fn compile(
     // Run the analysis passes
     let mut contract_analysis = match run_analysis(
         contract_id,
-        &mut ast.expressions,
+        &ast.expressions,
         analysis_db,
         false,
         cost_tracker,

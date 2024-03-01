@@ -293,7 +293,7 @@ mod tests {
     fn check_word_classes() {
         for word in super::SIMPLE_WORDS {
             if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
-                if let TypedNativeFunction::Special(_) =
+                if let Ok(TypedNativeFunction::Special(_)) =
                     TypedNativeFunction::type_native_function(&native)
                 {
                     panic!("{:?} should not be simple!", word)
@@ -303,7 +303,7 @@ mod tests {
 
         for word in super::COMPLEX_WORDS {
             if let Some(native) = NativeFunctions::lookup_by_name(word.name().as_str()) {
-                if let TypedNativeFunction::Simple(_) =
+                if let Ok(TypedNativeFunction::Simple(_)) =
                     TypedNativeFunction::type_native_function(&native)
                 {
                     // we make some exeptions

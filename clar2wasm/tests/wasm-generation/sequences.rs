@@ -43,7 +43,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into())))) {
+    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))) {
         let snippet = format!("(concat {seq1} {seq2})");
 
         let expected = {
@@ -66,7 +66,7 @@ proptest! {
 
         let expected = {
             let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
-            seq_data.element_at(idx).map_or_else(Value::none, |v| Value::some(v).unwrap())
+            seq_data.element_at(idx).expect("element_at failed").map_or_else(Value::none, |v| Value::some(v).unwrap())
         };
 
         crosscheck(&snippet, Ok(Some(expected)));
