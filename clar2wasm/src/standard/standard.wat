@@ -3285,14 +3285,9 @@
         (result i32 i32 i32)
         (local $scalar i32) (local $byte i32) (local $writeptr i32)
 
-        ;; If the length is 0, just return 0
-        (if (i32.eqz (local.get $length))
-            (then
-                (return
-                    (i32.const 0) ;; length (0 bytes)
-                    (i32.const 1) ;; success status (1 = success)
-                )
-            )
+        ;; returns (some u"") if empty string
+        (if (i32.eqz (local.get $len))
+            (then (return (i32.const 1) (local.get $output-offset) (i32.const 0)))
         )
 
         ;; this will contain the offset at which we should write the next char
