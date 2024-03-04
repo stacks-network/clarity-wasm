@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -17,7 +18,7 @@ impl ComplexWord for Recover {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         generator.traverse_expr(builder, args.get_expr(1)?)?;
 
@@ -46,7 +47,7 @@ impl ComplexWord for Recover {
 
         generator.read_from_memory(builder, result_local, 0, &ret_ty)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -64,7 +65,7 @@ impl ComplexWord for Verify {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         generator.traverse_expr(builder, args.get_expr(1)?)?;
         generator.traverse_expr(builder, args.get_expr(2)?)?;
@@ -80,7 +81,7 @@ impl ComplexWord for Verify {
                 })?,
         );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

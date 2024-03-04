@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -17,7 +18,7 @@ impl ComplexWord for DefineTrait {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
 
         // Store the identifier as a string literal in the memory
@@ -37,7 +38,7 @@ impl ComplexWord for DefineTrait {
                     GeneratorError::InternalError("stdlib.define_trait not found".to_owned())
                 })?,
         );
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -55,9 +56,9 @@ impl ComplexWord for UseTrait {
         _builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         _args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // This is just for the type-checker, so it's a no-op at runtime.
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -75,7 +76,7 @@ impl ComplexWord for ImplTrait {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let trait_identifier = match &args.get_expr(0)?.expr {
             SymbolicExpressionType::Field(trait_identifier) => trait_identifier,
             _ => {
@@ -103,7 +104,7 @@ impl ComplexWord for ImplTrait {
                     GeneratorError::InternalError("stdlib.impl_trait not found".to_owned())
                 })?,
         );
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

@@ -2,6 +2,7 @@ use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
@@ -51,14 +52,15 @@ impl SimpleWord for Hash160 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         traverse_hash(
             "hash160",
             core::mem::size_of::<u32>() * 5,
             generator,
             builder,
             arg_types,
-        )
+        )?;
+        Ok(Cost::free())
     }
 }
 
@@ -76,14 +78,15 @@ impl SimpleWord for Sha256 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         traverse_hash(
             "sha256",
             core::mem::size_of::<u32>() * 8,
             generator,
             builder,
             arg_types,
-        )
+        )?;
+        Ok(Cost::free())
     }
 }
 
@@ -101,7 +104,7 @@ impl SimpleWord for Keccak256 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let ty = &arg_types[0];
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -138,7 +141,7 @@ impl SimpleWord for Keccak256 {
                 })?,
         );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -156,14 +159,15 @@ impl SimpleWord for Sha512 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         traverse_hash(
             "sha512",
             core::mem::size_of::<u32>() * 8,
             generator,
             builder,
             arg_types,
-        )
+        )?;
+        Ok(Cost::free())
     }
 }
 
@@ -181,7 +185,7 @@ impl SimpleWord for Sha512_256 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let ty = &arg_types[0];
         match ty {
             TypeSignature::IntType | TypeSignature::UIntType => {
@@ -218,7 +222,7 @@ impl SimpleWord for Sha512_256 {
                 })?,
         );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

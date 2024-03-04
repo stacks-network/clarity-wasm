@@ -19,6 +19,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
+use crate::costs::Cost;
 use crate::words;
 
 // First free position after data directly defined in standard.wat
@@ -313,14 +314,18 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         match &expr.expr {
-            SymbolicExpressionType::Atom(name) => self.visit_atom(builder, expr, name),
+            SymbolicExpressionType::Atom(name) => {
+                self.visit_atom(builder, expr, name)?;
+                Ok(Cost::free())
+            }
             SymbolicExpressionType::List(exprs) => self.traverse_list(builder, expr, exprs),
             SymbolicExpressionType::LiteralValue(value) => {
-                self.visit_literal_value(builder, expr, value)
+                self.visit_literal_value(builder, expr, value)?;
+                Ok(Cost::free())
             }
-            _ => Ok(()),
+            _ => Ok(Cost::free()),
         }
     }
 
@@ -329,7 +334,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         match list.split_first() {
             Some((
                 SymbolicExpression {
@@ -385,10 +390,8 @@ impl WasmGenerator {
                         })?
                         .1;
 
-                    let cost = variadic.cost(args.len());
+                    let cost = self.traverse_expr(builder, first_arg)?;
                     self.emit_cost(cost, builder);
-
-                    self.traverse_expr(builder, first_arg)?;
 
                     if arg_types.len() == 1 {
                         variadic.visit(self, builder, &arg_types[..1], &return_type)?;
@@ -406,7 +409,8 @@ impl WasmGenerator {
             }
             _ => return Err(GeneratorError::InternalError("Invalid list".into())),
         }
-        Ok(())
+        // TODO -tally up the costs here
+        Ok(Cost::free())
     }
 
     pub fn traverse_define_function(
@@ -1607,11 +1611,13 @@ impl WasmGenerator {
         }
     }
 
-    pub fn emit_cost(&self, cost: u64, builder: &mut InstrSeqBuilder) {
-        builder.global_get(self.runtime_cost);
-        builder.i64_const(cost as i64);
-        builder.binop(BinaryOp::I64Add);
-        builder.global_set(self.runtime_cost);
+    pub fn emit_cost(&self, cost: Cost, builder: &mut InstrSeqBuilder) {
+        if cost.runtime > 0 {
+            builder.global_get(self.runtime_cost);
+            builder.i64_const(cost.runtime as i64);
+            builder.binop(BinaryOp::I64Add);
+            builder.global_set(self.runtime_cost);
+        }
     }
 }
 

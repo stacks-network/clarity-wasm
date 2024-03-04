@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -18,8 +19,8 @@ impl SimpleWord for Not {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         builder.call(generator.func_by_name("stdlib.not"));
-        Ok(())
+        Ok(Cost::free())
     }
 }

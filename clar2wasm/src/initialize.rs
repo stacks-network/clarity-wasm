@@ -6,7 +6,7 @@ use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::events::*;
 use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier};
 use clarity::vm::{CallStack, ContractContext, Value};
-use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime::{AsContextMut, Engine, Linker, Module, Store};
 
 use crate::linker::link_host_functions;
 use crate::wasm_utils::{placeholder_for_type, wasm_to_clarity_value};
@@ -296,7 +296,7 @@ pub fn initialize_contract(
     contract_context: &mut ContractContext,
     sponsor: Option<PrincipalData>,
     contract_analysis: &ContractAnalysis,
-) -> Result<Option<Value>, Error> {
+) -> Result<(Option<Value>, u64), Error> {
     let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
 
     let mut call_stack = CallStack::new();
@@ -317,6 +317,7 @@ pub fn initialize_contract(
             Module::from_binary(&engine, wasm_module)
                 .map_err(|e| Error::Wasm(WasmError::UnableToLoadModule(e)))
         })?;
+
     let mut store = Store::new(&engine, init_context);
     let mut linker = Linker::new(&engine);
 
@@ -361,13 +362,23 @@ pub fn initialize_contract(
             .and_then(|type_map| type_map.get_type(expr))
     });
 
+    let Some(wasmtime::Val::I64(runtime_cost)) = instance
+        .get_global(store.as_context_mut(), "runtime-cost")
+        .map(|cost| cost.get(&mut store))
+    else {
+        // TODO: use custom error
+        return Err(Error::Wasm(WasmError::WasmGeneratorError(
+            "No runtime cost global found".to_string(),
+        )));
+    };
+
     if let Some(return_type) = return_type {
         let memory = instance
             .get_memory(&mut store, "memory")
             .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
         wasm_to_clarity_value(return_type, 0, &results, memory, &mut &mut store, epoch)
-            .map(|(val, _offset)| val)
+            .map(|(val, _offset)| (val, runtime_cost as u64))
     } else {
-        Ok(None)
+        Ok((None, runtime_cost as u64))
     }
 }

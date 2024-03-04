@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn simple_typed_one_call(
@@ -41,7 +42,7 @@ impl SimpleWord for Add {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         if arg_types.len() > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
@@ -55,11 +56,7 @@ impl SimpleWord for Add {
             let func = generator.func_by_name(&format!("stdlib.add-{type_suffix}"));
             builder.call(func);
         }
-        Ok(())
-    }
-
-    fn cost(&self, n_args: usize) -> u64 {
-        10 * n_args as u64
+        Ok(Cost::runtime_linear(arg_types.len(), 11, 125))
     }
 }
 
@@ -77,7 +74,7 @@ impl SimpleWord for Sub {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let type_suffix = match return_type {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -97,7 +94,8 @@ impl SimpleWord for Sub {
             let func = generator.func_by_name(&format!("stdlib.sub-{type_suffix}"));
             builder.call(func);
         }
-        Ok(())
+
+        Ok(Cost::runtime_linear(arg_types.len(), 11, 125))
     }
 }
 
@@ -115,7 +113,7 @@ impl SimpleWord for Mul {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         if arg_types.len() > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
@@ -129,7 +127,7 @@ impl SimpleWord for Mul {
             let func = generator.func_by_name(&format!("stdlib.mul-{type_suffix}"));
             builder.call(func);
         }
-        Ok(())
+        Ok(Cost::runtime_linear(arg_types.len(), 13, 125))
     }
 }
 
@@ -147,7 +145,7 @@ impl SimpleWord for Div {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         if arg_types.len() > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
@@ -161,7 +159,7 @@ impl SimpleWord for Div {
             let func = generator.func_by_name(&format!("stdlib.div-{type_suffix}"));
             builder.call(func);
         }
-        Ok(())
+        Ok(Cost::runtime_linear(arg_types.len(), 13, 125))
     }
 }
 
@@ -179,8 +177,9 @@ impl SimpleWord for Modulo {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "mod")
+    ) -> Result<Cost, GeneratorError> {
+        simple_typed_one_call(generator, builder, arg_types, return_type, "mod")?;
+        Ok(Cost::runtime_const(141))
     }
 }
 
@@ -198,8 +197,9 @@ impl SimpleWord for Log2 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "log2")
+    ) -> Result<Cost, GeneratorError> {
+        simple_typed_one_call(generator, builder, arg_types, return_type, "log2")?;
+        Ok(Cost::runtime_const(133))
     }
 }
 
@@ -217,8 +217,9 @@ impl SimpleWord for Power {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "pow")
+    ) -> Result<Cost, GeneratorError> {
+        simple_typed_one_call(generator, builder, arg_types, return_type, "pow")?;
+        Ok(Cost::runtime_const(143))
     }
 }
 
@@ -236,8 +237,9 @@ impl SimpleWord for Sqrti {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")
+    ) -> Result<Cost, GeneratorError> {
+        simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")?;
+        Ok(Cost::runtime_const(142))
     }
 }
 

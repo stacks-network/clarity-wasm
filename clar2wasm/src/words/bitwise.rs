@@ -3,6 +3,7 @@ use clarity::vm::ClarityName;
 use walrus::InstrSeqBuilder;
 
 use super::SimpleWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -19,10 +20,10 @@ impl SimpleWord for BitwiseNot {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let helper_func = generator.func_by_name("stdlib.bit-not");
         builder.call(helper_func);
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -56,8 +57,9 @@ impl SimpleWord for BitwiseOr {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-or", generator, builder, arg_types)
+    ) -> Result<Cost, GeneratorError> {
+        traverse_bitwise("bit-or", generator, builder, arg_types)?;
+        Ok(Cost::free())
     }
 }
 
@@ -75,8 +77,9 @@ impl SimpleWord for BitwiseAnd {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-and", generator, builder, arg_types)
+    ) -> Result<Cost, GeneratorError> {
+        traverse_bitwise("bit-and", generator, builder, arg_types)?;
+        Ok(Cost::free())
     }
 }
 
@@ -94,8 +97,9 @@ impl SimpleWord for BitwiseXor {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-xor", generator, builder, arg_types)
+    ) -> Result<Cost, GeneratorError> {
+        traverse_bitwise("bit-xor", generator, builder, arg_types)?;
+        Ok(Cost::free())
     }
 }
 
@@ -113,10 +117,10 @@ impl SimpleWord for BitwiseLShift {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let func = generator.func_by_name("stdlib.bit-shift-left");
         builder.call(func);
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -134,7 +138,7 @@ impl SimpleWord for BitwiseRShift {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let type_suffix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -149,7 +153,7 @@ impl SimpleWord for BitwiseRShift {
 
         builder.call(helper);
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -167,9 +171,10 @@ impl SimpleWord for Xor {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // xor is a proxy call to bit-xor since they share the same implementation.
-        traverse_bitwise("bit-xor", generator, builder, arg_types)
+        traverse_bitwise("bit-xor", generator, builder, arg_types)?;
+        Ok(Cost::free())
     }
 }
 

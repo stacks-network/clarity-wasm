@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 
 #[derive(Debug)]
@@ -17,7 +18,7 @@ impl ComplexWord for MapDefinition {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let _key_type = args.get_expr(1)?;
         let _value_type = args.get_expr(2)?;
@@ -39,7 +40,7 @@ impl ComplexWord for MapDefinition {
                     GeneratorError::InternalError("stdlib.define_map not found".to_owned())
                 })?,
         );
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -57,7 +58,7 @@ impl ComplexWord for MapGet {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -111,7 +112,7 @@ impl ComplexWord for MapGet {
         // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &ty)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -129,7 +130,7 @@ impl ComplexWord for MapSet {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -185,7 +186,7 @@ impl ComplexWord for MapSet {
         // Call the host interface function, `map_set`
         builder.call(generator.func_by_name("stdlib.map_set"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -203,7 +204,7 @@ impl ComplexWord for MapInsert {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -259,7 +260,7 @@ impl ComplexWord for MapInsert {
         // Call the host interface function, `map_insert`
         builder.call(generator.func_by_name("stdlib.map_insert"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -277,7 +278,7 @@ impl ComplexWord for MapDelete {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -323,6 +324,6 @@ impl ComplexWord for MapDelete {
                 })?,
         );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }

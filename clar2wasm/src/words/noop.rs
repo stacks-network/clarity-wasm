@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
+use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 // Functions below are considered no-op's because they are instructions that does nothing
@@ -22,11 +23,11 @@ impl SimpleWord for ToInt {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let helper_func = generator.func_by_name("stdlib.to-int");
         builder.call(helper_func);
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -44,11 +45,11 @@ impl SimpleWord for ToUint {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let helper_func = generator.func_by_name("stdlib.to-uint");
         builder.call(helper_func);
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -66,10 +67,10 @@ impl ComplexWord for ContractOf {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         generator.traverse_args(builder, args)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

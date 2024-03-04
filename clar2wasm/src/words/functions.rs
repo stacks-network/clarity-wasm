@@ -2,6 +2,7 @@ use clarity::vm::representations::Span;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
 
 #[derive(Clone)]
@@ -25,7 +26,7 @@ impl ComplexWord for DefinePrivateFunction {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -33,7 +34,7 @@ impl ComplexWord for DefinePrivateFunction {
         let body = args.get_expr(1)?;
 
         generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -51,7 +52,7 @@ impl ComplexWord for DefineReadonlyFunction {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -61,7 +62,7 @@ impl ComplexWord for DefineReadonlyFunction {
         let function_id =
             generator.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
         generator.module.exports.add(name.as_str(), function_id);
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -79,7 +80,7 @@ impl ComplexWord for DefinePublicFunction {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -89,7 +90,7 @@ impl ComplexWord for DefinePublicFunction {
         let function_id =
             generator.traverse_define_function(builder, name, body, FunctionKind::Public)?;
         generator.module.exports.add(name.as_str(), function_id);
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

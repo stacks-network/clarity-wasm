@@ -5,6 +5,7 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
@@ -23,7 +24,7 @@ impl ComplexWord for IsEq {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
@@ -38,7 +39,7 @@ impl ComplexWord for IsEq {
         if args.len() == 1 {
             drop_value(builder, &ty);
             builder.i32_const(1); // TRUE
-            return Ok(());
+            return Ok(Cost::free());
         }
 
         // Save the first_op to a local to be further used.
@@ -88,7 +89,7 @@ impl ComplexWord for IsEq {
             builder.binop(BinaryOp::I32And);
         }
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -112,7 +113,7 @@ impl ComplexWord for IndexOf {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -296,7 +297,7 @@ impl ComplexWord for IndexOf {
             alternative: else_id,
         });
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

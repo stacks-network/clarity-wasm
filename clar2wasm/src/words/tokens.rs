@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ impl ComplexWord for DefineFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let supply = args.get(1);
 
@@ -40,7 +41,7 @@ impl ComplexWord for DefineFungibleToken {
         }
 
         builder.call(generator.func_by_name("stdlib.define_ft"));
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -58,7 +59,7 @@ impl ComplexWord for BurnFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -76,7 +77,7 @@ impl ComplexWord for BurnFungibleToken {
         // Call the host interface function `ft_burn`
         builder.call(generator.func_by_name("stdlib.ft_burn"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -94,7 +95,7 @@ impl ComplexWord for TransferFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -114,7 +115,7 @@ impl ComplexWord for TransferFungibleToken {
         // Call the host interface function `ft_transfer`
         builder.call(generator.func_by_name("stdlib.ft_transfer"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -132,7 +133,7 @@ impl ComplexWord for MintFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -149,7 +150,7 @@ impl ComplexWord for MintFungibleToken {
         // Call the host interface function `ft_mint`
         builder.call(generator.func_by_name("stdlib.ft_mint"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -167,7 +168,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
 
         let (id_offset, id_length) = generator.add_string_literal(token)?;
@@ -177,7 +178,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
 
         builder.call(generator.func_by_name("stdlib.ft_get_supply"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -195,7 +196,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
 
@@ -211,7 +212,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         // Call the host interface function `ft_get_balance`
         builder.call(generator.func_by_name("stdlib.ft_get_balance"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -231,7 +232,7 @@ impl ComplexWord for DefineNonFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let _nft_type = args.get_expr(1)?;
 
@@ -252,7 +253,7 @@ impl ComplexWord for DefineNonFungibleToken {
                     GeneratorError::InternalError("stdlib.define_nft not found".to_owned())
                 })?,
         );
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -270,7 +271,7 @@ impl ComplexWord for BurnNonFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -305,7 +306,7 @@ impl ComplexWord for BurnNonFungibleToken {
         // Call the host interface function `nft_burn`
         builder.call(generator.func_by_name("stdlib.nft_burn"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -323,7 +324,7 @@ impl ComplexWord for TransferNonFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -362,7 +363,7 @@ impl ComplexWord for TransferNonFungibleToken {
         // Call the host interface function `nft_transfer`
         builder.call(generator.func_by_name("stdlib.nft_transfer"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -380,7 +381,7 @@ impl ComplexWord for MintNonFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -415,7 +416,7 @@ impl ComplexWord for MintNonFungibleToken {
         // Call the host interface function `nft_mint`
         builder.call(generator.func_by_name("stdlib.nft_mint"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -433,7 +434,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
 
@@ -473,7 +474,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         // Call the host interface function `nft_get_owner`
         builder.call(generator.func_by_name("stdlib.nft_get_owner"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

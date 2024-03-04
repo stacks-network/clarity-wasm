@@ -2,6 +2,7 @@ use clarity::vm::types::{TypeSignature, MAX_VALUE_SIZE};
 use walrus::ir::{BinaryOp, InstrSeqType};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -21,7 +22,7 @@ impl ComplexWord for ToConsensusBuff {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), crate::wasm_generator::GeneratorError> {
+    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
         generator.traverse_args(builder, args)?;
 
         let ty = generator
@@ -74,7 +75,7 @@ impl ComplexWord for ToConsensusBuff {
                 },
             );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -92,7 +93,7 @@ impl ComplexWord for FromConsensusBuff {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator
@@ -147,7 +148,7 @@ impl ComplexWord for FromConsensusBuff {
                 },
             );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::InstrSeqType;
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -21,7 +22,7 @@ impl ComplexWord for DefaultTo {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))
         // i64              i64               i32        i64           i64
@@ -86,6 +87,6 @@ impl ComplexWord for DefaultTo {
             |_| {},
         );
 
-        Ok(())
+        Ok(Cost::free())
     }
 }

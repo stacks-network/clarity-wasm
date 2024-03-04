@@ -10,6 +10,7 @@ use clarity::vm::ClarityVersion;
 pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
+mod costs;
 mod deserialize;
 mod initialize;
 mod linker;

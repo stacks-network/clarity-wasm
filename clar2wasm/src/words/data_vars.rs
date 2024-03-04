@@ -2,6 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ impl ComplexWord for DefineDataVar {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let _data_type = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -81,7 +82,7 @@ impl ComplexWord for DefineDataVar {
             )));
         }
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -99,7 +100,7 @@ impl ComplexWord for SetDataVar {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -152,7 +153,7 @@ impl ComplexWord for SetDataVar {
         // `var-set` always returns `true`
         builder.i32_const(1);
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -170,7 +171,7 @@ impl ComplexWord for GetDataVar {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory
@@ -212,7 +213,7 @@ impl ComplexWord for GetDataVar {
         // back out, and place the value on the data stack.
         generator.read_from_memory(builder, offset, 0, &ty)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

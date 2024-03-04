@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -17,7 +18,7 @@ impl ComplexWord for GetBlockInfo {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -51,7 +52,7 @@ impl ComplexWord for GetBlockInfo {
         // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -69,7 +70,7 @@ impl ComplexWord for GetBurnBlockInfo {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -105,7 +106,7 @@ impl ComplexWord for GetBurnBlockInfo {
         // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 
@@ -123,7 +124,7 @@ impl ComplexWord for AtBlock {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
 
@@ -139,7 +140,7 @@ impl ComplexWord for AtBlock {
         // Call the host interface function, `exit_at_block`
         builder.call(generator.func_by_name("stdlib.exit_at_block"));
 
-        Ok(())
+        Ok(Cost::free())
     }
 }
 

@@ -20,6 +20,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
+
 use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
@@ -120,7 +121,7 @@ impl TestEnvironment {
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
             .expect("Failed to insert contract hash.");
 
-        let return_val = initialize_contract(
+        let (return_val, runtime_cost) = initialize_contract(
             &mut global_context,
             &mut contract_context,
             None,
@@ -143,6 +144,8 @@ impl TestEnvironment {
 
         self.contract_contexts
             .insert(contract_name.to_string(), contract_context);
+
+        self.wasm_runtime_cost += runtime_cost;
 
         Ok(return_val)
     }

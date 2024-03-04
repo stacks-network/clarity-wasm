@@ -39,6 +39,8 @@ pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
+use crate::costs::Cost;
+
 pub trait ComplexWord: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
 
@@ -48,7 +50,7 @@ pub trait ComplexWord: Sync + core::fmt::Debug {
         builder: &mut InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError>;
+    ) -> Result<Cost, GeneratorError>;
 }
 
 pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
@@ -142,11 +144,7 @@ pub trait SimpleWord: Sync + core::fmt::Debug {
         builder: &mut InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<(), GeneratorError>;
-
-    fn cost(&self, _args: usize) -> u64 {
-        0
-    }
+    ) -> Result<Cost, GeneratorError>;
 }
 
 pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[

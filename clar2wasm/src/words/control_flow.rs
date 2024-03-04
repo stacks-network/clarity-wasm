@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
+use crate::costs::Cost;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 /// `Trap` should match the values used in the standard library and is used to
@@ -32,7 +33,7 @@ impl ComplexWord for Begin {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError("begin must have at least one arg".to_string())
@@ -42,7 +43,8 @@ impl ComplexWord for Begin {
                 .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
                 .clone(),
         )?;
-        generator.traverse_statement_list(builder, args)
+        generator.traverse_statement_list(builder, args)?;
+        Ok(Cost::free())
     }
 }
 
@@ -60,7 +62,7 @@ impl ComplexWord for UnwrapPanic {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // There must be either an `optional` or a `response` on the top of the
@@ -121,7 +123,7 @@ impl ComplexWord for UnwrapPanic {
                     builder.local_get(val_local);
                 }
 
-                Ok(())
+                Ok(Cost::free())
             }
             TypeSignature::ResponseType(inner_types) => {
                 // Ex. `(unwrap-panic (ok 1))`, where the value type is
@@ -175,7 +177,7 @@ impl ComplexWord for UnwrapPanic {
                     builder.local_get(val_local);
                 }
 
-                Ok(())
+                Ok(Cost::free())
             }
             _ => Err(GeneratorError::NotImplemented),
         }
@@ -196,7 +198,7 @@ impl ComplexWord for UnwrapErrPanic {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<(), GeneratorError> {
+    ) -> Result<Cost, GeneratorError> {
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // The input must be a `response` type. It uses an i32 indicator, where
@@ -266,7 +268,7 @@ impl ComplexWord for UnwrapErrPanic {
                     builder.local_get(val_local);
                 }
 
-                Ok(())
+                Ok(Cost::free())
             }
             _ => Err(GeneratorError::NotImplemented),
         }
