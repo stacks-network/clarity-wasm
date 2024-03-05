@@ -50,10 +50,13 @@ proptest! {
         idx in (0usize..10)
     ) {
         let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
-        let item = seq_data.clone().element_at(idx).unwrap();
-        let first = match seq_data.contains(item.clone()).unwrap() {
-            Some(v) => Value::UInt(v.try_into().unwrap()),
-            None => Value::none(),
+        let (item, first) = match seq_data.clone().element_at(idx).unwrap() {
+            Some(item) =>
+                match seq_data.contains(item.clone()).unwrap() {
+                    Some(v) => (item, Value::UInt(v.try_into().unwrap())),
+                    None => (item, Value::none())
+                }
+            None => (Value::none(), Value::none()),
         };
 
         let snippet = format!("(index-of? {} {})", seq, PropValue(item));
