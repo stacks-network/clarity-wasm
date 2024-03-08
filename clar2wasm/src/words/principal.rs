@@ -10,7 +10,6 @@ use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord};
-use crate::costs::Cost;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -29,7 +28,7 @@ impl SimpleWord for IsStandard {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Drop the length
         builder.drop();
 
@@ -80,7 +79,7 @@ impl SimpleWord for IsStandard {
             },
         );
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -98,7 +97,7 @@ impl ComplexWord for Construct {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         // [ version_offset, version_length ]
@@ -125,7 +124,7 @@ impl ComplexWord for Construct {
         // Call the principal-construct function in the stdlib
         builder.call(generator.func_by_name("stdlib.principal-construct"));
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -187,7 +186,7 @@ impl SimpleWord for Destruct {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Subtract STANDARD_PRINCIPAL_BYTES from the length to get the length
         // of the name.
         builder
@@ -254,7 +253,7 @@ impl SimpleWord for Destruct {
             },
         );
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -272,7 +271,7 @@ impl ComplexWord for PrincipalOf {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 
@@ -289,7 +288,7 @@ impl ComplexWord for PrincipalOf {
         // Call the host interface function, `principal-of?`
         builder.call(generator.func_by_name("stdlib.principal_of"));
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

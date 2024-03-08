@@ -4,7 +4,6 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
-use crate::costs::Cost;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
@@ -25,7 +24,7 @@ impl ComplexWord for ListCons {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
@@ -63,7 +62,7 @@ impl ComplexWord for ListCons {
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(total_size as i32);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -81,7 +80,7 @@ impl ComplexWord for Fold {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -247,7 +246,7 @@ impl ComplexWord for Fold {
                 alternative: else_id,
             });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -265,7 +264,7 @@ impl ComplexWord for Append {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
@@ -327,7 +326,7 @@ impl ComplexWord for Append {
         // Store the element at the write pointer.
         generator.write_to_memory(builder, write_ptr, 0, &elem_ty)?;
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -345,7 +344,7 @@ impl ComplexWord for AsMaxLen {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
         builder.i32_const(0).i32_const(1);
@@ -427,7 +426,7 @@ impl ComplexWord for AsMaxLen {
         // doesn't hurt to have them there.
         builder.local_get(offset_local).local_get(length_local);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -445,7 +444,7 @@ impl ComplexWord for Concat {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
@@ -498,7 +497,7 @@ impl ComplexWord for Concat {
             .local_get(rhs_length)
             .binop(BinaryOp::I32Add);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -516,7 +515,7 @@ impl ComplexWord for Map {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
         let ty = generator
@@ -751,7 +750,7 @@ impl ComplexWord for Map {
             .i32_const(return_element_size)
             .binop(ir::BinaryOp::I32Mul);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -769,7 +768,7 @@ impl ComplexWord for Len {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -825,7 +824,7 @@ impl ComplexWord for Len {
         // Then push a 0 for the upper 64 bits.
         builder.i64_const(0);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -849,7 +848,7 @@ impl ComplexWord for ElementAt {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -1010,7 +1009,7 @@ impl ComplexWord for ElementAt {
             alternative: else_id,
         });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -1028,7 +1027,7 @@ impl ComplexWord for ReplaceAt {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
@@ -1241,7 +1240,7 @@ impl ComplexWord for ReplaceAt {
             alternative: else_id,
         });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -1259,7 +1258,7 @@ impl ComplexWord for Slice {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let seq = args.get_expr(0)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
@@ -1486,7 +1485,7 @@ impl ComplexWord for Slice {
             .binop(BinaryOp::I64Sub)
             .unop(UnaryOp::I32WrapI64);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

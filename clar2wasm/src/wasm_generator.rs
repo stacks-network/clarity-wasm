@@ -39,6 +39,14 @@ pub struct WasmGenerator {
     pub(crate) stack_pointer: GlobalId,
     /// Global ID of the runtime cost global.
     pub(crate) runtime_cost: GlobalId,
+    /// Global ID of the read_length cost global.
+    pub(crate) read_length: GlobalId,
+    /// Global ID of the read_count cost global.
+    pub(crate) read_count: GlobalId,
+    /// Global ID of the read_length cost global.
+    pub(crate) write_length: GlobalId,
+    /// Global ID of the read_count cost global.
+    pub(crate) write_count: GlobalId,
     /// Map strings saved in the literal memory to their offset.
     pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
@@ -233,7 +241,11 @@ impl WasmGenerator {
         };
 
         let stack_pointer_global_id = get_global_id_by_name("stack-pointer")?;
-        let runtime_cost_global_id = get_global_id_by_name("runtime-cost")?;
+        let runtime_cost_global_id = get_global_id_by_name("cost-rt")?;
+        let read_length_global_id = get_global_id_by_name("cost-rl")?;
+        let read_count_global_id = get_global_id_by_name("cost-rc")?;
+        let write_length_global_id = get_global_id_by_name("cost-wl")?;
+        let write_count_global_id = get_global_id_by_name("cost-wc")?;
 
         Ok(WasmGenerator {
             contract_analysis,
@@ -241,6 +253,10 @@ impl WasmGenerator {
             literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: stack_pointer_global_id,
             runtime_cost: runtime_cost_global_id,
+            read_length: read_length_global_id,
+            read_count: read_count_global_id,
+            write_length: write_length_global_id,
+            write_count: write_count_global_id,
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
@@ -314,18 +330,18 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         match &expr.expr {
             SymbolicExpressionType::Atom(name) => {
                 self.visit_atom(builder, expr, name)?;
-                Ok(Cost::free())
+                Ok(())
             }
             SymbolicExpressionType::List(exprs) => self.traverse_list(builder, expr, exprs),
             SymbolicExpressionType::LiteralValue(value) => {
                 self.visit_literal_value(builder, expr, value)?;
-                Ok(Cost::free())
+                Ok(())
             }
-            _ => Ok(Cost::free()),
+            _ => Ok(()),
         }
     }
 
@@ -334,7 +350,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
         list: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         match list.split_first() {
             Some((
                 SymbolicExpression {
@@ -390,8 +406,7 @@ impl WasmGenerator {
                         })?
                         .1;
 
-                    let cost = self.traverse_expr(builder, first_arg)?;
-                    self.emit_cost(cost, builder);
+                    self.traverse_expr(builder, first_arg)?;
 
                     if arg_types.len() == 1 {
                         variadic.visit(self, builder, &arg_types[..1], &return_type)?;
@@ -410,7 +425,7 @@ impl WasmGenerator {
             _ => return Err(GeneratorError::InternalError("Invalid list".into())),
         }
         // TODO -tally up the costs here
-        Ok(Cost::free())
+        Ok(())
     }
 
     pub fn traverse_define_function(
@@ -1618,6 +1633,30 @@ impl WasmGenerator {
             builder.binop(BinaryOp::I64Add);
             builder.global_set(self.runtime_cost);
         }
+        if cost.read_length > 0 {
+            builder.global_get(self.read_length);
+            builder.i64_const(cost.read_length as i64);
+            builder.binop(BinaryOp::I64Add);
+            builder.global_set(self.read_length);
+        }
+        if cost.read_count > 0 {
+            builder.global_get(self.read_count);
+            builder.i64_const(cost.read_count as i64);
+            builder.binop(BinaryOp::I64Add);
+            builder.global_set(self.read_count);
+        }
+        if cost.write_length > 0 {
+            builder.global_get(self.write_length);
+            builder.i64_const(cost.write_length as i64);
+            builder.binop(BinaryOp::I64Add);
+            builder.global_set(self.write_length);
+        }
+        if cost.write_count > 0 {
+            builder.global_get(self.write_count);
+            builder.i64_const(cost.write_count as i64);
+            builder.binop(BinaryOp::I64Add);
+            builder.global_set(self.write_count);
+        }
     }
 }
 
@@ -1629,6 +1668,7 @@ mod misc_tests {
 
     // Tests that don't relate to specific words
     use crate::{
+        costs::Cost,
         tools::{crosscheck, evaluate, TestEnvironment},
         wasm_generator::END_OF_STANDARD_DATA,
     };
@@ -1748,6 +1788,9 @@ mod misc_tests {
         let mut env = TestEnvironment::default();
         env.evaluate("(+ 2 2)").unwrap();
 
-        assert_eq!(env.wasm_accumulated_cost(), 20);
+        assert_eq!(
+            env.wasm_accumulated_cost(),
+            Cost::free().add_runtime_const(23)
+        );
     }
 }

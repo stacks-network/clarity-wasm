@@ -3,7 +3,6 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value
 use walrus::ValType;
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -20,7 +19,7 @@ impl ComplexWord for AsContract {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
@@ -32,7 +31,7 @@ impl ComplexWord for AsContract {
         // Call the host interface function, `exit_as_contract`
         builder.call(generator.func_by_name("stdlib.exit_as_contract"));
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -50,7 +49,7 @@ impl ComplexWord for ContractCall {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;
         if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
@@ -124,7 +123,7 @@ impl ComplexWord for ContractCall {
         // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

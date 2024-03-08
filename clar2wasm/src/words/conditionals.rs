@@ -4,7 +4,6 @@ use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
 use super::{ComplexWord, SimpleWord};
-use crate::costs::Cost;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     SequenceElementType, WasmGenerator,
@@ -25,7 +24,7 @@ impl ComplexWord for If {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
@@ -48,7 +47,7 @@ impl ComplexWord for If {
             alternative: id_false,
         });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -66,7 +65,7 @@ impl ComplexWord for Match {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // WORKAROUND: we'll have to set the types of arguments to the type of expression,
         //             since the typechecker didn't do it for us
         let expr_ty = generator
@@ -119,7 +118,7 @@ impl ComplexWord for Match {
                     alternative: none_block,
                 });
 
-                Ok(Cost::free())
+                Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
                 let (ok_ty, err_ty) = &*inner_types;
@@ -163,7 +162,7 @@ impl ComplexWord for Match {
                     alternative: err_block,
                 });
 
-                Ok(Cost::free())
+                Ok(())
             }
             _ => Err(GeneratorError::TypeError("Invalid type for match".into())),
         }
@@ -184,7 +183,7 @@ impl ComplexWord for Filter {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
@@ -225,7 +224,7 @@ impl ComplexWord for Filter {
 
         let memory = generator.get_memory()?;
 
-        let mut loop_result = Ok(Cost::free());
+        let mut loop_result = Ok(());
 
         let mut loop_ = builder.dangling_instr_seq(None);
         let loop_id = loop_.id();
@@ -330,7 +329,7 @@ impl ComplexWord for Filter {
         builder.local_get(output_offset);
         builder.local_get(output_len);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -401,9 +400,9 @@ impl ComplexWord for And {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_short_circuiting_list(generator, builder, args, false)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -421,11 +420,11 @@ impl SimpleWord for SimpleAnd {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         for _ in 0..arg_types.len().saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32And);
         }
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -443,9 +442,9 @@ impl ComplexWord for Or {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_short_circuiting_list(generator, builder, args, true)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -463,11 +462,11 @@ impl SimpleWord for SimpleOr {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         for _ in 0..arg_types.len().saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32Or);
         }
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -485,7 +484,7 @@ impl ComplexWord for Unwrap {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -548,7 +547,7 @@ impl ComplexWord for Unwrap {
             consequent: unwrap_branch_id,
             alternative: throw_branch_id,
         });
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -566,7 +565,7 @@ impl ComplexWord for UnwrapErr {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -637,7 +636,7 @@ impl ComplexWord for UnwrapErr {
                 alternative: throw_branch_id,
             });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -655,7 +654,7 @@ impl ComplexWord for Asserts {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -707,7 +706,7 @@ impl ComplexWord for Asserts {
             alternative: throw_branch_id,
         });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -725,7 +724,7 @@ impl ComplexWord for Try {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
 
@@ -838,7 +837,7 @@ impl ComplexWord for Try {
             alternative: throw_branch_id,
         });
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

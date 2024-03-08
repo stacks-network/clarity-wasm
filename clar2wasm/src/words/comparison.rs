@@ -2,7 +2,6 @@ use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
@@ -60,9 +59,9 @@ impl SimpleWord for CmpLess {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("lt", generator, builder, arg_types, return_type)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -80,9 +79,9 @@ impl SimpleWord for CmpLeq {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("le", generator, builder, arg_types, return_type)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -100,9 +99,9 @@ impl SimpleWord for CmpGreater {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("gt", generator, builder, arg_types, return_type)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -120,8 +119,8 @@ impl SimpleWord for CmpGeq {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_comparison("ge", generator, builder, arg_types, return_type)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }

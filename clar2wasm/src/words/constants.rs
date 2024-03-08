@@ -3,7 +3,6 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ValType;
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -20,7 +19,7 @@ impl ComplexWord for DefineConstant {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -58,7 +57,7 @@ impl ComplexWord for DefineConstant {
 
         generator.constants.insert(name.to_string(), offset);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

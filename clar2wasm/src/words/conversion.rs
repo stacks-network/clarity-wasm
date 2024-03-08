@@ -1,7 +1,6 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
 use super::SimpleWord;
-use crate::costs::Cost;
 use crate::wasm_generator::GeneratorError;
 
 #[derive(Debug)]
@@ -18,7 +17,7 @@ impl SimpleWord for StringToInt {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let func_prefix = match &arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
@@ -36,7 +35,7 @@ impl SimpleWord for StringToInt {
         let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-int"));
         builder.call(func);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -54,7 +53,7 @@ impl SimpleWord for StringToUint {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let func_prefix = match arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
@@ -73,7 +72,7 @@ impl SimpleWord for StringToUint {
 
         builder.call(func);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -91,7 +90,7 @@ impl SimpleWord for IntToAscii {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -106,7 +105,7 @@ impl SimpleWord for IntToAscii {
 
         builder.call(func);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -124,7 +123,7 @@ impl SimpleWord for IntToUtf8 {
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -139,7 +138,7 @@ impl SimpleWord for IntToUtf8 {
 
         builder.call(func);
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

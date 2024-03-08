@@ -3,7 +3,6 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 
 pub fn traverse_response(
@@ -53,9 +52,9 @@ impl ComplexWord for IsOk {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_response(generator, builder, args)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -73,7 +72,7 @@ impl ComplexWord for IsErr {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_response(generator, builder, args)?;
 
         // Add one to stack
@@ -82,6 +81,6 @@ impl ComplexWord for IsErr {
         builder.i32_const(1).binop(BinaryOp::I32Xor);
 
         // Xor'ed indicator is on stack.
-        Ok(Cost::free())
+        Ok(())
     }
 }

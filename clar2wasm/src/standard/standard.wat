@@ -234,8 +234,21 @@
     (global $stack-pointer (mut i32) (i32.const 0))
     (export "stack-pointer" (global $stack-pointer))
 
-    (global $runtime-cost (mut i64) (i64.const 0))
-    (export "runtime-cost" (global $runtime-cost))
+    (global $cost-rt (mut i64) (i64.const 0))
+    (export "cost-rt" (global $cost-rt))
+
+    (global $cost-rl (mut i64) (i64.const 0))
+    (export "cost-rl" (global $cost-rl))
+
+    (global $cost-rc (mut i64) (i64.const 0))
+    (export "cost-rc" (global $cost-rc))
+
+    (global $cost-wl (mut i64) (i64.const 0))
+    (export "cost-wl" (global $cost-wl))
+
+    (global $cost-wc (mut i64) (i64.const 0))
+    (export "cost-wc" (global $cost-wc))
+
 
     (memory (export "memory") 10)
 

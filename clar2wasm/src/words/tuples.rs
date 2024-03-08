@@ -4,7 +4,6 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -21,7 +20,7 @@ impl ComplexWord for TupleCons {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))?
@@ -69,7 +68,7 @@ impl ComplexWord for TupleCons {
             generator.traverse_expr(builder, value)?;
         }
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -87,7 +86,7 @@ impl ComplexWord for TupleGet {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
             return Err(GeneratorError::InternalError(
                 "expected two arguments to tuple get".to_string(),
@@ -147,7 +146,7 @@ impl ComplexWord for TupleGet {
             builder.local_get(*local);
         }
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -165,7 +164,7 @@ impl ComplexWord for TupleMerge {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
             return Err(GeneratorError::InternalError(
                 "expected two arguments to tuple merge".to_string(),
@@ -236,7 +235,7 @@ impl ComplexWord for TupleMerge {
             }
         }
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

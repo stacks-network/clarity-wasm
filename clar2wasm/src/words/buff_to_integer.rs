@@ -1,6 +1,5 @@
 use clarity::vm::types::TypeSignature;
 
-use crate::costs::Cost;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::words::SimpleWord;
 
@@ -32,9 +31,9 @@ impl SimpleWord for BuffToUintBe {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -52,11 +51,11 @@ impl SimpleWord for BuffToIntBe {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // This is the same function as "buff-to-uint-be", with the result interpreted
         // as i128 instead of u128.
         traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -74,9 +73,9 @@ impl SimpleWord for BuffToUintLe {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -94,10 +93,10 @@ impl SimpleWord for BuffToIntLe {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, crate::wasm_generator::GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // This is the same function as "buff-to-uint-le", with the result interpreted
         // as i128 instead of u128.
         traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }

@@ -3,8 +3,6 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::words::ComplexWord;
 
-use crate::costs::Cost;
-
 #[derive(Debug)]
 pub struct Let;
 
@@ -19,7 +17,7 @@ impl ComplexWord for Let {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
@@ -76,7 +74,7 @@ impl ComplexWord for Let {
         // Restore the named locals
         generator.bindings = saved_locals;
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 

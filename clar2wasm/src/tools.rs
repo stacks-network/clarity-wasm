@@ -21,6 +21,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
+use crate::costs::Cost;
 use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
@@ -30,7 +31,7 @@ pub struct TestEnvironment {
     version: ClarityVersion,
     datastore: Datastore,
     burn_datastore: BurnDatastore,
-    wasm_runtime_cost: u64,
+    wasm_cost: Cost,
 }
 
 impl TestEnvironment {
@@ -63,7 +64,7 @@ impl TestEnvironment {
             version,
             datastore,
             burn_datastore,
-            wasm_runtime_cost: 0,
+            wasm_cost: Cost::free(),
         }
     }
 
@@ -145,7 +146,7 @@ impl TestEnvironment {
         self.contract_contexts
             .insert(contract_name.to_string(), contract_context);
 
-        self.wasm_runtime_cost += runtime_cost;
+        self.wasm_cost += runtime_cost;
 
         Ok(return_val)
     }
@@ -243,8 +244,8 @@ impl TestEnvironment {
         self.interpret_contract_with_snippet("snippet", snippet)
     }
 
-    pub fn wasm_accumulated_cost(&self) -> u64 {
-        self.wasm_runtime_cost
+    pub fn wasm_accumulated_cost(&self) -> Cost {
+        self.wasm_cost
     }
 }
 

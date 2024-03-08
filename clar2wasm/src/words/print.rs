@@ -2,7 +2,6 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -19,7 +18,7 @@ impl ComplexWord for Print {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
 
         // Traverse the value, leaving it on the data stack
@@ -72,6 +71,6 @@ impl ComplexWord for Print {
             builder.local_get(val_local);
         }
 
-        Ok(Cost::free())
+        Ok(())
     }
 }

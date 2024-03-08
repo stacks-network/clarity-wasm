@@ -2,7 +2,6 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
-use crate::costs::Cost;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -21,7 +20,7 @@ impl ComplexWord for ClaritySome {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
@@ -34,7 +33,7 @@ impl ComplexWord for ClaritySome {
             generator.set_expr_type(value, *inner_type.clone())?;
 
             generator.traverse_expr(builder, value)?;
-            Ok(Cost::free())
+            Ok(())
         } else {
             Err(GeneratorError::TypeError(
                 "expected optional type".to_owned(),
@@ -57,7 +56,7 @@ impl ComplexWord for ClarityOk {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
 
         let TypeSignature::ResponseType(inner_types) = generator
@@ -84,7 +83,7 @@ impl ComplexWord for ClarityOk {
             add_placeholder_for_type(builder, *err_type);
         }
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -102,7 +101,7 @@ impl ComplexWord for ClarityErr {
         builder: &mut walrus::InstrSeqBuilder,
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
@@ -123,6 +122,6 @@ impl ComplexWord for ClarityErr {
             ));
         }
         generator.traverse_expr(builder, value)?;
-        Ok(Cost::free())
+        Ok(())
     }
 }

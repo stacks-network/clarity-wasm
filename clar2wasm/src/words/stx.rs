@@ -2,7 +2,6 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
-use crate::costs::Cost;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -19,12 +18,12 @@ impl SimpleWord for StxBurn {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
         builder.call(generator.func_by_name("stdlib.stx_burn"));
 
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -42,9 +41,9 @@ impl SimpleWord for StxGetBalance {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         builder.call(generator.func_by_name("stdlib.stx_get_balance"));
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -62,7 +61,7 @@ impl ComplexWord for StxTransfer {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -74,7 +73,7 @@ impl ComplexWord for StxTransfer {
         // placeholder for memo
         builder.i32_const(0).i32_const(0);
         builder.call(generator.func_by_name("stdlib.stx_transfer"));
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -92,7 +91,7 @@ impl ComplexWord for StxTransferMemo {
         builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -104,7 +103,7 @@ impl ComplexWord for StxTransferMemo {
         generator.traverse_expr(builder, memo)?;
 
         builder.call(generator.func_by_name("stdlib.stx_transfer"));
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
@@ -122,9 +121,9 @@ impl SimpleWord for StxGetAccount {
         builder: &mut walrus::InstrSeqBuilder,
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
-    ) -> Result<Cost, GeneratorError> {
+    ) -> Result<(), GeneratorError> {
         builder.call(generator.func_by_name("stdlib.stx_account"));
-        Ok(Cost::free())
+        Ok(())
     }
 }
 
