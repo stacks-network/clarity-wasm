@@ -118,6 +118,59 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    fn crosscheck_map_add(
+        seq in proptest::collection::vec(proptest::collection::vec(1u128..=1000, 1..=100), 1..=50)
+    ) {
+
+        let result: Vec<_> = seq.iter()
+        .skip(1).fold(seq[0].clone(), |acc, vecint| {
+            acc.into_iter()
+            .zip(vecint.iter())
+            .map(|(x, y)| x + y)
+            .collect()
+        })
+        .iter().map(|el| Value::UInt(*el)).collect();
+
+        let expected = Value::Sequence(
+            SequenceData::List(
+                ListData {
+                    data: result.clone(),
+                    type_signature: ListTypeData::new_list(TypeSignature::UIntType, result.len() as u32).unwrap()
+                }
+            )
+        );
+
+        let lists: Vec<_> = seq.iter().map(|v| {
+            v.iter().map(|&el| {
+                Value::UInt(el)
+            }).collect::<Vec<_>>()
+        })
+        .map(|v| {
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: v.clone(),
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, v.len() as u32).unwrap()
+                    }
+                )
+            )
+        })
+        .map(PropValue::from).collect();
+
+        let lists_str: String = lists.iter().map(|el| el.to_string() + " ").collect();
+        let snippet = format!("(map + {})", lists_str);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
     fn crosscheck_map_not(
         seq in proptest::collection::vec(bool(), 1..=100)
         .prop_map(|v| {
