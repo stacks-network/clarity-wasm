@@ -3,7 +3,7 @@ use clarity::vm::types::{ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{prop_signature, PropValue};
+use crate::{bool, int, prop_signature, PropValue};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -119,24 +119,24 @@ proptest! {
 
     #[test]
     fn crosscheck_map_not(
-        seq in (0usize..=20).prop_flat_map(PropValue::any_sequence),
-        val in any::<u32>()
+        seq in proptest::collection::vec(bool(), 1..=100)
+        .prop_map(|v| {
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: v.clone(),
+                        type_signature: ListTypeData::new_list(TypeSignature::BoolType, v.len() as u32).unwrap()
+                    }
+                )
+            )
+        }).prop_map(PropValue::from)
     ) {
-        let expected = !extract_sequence(seq.clone()).len() > val as usize;
-        let snippet = format!("(map not (list (> (len {seq}) u{val})))");
+        let expected = extract_sequence(seq.clone());
+        let snippet = format!("(map not (map not {seq}))");
 
         crosscheck(
             &snippet,
-            Ok(Some(
-                Value::Sequence(
-                    SequenceData::List(
-                        ListData {
-                            data: vec![Value::Bool(expected)],
-                            type_signature: ListTypeData::new_list(TypeSignature::BoolType, 1).unwrap()
-                        }
-                    )
-                )
-            ))
+            Ok(Some(Value::Sequence(expected)))
         )
     }
 }
@@ -145,24 +145,39 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crosscheck_map_add(
-        (seq_1, seq_2) in (0usize..=20).prop_flat_map(|v| (PropValue::any_sequence(v), PropValue::any_sequence(v)))
-    ) {
-        let expected = extract_sequence(seq_1.clone()).len() + extract_sequence(seq_2.clone()).len();
-        let snippet = format!("(map + (list (len {seq_1})) (list (len {seq_2})))");
-
-        crosscheck(
-            &snippet,
-            Ok(Some(
+    fn crosscheck_map_concat_int(
+        seq_1 in proptest::collection::vec(int(), 1..=100)
+            .prop_map(|v| {
                 Value::Sequence(
                     SequenceData::List(
                         ListData {
-                            data: vec![Value::UInt(expected as u128)],
-                            type_signature: ListTypeData::new_list(TypeSignature::UIntType, 1).unwrap()
+                            data: v.clone(),
+                            type_signature: ListTypeData::new_list(TypeSignature::IntType, v.len() as u32).unwrap()
                         }
                     )
                 )
-            ))
+            }).prop_map(PropValue::from),
+        seq_2 in proptest::collection::vec(int(), 1..=100)
+            .prop_map(|v| {
+                Value::Sequence(
+                    SequenceData::List(
+                        ListData {
+                            data: v.clone(),
+                            type_signature: ListTypeData::new_list(TypeSignature::IntType, v.len() as u32).unwrap()
+                        }
+                    )
+                )
+            }).prop_map(PropValue::from)
+    ) {
+        let mut expected = extract_sequence(seq_1.clone());
+        expected.concat(
+            &clarity::types::StacksEpochId::latest(),
+            extract_sequence(seq_2.clone())
+        ).expect("Could not concat sequences");
+
+        crosscheck(
+            &format!(r#"(define-private (fun (a (list 100 int)) (b (list 100 int))) (concat a b)) (try! (element-at (map fun (list {seq_1}) (list {seq_2})) u0))"#),
+            Ok(Some(Value::Sequence(expected)))
         )
     }
 }
