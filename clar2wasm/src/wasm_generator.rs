@@ -46,6 +46,8 @@ pub struct WasmGenerator {
     pub(crate) return_type: Option<TypeSignature>,
     /// The types of defined data-vars
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
+    /// The types of (key, value) in defined maps
+    pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
 
     /// The locals for the current function.
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
@@ -244,6 +246,7 @@ impl WasmGenerator {
             return_type: None,
             frame_size: 0,
             datavars_types: HashMap::new(),
+            maps_types: HashMap::new(),
         })
     }
 

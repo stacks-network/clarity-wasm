@@ -1,3 +1,4 @@
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
@@ -19,8 +20,14 @@ impl ComplexWord for MapDefinition {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
-        let _key_type = args.get_expr(1)?;
-        let _value_type = args.get_expr(2)?;
+        let key_type = args.get_expr(1).and_then(|sym_ty| {
+            TypeSignature::parse_type_repr(generator.contract_analysis.epoch, sym_ty, &mut ())
+                .map_err(|e| GeneratorError::TypeError(format!("invalid type for map key: {e}")))
+        })?;
+        let value_type = args.get_expr(2).and_then(|sym_ty| {
+            TypeSignature::parse_type_repr(generator.contract_analysis.epoch, sym_ty, &mut ())
+                .map_err(|e| GeneratorError::TypeError(format!("invalid type for map value: {e}")))
+        })?;
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -39,6 +46,12 @@ impl ComplexWord for MapDefinition {
                     GeneratorError::InternalError("stdlib.define_map not found".to_owned())
                 })?,
         );
+
+        // Add the map types to generator
+        generator
+            .maps_types
+            .insert(name.clone(), (key_type, value_type));
+
         Ok(())
     }
 }
@@ -60,6 +73,11 @@ impl ComplexWord for MapGet {
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
+
+        // WORKAROUND: set correct type for key
+        if let Some((key_ty, _)) = generator.maps_types.get(name) {
+            generator.set_expr_type(key, key_ty.clone())?;
+        }
 
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
@@ -133,6 +151,12 @@ impl ComplexWord for MapSet {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
+
+        // WORKAROUND: set correct types for key and value
+        if let Some((key_ty, value_ty)) = generator.maps_types.get(name).cloned() {
+            generator.set_expr_type(key, key_ty)?;
+            generator.set_expr_type(value, value_ty)?;
+        }
 
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
@@ -208,6 +232,12 @@ impl ComplexWord for MapInsert {
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
 
+        // WORKAROUND: set correct types for key and value
+        if let Some((key_ty, value_ty)) = generator.maps_types.get(name).cloned() {
+            generator.set_expr_type(key, key_ty)?;
+            generator.set_expr_type(value, value_ty)?;
+        }
+
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
             .literal_memory_offset
@@ -281,6 +311,11 @@ impl ComplexWord for MapDelete {
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
+        // WORKAROUND: set correct type for key
+        if let Some((key_ty, _)) = generator.maps_types.get(name) {
+            generator.set_expr_type(key, key_ty.clone())?;
+        }
+
         // Get the offset and length for this identifier in the literal memory
         let id_offset = *generator
             .literal_memory_offset
@@ -324,5 +359,40 @@ impl ComplexWord for MapDelete {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clarity::vm::Value;
+
+    use crate::tools::crosscheck;
+
+    #[test]
+    fn map_define_get() {
+        crosscheck(
+            r#"(define-map counters principal uint) (map-get? counters tx-sender)"#,
+            Ok(Some(Value::none())),
+        )
+    }
+
+    #[test]
+    fn map_define_set() {
+        crosscheck("(define-map approved-contracts principal bool) (map-set approved-contracts tx-sender true)", Ok(Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn map_define_insert() {
+        crosscheck("(define-map approved-contracts principal bool) (map-insert approved-contracts tx-sender true)", Ok(Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn map_define_set_delete() {
+        crosscheck("(define-map approved-contracts principal bool) (map-insert approved-contracts tx-sender true) (map-delete approved-contracts tx-sender)", Ok(Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn map_define_set_get() {
+        crosscheck("(define-map approved-contracts principal bool) (map-insert approved-contracts tx-sender true) (map-get? approved-contracts tx-sender)", Ok(Some(Value::some(Value::Bool(true)).unwrap())));
     }
 }
