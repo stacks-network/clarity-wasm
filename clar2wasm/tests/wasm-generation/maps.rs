@@ -108,4 +108,75 @@ proptest! {
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn define_set_get_map(
+        (kty, vty, entries, random_key)
+            in (map_type(), 1usize..=20)
+                .prop_flat_map(|((kty, vty), size)| {
+                    (Just(kty.clone()), Just(vty.clone()), map_entries(kty.clone(), vty, size), PropValue::from_type(kty))
+    })) {
+        // We generate here a snippet that looks like
+        // ```
+        // (define-map test-map {key type} {value type})
+        // {
+        //    a: (list (map-set test-map {key0} {value0}) (map-set test-map {key1} {value1}) ...)
+        //    b: (list (map-get? test-map {key0}) (map-get? test-map {key1}) ... (map-get? test-map {random-key})))
+        // }
+
+        let expected_set = vec![Value::Bool(true); entries.len()];
+        // will contain results of map-get?
+        let mut expected_get: Vec<Value> = Vec::with_capacity(entries.len() + 1);
+
+        // will contain results of map-get?
+        let mut snippet_tuple_a = String::from("(list");
+        let mut snippet_tuple_b = String::from("(list");
+
+        for (i, (k, v)) in entries.iter().enumerate() {
+            snippet_tuple_a.push_str(&format!(" (map-set test-map {k} {v})"));
+            snippet_tuple_b.push_str(&format!(" (map-get? test-map {k})"));
+
+            expected_get.push(
+                entries[i..]
+                    .iter()
+                    .rev()
+                    .find_map(|(ke, ve)| (k == ke).then(|| Value::some(ve.0.clone()).unwrap()))
+                    .unwrap(),
+            );
+        }
+
+        snippet_tuple_a.push(')');
+
+        // get a random key for fun
+        snippet_tuple_b.push_str(&format!(" (map-get? test-map {random_key}))"));
+        expected_get.push(
+            entries
+                .into_iter()
+                .rev()
+                .find_map(|(key, val)| (random_key == key).then(|| Value::some(val.0).unwrap()))
+                .unwrap_or_else(Value::none),
+        );
+
+        let snippet = format!(
+            "(define-map test-map {} {}) {{a: {snippet_tuple_a}, b: {snippet_tuple_b}}}",
+            type_string(&kty),
+            type_string(&vty)
+        );
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("a"),
+                    Value::cons_list_unsanitized(expected_set).unwrap(),
+                ),
+                (
+                    ClarityName::from("b"),
+                    Value::cons_list_unsanitized(expected_get).unwrap(),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
 }
