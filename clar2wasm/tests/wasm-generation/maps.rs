@@ -179,4 +179,63 @@ proptest! {
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn define_set_delete_get_map(
+        (kty, vty, entries)
+            in (map_type(), 1usize..=20)
+                .prop_flat_map(|((kty, vty), size)| {
+                    (Just(kty.clone()), Just(vty.clone()), map_entries(kty, vty, size))
+    })) {
+        // We generate here a snippet that looks like
+        // ```
+        // (define-map test-map {key type} {value type})
+        // {
+        //    a: (list (map-set test-map {key0} {value0}) (map-set test-map {key1} {value1}) ...)
+        //    b: (list (map-delete test-map {key0}) (map-delete test-map {key1})...)
+        //    c: (list (map-get? test-map {key0}) (map-get? test-map {key1}) ...)
+        // }
+
+        let mut snippet_tuple_a = String::from("(list");
+        let mut snippet_tuple_b = String::from("(list");
+        let mut snippet_tuple_c = String::from("(list");
+
+        for (k, v) in entries.iter() {
+            snippet_tuple_a.push_str(&format!(" (map-set test-map {k} {v})"));
+            snippet_tuple_b.push_str(&format!(" (map-delete test-map {k})"));
+            snippet_tuple_c.push_str(&format!(" (map-get? test-map {k})"));
+        }
+
+        snippet_tuple_a.push(')');
+        snippet_tuple_b.push(')');
+        snippet_tuple_c.push(')');
+
+        let snippet = format!("(define-map test-map {} {}) {{a: {snippet_tuple_a}, b: {snippet_tuple_b}, c: {snippet_tuple_c}}}", type_string(&kty), type_string(&vty));
+
+        let expected_set = vec![Value::Bool(true); entries.len()];
+        let expected_delete: Vec<_> = (0..entries.len())
+            .map(|i| Value::Bool(!entries[..i].iter().any(|(k, _)| k == &entries[i].0)))
+            .collect();
+        let expected_get = vec![Value::none(); entries.len()];
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("a"),
+                    Value::cons_list_unsanitized(expected_set).unwrap(),
+                ),
+                (
+                    ClarityName::from("b"),
+                    Value::cons_list_unsanitized(expected_delete).unwrap(),
+                ),
+                (
+                    ClarityName::from("c"),
+                    Value::cons_list_unsanitized(expected_get).unwrap(),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
 }
