@@ -1,9 +1,9 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{SequenceData, TypeSignature};
+use clarity::vm::types::{ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{prop_signature, PropValue};
+use crate::{bool, int, prop_signature, PropValue};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -111,6 +111,127 @@ proptest! {
             ).unwrap();
 
         crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_add(
+        seq in proptest::collection::vec(proptest::collection::vec(1u128..=1000, 1..=100), 1..=50)
+    ) {
+
+        let result: Vec<_> = seq.iter()
+        .skip(1).fold(seq[0].clone(), |acc, vecint| {
+            acc.into_iter()
+            .zip(vecint.iter())
+            .map(|(x, y)| x + y)
+            .collect()
+        })
+        .iter().map(|el| Value::UInt(*el)).collect();
+
+        let expected = Value::Sequence(
+            SequenceData::List(
+                ListData {
+                    data: result.clone(),
+                    type_signature: ListTypeData::new_list(TypeSignature::UIntType, result.len() as u32).unwrap()
+                }
+            )
+        );
+
+        let lists: Vec<_> = seq.iter().map(|v| {
+            v.iter().map(|&el| {
+                Value::UInt(el)
+            }).collect::<Vec<_>>()
+        })
+        .map(|v| {
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: v.clone(),
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, v.len() as u32).unwrap()
+                    }
+                )
+            )
+        })
+        .map(PropValue::from).collect();
+
+        let lists_str: String = lists.iter().map(|el| el.to_string() + " ").collect();
+        let snippet = format!("(map + {})", lists_str);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_not(
+        seq in proptest::collection::vec(bool(), 1..=100)
+        .prop_map(|v| {
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: v.clone(),
+                        type_signature: ListTypeData::new_list(TypeSignature::BoolType, v.len() as u32).unwrap()
+                    }
+                )
+            )
+        }).prop_map(PropValue::from)
+    ) {
+        let expected = extract_sequence(seq.clone());
+        let snippet = format!("(map not (map not {seq}))");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::Sequence(expected)))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_concat_int(
+        seq_1 in proptest::collection::vec(int(), 1..=100)
+            .prop_map(|v| {
+                Value::Sequence(
+                    SequenceData::List(
+                        ListData {
+                            data: v.clone(),
+                            type_signature: ListTypeData::new_list(TypeSignature::IntType, v.len() as u32).unwrap()
+                        }
+                    )
+                )
+            }).prop_map(PropValue::from),
+        seq_2 in proptest::collection::vec(int(), 1..=100)
+            .prop_map(|v| {
+                Value::Sequence(
+                    SequenceData::List(
+                        ListData {
+                            data: v.clone(),
+                            type_signature: ListTypeData::new_list(TypeSignature::IntType, v.len() as u32).unwrap()
+                        }
+                    )
+                )
+            }).prop_map(PropValue::from)
+    ) {
+        let mut expected = extract_sequence(seq_1.clone());
+        expected.concat(
+            &clarity::types::StacksEpochId::latest(),
+            extract_sequence(seq_2.clone())
+        ).expect("Could not concat sequences");
+
+        crosscheck(
+            &format!(r#"(define-private (fun (a (list 100 int)) (b (list 100 int))) (concat a b)) (try! (element-at (map fun (list {seq_1}) (list {seq_2})) u0))"#),
+            Ok(Some(Value::Sequence(expected)))
+        )
     }
 }
 
