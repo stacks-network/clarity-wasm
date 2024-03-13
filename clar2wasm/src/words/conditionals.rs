@@ -37,10 +37,16 @@ impl ComplexWord for If {
         generator.set_expr_type(true_branch, expr_ty.clone())?;
         generator.set_expr_type(false_branch, expr_ty)?;
 
+        // cost
+
+        generator.cost_mut().const_runtime(168);
+
         let id_true = generator.block_from_expr(builder, true_branch)?;
         let id_false = generator.block_from_expr(builder, false_branch)?;
 
         generator.traverse_expr(builder, conditional)?;
+
+        generator.cost_mut().emit(builder);
 
         builder.instr(ir::IfElse {
             consequent: id_true,

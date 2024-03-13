@@ -55,7 +55,10 @@ impl SimpleWord for Add {
             let func = generator.func_by_name(&format!("stdlib.add-{type_suffix}"));
             builder.call(func);
         }
-        Ok(()) // Cost::free().add_runtime_linear(arg_types.len(), 11, 125)
+        generator
+            .cost_mut()
+            .const_runtime_linear(arg_types.len(), 11, 125);
+        Ok(())
     }
 }
 

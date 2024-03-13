@@ -37,16 +37,9 @@ pub struct WasmGenerator {
     pub(crate) literal_memory_end: u32,
     /// Global ID of the stack pointer.
     pub(crate) stack_pointer: GlobalId,
-    /// Global ID of the runtime cost global.
-    pub(crate) runtime_cost: GlobalId,
-    /// Global ID of the read_length cost global.
-    pub(crate) read_length: GlobalId,
-    /// Global ID of the read_count cost global.
-    pub(crate) read_count: GlobalId,
-    /// Global ID of the read_length cost global.
-    pub(crate) write_length: GlobalId,
-    /// Global ID of the read_count cost global.
-    pub(crate) write_count: GlobalId,
+
+    cost: Cost,
+
     /// Map strings saved in the literal memory to their offset.
     pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
@@ -241,22 +234,21 @@ impl WasmGenerator {
         };
 
         let stack_pointer_global_id = get_global_id_by_name("stack-pointer")?;
-        let runtime_cost_global_id = get_global_id_by_name("cost-rt")?;
-        let read_length_global_id = get_global_id_by_name("cost-rl")?;
-        let read_count_global_id = get_global_id_by_name("cost-rc")?;
-        let write_length_global_id = get_global_id_by_name("cost-wl")?;
-        let write_count_global_id = get_global_id_by_name("cost-wc")?;
+
+        let cost = Cost::new(
+            get_global_id_by_name("cost-rt")?,
+            get_global_id_by_name("cost-rl")?,
+            get_global_id_by_name("cost-rc")?,
+            get_global_id_by_name("cost-wl")?,
+            get_global_id_by_name("cost-wc")?,
+        );
 
         Ok(WasmGenerator {
             contract_analysis,
             module,
             literal_memory_end: END_OF_STANDARD_DATA,
             stack_pointer: stack_pointer_global_id,
-            runtime_cost: runtime_cost_global_id,
-            read_length: read_length_global_id,
-            read_count: read_count_global_id,
-            write_length: write_length_global_id,
-            write_count: write_count_global_id,
+            cost,
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: HashMap::new(),
@@ -283,7 +275,7 @@ impl WasmGenerator {
         Ok(())
     }
 
-    pub fn generate(mut self) -> Result<Module, GeneratorError> {
+    pub fn generate(mut self) -> Result<(Module, Cost), GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
 
         // Get the type of the last top-level expression with a return value
@@ -296,8 +288,11 @@ impl WasmGenerator {
 
         let mut current_function = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
 
+        let mut builder = current_function.func_body();
+
         if !expressions.is_empty() {
-            self.traverse_statement_list(&mut current_function.func_body(), &expressions)?;
+            self.traverse_statement_list(&mut builder, &expressions)?;
+            self.cost_mut().emit(&mut builder);
         }
 
         self.contract_analysis.expressions = expressions;
@@ -313,7 +308,7 @@ impl WasmGenerator {
             walrus::InitExpr::Value(walrus::ir::Value::I32(self.literal_memory_end as i32)),
         );
 
-        Ok(self.module)
+        Ok((self.module, self.cost))
     }
 
     pub fn get_memory(&self) -> Result<MemoryId, GeneratorError> {
@@ -424,7 +419,6 @@ impl WasmGenerator {
             }
             _ => return Err(GeneratorError::InternalError("Invalid list".into())),
         }
-        // TODO -tally up the costs here
         Ok(())
     }
 
@@ -743,6 +737,9 @@ impl WasmGenerator {
             &return_type,
         ));
         self.traverse_expr(&mut block, expr)?;
+
+        // we always emit costs after branches
+        self.cost.emit(&mut block);
 
         Ok(block.id())
     }
@@ -1626,37 +1623,8 @@ impl WasmGenerator {
         }
     }
 
-    pub fn emit_cost(&self, cost: Cost, builder: &mut InstrSeqBuilder) {
-        if cost.runtime > 0 {
-            builder.global_get(self.runtime_cost);
-            builder.i64_const(cost.runtime as i64);
-            builder.binop(BinaryOp::I64Add);
-            builder.global_set(self.runtime_cost);
-        }
-        if cost.read_length > 0 {
-            builder.global_get(self.read_length);
-            builder.i64_const(cost.read_length as i64);
-            builder.binop(BinaryOp::I64Add);
-            builder.global_set(self.read_length);
-        }
-        if cost.read_count > 0 {
-            builder.global_get(self.read_count);
-            builder.i64_const(cost.read_count as i64);
-            builder.binop(BinaryOp::I64Add);
-            builder.global_set(self.read_count);
-        }
-        if cost.write_length > 0 {
-            builder.global_get(self.write_length);
-            builder.i64_const(cost.write_length as i64);
-            builder.binop(BinaryOp::I64Add);
-            builder.global_set(self.write_length);
-        }
-        if cost.write_count > 0 {
-            builder.global_get(self.write_count);
-            builder.i64_const(cost.write_count as i64);
-            builder.binop(BinaryOp::I64Add);
-            builder.global_set(self.write_count);
-        }
+    pub fn cost_mut(&mut self) -> &mut Cost {
+        &mut self.cost
     }
 }
 
@@ -1788,9 +1756,6 @@ mod misc_tests {
         let mut env = TestEnvironment::default();
         env.evaluate("(+ 2 2)").unwrap();
 
-        assert_eq!(
-            env.wasm_accumulated_cost(),
-            Cost::free().add_runtime_const(23)
-        );
+        panic!("{:?}", env.cost())
     }
 }

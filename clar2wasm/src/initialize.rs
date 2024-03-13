@@ -8,9 +8,10 @@ use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedCont
 use clarity::vm::{CallStack, ContractContext, Value};
 use wasmtime::{Engine, Linker, Module, Store};
 
-use crate::costs::Cost;
+use crate::costs::CostFinalized;
 use crate::linker::link_host_functions;
 use crate::wasm_utils::{placeholder_for_type, wasm_to_clarity_value};
+use crate::CompileResult;
 
 /// The context used when making calls into the Wasm module.
 pub struct ClarityWasmContext<'a, 'b> {
@@ -296,8 +297,8 @@ pub fn initialize_contract(
     global_context: &mut GlobalContext,
     contract_context: &mut ContractContext,
     sponsor: Option<PrincipalData>,
-    contract_analysis: &ContractAnalysis,
-) -> Result<(Option<Value>, Cost), Error> {
+    compile_result: CompileResult,
+) -> Result<(Option<Value>, CostFinalized), Error> {
     let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
 
     let mut call_stack = CallStack::new();
@@ -309,7 +310,7 @@ pub fn initialize_contract(
         Some(publisher.clone()),
         Some(publisher),
         sponsor.clone(),
-        Some(contract_analysis),
+        Some(&compile_result.contract_analysis),
     );
     let engine = Engine::default();
     let module = init_context
@@ -335,6 +336,8 @@ pub fn initialize_contract(
         .get_func(&mut store, ".top-level")
         .ok_or(Error::Wasm(WasmError::DefinesNotFound))?;
 
+    let cost_final = compile_result.cost.finalize(instance, &mut store)?;
+
     // Get the return type of the top-level expressions function
     let ty = top_level.ty(&mut store);
     let mut results_iter = ty.results();
@@ -356,22 +359,26 @@ pub fn initialize_contract(
 
     // Get the type of the last top-level expression with a return value
     // or default to `None`.
-    let return_type = contract_analysis.expressions.iter().rev().find_map(|expr| {
-        contract_analysis
-            .type_map
-            .as_ref()
-            .and_then(|type_map| type_map.get_type(expr))
-    });
-
-    let cost = Cost::from_instance_store(instance, &mut store)?;
+    let return_type = compile_result
+        .contract_analysis
+        .expressions
+        .iter()
+        .rev()
+        .find_map(|expr| {
+            compile_result
+                .contract_analysis
+                .type_map
+                .as_ref()
+                .and_then(|type_map| type_map.get_type(expr))
+        });
 
     if let Some(return_type) = return_type {
         let memory = instance
             .get_memory(&mut store, "memory")
             .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
         wasm_to_clarity_value(return_type, 0, &results, memory, &mut &mut store, epoch)
-            .map(|(val, _offset)| (val, cost))
+            .map(|(val, _offset)| (val, cost_final))
     } else {
-        Ok((None, cost))
+        Ok((None, cost_final))
     }
 }

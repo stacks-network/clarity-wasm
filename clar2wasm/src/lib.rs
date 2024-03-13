@@ -10,6 +10,8 @@ use clarity::vm::ClarityVersion;
 pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
+use crate::costs::Cost;
+
 mod costs;
 mod deserialize;
 mod initialize;
@@ -40,6 +42,7 @@ pub struct CompileResult {
     pub diagnostics: Vec<Diagnostic>,
     pub module: Module,
     pub contract_analysis: ContractAnalysis,
+    pub cost: Cost,
 }
 
 #[derive(Debug)]
@@ -119,10 +122,11 @@ pub fn compile(
 
     #[allow(clippy::expect_used)]
     match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
-        Ok(module) => Ok(CompileResult {
+        Ok((module, cost)) => Ok(CompileResult {
             ast,
             diagnostics,
             module,
+            cost,
             contract_analysis,
         }),
         Err(e) => {
@@ -141,7 +145,7 @@ pub fn compile(
     }
 }
 
-pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
-    let generator = WasmGenerator::new(contract_analysis)?;
-    generator.generate()
-}
+// pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
+//     let generator = WasmGenerator::new(contract_analysis)?;
+//     generator.generate()
+// }

@@ -21,7 +21,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 
-use crate::costs::Cost;
+use crate::costs::CostFinalized;
 use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
@@ -31,7 +31,7 @@ pub struct TestEnvironment {
     version: ClarityVersion,
     datastore: Datastore,
     burn_datastore: BurnDatastore,
-    wasm_cost: Cost,
+    cost: CostFinalized,
 }
 
 impl TestEnvironment {
@@ -64,8 +64,12 @@ impl TestEnvironment {
             version,
             datastore,
             burn_datastore,
-            wasm_cost: Cost::free(),
+            cost: CostFinalized::default(),
         }
+    }
+
+    pub fn cost(&self) -> CostFinalized {
+        self.cost
     }
 
     pub fn init_contract_with_snippet(
@@ -122,11 +126,11 @@ impl TestEnvironment {
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
             .expect("Failed to insert contract hash.");
 
-        let (return_val, runtime_cost) = initialize_contract(
+        let (return_val, final_cost) = initialize_contract(
             &mut global_context,
             &mut contract_context,
             None,
-            &compile_result.contract_analysis,
+            compile_result,
         )?;
 
         let data_size = contract_context.data_size;
@@ -146,7 +150,7 @@ impl TestEnvironment {
         self.contract_contexts
             .insert(contract_name.to_string(), contract_context);
 
-        self.wasm_cost += runtime_cost;
+        self.cost += final_cost;
 
         Ok(return_val)
     }
@@ -242,10 +246,6 @@ impl TestEnvironment {
 
     pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
         self.interpret_contract_with_snippet("snippet", snippet)
-    }
-
-    pub fn wasm_accumulated_cost(&self) -> Cost {
-        self.wasm_cost
     }
 }
 
