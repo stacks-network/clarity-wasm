@@ -105,3 +105,117 @@ proptest! {
         )
     }
 }
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_optional_some(val in PropValue::any()) {
+        let snippet = format!(r#"(unwrap! (some {val}) none)"#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[ignore = "ignored until issue #104 is resolved"]
+    #[test]
+    fn unwrap_optional_none(val in PropValue::any()) {
+        let snippet = format!(r#"(unwrap! (if true none (some {val})) {val})"#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_response_ok(val in PropValue::any()) {
+        let snippet = format!(r#"(unwrap! (ok {val}) (err u1))"#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[ignore = "ignored until issue #104 is resolved"]
+    #[test]
+    fn unwrap_response_err(val in PropValue::any()) {
+        let snippet = format!(r#"(unwrap! (if true (err u1) (ok {val})) {val})"#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_optional_none_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap! (if true none (some {val})) {val})) (foo)");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_response_err_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap! (if true (err 1) (ok {val})) {val})) (foo)");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_ok_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap-err! (if true (ok 1) (err {val})) {val})) (foo)");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_err_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap-err! (if false (ok 1) (err {val})) {val})) (foo)");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(val.into()))
+        );
+    }
+}
