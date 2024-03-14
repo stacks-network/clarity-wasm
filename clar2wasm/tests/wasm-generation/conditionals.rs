@@ -2,7 +2,7 @@ use clar2wasm::tools::crosscheck;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
 
-use crate::{prop_signature, type_string, PropValue};
+use crate::{bool, prop_signature, type_string, PropValue};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -216,6 +216,25 @@ proptest! {
         crosscheck(
             &snippet,
             Ok(Some(val.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[ignore = "ignored until issue #104 is resolved"]
+    #[test]
+    fn crosscheck_asserts_true(bool in bool(), val in PropValue::any()) {
+        let expected = match bool.to_string().as_str() {
+            "true" => PropValue::from(bool.clone()),
+            "false" => val.clone(),
+            _ => panic!("Invalid boolean string"),
+        };
+
+        crosscheck(
+            &format!("(asserts! {bool} {val})"),
+            Ok(Some(expected.into()))
         );
     }
 }
