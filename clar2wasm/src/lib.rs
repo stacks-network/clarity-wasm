@@ -96,21 +96,18 @@ pub fn compile(
     // Now that the typechecker pass is done, we can concretize the expressions types which
     // might contain `ListUnionType` or `CallableType`
     #[allow(clippy::expect_used)]
-    match contract_analysis.type_map.as_mut() {
-        Some(typemap) => typemap.concretize().map_err(|e| {
-            diagnostics.push(e.diagnostic);
-            CompileError::Generic {
-                ast: ast.clone(),
-                diagnostics: diagnostics.clone(),
-                cost_tracker: Box::new(
-                    contract_analysis
-                        .cost_track
-                        .take()
-                        .expect("Failed to take cost tracker from contract analysis"),
-                ),
-            }
-        })?,
-        None => unreachable!("Typechecker was called at that moment"),
+    if let Err(e) = utils::concretize(&mut contract_analysis) {
+        diagnostics.push(e.diagnostic);
+        return Err(CompileError::Generic {
+            ast: ast.clone(),
+            diagnostics: diagnostics.clone(),
+            cost_tracker: Box::new(
+                contract_analysis
+                    .cost_track
+                    .take()
+                    .expect("Failed to take cost tracker from contract analysis"),
+            ),
+        });
     }
 
     #[allow(clippy::expect_used)]
@@ -140,4 +137,61 @@ pub fn compile(
 pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
     let generator = WasmGenerator::new(contract_analysis)?;
     generator.generate()
+}
+
+mod utils {
+    use clarity::vm::analysis::{CheckError, ContractAnalysis};
+    use clarity::vm::errors::CheckErrors;
+    use clarity::vm::types::signatures::FunctionReturnsSignature;
+    use clarity::vm::types::{FixedFunction, FunctionType};
+
+    pub fn concretize(contract_analysis: &mut ContractAnalysis) -> Result<(), CheckError> {
+        // concretize Values types
+        if let Some(mut typemap) = contract_analysis.type_map.take() {
+            typemap.concretize()?;
+            contract_analysis.type_map = Some(typemap);
+        }
+
+        // concretize private functions return types
+        for fun_ty in contract_analysis.private_function_types.values_mut() {
+            *fun_ty = concretize_function_return_type(fun_ty.clone())?;
+        }
+
+        // concretize public functions return types
+        for fun_ty in contract_analysis.public_function_types.values_mut() {
+            *fun_ty = concretize_function_return_type(fun_ty.clone())?;
+        }
+
+        // concretize read-only functions return types
+        for fun_ty in contract_analysis.read_only_function_types.values_mut() {
+            *fun_ty = concretize_function_return_type(fun_ty.clone())?;
+        }
+
+        Ok(())
+    }
+
+    fn concretize_function_return_type(ft: FunctionType) -> Result<FunctionType, CheckErrors> {
+        match ft {
+            FunctionType::Variadic(args, return_type) => {
+                Ok(FunctionType::Variadic(args, return_type.concretize_deep()?))
+            }
+            FunctionType::Fixed(FixedFunction { args, returns }) => {
+                Ok(FunctionType::Fixed(FixedFunction {
+                    args,
+                    returns: returns.concretize_deep()?,
+                }))
+            }
+            FunctionType::UnionArgs(args, ret_type) => {
+                Ok(FunctionType::UnionArgs(args, ret_type.concretize_deep()?))
+            }
+            FunctionType::Binary(arg1, arg2, FunctionReturnsSignature::Fixed(return_type)) => {
+                Ok(FunctionType::Binary(
+                    arg1,
+                    arg2,
+                    FunctionReturnsSignature::Fixed(return_type.concretize_deep()?),
+                ))
+            }
+            ft => Ok(ft),
+        }
+    }
 }
