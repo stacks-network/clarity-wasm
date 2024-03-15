@@ -1,4 +1,5 @@
 use clar2wasm::tools::crosscheck;
+use clarity::vm::Value;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
 
@@ -234,6 +235,52 @@ proptest! {
 
         crosscheck(
             &format!("(asserts! {bool} {val})"),
+            Ok(Some(expected.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[ignore = "ignored until issue #104 is resolved"]
+    #[test]
+    fn crosscheck_try_optional_inside_function(bool in bool(), val in PropValue::any()) {
+        let expected = match bool.to_string().as_str() {
+            "true" => val.clone(),
+            "false" => PropValue::from(Value::none()),
+            _ => panic!("Invalid boolean string"),
+        };
+
+        let snippet = format!("(define-private (foo) (if {bool} (some {val}) none)) (try! (foo))");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected.into()))
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[ignore = "ignored until issue #104 is resolved"]
+    #[test]
+    fn crosscheck_try_response_inside_function(
+        bool in bool(),
+        val in PropValue::any(),
+        err_val in PropValue::any()
+    ) {
+        let expected = match bool.to_string().as_str() {
+            "true" => val.clone(),
+            "false" => err_val.clone(),
+            _ => panic!("Invalid boolean string"),
+        };
+
+        let snippet = format!("(define-private (foo) (if {bool} (ok {val}) (err {err_val}))) (try! (foo))");
+
+        crosscheck(
+            &snippet,
             Ok(Some(expected.into()))
         );
     }
