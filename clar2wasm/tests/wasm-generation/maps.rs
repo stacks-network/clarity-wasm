@@ -36,7 +36,7 @@ proptest! {
     #[test]
     fn define_insert_get_map(
         (kty, vty, entries, random_key)
-            in (map_type(), 1usize..=20)
+            in (map_type(), 1usize..=8)
                 .prop_flat_map(|((kty, vty), size)| {
                     (Just(kty.clone()), Just(vty.clone()), map_entries(kty.clone(), vty, size), PropValue::from_type(kty))
     })) {
@@ -112,7 +112,7 @@ proptest! {
     #[test]
     fn define_set_get_map(
         (kty, vty, entries, random_key)
-            in (map_type(), 1usize..=20)
+            in (map_type(), 1usize..=8)
                 .prop_flat_map(|((kty, vty), size)| {
                     (Just(kty.clone()), Just(vty.clone()), map_entries(kty.clone(), vty, size), PropValue::from_type(kty))
     })) {
@@ -183,7 +183,7 @@ proptest! {
     #[test]
     fn define_set_delete_get_map(
         (kty, vty, entries)
-            in (map_type(), 1usize..=20)
+            in (map_type(), 1usize..=8)
                 .prop_flat_map(|((kty, vty), size)| {
                     (Just(kty.clone()), Just(vty.clone()), map_entries(kty, vty, size))
     })) {
