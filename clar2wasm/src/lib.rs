@@ -11,8 +11,11 @@ pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
 mod deserialize;
+mod initialize;
+mod linker;
 mod serialize;
 pub mod wasm_generator;
+mod wasm_utils;
 mod words;
 
 #[cfg(feature = "developer-mode")]

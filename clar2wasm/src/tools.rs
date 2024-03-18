@@ -10,7 +10,6 @@ use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
-use clarity::vm::clarity_wasm::initialize_contract;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
@@ -21,6 +20,8 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
+
+use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
 pub struct TestEnvironment {

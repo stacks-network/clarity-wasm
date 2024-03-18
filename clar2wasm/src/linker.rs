@@ -1,0 +1,3943 @@
+use clarity::vm::analysis::CheckErrors;
+use clarity::vm::callables::{DefineType, DefinedFunction};
+use clarity::vm::costs::{constants as cost_constants, CostTracker};
+use clarity::vm::database::STXBalance;
+use clarity::vm::errors::RuntimeErrorType;
+use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
+use clarity::vm::types::{BufferLength, SequenceSubtype, StacksAddressExtensions, TypeSignature};
+use clarity::vm::{ClarityName, Value};
+use clarity::vm::{ClarityVersion, Environment, SymbolicExpression};
+use stacks_common::types::chainstate::StacksBlockId;
+use stacks_common::util::hash::{Keccak256Hash, Sha512Sum, Sha512Trunc256Sum};
+use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp256k1PublicKey};
+use wasmtime::{Caller, Linker};
+
+use clarity::vm::types::{
+    AssetIdentifier, BlockInfoProperty, BuffData, BurnBlockInfoProperty, FunctionType,
+    ListTypeData, PrincipalData, SequenceData, TraitIdentifier, TupleData, TupleTypeSignature,
+    BUFF_1, BUFF_32, BUFF_33,
+};
+
+use crate::initialize::ClarityWasmContext;
+use crate::wasm_utils::*;
+
+/// Link the host interface functions for into the Wasm module.
+pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    link_define_function_fn(linker)?;
+    link_define_variable_fn(linker)?;
+    link_define_ft_fn(linker)?;
+    link_define_nft_fn(linker)?;
+    link_define_map_fn(linker)?;
+    link_define_trait_fn(linker)?;
+    link_impl_trait_fn(linker)?;
+
+    link_get_variable_fn(linker)?;
+    link_set_variable_fn(linker)?;
+    link_tx_sender_fn(linker)?;
+    link_contract_caller_fn(linker)?;
+    link_tx_sponsor_fn(linker)?;
+    link_block_height_fn(linker)?;
+    link_burn_block_height_fn(linker)?;
+    link_stx_liquid_supply_fn(linker)?;
+    link_is_in_regtest_fn(linker)?;
+    link_is_in_mainnet_fn(linker)?;
+    link_chain_id_fn(linker)?;
+    link_enter_as_contract_fn(linker)?;
+    link_exit_as_contract_fn(linker)?;
+    link_stx_get_balance_fn(linker)?;
+    link_stx_account_fn(linker)?;
+    link_stx_burn_fn(linker)?;
+    link_stx_transfer_fn(linker)?;
+    link_ft_get_supply_fn(linker)?;
+    link_ft_get_balance_fn(linker)?;
+    link_ft_burn_fn(linker)?;
+    link_ft_mint_fn(linker)?;
+    link_ft_transfer_fn(linker)?;
+    link_nft_get_owner_fn(linker)?;
+    link_nft_burn_fn(linker)?;
+    link_nft_mint_fn(linker)?;
+    link_nft_transfer_fn(linker)?;
+    link_map_get_fn(linker)?;
+    link_map_set_fn(linker)?;
+    link_map_insert_fn(linker)?;
+    link_map_delete_fn(linker)?;
+    link_get_block_info_fn(linker)?;
+    link_get_burn_block_info_fn(linker)?;
+    link_contract_call_fn(linker)?;
+    link_begin_public_call_fn(linker)?;
+    link_begin_read_only_call_fn(linker)?;
+    link_commit_call_fn(linker)?;
+    link_roll_back_call_fn(linker)?;
+    link_print_fn(linker)?;
+    link_enter_at_block_fn(linker)?;
+    link_exit_at_block_fn(linker)?;
+    link_keccak256_fn(linker)?;
+    link_sha512_fn(linker)?;
+    link_sha512_256_fn(linker)?;
+    link_secp256k1_recover_fn(linker)?;
+    link_secp256k1_verify_fn(linker)?;
+    link_principal_of_fn(linker)?;
+
+    link_log(linker)
+}
+
+/// Link host interface function, `define_variable`, into the Wasm module.
+/// This function is called for all variable definitions (`define-data-var`).
+fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_variable",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             mut value_offset: i32,
+             mut value_length: i32| {
+                // TODO: Include this cost
+                // runtime_cost(ClarityCostFunction::CreateVar, global_context, value_type.size())?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the variable name string from the memory
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                // Retrieve the type of this variable
+                let value_type = caller
+                    .data()
+                    .contract_analysis
+                    .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                    .get_persisted_variable_type(name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::DefineVariableBadSignature))?
+                    .clone();
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+
+                // Read the initial value from the memory
+                if is_in_memory_type(&value_type) {
+                    (value_offset, value_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                }
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &value_type,
+                    value_offset,
+                    value_length,
+                    epoch,
+                )?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .persisted_names
+                    .insert(ClarityName::try_from(name.clone())?);
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(value_type.type_size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(value.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                // Create the variable in the global context
+                let data_types = caller.data_mut().global_context.database.create_variable(
+                    &contract,
+                    name.as_str(),
+                    value_type,
+                )?;
+
+                // Store the variable in the global context
+                caller.data_mut().global_context.database.set_variable(
+                    &contract,
+                    name.as_str(),
+                    value,
+                    &data_types,
+                    &epoch,
+                )?;
+
+                // Save the metadata for this variable in the contract context
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .meta_data_var
+                    .insert(ClarityName::from(name.as_str()), data_types);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_variable".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_ft",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             supply_indicator: i32,
+             supply_lo: i64,
+             supply_hi: i64| {
+                // runtime_cost(ClarityCostFunction::CreateFt, global_context, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier = caller
+                    .data_mut()
+                    .contract_context()
+                    .contract_identifier
+                    .clone();
+
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let cname = ClarityName::try_from(name.clone())?;
+
+                let total_supply = if supply_indicator == 1 {
+                    Some(((supply_hi as u128) << 64) | supply_lo as u128)
+                } else {
+                    None
+                };
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .persisted_names
+                    .insert(cname.clone());
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(
+                        TypeSignature::UIntType
+                            .type_size()
+                            .expect("type size should be realizable")
+                            as u64,
+                    )
+                    .map_err(|e| Error::from(e))?;
+                let data_type = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .create_fungible_token(&contract_identifier, &name, &total_supply)?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .meta_ft
+                    .insert(cname, data_type);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_ft".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_nft",
+            |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
+                // runtime_cost(ClarityCostFunction::CreateNft, global_context, asset_type.size())?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier = caller
+                    .data_mut()
+                    .contract_context()
+                    .contract_identifier
+                    .clone();
+
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let cname = ClarityName::try_from(name.clone())?;
+
+                // Get the type of this NFT from the contract analysis
+                let asset_type = caller
+                    .data()
+                    .contract_analysis
+                    .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                    .non_fungible_tokens
+                    .get(&cname)
+                    .ok_or(Error::Unchecked(CheckErrors::DefineNFTBadSignature))?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .persisted_names
+                    .insert(cname.clone());
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(
+                        asset_type
+                            .type_size()
+                            .expect("type size should be realizable")
+                            as u64,
+                    )
+                    .map_err(|e| Error::from(e))?;
+
+                let data_type = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .create_non_fungible_token(&contract_identifier, &name, &asset_type)?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .meta_nft
+                    .insert(cname, data_type);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_nft".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_map",
+            |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
+                // runtime_cost(
+                //     ClarityCostFunction::CreateMap,
+                //     global_context,
+                //     u64::from(key_type.size()).cost_overflow_add(u64::from(value_type.size()))?,
+                // )?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier = caller
+                    .data_mut()
+                    .contract_context()
+                    .contract_identifier
+                    .clone();
+
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let cname = ClarityName::try_from(name.clone())?;
+
+                let (key_type, value_type) = caller
+                    .data()
+                    .contract_analysis
+                    .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                    .get_map_type(&name)
+                    .ok_or(Error::Unchecked(CheckErrors::BadMapTypeDefinition))?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .persisted_names
+                    .insert(cname.clone());
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(
+                        key_type
+                            .type_size()
+                            .expect("type size should be realizable")
+                            as u64,
+                    )
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(
+                        value_type
+                            .type_size()
+                            .expect("type size should be realizable")
+                            as u64,
+                    )
+                    .map_err(|e| Error::from(e))?;
+
+                let data_type = caller.data_mut().global_context.database.create_map(
+                    &contract_identifier,
+                    &name,
+                    key_type.clone(),
+                    value_type.clone(),
+                )?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .meta_data_map
+                    .insert(cname, data_type);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_map".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `define_function`, into the Wasm module.
+/// This function is called for all function definitions.
+fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_function",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             kind: i32,
+             name_offset: i32,
+             name_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the variable name string from the memory
+                let function_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let function_cname = ClarityName::try_from(function_name.clone())?;
+
+                // Retrieve the kind of function
+                let (define_type, function_type) = match kind {
+                    0 => (
+                        DefineType::ReadOnly,
+                        caller
+                            .data()
+                            .contract_analysis
+                            .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                            .get_read_only_function_type(&function_name)
+                            .ok_or(Error::Unchecked(CheckErrors::UnknownFunction(
+                                function_name.clone(),
+                            )))?,
+                    ),
+                    1 => (
+                        DefineType::Public,
+                        caller
+                            .data()
+                            .contract_analysis
+                            .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                            .get_public_function_type(&function_name)
+                            .ok_or(Error::Unchecked(CheckErrors::UnknownFunction(
+                                function_name.clone(),
+                            )))?,
+                    ),
+                    2 => (
+                        DefineType::Private,
+                        caller
+                            .data()
+                            .contract_analysis
+                            .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                            .get_private_function(&function_name)
+                            .ok_or(Error::Unchecked(CheckErrors::UnknownFunction(
+                                function_name.clone(),
+                            )))?,
+                    ),
+                    _ => Err(Error::Wasm(WasmError::InvalidFunctionKind(kind)))?,
+                };
+
+                let fixed_type = match function_type {
+                    FunctionType::Fixed(fixed_type) => fixed_type,
+                    _ => Err(Error::Unchecked(CheckErrors::DefineFunctionBadSignature))?,
+                };
+
+                let function = DefinedFunction::new(
+                    fixed_type
+                        .args
+                        .iter()
+                        .map(|arg| (arg.name.clone(), arg.signature.clone()))
+                        .collect(),
+                    // TODO: We don't actually need the body here, so we
+                    // should be able to remove it. For now, this is a
+                    // placeholder.
+                    SymbolicExpression::literal_value(Value::Int(0)),
+                    define_type,
+                    &function_cname,
+                    &caller
+                        .data()
+                        .contract_context()
+                        .contract_identifier
+                        .to_string(),
+                    Some(fixed_type.returns.clone()),
+                );
+
+                // Insert this function into the context
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .functions
+                    .insert(function_cname, function);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_function".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_define_trait_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "define_trait",
+            |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let cname = ClarityName::try_from(name.clone())?;
+
+                let trait_def = caller
+                    .data()
+                    .contract_analysis
+                    .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
+                    .get_defined_trait(name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::DefineTraitBadSignature))?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .defined_traits
+                    .insert(cname, trait_def.clone());
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_map".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_impl_trait_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "impl_trait",
+            |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let trait_id_string =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let trait_id = TraitIdentifier::parse_fully_qualified(trait_id_string.as_str())?;
+
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .implemented_traits
+                    .insert(trait_id);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "define_map".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `get_variable`, into the Wasm module.
+/// This function is called for all variable lookups (`var-get`).
+fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "get_variable",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             return_offset: i32,
+             _return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the variable name for this identifier
+                let var_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the metadata for this variable
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_var
+                    .get(var_name.as_str())
+                    .ok_or(CheckErrors::NoSuchDataVariable(var_name.to_string()))?
+                    .clone();
+
+                let result = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .lookup_variable_with_size(&contract, var_name.as_str(), &data_types, &epoch);
+
+                let _result_size = match &result {
+                    Ok(data) => data.serialized_byte_len,
+                    Err(_e) => data_types.value_type.size()? as u64,
+                };
+
+                // TODO: Include this cost
+                // runtime_cost(ClarityCostFunction::FetchVar, env, result_size)?;
+
+                let value = result.map(|data| data.value)?;
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &data_types.value_type,
+                    return_offset,
+                    return_offset + get_type_size(&data_types.value_type),
+                    &value,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "get_variable".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `set_variable`, into the Wasm module.
+/// This function is called for all variable assignments (`var-set`).
+fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "set_variable",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             mut value_offset: i32,
+             mut value_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the variable name for this identifier
+                let var_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_var
+                    .get(var_name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::NoSuchDataVariable(
+                        var_name.to_string(),
+                    )))?
+                    .clone();
+
+                // TODO: Include this cost
+                // runtime_cost(
+                //     ClarityCostFunction::SetVar,
+                //     env,
+                //     data_types.value_type.size(),
+                // )?;
+
+                // Read in the value from the Wasm memory
+                if is_in_memory_type(&data_types.value_type) {
+                    (value_offset, value_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                }
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.value_type,
+                    value_offset,
+                    value_length,
+                    epoch,
+                )?;
+
+                // TODO: Include this cost
+                // env.add_memory(value.get_memory_use())?;
+
+                // Store the variable in the global context
+                caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .set_variable(&contract, var_name.as_str(), value, &data_types, &epoch)
+                    .map_err(|e| Error::from(e))?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "set_variable".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `tx_sender`, into the Wasm module.
+/// This function is called for use of the builtin variable, `tx-sender`.
+fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sender",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             return_offset: i32,
+             _return_length: i32| {
+                let sender = caller.data().sender.clone().ok_or(Error::Runtime(
+                    RuntimeErrorType::NoSenderInContext.into(),
+                    None,
+                ))?;
+
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let (_, bytes_written) = write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &TypeSignature::PrincipalType,
+                    return_offset,
+                    return_offset,
+                    &Value::Principal(sender),
+                    false,
+                )?;
+
+                Ok((return_offset, bytes_written))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "tx_sender".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `contract_caller`, into the Wasm module.
+/// This function is called for use of the builtin variable, `contract-caller`.
+fn link_contract_caller_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_caller",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             return_offset: i32,
+             _return_length: i32| {
+                let contract_caller = caller.data().caller.clone().ok_or(Error::Runtime(
+                    RuntimeErrorType::NoCallerInContext.into(),
+                    None,
+                ))?;
+
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let (_, bytes_written) = write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &TypeSignature::PrincipalType,
+                    return_offset,
+                    return_offset,
+                    &Value::Principal(contract_caller),
+                    false,
+                )?;
+
+                Ok((return_offset, bytes_written))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "contract_caller".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `tx_sponsor`, into the Wasm module.
+/// This function is called for use of the builtin variable, `tx-sponsor`.
+fn link_tx_sponsor_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "tx_sponsor",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             return_offset: i32,
+             _return_length: i32| {
+                let opt_sponsor = caller.data().sponsor.clone();
+                if let Some(sponsor) = opt_sponsor {
+                    let memory = caller
+                        .get_export("memory")
+                        .and_then(|export| export.into_memory())
+                        .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                    let (_, bytes_written) = write_to_wasm(
+                        &mut caller,
+                        memory,
+                        &TypeSignature::PrincipalType,
+                        return_offset,
+                        return_offset,
+                        &Value::Principal(sponsor),
+                        false,
+                    )?;
+
+                    Ok((1i32, return_offset, bytes_written))
+                } else {
+                    Ok((0i32, return_offset, 0i32))
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "tx_sponsor".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `block_height`, into the Wasm module.
+/// This function is called for use of the builtin variable, `block-height`.
+fn link_block_height_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "block_height",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let height = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_current_block_height();
+                Ok((height as i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "block_height".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `burn_block_height`, into the Wasm module.
+/// This function is called for use of the builtin variable,
+/// `burn-block-height`.
+fn link_burn_block_height_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "burn_block_height",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let height = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_current_burnchain_block_height()?;
+                Ok((height as i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "burn_block_height".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `stx_liquid_supply`, into the Wasm module.
+/// This function is called for use of the builtin variable,
+/// `stx-liquid-supply`.
+fn link_stx_liquid_supply_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_liquid_supply",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let supply = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_total_liquid_ustx()?;
+                let upper = (supply >> 64) as u64;
+                let lower = supply as u64;
+                Ok((lower as i64, upper as i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stx_liquid_supply".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `is_in_regtest`, into the Wasm module.
+/// This function is called for use of the builtin variable,
+/// `is-in-regtest`.
+fn link_is_in_regtest_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "is_in_regtest",
+            |caller: Caller<'_, ClarityWasmContext>| {
+                if caller.data().global_context.database.is_in_regtest() {
+                    Ok(1i32)
+                } else {
+                    Ok(0i32)
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "is_in_regtest".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `is_in_mainnet`, into the Wasm module.
+/// This function is called for use of the builtin variable,
+/// `is-in-mainnet`.
+fn link_is_in_mainnet_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "is_in_mainnet",
+            |caller: Caller<'_, ClarityWasmContext>| {
+                if caller.data().global_context.mainnet {
+                    Ok(1i32)
+                } else {
+                    Ok(0i32)
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "is_in_mainnet".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `chain_id`, into the Wasm module.
+/// This function is called for use of the builtin variable,
+/// `chain-id`.
+fn link_chain_id_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "chain_id",
+            |caller: Caller<'_, ClarityWasmContext>| {
+                let chain_id = caller.data().global_context.chain_id;
+                Ok((chain_id as i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "chain_id".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `enter_as_contract`, into the Wasm module.
+/// This function is called before processing the inner-expression of
+/// `as-contract`.
+fn link_enter_as_contract_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "enter_as_contract",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let contract_principal: PrincipalData = caller
+                    .data()
+                    .contract_context()
+                    .contract_identifier
+                    .clone()
+                    .into();
+                caller.data_mut().push_sender(contract_principal.clone());
+                caller.data_mut().push_caller(contract_principal);
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "enter_as_contract".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `exit_as_contract`, into the Wasm module.
+/// This function is after before processing the inner-expression of
+/// `as-contract`, and is used to restore the caller and sender.
+fn link_exit_as_contract_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "exit_as_contract",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                caller.data_mut().pop_sender()?;
+                caller.data_mut().pop_caller()?;
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "exit_as_contract".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `stx_get_balance`, into the Wasm module.
+/// This function is called for the clarity expression, `stx-get-balance`.
+fn link_stx_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_get_balance",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             principal_offset: i32,
+             principal_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    principal_offset,
+                    principal_length,
+                    epoch,
+                )?;
+                let principal = value_as_principal(&value)?;
+
+                let balance = {
+                    let mut snapshot = caller
+                        .data_mut()
+                        .global_context
+                        .database
+                        .get_stx_balance_snapshot(principal)?;
+                    snapshot.get_available_balance()?
+                };
+                let high = (balance >> 64) as u64;
+                let low = (balance & 0xffff_ffff_ffff_ffff) as u64;
+                Ok((low, high))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stx_get_balance".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `stx_account`, into the Wasm module.
+/// This function is called for the clarity expression, `stx-account`.
+fn link_stx_account_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_account",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             principal_offset: i32,
+             principal_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    principal_offset,
+                    principal_length,
+                    epoch,
+                )?;
+                let principal = value_as_principal(&value)?;
+
+                let account = {
+                    let mut snapshot = caller
+                        .data_mut()
+                        .global_context
+                        .database
+                        .get_stx_balance_snapshot(principal)?;
+                    snapshot.canonical_balance_repr()?
+                };
+                let v1_unlock_ht = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_v1_unlock_height();
+                let v2_unlock_ht = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_v2_unlock_height()?;
+                let v3_unlock_ht = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_v3_unlock_height()?;
+
+                let locked = account.amount_locked();
+                let locked_high = (locked >> 64) as u64;
+                let locked_low = (locked & 0xffff_ffff_ffff_ffff) as u64;
+                let unlock_height =
+                    account.effective_unlock_height(v1_unlock_ht, v2_unlock_ht, v3_unlock_ht);
+                let unlocked = account.amount_unlocked();
+                let unlocked_high = (unlocked >> 64) as u64;
+                let unlocked_low = (unlocked & 0xffff_ffff_ffff_ffff) as u64;
+
+                // Return value is a tuple: `{locked: uint, unlock-height: uint, unlocked: uint}`
+                Ok((
+                    locked_low,
+                    locked_high,
+                    unlock_height as i64,
+                    0i64,
+                    unlocked_low,
+                    unlocked_high,
+                ))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stx_account".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_burn",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             amount_lo: i64,
+             amount_hi: i64,
+             principal_offset: i32,
+             principal_length: i32| {
+                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    principal_offset,
+                    principal_length,
+                    epoch,
+                )?;
+                let from = value_as_principal(&value)?;
+
+                if amount == 0 {
+                    return Ok((0i32, 0i32, StxErrorCodes::NON_POSITIVE_AMOUNT as i64, 0i64));
+                }
+
+                if Some(from) != caller.data().sender.as_ref() {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        StxErrorCodes::SENDER_IS_NOT_TX_SENDER as i64,
+                        0i64,
+                    ));
+                }
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(STXBalance::unlocked_and_v1_size as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                let mut burner_snapshot = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_stx_balance_snapshot(&from)?;
+                if !burner_snapshot.can_transfer(amount)? {
+                    return Ok((0i32, 0i32, StxErrorCodes::NOT_ENOUGH_BALANCE as i64, 0i64));
+                }
+
+                burner_snapshot.debit(amount)?;
+                burner_snapshot.save()?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .decrement_ustx_liquid_supply(amount)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .log_stx_burn(&from, amount)?;
+                caller
+                    .data_mut()
+                    .register_stx_burn_event(from.clone(), amount)?;
+
+                // (ok true)
+                Ok((1i32, 1i32, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stx_burn".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stx_transfer",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             amount_lo: i64,
+             amount_hi: i64,
+             sender_offset: i32,
+             sender_length: i32,
+             recipient_offset: i32,
+             recipient_length: i32,
+             memo_offset: i32,
+             memo_length: i32| {
+                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let sender = value_as_principal(&value)?;
+
+                // Read the to principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    recipient_offset,
+                    recipient_length,
+                    epoch,
+                )?;
+                let recipient = value_as_principal(&value)?;
+
+                // Read the memo from the Wasm memory
+                let memo = if memo_length > 0 {
+                    let value = read_from_wasm(
+                        memory,
+                        &mut caller,
+                        &TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                            BufferLength::try_from(memo_length as u32)?,
+                        )),
+                        memo_offset,
+                        memo_length,
+                        epoch,
+                    )?;
+                    value_as_buffer(value)?
+                } else {
+                    BuffData::empty()
+                };
+
+                if amount == 0 {
+                    return Ok((0i32, 0i32, StxErrorCodes::NON_POSITIVE_AMOUNT as i64, 0i64));
+                }
+
+                if sender == recipient {
+                    return Ok((0i32, 0i32, StxErrorCodes::SENDER_IS_RECIPIENT as i64, 0i64));
+                }
+
+                if Some(sender) != caller.data().sender.as_ref() {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        StxErrorCodes::SENDER_IS_NOT_TX_SENDER as i64,
+                        0i64,
+                    ));
+                }
+
+                // loading sender/recipient principals and balances
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                // loading sender's locked amount and height
+                // TODO: this does not count the inner stacks block header load, but arguably,
+                // this could be optimized away, so it shouldn't penalize the caller.
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(STXBalance::unlocked_and_v1_size as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(STXBalance::unlocked_and_v1_size as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                let mut sender_snapshot = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_stx_balance_snapshot(sender)?;
+                if !sender_snapshot.can_transfer(amount)? {
+                    return Ok((0i32, 0i32, StxErrorCodes::NOT_ENOUGH_BALANCE as i64, 0i64));
+                }
+
+                sender_snapshot.transfer_to(recipient, amount)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .log_stx_transfer(&sender, amount)?;
+                caller.data_mut().register_stx_transfer_event(
+                    sender.clone(),
+                    recipient.clone(),
+                    amount,
+                    memo,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 1i32, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stx_transfer".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_ft_get_supply_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_get_supply",
+            |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+
+                // runtime_cost(ClarityCostFunction::FtSupply, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the token name
+                let token_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let supply = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_ft_supply(&contract_identifier, &token_name)?;
+
+                let high = (supply >> 64) as u64;
+                let low = (supply & 0xffff_ffff_ffff_ffff) as u64;
+                Ok((low, high))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "ft_get_supply".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_ft_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_get_balance",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             owner_offset: i32,
+             owner_length: i32| {
+                // runtime_cost(ClarityCostFunction::FtBalance, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let token_name = ClarityName::try_from(name.clone())?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the owner principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    owner_offset,
+                    owner_length,
+                    epoch,
+                )?;
+                let owner = value_as_principal(&value)?;
+
+                let ft_info = caller
+                    .data()
+                    .contract_context()
+                    .meta_ft
+                    .get(&token_name)
+                    .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
+                    .clone();
+
+                let balance = caller.data_mut().global_context.database.get_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    owner,
+                    Some(&ft_info),
+                )?;
+
+                let high = (balance >> 64) as u64;
+                let low = (balance & 0xffff_ffff_ffff_ffff) as u64;
+                Ok((low, high))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "ft_get_balance".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_burn",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             amount_lo: i64,
+             amount_hi: i64,
+             sender_offset: i32,
+             sender_length: i32| {
+                // runtime_cost(ClarityCostFunction::FtBurn, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let token_name = ClarityName::try_from(name.clone())?;
+
+                // Compute the amount
+                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let burner = value_as_principal(&value)?;
+
+                if amount == 0 {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        BurnTokenErrorCodes::NOT_ENOUGH_BALANCE_OR_NON_POSITIVE as i64,
+                        0i64,
+                    ));
+                }
+
+                let burner_bal = caller.data_mut().global_context.database.get_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    burner,
+                    None,
+                )?;
+
+                if amount > burner_bal {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        BurnTokenErrorCodes::NOT_ENOUGH_BALANCE_OR_NON_POSITIVE as i64,
+                        0i64,
+                    ));
+                }
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .checked_decrease_token_supply(
+                        &contract_identifier,
+                        token_name.as_str(),
+                        amount,
+                    )?;
+
+                let final_burner_bal = burner_bal - amount;
+
+                caller.data_mut().global_context.database.set_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    burner,
+                    final_burner_bal,
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier: contract_identifier.clone(),
+                    asset_name: token_name.clone(),
+                };
+                caller.data_mut().register_ft_burn_event(
+                    burner.clone(),
+                    amount,
+                    asset_identifier,
+                )?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::UIntType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.log_token_transfer(
+                    burner,
+                    &contract_identifier,
+                    &token_name,
+                    amount,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 1i32, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "ft_burn".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_mint",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             amount_lo: i64,
+             amount_hi: i64,
+             sender_offset: i32,
+             sender_length: i32| {
+                // runtime_cost(ClarityCostFunction::FtBurn, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let token_name = ClarityName::try_from(name.clone())?;
+
+                // Compute the amount
+                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let to_principal = value_as_principal(&value)?;
+
+                if amount == 0 {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        MintTokenErrorCodes::NON_POSITIVE_AMOUNT as i64,
+                        0i64,
+                    ));
+                }
+
+                let ft_info = caller
+                    .data()
+                    .contract_context()
+                    .meta_ft
+                    .get(token_name.as_str())
+                    .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
+                    .clone();
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .checked_increase_token_supply(
+                        &contract_identifier,
+                        token_name.as_str(),
+                        amount,
+                        &ft_info,
+                    )?;
+
+                let to_bal = caller.data_mut().global_context.database.get_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    to_principal,
+                    Some(&ft_info),
+                )?;
+
+                // This `expect` is safe because the `checked_increase_token_supply` call above
+                // would have failed if the addition would have overflowed.
+                let final_to_bal = to_bal.checked_add(amount).expect("FT overflow");
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::UIntType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.database.set_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    to_principal,
+                    final_to_bal,
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier: contract_identifier.clone(),
+                    asset_name: token_name.clone(),
+                };
+                caller.data_mut().register_ft_mint_event(
+                    to_principal.clone(),
+                    amount,
+                    asset_identifier,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 1i32, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "ft_mint".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "ft_transfer",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             amount_lo: i64,
+             amount_hi: i64,
+             sender_offset: i32,
+             sender_length: i32,
+             recipient_offset: i32,
+             recipient_length: i32| {
+                // runtime_cost(ClarityCostFunction::FtTransfer, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let token_name = ClarityName::try_from(name.clone())?;
+
+                // Compute the amount
+                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let from_principal = value_as_principal(&value)?;
+
+                // Read the recipient principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    recipient_offset,
+                    recipient_length,
+                    epoch,
+                )?;
+                let to_principal = value_as_principal(&value)?;
+
+                if amount == 0 {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        TransferTokenErrorCodes::NON_POSITIVE_AMOUNT as i64,
+                        0i64,
+                    ));
+                }
+
+                if from_principal == to_principal {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        TransferTokenErrorCodes::SENDER_IS_RECIPIENT as i64,
+                        0i64,
+                    ));
+                }
+
+                let ft_info = caller
+                    .data()
+                    .contract_context()
+                    .meta_ft
+                    .get(&token_name)
+                    .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
+                    .clone();
+
+                let from_bal = caller.data_mut().global_context.database.get_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    from_principal,
+                    Some(&ft_info),
+                )?;
+
+                if from_bal < amount {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        TransferTokenErrorCodes::NOT_ENOUGH_BALANCE as i64,
+                        0i64,
+                    ));
+                }
+
+                let final_from_bal = from_bal - amount;
+
+                let to_bal = caller.data_mut().global_context.database.get_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    to_principal,
+                    Some(&ft_info),
+                )?;
+
+                let final_to_bal = to_bal
+                    .checked_add(amount)
+                    .ok_or(RuntimeErrorType::ArithmeticOverflow)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::UIntType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::UIntType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.database.set_ft_balance(
+                    &contract_identifier,
+                    &token_name,
+                    from_principal,
+                    final_from_bal,
+                )?;
+                caller.data_mut().global_context.database.set_ft_balance(
+                    &contract_identifier,
+                    token_name.as_str(),
+                    to_principal,
+                    final_to_bal,
+                )?;
+
+                caller.data_mut().global_context.log_token_transfer(
+                    from_principal,
+                    &contract_identifier,
+                    &token_name,
+                    amount,
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier: contract_identifier.clone(),
+                    asset_name: token_name.clone(),
+                };
+                caller.data_mut().register_ft_transfer_event(
+                    from_principal.clone(),
+                    to_principal.clone(),
+                    amount,
+                    asset_identifier,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 1i32, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "ft_transfer".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_get_owner",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             asset_offset: i32,
+             asset_length: i32,
+             return_offset: i32,
+             _return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let asset_name = ClarityName::try_from(name.clone())?;
+
+                let nft_metadata = caller
+                    .data()
+                    .contract_context()
+                    .meta_nft
+                    .get(&asset_name)
+                    .ok_or(CheckErrors::NoSuchNFT(asset_name.to_string()))?
+                    .clone();
+
+                let expected_asset_type = &nft_metadata.key_type;
+
+                // Read in the NFT identifier from the Wasm memory
+                let asset = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    expected_asset_type,
+                    asset_offset,
+                    asset_length,
+                    epoch,
+                )?;
+
+                let _asset_size = asset.serialized_size()? as u64;
+
+                // runtime_cost(ClarityCostFunction::NftOwner, env, asset_size)?;
+
+                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                    return Err(
+                        CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
+                    );
+                }
+
+                match caller.data_mut().global_context.database.get_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    expected_asset_type,
+                ) {
+                    Ok(owner) => {
+                        // Write the principal to the return buffer
+                        let memory = caller
+                            .get_export("memory")
+                            .and_then(|export| export.into_memory())
+                            .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                        let (_, bytes_written) = write_to_wasm(
+                            caller,
+                            memory,
+                            &TypeSignature::PrincipalType,
+                            return_offset,
+                            return_offset,
+                            &Value::Principal(owner),
+                            false,
+                        )?;
+
+                        Ok((1i32, return_offset, bytes_written))
+                    }
+                    Err(Error::Runtime(RuntimeErrorType::NoSuchToken, _)) => Ok((0i32, 0i32, 0i32)),
+                    Err(e) => Err(e)?,
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "nft_get_owner".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_burn",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             asset_offset: i32,
+             asset_length: i32,
+             sender_offset: i32,
+             sender_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let asset_name = ClarityName::try_from(name.clone())?;
+
+                let nft_metadata = caller
+                    .data()
+                    .contract_context()
+                    .meta_nft
+                    .get(&asset_name)
+                    .ok_or(CheckErrors::NoSuchNFT(asset_name.to_string()))?
+                    .clone();
+
+                let expected_asset_type = &nft_metadata.key_type;
+
+                // Read in the NFT identifier from the Wasm memory
+                let asset = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    expected_asset_type,
+                    asset_offset,
+                    asset_length,
+                    epoch,
+                )?;
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let sender_principal = value_as_principal(&value)?;
+
+                let asset_size = asset.serialized_size()? as u64;
+
+                // runtime_cost(ClarityCostFunction::NftBurn, env, asset_size)?;
+
+                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                    return Err(
+                        CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
+                    );
+                }
+
+                let owner = match caller.data_mut().global_context.database.get_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    expected_asset_type,
+                ) {
+                    Err(Error::Runtime(RuntimeErrorType::NoSuchToken, _)) => {
+                        return Ok((0i32, 0i32, BurnAssetErrorCodes::DOES_NOT_EXIST as i64, 0i64));
+                    }
+                    Ok(owner) => Ok(owner),
+                    Err(e) => Err(e),
+                }?;
+
+                if &owner != sender_principal {
+                    return Ok((0i32, 0i32, BurnAssetErrorCodes::NOT_OWNED_BY as i64, 0i64));
+                }
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(asset_size)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.database.burn_nft(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    expected_asset_type,
+                    &epoch,
+                )?;
+
+                caller.data_mut().global_context.log_asset_transfer(
+                    sender_principal,
+                    &contract_identifier,
+                    &asset_name,
+                    asset.clone(),
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier,
+                    asset_name: asset_name.clone(),
+                };
+                caller.data_mut().register_nft_burn_event(
+                    sender_principal.clone(),
+                    asset,
+                    asset_identifier,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 132, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "nft_burn".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_mint",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             asset_offset: i32,
+             asset_length: i32,
+             recipient_offset: i32,
+             recipient_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let asset_name = ClarityName::try_from(name.clone())?;
+
+                let nft_metadata = caller
+                    .data()
+                    .contract_context()
+                    .meta_nft
+                    .get(&asset_name)
+                    .ok_or(CheckErrors::NoSuchNFT(asset_name.to_string()))?
+                    .clone();
+
+                let expected_asset_type = &nft_metadata.key_type;
+
+                // Read in the NFT identifier from the Wasm memory
+                let asset = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    expected_asset_type,
+                    asset_offset,
+                    asset_length,
+                    epoch,
+                )?;
+
+                // Read the recipient principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    recipient_offset,
+                    recipient_length,
+                    epoch,
+                )?;
+                let to_principal = value_as_principal(&value)?;
+
+                let asset_size = asset.serialized_size()? as u64;
+                // runtime_cost(ClarityCostFunction::NftMint, env, asset_size)?;
+
+                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                    return Err(
+                        CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
+                    );
+                }
+
+                match caller.data_mut().global_context.database.get_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    expected_asset_type,
+                ) {
+                    Err(Error::Runtime(RuntimeErrorType::NoSuchToken, _)) => Ok(()),
+                    Ok(_owner) => {
+                        return Ok((0i32, 0i32, MintAssetErrorCodes::ALREADY_EXIST as i64, 0i64))
+                    }
+                    Err(e) => Err(e),
+                }?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(asset_size)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.database.set_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    to_principal,
+                    expected_asset_type,
+                    &epoch,
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier,
+                    asset_name: asset_name.clone(),
+                };
+                caller.data_mut().register_nft_mint_event(
+                    to_principal.clone(),
+                    asset,
+                    asset_identifier,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 132, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "nft_mint".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "nft_transfer",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             asset_offset: i32,
+             asset_length: i32,
+             sender_offset: i32,
+             sender_length: i32,
+             recipient_offset: i32,
+             recipient_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let contract_identifier =
+                    caller.data().contract_context().contract_identifier.clone();
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the token name
+                let name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let asset_name = ClarityName::try_from(name.clone())?;
+
+                let nft_metadata = caller
+                    .data()
+                    .contract_context()
+                    .meta_nft
+                    .get(&asset_name)
+                    .ok_or(CheckErrors::NoSuchNFT(asset_name.to_string()))?
+                    .clone();
+
+                let expected_asset_type = &nft_metadata.key_type;
+
+                // Read in the NFT identifier from the Wasm memory
+                let asset = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    expected_asset_type,
+                    asset_offset,
+                    asset_length,
+                    epoch,
+                )?;
+
+                // Read the sender principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    sender_offset,
+                    sender_length,
+                    epoch,
+                )?;
+                let from_principal = value_as_principal(&value)?;
+
+                // Read the recipient principal from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    recipient_offset,
+                    recipient_length,
+                    epoch,
+                )?;
+                let to_principal = value_as_principal(&value)?;
+
+                let asset_size = asset.serialized_size()? as u64;
+                // runtime_cost(ClarityCostFunction::NftTransfer, env, asset_size)?;
+
+                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                    return Err(
+                        CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
+                    );
+                }
+
+                if from_principal == to_principal {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        TransferAssetErrorCodes::SENDER_IS_RECIPIENT as i64,
+                        0i64,
+                    ));
+                }
+
+                let current_owner = match caller.data_mut().global_context.database.get_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    expected_asset_type,
+                ) {
+                    Ok(owner) => Ok(owner),
+                    Err(Error::Runtime(RuntimeErrorType::NoSuchToken, _)) => {
+                        return Ok((
+                            0i32,
+                            0i32,
+                            TransferAssetErrorCodes::DOES_NOT_EXIST as i64,
+                            0i64,
+                        ))
+                    }
+                    Err(e) => Err(e),
+                }?;
+
+                if current_owner != *from_principal {
+                    return Ok((
+                        0i32,
+                        0i32,
+                        TransferAssetErrorCodes::NOT_OWNED_BY as i64,
+                        0i64,
+                    ));
+                }
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(TypeSignature::PrincipalType.size()? as u64)
+                    .map_err(|e| Error::from(e))?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(asset_size)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.database.set_nft_owner(
+                    &contract_identifier,
+                    asset_name.as_str(),
+                    &asset,
+                    to_principal,
+                    expected_asset_type,
+                    &epoch,
+                )?;
+
+                caller.data_mut().global_context.log_asset_transfer(
+                    from_principal,
+                    &contract_identifier,
+                    &asset_name,
+                    asset.clone(),
+                )?;
+
+                let asset_identifier = AssetIdentifier {
+                    contract_identifier,
+                    asset_name,
+                };
+                caller.data_mut().register_nft_transfer_event(
+                    from_principal.clone(),
+                    to_principal.clone(),
+                    asset,
+                    asset_identifier,
+                )?;
+
+                // (ok true)
+                Ok((1i32, 132, 0i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "nft_transfer".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `map_get`, into the Wasm module.
+/// This function is called for the `map-get?` expression.
+fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "map_get",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             key_offset: i32,
+             key_length: i32,
+             return_offset: i32,
+             _return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the map name
+                let map_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the metadata for this map
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_map
+                    .get(map_name.as_str())
+                    .ok_or(CheckErrors::NoSuchMap(map_name.to_string()))?
+                    .clone();
+
+                // Read in the key from the Wasm memory
+                let key = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.key_type,
+                    key_offset,
+                    key_length,
+                    epoch,
+                )?;
+
+                let result = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .fetch_entry_with_size(&contract, &map_name, &key, &data_types, &epoch);
+
+                let _result_size = match &result {
+                    Ok(data) => data.serialized_byte_len,
+                    Err(_e) => (data_types.value_type.size()? + data_types.key_type.size()?) as u64,
+                };
+
+                // runtime_cost(ClarityCostFunction::FetchEntry, env, result_size)?;
+
+                let value = result.map(|data| data.value)?;
+
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let ty = TypeSignature::OptionalType(Box::new(data_types.value_type));
+                write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &ty,
+                    return_offset,
+                    return_offset + get_type_size(&ty),
+                    &value,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "map_get".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `map_set`, into the Wasm module.
+/// This function is called for the `map-set` expression.
+fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "map_set",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             key_offset: i32,
+             key_length: i32,
+             value_offset: i32,
+             value_length: i32| {
+                if caller.data().global_context.is_read_only() {
+                    return Err(CheckErrors::WriteAttemptedInReadOnly.into());
+                }
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the map name
+                let map_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_map
+                    .get(map_name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::NoSuchMap(
+                        map_name.to_string(),
+                    )))?
+                    .clone();
+
+                // Read in the key from the Wasm memory
+                let key = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.key_type,
+                    key_offset,
+                    key_length,
+                    epoch,
+                )?;
+
+                // Read in the value from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.value_type,
+                    value_offset,
+                    value_length,
+                    epoch,
+                )?;
+
+                // Store the value in the map in the global context
+                let result = caller.data_mut().global_context.database.set_entry(
+                    &contract,
+                    map_name.as_str(),
+                    key,
+                    value,
+                    &data_types,
+                    &epoch,
+                );
+
+                let result_size = match &result {
+                    Ok(data) => data.serialized_byte_len,
+                    Err(_e) => (data_types.value_type.size()? + data_types.key_type.size()?) as u64,
+                };
+
+                // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(result_size)
+                    .map_err(|e| Error::from(e))?;
+
+                let value = result.map(|data| data.value)?;
+                if let Value::Bool(true) = value {
+                    Ok(1i32)
+                } else {
+                    Ok(0i32)
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "map_set".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `map_insert`, into the Wasm module.
+/// This function is called for the `map-insert` expression.
+fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "map_insert",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             key_offset: i32,
+             key_length: i32,
+             value_offset: i32,
+             value_length: i32| {
+                if caller.data().global_context.is_read_only() {
+                    return Err(CheckErrors::WriteAttemptedInReadOnly.into());
+                }
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Retrieve the map name
+                let map_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_map
+                    .get(map_name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::NoSuchMap(
+                        map_name.to_string(),
+                    )))?
+                    .clone();
+
+                // Read in the key from the Wasm memory
+                let key = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.key_type,
+                    key_offset,
+                    key_length,
+                    epoch,
+                )?;
+
+                // Read in the value from the Wasm memory
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.value_type,
+                    value_offset,
+                    value_length,
+                    epoch,
+                )?;
+
+                // Insert the value into the map
+                let result = caller.data_mut().global_context.database.insert_entry(
+                    &contract,
+                    map_name.as_str(),
+                    key,
+                    value,
+                    &data_types,
+                    &epoch,
+                );
+
+                let result_size = match &result {
+                    Ok(data) => data.serialized_byte_len,
+                    Err(_e) => (data_types.value_type.size()? + data_types.key_type.size()?) as u64,
+                };
+
+                // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(result_size)
+                    .map_err(|e| Error::from(e))?;
+
+                let value = result.map(|data| data.value)?;
+                if let Value::Bool(true) = value {
+                    Ok(1i32)
+                } else {
+                    Ok(0i32)
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "map_insert".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `map_delete`, into the Wasm module.
+/// This function is called for the `map-delete` expression.
+fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "map_delete",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             key_offset: i32,
+             key_length: i32| {
+                if caller.data().global_context.is_read_only() {
+                    return Err(CheckErrors::WriteAttemptedInReadOnly.into());
+                }
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the map name
+                let map_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let contract = caller.data().contract_context().contract_identifier.clone();
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                let data_types = caller
+                    .data()
+                    .contract_context()
+                    .meta_data_map
+                    .get(map_name.as_str())
+                    .ok_or(Error::Unchecked(CheckErrors::NoSuchMap(
+                        map_name.to_string(),
+                    )))?
+                    .clone();
+
+                // Read in the key from the Wasm memory
+                let key = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &data_types.key_type,
+                    key_offset,
+                    key_length,
+                    epoch,
+                )?;
+
+                // Delete the key from the map in the global context
+                let result = caller.data_mut().global_context.database.delete_entry(
+                    &contract,
+                    map_name.as_str(),
+                    &key,
+                    &data_types,
+                    &epoch,
+                );
+
+                let result_size = match &result {
+                    Ok(data) => data.serialized_byte_len,
+                    Err(_e) => (data_types.value_type.size()? + data_types.key_type.size()?) as u64,
+                };
+
+                // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(result_size)
+                    .map_err(|e| Error::from(e))?;
+
+                let value = result.map(|data| data.value)?;
+                if let Value::Bool(true) = value {
+                    Ok(1i32)
+                } else {
+                    Ok(0i32)
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "map_delete".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `get_block_info`, into the Wasm module.
+/// This function is called for the `get-block-info?` expression.
+fn link_get_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "get_block_info",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             height_lo: i64,
+             height_hi: i64,
+             return_offset: i32,
+             _return_length: i32| {
+                // runtime_cost(ClarityCostFunction::BlockInfo, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the property name
+                let property_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let height = (height_lo as u128) | ((height_hi as u128) << 64);
+
+                let block_info_prop = BlockInfoProperty::lookup_by_name_at_version(
+                    &property_name,
+                    caller.data().contract_context().get_clarity_version(),
+                )
+                .ok_or(CheckErrors::GetBlockInfoExpectPropertyName)?;
+
+                let height_value = match u32::try_from(height) {
+                    Ok(result) => result,
+                    _ => {
+                        // Write a 0 to the return buffer for `none`
+                        write_to_wasm(
+                            &mut caller,
+                            memory,
+                            &TypeSignature::BoolType,
+                            return_offset,
+                            return_offset + get_type_size(&TypeSignature::BoolType),
+                            &Value::Bool(false),
+                            true,
+                        )?;
+                        return Ok(());
+                    }
+                };
+
+                let current_block_height = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_current_block_height();
+                if height_value >= current_block_height {
+                    // Write a 0 to the return buffer for `none`
+                    write_to_wasm(
+                        &mut caller,
+                        memory,
+                        &TypeSignature::BoolType,
+                        return_offset,
+                        return_offset + get_type_size(&TypeSignature::BoolType),
+                        &Value::Bool(false),
+                        true,
+                    )?;
+                    return Ok(());
+                }
+
+                let (result, result_ty) = match block_info_prop {
+                    BlockInfoProperty::Time => {
+                        let block_time = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_block_time(height_value)?;
+                        (Value::UInt(block_time as u128), TypeSignature::UIntType)
+                    }
+                    BlockInfoProperty::VrfSeed => {
+                        let vrf_seed = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_block_vrf_seed(height_value)?;
+                        let data = vrf_seed.as_bytes().to_vec();
+                        let len = data.len() as u32;
+                        (
+                            Value::Sequence(SequenceData::Buffer(BuffData { data })),
+                            TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                                BufferLength::try_from(len)?,
+                            )),
+                        )
+                    }
+                    BlockInfoProperty::HeaderHash => {
+                        let header_hash = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_block_header_hash(height_value)?;
+                        let data = header_hash.as_bytes().to_vec();
+                        let len = data.len() as u32;
+                        (
+                            Value::Sequence(SequenceData::Buffer(BuffData { data })),
+                            TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                                BufferLength::try_from(len)?,
+                            )),
+                        )
+                    }
+                    BlockInfoProperty::BurnchainHeaderHash => {
+                        let burnchain_header_hash = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_burnchain_block_header_hash(height_value)?;
+                        let data = burnchain_header_hash.as_bytes().to_vec();
+                        let len = data.len() as u32;
+                        (
+                            Value::Sequence(SequenceData::Buffer(BuffData { data })),
+                            TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                                BufferLength::try_from(len)?,
+                            )),
+                        )
+                    }
+                    BlockInfoProperty::IdentityHeaderHash => {
+                        let id_header_hash = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_index_block_header_hash(height_value)?;
+                        let data = id_header_hash.as_bytes().to_vec();
+                        let len = data.len() as u32;
+                        (
+                            Value::Sequence(SequenceData::Buffer(BuffData { data })),
+                            TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                                BufferLength::try_from(len)?,
+                            )),
+                        )
+                    }
+                    BlockInfoProperty::MinerAddress => {
+                        let miner_address = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_miner_address(height_value)?;
+                        (Value::from(miner_address), TypeSignature::PrincipalType)
+                    }
+                    BlockInfoProperty::MinerSpendWinner => {
+                        let winner_spend = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_miner_spend_winner(height_value)?;
+                        (Value::UInt(winner_spend), TypeSignature::UIntType)
+                    }
+                    BlockInfoProperty::MinerSpendTotal => {
+                        let total_spend = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_miner_spend_total(height_value)?;
+                        (Value::UInt(total_spend), TypeSignature::UIntType)
+                    }
+                    BlockInfoProperty::BlockReward => {
+                        // this is already an optional
+                        let block_reward_opt = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_block_reward(height_value)?;
+                        (
+                            match block_reward_opt {
+                                Some(x) => Value::UInt(x),
+                                None => {
+                                    // Write a 0 to the return buffer for `none`
+                                    write_to_wasm(
+                                        &mut caller,
+                                        memory,
+                                        &TypeSignature::BoolType,
+                                        return_offset,
+                                        return_offset + get_type_size(&TypeSignature::BoolType),
+                                        &Value::Bool(false),
+                                        true,
+                                    )?;
+                                    return Ok(());
+                                }
+                            },
+                            TypeSignature::UIntType,
+                        )
+                    }
+                };
+
+                // Write the result to the return buffer
+                let ty = TypeSignature::OptionalType(Box::new(result_ty));
+                write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &ty,
+                    return_offset,
+                    return_offset + get_type_size(&ty),
+                    &Value::some(result)?,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "get_block_info".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `get_burn_block_info`, into the Wasm module.
+/// This function is called for the `get-burn-block-info?` expression.
+fn link_get_burn_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "get_burn_block_info",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             height_lo: i64,
+             height_hi: i64,
+             return_offset: i32,
+             _return_length: i32| {
+                // runtime_cost(ClarityCostFunction::GetBurnBlockInfo, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Retrieve the property name
+                let property_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+
+                let height = (height_lo as u128) | ((height_hi as u128) << 64);
+
+                let block_info_prop = BurnBlockInfoProperty::lookup_by_name(&property_name)
+                    .ok_or(CheckErrors::GetBurnBlockInfoExpectPropertyName)?;
+
+                // Note: we assume that we will not have a height bigger than u32::MAX.
+                let height_value = match u32::try_from(height) {
+                    Ok(result) => result,
+                    _ => {
+                        // Write a 0 to the return buffer for `none`
+                        write_to_wasm(
+                            &mut caller,
+                            memory,
+                            &TypeSignature::BoolType,
+                            return_offset,
+                            return_offset + get_type_size(&TypeSignature::BoolType),
+                            &Value::Bool(false),
+                            true,
+                        )?;
+                        return Ok(());
+                    }
+                };
+
+                let (result, result_ty) = match block_info_prop {
+                    BurnBlockInfoProperty::HeaderHash => {
+                        let burnchain_header_hash_opt = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_burnchain_block_header_hash_for_burnchain_height(
+                            height_value,
+                        )?;
+                        (
+                            match burnchain_header_hash_opt {
+                                Some(burnchain_header_hash) => {
+                                    Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
+                                        data: burnchain_header_hash.as_bytes().to_vec(),
+                                    })))
+                                    .expect("FATAL: could not wrap a (buff 32) in an optional")
+                                }
+                                None => Value::none(),
+                            },
+                            TypeSignature::OptionalType(Box::new(BUFF_32.clone())),
+                        )
+                    }
+                    BurnBlockInfoProperty::PoxAddrs => {
+                        let pox_addrs_and_payout = caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_pox_payout_addrs_for_burnchain_height(height_value)?;
+                        let addr_ty: TypeSignature = TupleTypeSignature::try_from(vec![
+                            ("hashbytes".into(), BUFF_32.clone()),
+                            ("version".into(), BUFF_1.clone()),
+                        ])
+                        .expect("FATAL: could not build tuple type signature")
+                        .into();
+                        let addrs_ty = TypeSignature::list_of(addr_ty.clone(), 2)
+                            .expect("FATAL: could not build list type signature");
+                        let tuple_ty = TupleTypeSignature::try_from(vec![
+                            ("addrs".into(), addrs_ty),
+                            ("payout".into(), TypeSignature::UIntType),
+                        ])?;
+                        let value = match pox_addrs_and_payout {
+                            Some((addrs, payout)) => Value::some(Value::Tuple(
+                                TupleData::from_data(vec![
+                                    (
+                                        "addrs".into(),
+                                        Value::list_with_type(
+                                            &caller.data_mut().global_context.epoch_id,
+                                            addrs.into_iter().map(Value::Tuple).collect(),
+                                            ListTypeData::new_list(addr_ty, 2)
+                                                .expect("FATAL: could not create list type"),
+                                        )
+                                        .expect("FATAL: could not convert address list to Value"),
+                                    ),
+                                    ("payout".into(), Value::UInt(payout)),
+                                ])
+                                .expect("FATAL: failed to build pox addrs and payout tuple"),
+                            ))
+                            .expect("FATAL: could not build Some(..)"),
+                            None => Value::none(),
+                        };
+                        let ty = TypeSignature::OptionalType(Box::new(tuple_ty.into()));
+                        (value, ty)
+                    }
+                };
+
+                // Write the result to the return buffer
+                write_to_wasm(
+                    &mut caller,
+                    memory,
+                    &result_ty,
+                    return_offset,
+                    return_offset + get_type_size(&result_ty),
+                    &result,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "get_burn_block_info".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `contract_call`, into the Wasm module.
+/// This function is called for `contract-call?`s.
+fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "contract_call",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             contract_offset: i32,
+             contract_length: i32,
+             function_offset: i32,
+             function_length: i32,
+             args_offset: i32,
+             _args_length: i32,
+             return_offset: i32,
+             _return_length: i32| {
+                // the second part of the contract_call cost (i.e., the load contract cost)
+                //   is checked in `execute_contract`, and the function _application_ cost
+                //   is checked in callables::DefinedFunction::execute_apply.
+                // runtime_cost(ClarityCostFunction::ContractCall, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the contract identifier from the Wasm memory
+                let contract_val = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &TypeSignature::PrincipalType,
+                    contract_offset,
+                    contract_length,
+                    epoch,
+                )?;
+                let contract_id = match &contract_val {
+                    Value::Principal(PrincipalData::Contract(contract_id)) => contract_id,
+                    _ => {
+                        return Err(CheckErrors::ContractCallExpectName.into());
+                    }
+                };
+
+                // Read the function name from the Wasm memory
+                let function_name = read_identifier_from_wasm(
+                    memory,
+                    &mut caller,
+                    function_offset,
+                    function_length,
+                )?;
+
+                // Retrieve the contract context for the contract we're calling
+                let contract = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_contract(contract_id)?;
+
+                // Retrieve the function we're calling
+                let function = contract
+                    .contract_context
+                    .functions
+                    .get(function_name.as_str())
+                    .ok_or(CheckErrors::NoSuchPublicFunction(
+                        contract_id.to_string(),
+                        function_name.to_string(),
+                    ))?;
+
+                let mut args = Vec::new();
+                let mut args_sizes = Vec::new();
+                let mut arg_offset = args_offset;
+                // Read the arguments from the Wasm memory
+                for arg_ty in function.get_arg_types() {
+                    let arg =
+                        read_from_wasm_indirect(memory, &mut caller, arg_ty, arg_offset, epoch)?;
+                    args_sizes.push(arg.size()? as u64);
+                    args.push(arg);
+
+                    arg_offset += get_type_size(arg_ty);
+                }
+
+                let caller_contract: PrincipalData = caller
+                    .data()
+                    .contract_context()
+                    .contract_identifier
+                    .clone()
+                    .into();
+                caller.data_mut().push_caller(caller_contract.clone());
+
+                let mut call_stack = caller.data().call_stack.clone();
+                let sender = caller.data().sender.clone();
+                let sponsor = caller.data().sponsor.clone();
+
+                let short_circuit_cost = caller
+                    .data_mut()
+                    .global_context
+                    .cost_track
+                    .short_circuit_contract_call(
+                        contract_id,
+                        &ClarityName::try_from(function_name.clone())?,
+                        &args_sizes,
+                    )?;
+
+                let mut env = Environment {
+                    global_context: caller.data_mut().global_context,
+                    contract_context: &contract.contract_context,
+                    call_stack: &mut call_stack,
+                    sender,
+                    caller: Some(caller_contract),
+                    sponsor,
+                };
+
+                let result = if short_circuit_cost {
+                    env.run_free(|free_env| {
+                        free_env.execute_contract_from_wasm(contract_id, &function_name, &args)
+                    })
+                } else {
+                    env.execute_contract_from_wasm(contract_id, &function_name, &args)
+                }?;
+
+                // Write the result to the return buffer
+                let return_ty = function
+                    .get_return_type()
+                    .as_ref()
+                    .ok_or(CheckErrors::DefineFunctionBadSignature)?;
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                write_to_wasm(
+                    &mut caller,
+                    memory,
+                    return_ty,
+                    return_offset,
+                    return_offset + get_type_size(return_ty),
+                    &result,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "contract_call".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `begin_public_call`, into the Wasm module.
+/// This function is called before a local call to a public function.
+fn link_begin_public_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "begin_public_call",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                caller.data_mut().global_context.begin();
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "begin_public_call".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `begin_read_only_call`, into the Wasm module.
+/// This function is called before a local call to a public function.
+fn link_begin_read_only_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "begin_read_only_call",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                caller.data_mut().global_context.begin_read_only();
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "begin_read_only_call".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `commit_call`, into the Wasm module.
+/// This function is called after a local call to a public function to commit
+/// it's changes into the global context.
+fn link_commit_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "commit_call",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                caller.data_mut().global_context.commit()?;
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "commit_call".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `roll_back_call`, into the Wasm module.
+/// This function is called after a local call to roll back it's changes from
+/// the global context. It is called when a public function errors, or a
+/// read-only call completes.
+fn link_roll_back_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "roll_back_call",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                caller.data_mut().global_context.roll_back()?;
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "roll_back_call".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `print`, into the Wasm module.
+/// This function is called for all contract print statements (`print`).
+fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "print",
+            |mut caller: Caller<'_, ClarityWasmContext>, value_offset: i32, value_length: i32| {
+                // runtime_cost(ClarityCostFunction::Print, env, input.size())?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read in the bytes from the Wasm memory
+                let bytes = read_bytes_from_wasm(memory, &mut caller, value_offset, value_length)?;
+
+                let clarity_val = Value::deserialize_read(&mut bytes.as_slice(), None, false)?;
+
+                if cfg!(feature = "developer-mode") {
+                    //debug!("{}", &clarity_val);
+                }
+
+                caller.data_mut().register_print_event(clarity_val)?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("print".to_string(), e)))
+}
+
+/// Link host interface function, `enter_at_block`, into the Wasm module.
+/// This function is called before evaluating the inner expression of an
+/// `at-block` expression.
+fn link_enter_at_block_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "enter_at_block",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             block_hash_offset: i32,
+             block_hash_length: i32| {
+                // runtime_cost(ClarityCostFunction::AtBlock, env, 0)?;
+
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                let block_hash = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &BUFF_32,
+                    block_hash_offset,
+                    block_hash_length,
+                    epoch,
+                )?;
+
+                let bhh = match block_hash {
+                    Value::Sequence(SequenceData::Buffer(BuffData { data })) => {
+                        if data.len() != 32 {
+                            return Err(RuntimeErrorType::BadBlockHash(data).into());
+                        }
+                        StacksBlockId::from(data.as_slice())
+                    }
+                    x => return Err(CheckErrors::TypeValueError(BUFF_32.clone(), x).into()),
+                };
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(cost_constants::AT_BLOCK_MEMORY)
+                    .map_err(|e| Error::from(e))?;
+
+                caller.data_mut().global_context.begin_read_only();
+
+                let prev_bhh = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .set_block_hash(bhh, false)?;
+
+                caller.data_mut().push_at_block(prev_bhh);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "enter_at_block".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `exit_at_block`, into the Wasm module.
+/// This function is called after evaluating the inner expression of an
+/// `at-block` expression, resetting the state back to the current block.
+fn link_exit_at_block_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "exit_at_block",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                // Pop back to the current block
+                let bhh = caller.data_mut().pop_at_block();
+                caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .set_block_hash(bhh, true)
+                    .expect("ERROR: Failed to restore prior active block after time-shifted evaluation.");
+
+                // Roll back any changes that occurred during the `at-block`
+                // expression. This is precautionary, since only read-only
+                // operations are allowed during an `at-block` expression.
+                caller.data_mut().global_context.roll_back()?;
+
+                caller
+                    .data_mut()
+                    .global_context
+                    .drop_memory(cost_constants::AT_BLOCK_MEMORY)?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "exit_at_block".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `keccak256`, into the Wasm module.
+/// This function is called for the Clarity expression, `keccak256`.
+fn link_keccak256_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "keccak256",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             buffer_offset: i32,
+             buffer_length: i32,
+             return_offset: i32,
+             return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the bytes from the memory
+                let bytes =
+                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+
+                let hash = Keccak256Hash::from_data(&bytes);
+
+                // Write the hash to the return buffer
+                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+
+                Ok((return_offset, return_length))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "keccak256".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `sha512`, into the Wasm module.
+/// This function is called for the Clarity expression, `sha512`.
+fn link_sha512_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             buffer_offset: i32,
+             buffer_length: i32,
+             return_offset: i32,
+             return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the bytes from the memory
+                let bytes =
+                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+
+                let hash = Sha512Sum::from_data(&bytes);
+
+                // Write the hash to the return buffer
+                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+
+                Ok((return_offset, return_length))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("sha512".to_string(), e)))
+}
+
+/// Link host interface function, `sha512_256`, into the Wasm module.
+/// This function is called for the Clarity expression, `sha512/256`.
+fn link_sha512_256_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "sha512_256",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             buffer_offset: i32,
+             buffer_length: i32,
+             return_offset: i32,
+             return_length: i32| {
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the bytes from the memory
+                let bytes =
+                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+
+                let hash = Sha512Trunc256Sum::from_data(&bytes);
+
+                // Write the hash to the return buffer
+                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+
+                Ok((return_offset, return_length))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "sha512_256".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `secp256k1_recover`, into the Wasm module.
+/// This function is called for the Clarity expression, `secp256k1-recover?`.
+fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "secp256k1_recover",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             msg_offset: i32,
+             msg_length: i32,
+             sig_offset: i32,
+             sig_length: i32,
+             return_offset: i32,
+             _return_length: i32| {
+                // runtime_cost(ClarityCostFunction::Secp256k1recover, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the message bytes from the memory
+                let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+
+                // Read the signature bytes from the memory
+                let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+
+                let result = match secp256k1_recover(&msg_bytes, &sig_bytes) {
+                    Ok(pubkey) => Value::okay(Value::buff_from(pubkey.to_vec()).unwrap()).unwrap(),
+                    _ => Value::err_uint(1),
+                };
+
+                // Write the result to the return buffer
+                let ret_ty =
+                    TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType).unwrap();
+                let repr_size = get_type_size(&ret_ty);
+                write_to_wasm(
+                    caller,
+                    memory,
+                    &ret_ty,
+                    return_offset,
+                    return_offset + repr_size,
+                    &result,
+                    true,
+                )?;
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "secp256k1_recover".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `secp256k1_verify`, into the Wasm module.
+/// This function is called for the Clarity expression, `secp256k1-verify`.
+fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "secp256k1_verify",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             msg_offset: i32,
+             msg_length: i32,
+             sig_offset: i32,
+             sig_length: i32,
+             pk_offset: i32,
+             pk_length: i32| {
+                // runtime_cost(ClarityCostFunction::Secp256k1verify, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // Read the message bytes from the memory
+                let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+
+                // Read the signature bytes from the memory
+                let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+
+                // Read the public-key bytes from the memory
+                let pk_bytes = read_bytes_from_wasm(memory, &mut caller, pk_offset, pk_length)?;
+
+                Ok(secp256k1_verify(&msg_bytes, &sig_bytes, &pk_bytes).map_or(0i32, |_| 1i32))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "secp256k1_verify".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `principal_of`, into the Wasm module.
+/// This function is called for the Clarity expression, `principal-of?`.
+fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "principal_of",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             key_offset: i32,
+             key_length: i32,
+             principal_offset: i32| {
+                // runtime_cost(ClarityCostFunction::PrincipalOf, env, 0)?;
+
+                // Get the memory from the caller
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Read the public key from the memory
+                let key_val = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    &BUFF_33.clone(),
+                    key_offset,
+                    key_length,
+                    epoch,
+                )?;
+
+                let pub_key = match key_val {
+                    Value::Sequence(SequenceData::Buffer(BuffData { ref data })) => {
+                        if data.len() != 33 {
+                            return Err(
+                                CheckErrors::TypeValueError(BUFF_33.clone(), key_val).into()
+                            );
+                        }
+                        data
+                    }
+                    _ => return Err(CheckErrors::TypeValueError(BUFF_33.clone(), key_val).into()),
+                };
+
+                if let Ok(pub_key) = Secp256k1PublicKey::from_slice(&pub_key) {
+                    // Note: Clarity1 had a bug in how the address is computed (issues/2619).
+                    // We want to preserve the old behavior unless the version is greater.
+                    let addr = if *caller.data().contract_context().get_clarity_version()
+                        > ClarityVersion::Clarity1
+                    {
+                        pubkey_to_address_v2(pub_key, caller.data().global_context.mainnet)?
+                    } else {
+                        pubkey_to_address_v1(pub_key)?
+                    };
+                    let principal = addr.to_account_principal();
+
+                    // Write the principal to the return buffer
+                    write_to_wasm(
+                        &mut caller,
+                        memory,
+                        &TypeSignature::PrincipalType,
+                        principal_offset,
+                        principal_offset,
+                        &Value::Principal(principal),
+                        false,
+                    )?;
+
+                    // (ok principal)
+                    Ok((
+                        1i32,
+                        principal_offset,
+                        STANDARD_PRINCIPAL_BYTES as i32,
+                        0i64,
+                        0i64,
+                    ))
+                } else {
+                    // (err u1)
+                    Ok((0i32, 0i32, 0i32, 1i64, 0i64))
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "secp256k1_verify".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host-interface function, `log`, into the Wasm module.
+/// This function is used for debugging the Wasm, and should not be called in
+/// production.
+fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
+    linker
+        .func_wrap("", "log", |_: Caller<'_, T>, param: i64| {
+            println!("log: {param}");
+        })
+        .map(|_| ())
+        .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("log".to_string(), e)))
+}
