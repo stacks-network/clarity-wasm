@@ -2231,6 +2231,14 @@ fn pow_int() {
         &mut result,
     )
     .expect_err("expected overflow");
+
+    // 2^0x10000000000000000 overflows (correct branch overflows, issue #356)
+    pow.call(
+        &mut store,
+        &[Val::I64(2), Val::I64(0), Val::I64(0), Val::I64(1)],
+        &mut result,
+    )
+    .expect_err("expected overflow");
 }
 
 #[test]
