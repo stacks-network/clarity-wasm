@@ -1328,9 +1328,12 @@
 
         ;; if b > (a >= 0 ? 126 : 127) -> runtime error: overflow (since the biggest b that doesn't
         ;; overflow is in 2^126 and -2^127, and this is an edge case)
-        (if (i64.gt_u
-                (local.get $b_lo)
-                (i64.add (i64.const 126) (i64.extend_i32_u (i64.lt_s (local.get $a_hi) (i64.const 0))))
+        (if (i32.or
+                (i64.gt_u
+                    (local.get $b_lo)
+                    (i64.add (i64.const 126) (i64.extend_i32_u (i64.lt_s (local.get $a_hi) (i64.const 0))))
+                )
+                (i64.ne (local.get $b_hi) (i64.const 0))
             )
             (then (call $stdlib.runtime-error (i32.const 0)))
         )
