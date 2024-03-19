@@ -119,10 +119,12 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         self.bhh_stack.push(bhh);
     }
 
-    pub fn pop_at_block(&mut self) -> StacksBlockId {
+    pub fn pop_at_block(&mut self) -> Result<StacksBlockId, Error> {
         self.bhh_stack
             .pop()
-            .expect("called pop_at_block without calling push_at_block")
+            .ok_or(Error::Wasm(WasmError::WasmGeneratorError(
+                "Could not pop at_block".to_string(),
+            )))
     }
 
     /// Return an immutable reference to the contract_context

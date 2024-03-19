@@ -228,12 +228,7 @@ fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                 caller
                     .data_mut()
                     .global_context
-                    .add_memory(
-                        TypeSignature::UIntType
-                            .type_size()
-                            .expect("type size should be realizable")
-                            as u64,
-                    )
+                    .add_memory(TypeSignature::UIntType.type_size()? as u64)
                     .map_err(Error::from)?;
                 let data_type = caller
                     .data_mut()
@@ -301,12 +296,7 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 caller
                     .data_mut()
                     .global_context
-                    .add_memory(
-                        asset_type
-                            .type_size()
-                            .expect("type size should be realizable")
-                            as u64,
-                    )
+                    .add_memory(asset_type.type_size()? as u64)
                     .map_err(Error::from)?;
 
                 let data_type = caller
@@ -377,22 +367,12 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 caller
                     .data_mut()
                     .global_context
-                    .add_memory(
-                        key_type
-                            .type_size()
-                            .expect("type size should be realizable")
-                            as u64,
-                    )
+                    .add_memory(key_type.type_size()? as u64)
                     .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
-                    .add_memory(
-                        value_type
-                            .type_size()
-                            .expect("type size should be realizable")
-                            as u64,
-                    )
+                    .add_memory(value_type.type_size()? as u64)
                     .map_err(Error::from)?;
 
                 let data_type = caller.data_mut().global_context.database.create_map(
@@ -1764,9 +1744,9 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     Some(&ft_info),
                 )?;
 
-                // This `expect` is safe because the `checked_increase_token_supply` call above
-                // would have failed if the addition would have overflowed.
-                let final_to_bal = to_bal.checked_add(amount).expect("FT overflow");
+                let final_to_bal = to_bal
+                    .checked_add(amount)
+                    .ok_or(Error::Runtime(RuntimeErrorType::ArithmeticOverflow, None))?;
 
                 caller
                     .data_mut()
@@ -3169,8 +3149,7 @@ fn link_get_burn_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Resul
                                 Some(burnchain_header_hash) => {
                                     Value::some(Value::Sequence(SequenceData::Buffer(BuffData {
                                         data: burnchain_header_hash.as_bytes().to_vec(),
-                                    })))
-                                    .expect("FATAL: could not wrap a (buff 32) in an optional")
+                                    })))?
                                 }
                                 None => Value::none(),
                             },
@@ -3186,33 +3165,27 @@ fn link_get_burn_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Resul
                         let addr_ty: TypeSignature = TupleTypeSignature::try_from(vec![
                             ("hashbytes".into(), BUFF_32.clone()),
                             ("version".into(), BUFF_1.clone()),
-                        ])
-                        .expect("FATAL: could not build tuple type signature")
+                        ])?
                         .into();
-                        let addrs_ty = TypeSignature::list_of(addr_ty.clone(), 2)
-                            .expect("FATAL: could not build list type signature");
+                        let addrs_ty = TypeSignature::list_of(addr_ty.clone(), 2)?;
                         let tuple_ty = TupleTypeSignature::try_from(vec![
                             ("addrs".into(), addrs_ty),
                             ("payout".into(), TypeSignature::UIntType),
                         ])?;
                         let value = match pox_addrs_and_payout {
-                            Some((addrs, payout)) => Value::some(Value::Tuple(
-                                TupleData::from_data(vec![
+                            Some((addrs, payout)) => {
+                                Value::some(Value::Tuple(TupleData::from_data(vec![
                                     (
                                         "addrs".into(),
                                         Value::list_with_type(
                                             &caller.data_mut().global_context.epoch_id,
                                             addrs.into_iter().map(Value::Tuple).collect(),
-                                            ListTypeData::new_list(addr_ty, 2)
-                                                .expect("FATAL: could not create list type"),
-                                        )
-                                        .expect("FATAL: could not convert address list to Value"),
+                                            ListTypeData::new_list(addr_ty, 2)?,
+                                        )?,
                                     ),
                                     ("payout".into(), Value::UInt(payout)),
-                                ])
-                                .expect("FATAL: failed to build pox addrs and payout tuple"),
-                            ))
-                            .expect("FATAL: could not build Some(..)"),
+                                ])?))?
+                            }
                             None => Value::none(),
                         };
                         let ty = TypeSignature::OptionalType(Box::new(tuple_ty.into()));
@@ -3594,13 +3567,12 @@ fn link_exit_at_block_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
             "exit_at_block",
             |mut caller: Caller<'_, ClarityWasmContext>| {
                 // Pop back to the current block
-                let bhh = caller.data_mut().pop_at_block();
+                let bhh = caller.data_mut().pop_at_block()?;
                 caller
                     .data_mut()
                     .global_context
                     .database
-                    .set_block_hash(bhh, true)
-                    .expect("ERROR: Failed to restore prior active block after time-shifted evaluation.");
+                    .set_block_hash(bhh, true)?;
 
                 // Roll back any changes that occurred during the `at-block`
                 // expression. This is precautionary, since only read-only
