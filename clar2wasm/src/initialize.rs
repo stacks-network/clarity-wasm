@@ -60,6 +60,30 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         }
     }
 
+    pub fn new_run(
+        global_context: &'a mut GlobalContext<'b>,
+        contract_context: &'a ContractContext,
+        call_stack: &'a mut CallStack,
+        sender: Option<PrincipalData>,
+        caller: Option<PrincipalData>,
+        sponsor: Option<PrincipalData>,
+        contract_analysis: Option<&'a ContractAnalysis>,
+    ) -> Self {
+        ClarityWasmContext {
+            global_context,
+            contract_context: Some(contract_context),
+            contract_context_mut: None,
+            call_stack,
+            sender,
+            caller,
+            sponsor,
+            sender_stack: vec![],
+            caller_stack: vec![],
+            bhh_stack: vec![],
+            contract_analysis,
+        }
+    }
+
     pub fn push_sender(&mut self, sender: PrincipalData) {
         if let Some(current) = self.sender.take() {
             self.sender_stack.push(current);
