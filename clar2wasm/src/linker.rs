@@ -303,7 +303,7 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .data_mut()
                     .global_context
                     .database
-                    .create_non_fungible_token(&contract_identifier, &name, &asset_type)?;
+                    .create_non_fungible_token(&contract_identifier, &name, asset_type)?;
 
                 caller
                     .data_mut()
@@ -745,10 +745,11 @@ fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
             |mut caller: Caller<'_, ClarityWasmContext>,
              return_offset: i32,
              _return_length: i32| {
-                let sender = caller.data().sender.clone().ok_or(Error::Runtime(
-                    RuntimeErrorType::NoSenderInContext.into(),
-                    None,
-                ))?;
+                let sender = caller
+                    .data()
+                    .sender
+                    .clone()
+                    .ok_or(Error::Runtime(RuntimeErrorType::NoSenderInContext, None))?;
 
                 let memory = caller
                     .get_export("memory")
@@ -787,10 +788,11 @@ fn link_contract_caller_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
             |mut caller: Caller<'_, ClarityWasmContext>,
              return_offset: i32,
              _return_length: i32| {
-                let contract_caller = caller.data().caller.clone().ok_or(Error::Runtime(
-                    RuntimeErrorType::NoCallerInContext.into(),
-                    None,
-                ))?;
+                let contract_caller = caller
+                    .data()
+                    .caller
+                    .clone()
+                    .ok_or(Error::Runtime(RuntimeErrorType::NoCallerInContext, None))?;
 
                 let memory = caller
                     .get_export("memory")
@@ -1255,7 +1257,7 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .data_mut()
                     .global_context
                     .database
-                    .get_stx_balance_snapshot(&from)?;
+                    .get_stx_balance_snapshot(from)?;
                 if !burner_snapshot.can_transfer(amount)? {
                     return Ok((0i32, 0i32, StxErrorCodes::NOT_ENOUGH_BALANCE as i64, 0i64));
                 }
@@ -1272,7 +1274,7 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 caller
                     .data_mut()
                     .global_context
-                    .log_stx_burn(&from, amount)?;
+                    .log_stx_burn(from, amount)?;
                 caller
                     .data_mut()
                     .register_stx_burn_event(from.clone(), amount)?;
@@ -1409,7 +1411,7 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 caller
                     .data_mut()
                     .global_context
-                    .log_stx_transfer(&sender, amount)?;
+                    .log_stx_transfer(sender, amount)?;
                 caller.data_mut().register_stx_transfer_event(
                     sender.clone(),
                     recipient.clone(),
@@ -3737,13 +3739,12 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
 
                 let result = match secp256k1_recover(&msg_bytes, &sig_bytes) {
-                    Ok(pubkey) => Value::okay(Value::buff_from(pubkey.to_vec()).unwrap()).unwrap(),
+                    Ok(pubkey) => Value::okay(Value::buff_from(pubkey.to_vec())?)?,
                     _ => Value::err_uint(1),
                 };
 
                 // Write the result to the return buffer
-                let ret_ty =
-                    TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType).unwrap();
+                let ret_ty = TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType)?;
                 let repr_size = get_type_size(&ret_ty);
                 write_to_wasm(
                     caller,
@@ -3853,7 +3854,7 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     _ => return Err(CheckErrors::TypeValueError(BUFF_33.clone(), key_val).into()),
                 };
 
-                if let Ok(pub_key) = Secp256k1PublicKey::from_slice(&pub_key) {
+                if let Ok(pub_key) = Secp256k1PublicKey::from_slice(pub_key) {
                     // Note: Clarity1 had a bug in how the address is computed (issues/2619).
                     // We want to preserve the old behavior unless the version is greater.
                     let addr = if *caller.data().contract_context().get_clarity_version()

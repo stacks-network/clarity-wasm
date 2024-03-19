@@ -659,8 +659,8 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
         ValType::F32 => Val::F32(0),
         ValType::F64 => Val::F64(0),
         ValType::V128 => Val::V128(0.into()),
-        ValType::ExternRef => unimplemented!("ExternRef"),
-        ValType::FuncRef => unimplemented!("FuncRef"),
+        ValType::ExternRef => Val::ExternRef(None),
+        ValType::FuncRef => Val::FuncRef(None),
     }
 }
 
@@ -696,7 +696,7 @@ pub fn write_to_wasm(
         }
         TypeSignature::UIntType => {
             let mut buffer: [u8; 8] = [0; 8];
-            let i = value_as_u128(&value)?;
+            let i = value_as_u128(value)?;
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
@@ -727,12 +727,12 @@ pub fn write_to_wasm(
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
-                let offset_buffer = (in_mem_offset as i32).to_le_bytes();
+                let offset_buffer = in_mem_offset.to_le_bytes();
                 memory
                     .write(&mut store, (offset) as usize, &offset_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
                 written += 4;
-                let len_buffer = (in_mem_written as i32).to_le_bytes();
+                let len_buffer = in_mem_written.to_le_bytes();
                 memory
                     .write(&mut store, (offset + written) as usize, &len_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
@@ -772,12 +772,12 @@ pub fn write_to_wasm(
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
-                let offset_buffer = (in_mem_offset as i32).to_le_bytes();
+                let offset_buffer = in_mem_offset.to_le_bytes();
                 memory
                     .write(&mut store, (offset) as usize, &offset_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
                 written += 4;
-                let len_buffer = (in_mem_written as i32).to_le_bytes();
+                let len_buffer = in_mem_written.to_le_bytes();
                 memory
                     .write(&mut store, (offset + written) as usize, &len_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
@@ -807,7 +807,7 @@ pub fn write_to_wasm(
                     elem_ty,
                     val_offset + val_written,
                     val_in_mem_offset + val_in_mem_written,
-                    &elem,
+                    elem,
                     true,
                 )?;
                 val_written += new_written;
@@ -1173,6 +1173,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
 }
 
 /// Call a function in the contract.
+#[allow(clippy::too_many_arguments)]
 pub fn call_function<'a>(
     function_name: &str,
     args: &[Value],

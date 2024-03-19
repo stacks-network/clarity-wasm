@@ -360,9 +360,9 @@ pub fn initialize_contract(
 
     // Get the return type of the top-level expressions function
     let ty = top_level.ty(&mut store);
-    let mut results_iter = ty.results();
+    let results_iter = ty.results();
     let mut results = vec![];
-    while let Some(result_ty) = results_iter.next() {
+    for result_ty in results_iter {
         results.push(placeholder_for_type(result_ty));
     }
 
