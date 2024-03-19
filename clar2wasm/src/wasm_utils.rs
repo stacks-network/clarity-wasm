@@ -258,7 +258,7 @@ pub fn wasm_to_clarity_value(
                 .read(&mut store, offset as usize + 21, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::UnableToReadMemory(e.into())))?;
             let standard =
-                StandardPrincipalData(principal_bytes[0], principal_bytes[1..].try_into().unwrap());
+                StandardPrincipalData(principal_bytes[0], principal_bytes[1..].try_into()?);
             let contract_name_length = buffer[0] as usize;
             if contract_name_length == 0 {
                 Ok((Some(Value::Principal(PrincipalData::Standard(standard))), 2))
@@ -681,7 +681,7 @@ pub fn write_to_wasm(
     match ty {
         TypeSignature::IntType => {
             let mut buffer: [u8; 8] = [0; 8];
-            let i = value_as_i128(&value)?;
+            let i = value_as_i128(value)?;
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
@@ -1136,6 +1136,7 @@ pub fn is_in_memory_type(ty: &TypeSignature) -> bool {
     }
 }
 
+#[allow(clippy::unimplemented)]
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     match ty {
         TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
