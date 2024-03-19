@@ -141,13 +141,13 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .data_mut()
                     .global_context
                     .add_memory(value_type.type_size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(value.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 // Create the variable in the global context
                 let data_types = caller.data_mut().global_context.database.create_variable(
@@ -234,7 +234,7 @@ fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                             .expect("type size should be realizable")
                             as u64,
                     )
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 let data_type = caller
                     .data_mut()
                     .global_context
@@ -307,7 +307,7 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                             .expect("type size should be realizable")
                             as u64,
                     )
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let data_type = caller
                     .data_mut()
@@ -383,7 +383,7 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                             .expect("type size should be realizable")
                             as u64,
                     )
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
@@ -393,7 +393,7 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                             .expect("type size should be realizable")
                             as u64,
                     )
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let data_type = caller.data_mut().global_context.database.create_map(
                     &contract_identifier,
@@ -741,7 +741,7 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .global_context
                     .database
                     .set_variable(&contract, var_name.as_str(), value, &data_types, &epoch)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 Ok(())
             },
@@ -1264,12 +1264,12 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let mut burner_snapshot = caller
                     .data_mut()
@@ -1395,12 +1395,12 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 // loading sender's locked amount and height
                 // TODO: this does not count the inner stacks block header load, but arguably,
                 // this could be optimized away, so it shouldn't penalize the caller.
@@ -1408,12 +1408,12 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let mut sender_snapshot = caller
                     .data_mut()
@@ -1659,12 +1659,12 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.log_token_transfer(
                     burner,
@@ -1772,12 +1772,12 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
@@ -1925,22 +1925,22 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
@@ -2172,12 +2172,12 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.database.burn_nft(
                     &contract_identifier,
@@ -2302,12 +2302,12 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.database.set_nft_owner(
                     &contract_identifier,
@@ -2462,12 +2462,12 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 caller
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.database.set_nft_owner(
                     &contract_identifier,
@@ -2681,7 +2681,7 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -2783,7 +2783,7 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -2871,7 +2871,7 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -3560,7 +3560,7 @@ fn link_enter_at_block_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
                     .data_mut()
                     .global_context
                     .add_memory(cost_constants::AT_BLOCK_MEMORY)
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
 
                 caller.data_mut().global_context.begin_read_only();
 
