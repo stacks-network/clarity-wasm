@@ -235,6 +235,35 @@ proptest! {
     }
 }
 
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_replace_at(
+        (seq, from, to) in (1usize..=20).prop_flat_map(|seq_size| {
+            (PropValue::any_sequence(seq_size), (0usize..=seq_size - 1), (0usize..=seq_size - 1))
+        })
+    ) {
+        let (expected, el) = {
+            let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+            let el = seq_data.clone().element_at(from).expect("element_at failed").map_or_else(Value::none, |value| value);
+
+            (seq_data.replace_at(
+                &clarity::types::StacksEpochId::latest(),
+                to,
+                el.clone()
+            ).expect("replace_at failed"), PropValue::from(el))
+        };
+
+        let snippet = format!("(replace-at? {seq} u{to} {el})");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
 fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
