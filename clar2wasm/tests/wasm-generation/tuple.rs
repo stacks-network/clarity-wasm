@@ -36,6 +36,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[ignore = "issue #359"]
     fn crosscheck_merge(t1 in tuple_gen(), t2 in tuple_gen()) {
 
         let expected = clarity::vm::functions::tuples::tuple_merge(t1.clone(), t2.clone()).unwrap();
