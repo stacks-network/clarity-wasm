@@ -1,14 +1,11 @@
 use clarity::vm::analysis::ContractAnalysis;
-use clarity::vm::errors::RuntimeErrorType;
+use clarity::vm::contexts::GlobalContext;
+use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::events::*;
 use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier};
-use clarity::vm::CallStack;
+use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
 use wasmtime::{Engine, Linker, Module, Store};
-
-use clarity::vm::contexts::GlobalContext;
-use clarity::vm::errors::{Error, WasmError};
-use clarity::vm::{ContractContext, Value};
 
 use crate::linker::link_host_functions;
 use crate::wasm_utils::*;

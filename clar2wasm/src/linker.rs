@@ -2,22 +2,19 @@ use clarity::vm::analysis::CheckErrors;
 use clarity::vm::callables::{DefineType, DefinedFunction};
 use clarity::vm::costs::{constants as cost_constants, CostTracker};
 use clarity::vm::database::STXBalance;
-use clarity::vm::errors::RuntimeErrorType;
-use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
-use clarity::vm::types::{BufferLength, SequenceSubtype, StacksAddressExtensions, TypeSignature};
-use clarity::vm::{ClarityName, Value};
-use clarity::vm::{ClarityVersion, Environment, SymbolicExpression};
+use clarity::vm::types::{
+    AssetIdentifier, BlockInfoProperty, BuffData, BufferLength, BurnBlockInfoProperty,
+    FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
+    StacksAddressExtensions, TraitIdentifier, TupleData, TupleTypeSignature, TypeSignature, BUFF_1,
+    BUFF_32, BUFF_33,
+};
+use clarity::vm::{ClarityName, ClarityVersion, Environment, SymbolicExpression, Value};
 use stacks_common::types::chainstate::StacksBlockId;
 use stacks_common::util::hash::{Keccak256Hash, Sha512Sum, Sha512Trunc256Sum};
 use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp256k1PublicKey};
 use wasmtime::{Caller, Linker};
-
-use clarity::vm::types::{
-    AssetIdentifier, BlockInfoProperty, BuffData, BurnBlockInfoProperty, FunctionType,
-    ListTypeData, PrincipalData, SequenceData, TraitIdentifier, TupleData, TupleTypeSignature,
-    BUFF_1, BUFF_32, BUFF_33,
-};
 
 use crate::initialize::ClarityWasmContext;
 use crate::wasm_utils::*;

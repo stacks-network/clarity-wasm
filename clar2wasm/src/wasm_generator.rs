@@ -19,7 +19,6 @@ use walrus::{
 };
 
 use crate::wasm_utils::{get_type_in_memory_size, get_type_size, is_in_memory_type};
-
 use crate::words;
 
 // First free position after data directly defined in standard.wat

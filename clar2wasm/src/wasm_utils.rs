@@ -6,15 +6,11 @@ use clarity::vm::analysis::CheckErrors;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, ListData, OptionalData, PrincipalData,
-    QualifiedContractIdentifier, ResponseData, SequenceData, StandardPrincipalData, TupleData,
+    ASCIIData, BuffData, BufferLength, CharType, ListData, OptionalData, PrincipalData,
+    QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype, SequencedValue,
+    StandardPrincipalData, StringSubtype, TupleData, TypeSignature,
 };
-use clarity::vm::types::{
-    BufferLength, SequenceSubtype, SequencedValue, StringSubtype, TypeSignature,
-};
-use clarity::vm::CallStack;
-use clarity::vm::Value;
-use clarity::vm::{ContractContext, ContractName};
+use clarity::vm::{CallStack, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 

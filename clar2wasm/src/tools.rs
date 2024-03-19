@@ -20,7 +20,6 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
-
 use crate::initialize::initialize_contract;
 
 #[derive(Clone)]
