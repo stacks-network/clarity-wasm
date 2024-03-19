@@ -257,8 +257,14 @@ pub fn wasm_to_clarity_value(
             memory
                 .read(&mut store, offset as usize + 21, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::UnableToReadMemory(e.into())))?;
-            let standard =
-                StandardPrincipalData(principal_bytes[0], principal_bytes[1..].try_into()?);
+            let standard = StandardPrincipalData(
+                principal_bytes[0],
+                principal_bytes[1..].try_into().map_err(|_| {
+                    Error::Wasm(WasmError::WasmGeneratorError(
+                        "Could not decode principal".into(),
+                    ))
+                })?,
+            );
             let contract_name_length = buffer[0] as usize;
             if contract_name_length == 0 {
                 Ok((Some(Value::Principal(PrincipalData::Standard(standard))), 2))
