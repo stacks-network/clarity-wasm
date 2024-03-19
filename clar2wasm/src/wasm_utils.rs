@@ -817,12 +817,12 @@ pub fn write_to_wasm(
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
-                let offset_buffer = (in_mem_offset as i32).to_le_bytes();
+                let offset_buffer = in_mem_offset.to_le_bytes();
                 memory
                     .write(&mut store, (offset) as usize, &offset_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
                 written += 4;
-                let len_buffer = (val_written as i32).to_le_bytes();
+                let len_buffer = val_written.to_le_bytes();
                 memory
                     .write(&mut store, (offset + 4) as usize, &len_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
@@ -875,7 +875,7 @@ pub fn write_to_wasm(
             Ok((written, in_mem_written))
         }
         TypeSignature::BoolType => {
-            let bool_val = value_as_bool(&value)?;
+            let bool_val = value_as_bool(value)?;
             let val = if bool_val { 1u32 } else { 0u32 };
             let val_bytes = val.to_le_bytes();
             memory
@@ -913,14 +913,14 @@ pub fn write_to_wasm(
                 written += new_written;
                 in_mem_written += new_in_mem_written;
             } else {
-                written += get_type_size(&inner_ty);
+                written += get_type_size(inner_ty);
             }
             Ok((written, in_mem_written))
         }
         TypeSignature::PrincipalType
         | TypeSignature::CallableType(_)
         | TypeSignature::TraitReferenceType(_) => {
-            let principal = value_as_principal(&value)?;
+            let principal = value_as_principal(value)?;
             let (standard, contract_name) = match principal {
                 PrincipalData::Standard(s) => (s, ""),
                 PrincipalData::Contract(contract_identifier) => (
@@ -978,12 +978,12 @@ pub fn write_to_wasm(
             if include_repr {
                 // Write the representation (offset and length of the value) to the
                 // offset
-                let offset_buffer = (in_mem_offset as i32).to_le_bytes();
+                let offset_buffer = in_mem_offset.to_le_bytes();
                 memory
                     .write(&mut store, (offset) as usize, &offset_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
                 written += 4;
-                let len_buffer = (in_mem_written as i32).to_le_bytes();
+                let len_buffer = in_mem_written.to_le_bytes();
                 memory
                     .write(&mut store, (offset + written) as usize, &len_buffer)
                     .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
@@ -999,7 +999,7 @@ pub fn write_to_wasm(
 
             for (key, val) in &tuple_data.data_map {
                 let val_type = type_sig
-                    .field_type(&key)
+                    .field_type(key)
                     .ok_or(Error::Wasm(WasmError::ValueTypeMismatch))?;
                 let (new_written, new_in_mem_written) = write_to_wasm(
                     store.as_context_mut(),
@@ -1173,10 +1173,10 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
 }
 
 /// Call a function in the contract.
-pub fn call_function<'a, 'b, 'c>(
+pub fn call_function<'a>(
     function_name: &str,
     args: &[Value],
-    global_context: &'a mut GlobalContext<'b>,
+    global_context: &'a mut GlobalContext,
     contract_context: &'a ContractContext,
     call_stack: &'a mut CallStack,
     sender: Option<PrincipalData>,
@@ -1261,7 +1261,7 @@ pub fn call_function<'a, 'b, 'c>(
         .as_ref()
         .ok_or(Error::Wasm(WasmError::ExpectedReturnValue))?
         .clone();
-    let (mut results, offset) = reserve_space_for_return(&mut store, offset, &return_type)?;
+    let (mut results, offset) = reserve_space_for_return(offset, &return_type)?;
 
     // Update the stack pointer after space is reserved for the arguments and
     // return values.
@@ -1329,7 +1329,7 @@ fn pass_argument_to_wasm(
                 store,
                 o.data
                     .as_ref()
-                    .map_or(&Value::none(), |boxed_value| &boxed_value),
+                    .map_or(&Value::none(), |boxed_value| boxed_value),
                 offset,
                 in_mem_offset,
             )?;
@@ -1338,11 +1338,8 @@ fn pass_argument_to_wasm(
         }
         Value::Response(r) => {
             let mut buffer = vec![Val::I32(if r.committed { 1 } else { 0 })];
-            let (inner, new_offset, new_in_mem_offset) = if r.committed {
-                pass_argument_to_wasm(memory, store, &r.data, offset, in_mem_offset)?
-            } else {
-                pass_argument_to_wasm(memory, store, &r.data, offset, in_mem_offset)?
-            };
+            let (inner, new_offset, new_in_mem_offset) =
+                pass_argument_to_wasm(memory, store, &r.data, offset, in_mem_offset)?;
             buffer.extend(inner);
             Ok((buffer, new_offset, new_in_mem_offset))
         }
@@ -1407,8 +1404,7 @@ fn pass_argument_to_wasm(
 /// needed, and return a vector of `Val`s that can be passed to `call`, as a
 /// place to store the return value, along with the new offset, which is the
 /// next available memory location.
-fn reserve_space_for_return<T>(
-    store: &mut Store<T>,
+fn reserve_space_for_return(
     offset: i32,
     return_type: &TypeSignature,
 ) -> Result<(Vec<Val>, i32), Error> {
@@ -1419,16 +1415,15 @@ fn reserve_space_for_return<T>(
         TypeSignature::BoolType => Ok((vec![Val::I32(0)], offset)),
         TypeSignature::OptionalType(optional) => {
             let mut vals = vec![Val::I32(0)];
-            let (opt_vals, adjusted) = reserve_space_for_return(store, offset, optional)?;
+            let (opt_vals, adjusted) = reserve_space_for_return(offset, optional)?;
             vals.extend(opt_vals);
             Ok((vals, adjusted))
         }
         TypeSignature::ResponseType(response) => {
             let mut vals = vec![Val::I32(0)];
-            let (mut subexpr_values, mut adjusted) =
-                reserve_space_for_return(store, offset, &response.0)?;
+            let (mut subexpr_values, mut adjusted) = reserve_space_for_return(offset, &response.0)?;
             vals.extend(subexpr_values);
-            (subexpr_values, adjusted) = reserve_space_for_return(store, adjusted, &response.1)?;
+            (subexpr_values, adjusted) = reserve_space_for_return(adjusted, &response.1)?;
             vals.extend(subexpr_values);
             Ok((vals, adjusted))
         }
@@ -1447,7 +1442,7 @@ fn reserve_space_for_return<T>(
             let mut vals = vec![];
             let mut adjusted = offset;
             for ty in type_sig.get_type_map().values() {
-                let (subexpr_values, new_offset) = reserve_space_for_return(store, adjusted, ty)?;
+                let (subexpr_values, new_offset) = reserve_space_for_return(adjusted, ty)?;
                 vals.extend(subexpr_values);
                 adjusted = new_offset;
             }
