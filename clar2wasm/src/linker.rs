@@ -2501,8 +2501,8 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             key_offset: i32,
-             key_length: i32,
+             mut key_offset: i32,
+             mut key_length: i32,
              return_offset: i32,
              _return_length: i32| {
                 // Get the memory from the caller
@@ -2528,6 +2528,10 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .clone();
 
                 // Read in the key from the Wasm memory
+                if is_in_memory_type(&data_types.key_type) {
+                    (key_offset, key_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                }
                 let key = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2590,10 +2594,10 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             key_offset: i32,
-             key_length: i32,
-             value_offset: i32,
-             value_length: i32| {
+             mut key_offset: i32,
+             mut key_length: i32,
+             mut value_offset: i32,
+             mut value_length: i32| {
                 if caller.data().global_context.is_read_only() {
                     return Err(CheckErrors::WriteAttemptedInReadOnly.into());
                 }
@@ -2623,6 +2627,10 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .clone();
 
                 // Read in the key from the Wasm memory
+                if is_in_memory_type(&data_types.key_type) {
+                    (key_offset, key_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                }
                 let key = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2633,6 +2641,10 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 )?;
 
                 // Read in the value from the Wasm memory
+                if is_in_memory_type(&data_types.value_type) {
+                    (value_offset, value_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                }
                 let value = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2663,7 +2675,7 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(Error::from)?;
+                    .map_err(|e| Error::from(e))?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -2692,10 +2704,10 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             key_offset: i32,
-             key_length: i32,
-             value_offset: i32,
-             value_length: i32| {
+             mut key_offset: i32,
+             mut key_length: i32,
+             mut value_offset: i32,
+             mut value_length: i32| {
                 if caller.data().global_context.is_read_only() {
                     return Err(CheckErrors::WriteAttemptedInReadOnly.into());
                 }
@@ -2725,6 +2737,10 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .clone();
 
                 // Read in the key from the Wasm memory
+                if is_in_memory_type(&data_types.key_type) {
+                    (key_offset, key_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                }
                 let key = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2735,6 +2751,10 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 )?;
 
                 // Read in the value from the Wasm memory
+                if is_in_memory_type(&data_types.value_type) {
+                    (value_offset, value_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                }
                 let value = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2765,7 +2785,7 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(Error::from)?;
+                    .map_err(|e| Error::from(e))?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -2794,8 +2814,8 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             key_offset: i32,
-             key_length: i32| {
+             mut key_offset: i32,
+             mut key_length: i32| {
                 if caller.data().global_context.is_read_only() {
                     return Err(CheckErrors::WriteAttemptedInReadOnly.into());
                 }
@@ -2824,6 +2844,10 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .clone();
 
                 // Read in the key from the Wasm memory
+                if is_in_memory_type(&data_types.key_type) {
+                    (key_offset, key_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                }
                 let key = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2853,7 +2877,7 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
-                    .map_err(Error::from)?;
+                    .map_err(|e| Error::from(e))?;
 
                 let value = result.map(|data| data.value)?;
                 if let Value::Bool(true) = value {
@@ -3854,7 +3878,7 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     _ => return Err(CheckErrors::TypeValueError(BUFF_33.clone(), key_val).into()),
                 };
 
-                if let Ok(pub_key) = Secp256k1PublicKey::from_slice(pub_key) {
+                if let Ok(pub_key) = Secp256k1PublicKey::from_slice(&pub_key) {
                     // Note: Clarity1 had a bug in how the address is computed (issues/2619).
                     // We want to preserve the old behavior unless the version is greater.
                     let addr = if *caller.data().contract_context().get_clarity_version()
