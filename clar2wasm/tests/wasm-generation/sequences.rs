@@ -236,6 +236,42 @@ proptest! {
     }
 }
 
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_replace_at(
+        (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
+            (PropValue::any_sequence(seq_size),
+            // ranges from 0 to sequence_size - 1
+            // to not occur on operations out of boundaries.
+            (0usize..=seq_size - 1),
+            (0usize..=seq_size - 1))
+        })
+    ) {
+        let (expected, el) = {
+            let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+            // collect an element from the sequence at 'source' position.
+            let el = seq_data.clone().element_at(source).expect("element_at failed").map_or_else(Value::none, |value| value);
+            // replace the element at 'dest' position
+            // with the collected element from the 'source' position.
+            (seq_data.replace_at(
+                &clarity::types::StacksEpochId::latest(),
+                dest,
+                el.clone()
+            ).expect("replace_at failed"),
+            PropValue::from(el)) // returning that to be used by the 'replace-at' Clarity function.
+        };
+
+        let snippet = format!("(replace-at? {seq} u{dest} {el})");
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
 fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
