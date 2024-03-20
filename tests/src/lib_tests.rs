@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
+use clar2wasm::initialize::initialize_contract;
 use clar2wasm::tools::execute;
+use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::callables::DefineType;
-use clarity::vm::clarity_wasm::{call_function, initialize_contract};
 use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;

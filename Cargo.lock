@@ -489,6 +489,7 @@ dependencies = [
  "regex",
  "rusqlite",
  "sha2",
+ "stacks-common",
  "walrus",
  "wasmtime",
  "wat",
