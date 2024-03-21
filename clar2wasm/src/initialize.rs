@@ -338,13 +338,13 @@ pub fn initialize_contract(
     );
     let mut config = Config::new();
 
-    if let Some(_) = fuel_limit {
+    if fuel_limit.is_some() {
         config.consume_fuel(true);
     }
 
     let engine = Engine::new(&config).map_err(|_| {
         Error::Wasm(WasmError::WasmGeneratorError(
-            "invalid enngine configuration".into(),
+            "invalid engine fuel configuration".into(),
         ))
     })?;
 
@@ -357,8 +357,11 @@ pub fn initialize_contract(
     let mut store = Store::new(&engine, init_context);
 
     if let Some(ref limit) = fuel_limit {
-        println!("fuel limit set to {}", limit);
-        store.set_fuel(**limit).unwrap();
+        store.set_fuel(**limit).map_err(|_| {
+            Error::Wasm(WasmError::WasmGeneratorError(
+                "invalid engine fuel configuration".into(),
+            ))
+        })?;
     }
 
     let mut linker = Linker::new(&engine);
@@ -405,7 +408,11 @@ pub fn initialize_contract(
     });
 
     if let Some(limit) = fuel_limit {
-        *limit = store.get_fuel().expect("no fuel configured");
+        *limit = store.get_fuel().map_err(|_| {
+            Error::Wasm(WasmError::WasmGeneratorError(
+                "invalid engine fuel configuration".into(),
+            ))
+        })?;
     }
 
     if let Some(return_type) = return_type {
