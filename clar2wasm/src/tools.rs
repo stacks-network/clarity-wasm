@@ -1,4 +1,4 @@
-//! The `tools` module contains tools for evaluating Clarity snippets.
+//! THE `tools` module contains tools for evaluating Clarity snippets.
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production. The `tools` module is only available when the
 //! `developer-mode` feature is enabled.
@@ -30,10 +30,11 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
+    fuel_limit: Option<u64>,
 }
 
 impl TestEnvironment {
-    pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: Option<u64>) -> Self {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
@@ -64,6 +65,7 @@ impl TestEnvironment {
             datastore,
             burn_datastore,
             cost_tracker,
+            fuel_limit,
         }
     }
 
@@ -124,6 +126,7 @@ impl TestEnvironment {
             &mut contract_context,
             None,
             &compile_result.contract_analysis,
+            self.fuel_limit.as_mut(),
         )?;
 
         let data_size = contract_context.data_size;
@@ -244,7 +247,7 @@ impl TestEnvironment {
 
 impl Default for TestEnvironment {
     fn default() -> Self {
-        Self::new(StacksEpochId::latest(), ClarityVersion::latest())
+        Self::new(StacksEpochId::latest(), ClarityVersion::latest(), None)
     }
 }
 
@@ -268,7 +271,7 @@ pub fn evaluate_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
+    let mut env = TestEnvironment::new(epoch, version, None);
     env.evaluate(snippet)
 }
 
@@ -286,7 +289,7 @@ pub fn interpret_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
+    let mut env = TestEnvironment::new(epoch, version, None);
     env.interpret(snippet)
 }
 
@@ -334,7 +337,8 @@ pub fn crosscheck_compare_only(snippet: &str) {
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+    let mut compiler_env =
+        TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), None);
     compiler_env.advance_chain_tip(count);
 
     let mut interpreter_env = compiler_env.clone();
@@ -372,4 +376,17 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+}
+
+#[test]
+fn test_fuel_limit() {
+    let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), Some(0));
+
+    assert!(env.evaluate("(+ 1 2)").is_err());
+
+    let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), Some(90));
+
+    assert!(env.init_contract_with_snippet("a", "(+ 1 2)").is_ok());
+    assert!(env.init_contract_with_snippet("b", "(+ 1 2)").is_ok());
+    assert!(env.init_contract_with_snippet("c", "(+ 1 2)").is_err());
 }

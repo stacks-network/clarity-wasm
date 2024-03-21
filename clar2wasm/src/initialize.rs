@@ -5,7 +5,7 @@ use clarity::vm::events::*;
 use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier};
 use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
-use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime::{Config, Engine, Linker, Module, Store};
 
 use crate::linker::link_host_functions;
 use crate::wasm_utils::*;
@@ -321,6 +321,7 @@ pub fn initialize_contract(
     contract_context: &mut ContractContext,
     sponsor: Option<PrincipalData>,
     contract_analysis: &ContractAnalysis,
+    fuel_limit: Option<&mut u64>,
 ) -> Result<Option<Value>, Error> {
     let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
 
@@ -335,7 +336,18 @@ pub fn initialize_contract(
         sponsor.clone(),
         Some(contract_analysis),
     );
-    let engine = Engine::default();
+    let mut config = Config::new();
+
+    if let Some(_) = fuel_limit {
+        config.consume_fuel(true);
+    }
+
+    let engine = Engine::new(&config).map_err(|_| {
+        Error::Wasm(WasmError::WasmGeneratorError(
+            "invalid enngine configuration".into(),
+        ))
+    })?;
+
     let module = init_context
         .contract_context()
         .with_wasm_module(|wasm_module| {
@@ -343,6 +355,12 @@ pub fn initialize_contract(
                 .map_err(|e| Error::Wasm(WasmError::UnableToLoadModule(e)))
         })?;
     let mut store = Store::new(&engine, init_context);
+
+    if let Some(ref limit) = fuel_limit {
+        println!("fuel limit set to {}", limit);
+        store.set_fuel(**limit).unwrap();
+    }
+
     let mut linker = Linker::new(&engine);
 
     // Link in the host interface functions.
@@ -385,6 +403,10 @@ pub fn initialize_contract(
             .as_ref()
             .and_then(|type_map| type_map.get_type(expr))
     });
+
+    if let Some(limit) = fuel_limit {
+        *limit = store.get_fuel().expect("no fuel configured");
+    }
 
     if let Some(return_type) = return_type {
         let memory = instance

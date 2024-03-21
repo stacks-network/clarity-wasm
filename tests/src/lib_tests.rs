@@ -104,6 +104,7 @@ macro_rules! test_multi_contract_init {
                     &mut contract_context,
                     None,
                     &compile_result.contract_analysis,
+                    None,
                 )
                 .expect("Failed to initialize contract.");
 
