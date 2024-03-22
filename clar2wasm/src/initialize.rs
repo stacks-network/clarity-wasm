@@ -30,6 +30,7 @@ pub struct ClarityWasmContext<'a, 'b> {
     /// when initializing a contract. Should always be `Some` when initializing
     /// a contract, and `None` otherwise.
     pub contract_analysis: Option<&'a ContractAnalysis>,
+    cost_limits: CostLimit,
 }
 
 impl<'a, 'b> ClarityWasmContext<'a, 'b> {
@@ -41,6 +42,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         caller: Option<PrincipalData>,
         sponsor: Option<PrincipalData>,
         contract_analysis: Option<&'a ContractAnalysis>,
+        cost_limits: CostLimit,
     ) -> Self {
         ClarityWasmContext {
             global_context,
@@ -54,6 +56,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
             caller_stack: vec![],
             bhh_stack: vec![],
             contract_analysis,
+            cost_limits,
         }
     }
 
@@ -78,6 +81,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
             caller_stack: vec![],
             bhh_stack: vec![],
             contract_analysis,
+            cost_limits: CostLimit::max(),
         }
     }
 
@@ -313,6 +317,32 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct CostLimit {
+    runtime: u64,
+    read_count: u64,
+    read_bytes: u64,
+    write_count: u64,
+    write_bytes: u64,
+}
+
+impl CostLimit {
+    pub fn max() -> Self {
+        CostLimit {
+            runtime: u64::MAX,
+            read_count: u64::MAX,
+            read_bytes: u64::MAX,
+            write_count: u64::MAX,
+            write_bytes: u64::MAX,
+        }
+    }
+
+    pub fn set_runtime(mut self, runtime: u64) -> Self {
+        self.runtime = runtime;
+        self
+    }
+}
+
 /// Initialize a contract, executing all of the top-level expressions and
 /// registering all of the definitions in the context. Returns the value
 /// returned from the last top-level expression.
@@ -321,12 +351,18 @@ pub fn initialize_contract(
     contract_context: &mut ContractContext,
     sponsor: Option<PrincipalData>,
     contract_analysis: &ContractAnalysis,
-    fuel_limit: Option<&mut u64>,
+    fuel_limit: &mut CostLimit,
 ) -> Result<Option<Value>, Error> {
     let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
 
     let mut call_stack = CallStack::new();
     let epoch = global_context.epoch_id;
+
+    let mut config = Config::new();
+    config.consume_fuel(true);
+
+    let runtime_limit = fuel_limit.runtime;
+
     let init_context = ClarityWasmContext::new_init(
         global_context,
         contract_context,
@@ -335,13 +371,8 @@ pub fn initialize_contract(
         Some(publisher),
         sponsor.clone(),
         Some(contract_analysis),
+        fuel_limit.clone(),
     );
-    let mut config = Config::new();
-
-    if fuel_limit.is_some() {
-        config.consume_fuel(true);
-    }
-
     let engine = Engine::new(&config).map_err(|_| {
         Error::Wasm(WasmError::WasmGeneratorError(
             "invalid engine fuel configuration".into(),
@@ -354,15 +385,13 @@ pub fn initialize_contract(
             Module::from_binary(&engine, wasm_module)
                 .map_err(|e| Error::Wasm(WasmError::UnableToLoadModule(e)))
         })?;
-    let mut store = Store::new(&engine, init_context);
 
-    if let Some(ref limit) = fuel_limit {
-        store.set_fuel(**limit).map_err(|_| {
-            Error::Wasm(WasmError::WasmGeneratorError(
-                "invalid engine fuel configuration".into(),
-            ))
-        })?;
-    }
+    let mut store = Store::new(&engine, init_context);
+    store.set_fuel(runtime_limit).map_err(|_| {
+        Error::Wasm(WasmError::WasmGeneratorError(
+            "invalid engine fuel configuration".into(),
+        ))
+    })?;
 
     let mut linker = Linker::new(&engine);
 
@@ -407,12 +436,15 @@ pub fn initialize_contract(
             .and_then(|type_map| type_map.get_type(expr))
     });
 
-    if let Some(limit) = fuel_limit {
-        *limit = store.get_fuel().map_err(|_| {
-            Error::Wasm(WasmError::WasmGeneratorError(
-                "invalid engine fuel configuration".into(),
-            ))
-        })?;
+    // update passed-in cost
+    *fuel_limit = store.data().cost_limits.clone();
+
+    if let Ok(fuel_left) = store.get_fuel().map_err(|_| {
+        Error::Wasm(WasmError::WasmGeneratorError(
+            "invalid engine fuel configuration".into(),
+        ))
+    }) {
+        fuel_limit.runtime = fuel_left;
     }
 
     if let Some(return_type) = return_type {

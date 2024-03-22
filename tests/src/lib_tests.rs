@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
-use clar2wasm::initialize::initialize_contract;
+use clar2wasm::initialize::{initialize_contract, CostLimit};
 use clar2wasm::tools::execute;
 use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
@@ -104,7 +104,7 @@ macro_rules! test_multi_contract_init {
                     &mut contract_context,
                     None,
                     &compile_result.contract_analysis,
-                    None,
+                    &mut CostLimit::max(),
                 )
                 .expect("Failed to initialize contract.");
 

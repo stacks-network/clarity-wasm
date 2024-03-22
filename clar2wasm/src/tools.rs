@@ -1,7 +1,3 @@
-//! The `tools` module contains tools for evaluating Clarity snippets.
-//! It is intended for use in tooling and tests, but not intended to be used
-//! in production. The `tools` module is only available when the
-//! `developer-mode` feature is enabled.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
@@ -20,7 +16,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
-use crate::initialize::initialize_contract;
+use crate::initialize::{initialize_contract, CostLimit};
 
 #[derive(Clone)]
 pub struct TestEnvironment {
@@ -30,11 +26,11 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
-    fuel_limit: Option<u64>,
+    fuel_limit: CostLimit,
 }
 
 impl TestEnvironment {
-    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: Option<u64>) -> Self {
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: CostLimit) -> Self {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
@@ -126,7 +122,7 @@ impl TestEnvironment {
             &mut contract_context,
             None,
             &compile_result.contract_analysis,
-            self.fuel_limit.as_mut(),
+            &mut self.fuel_limit,
         )?;
 
         let data_size = contract_context.data_size;
@@ -247,7 +243,11 @@ impl TestEnvironment {
 
 impl Default for TestEnvironment {
     fn default() -> Self {
-        Self::new(StacksEpochId::latest(), ClarityVersion::latest(), None)
+        Self::new(
+            StacksEpochId::latest(),
+            ClarityVersion::latest(),
+            CostLimit::max(),
+        )
     }
 }
 
@@ -271,7 +271,7 @@ pub fn evaluate_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version, None);
+    let mut env = TestEnvironment::new(epoch, version, CostLimit::max());
     env.evaluate(snippet)
 }
 
@@ -289,7 +289,7 @@ pub fn interpret_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version, None);
+    let mut env = TestEnvironment::new(epoch, version, CostLimit::max());
     env.interpret(snippet)
 }
 
@@ -337,8 +337,11 @@ pub fn crosscheck_compare_only(snippet: &str) {
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env =
-        TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), None);
+    let mut compiler_env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        CostLimit::max(),
+    );
     compiler_env.advance_chain_tip(count);
 
     let mut interpreter_env = compiler_env.clone();
@@ -380,11 +383,19 @@ fn test_evaluate_snippet() {
 
 #[test]
 fn test_fuel_limit() {
-    let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), Some(0));
+    let mut env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        CostLimit::default(),
+    );
 
     assert!(env.evaluate("(+ 1 2)").is_err());
 
-    let mut env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest(), Some(90));
+    let mut env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        CostLimit::default().set_runtime(90),
+    );
 
     assert!(env.init_contract_with_snippet("a", "(+ 1 2)").is_ok());
     assert!(env.init_contract_with_snippet("b", "(+ 1 2)").is_ok());
