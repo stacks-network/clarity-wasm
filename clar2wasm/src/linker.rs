@@ -3756,8 +3756,7 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let ret_ty =
-                    TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType).unwrap();
+                let ret_ty = TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType)?;
                 let repr_size = get_type_size(&ret_ty);
 
                 // Read the message bytes from the memory
