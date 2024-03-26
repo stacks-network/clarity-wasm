@@ -3756,11 +3756,39 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let ret_ty =
+                    TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType).unwrap();
+                let repr_size = get_type_size(&ret_ty);
+
                 // Read the message bytes from the memory
                 let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+                // To match the interpreter behavior, if the message is the
+                // wrong length, throw a runtime type error.
+                if msg_bytes.len() != 32 {
+                    return Err(CheckErrors::TypeValueError(
+                        BUFF_32.clone(),
+                        Value::buff_from(msg_bytes)?,
+                    )
+                    .into());
+                }
 
                 // Read the signature bytes from the memory
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+                // To match the interpreter behavior, if the signature is the
+                // wrong length, return a Clarity error.
+                if sig_bytes.len() != 65 {
+                    let result = Value::err_uint(2);
+                    write_to_wasm(
+                        caller,
+                        memory,
+                        &ret_ty,
+                        return_offset,
+                        return_offset + repr_size,
+                        &result,
+                        true,
+                    )?;
+                    return Ok(());
+                }
 
                 let result = match secp256k1_recover(&msg_bytes, &sig_bytes) {
                     Ok(pubkey) => Value::okay(Value::buff_from(pubkey.to_vec())?)?,
@@ -3768,8 +3796,6 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 };
 
                 // Write the result to the return buffer
-                let ret_ty = TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType)?;
-                let repr_size = get_type_size(&ret_ty);
                 write_to_wasm(
                     caller,
                     memory,
@@ -3816,12 +3842,35 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
 
                 // Read the message bytes from the memory
                 let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+                // To match the interpreter behavior, if the message is the
+                // wrong length, throw a runtime type error.
+                if msg_bytes.len() != 32 {
+                    return Err(CheckErrors::TypeValueError(
+                        BUFF_32.clone(),
+                        Value::buff_from(msg_bytes)?,
+                    )
+                    .into());
+                }
 
                 // Read the signature bytes from the memory
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+                // To match the interpreter behavior, if the signature is the
+                // wrong length, return a Clarity error.
+                if sig_bytes.len() < 64 || sig_bytes.len() > 65 {
+                    return Ok(0i32);
+                }
 
                 // Read the public-key bytes from the memory
                 let pk_bytes = read_bytes_from_wasm(memory, &mut caller, pk_offset, pk_length)?;
+                // To match the interpreter behavior, if the public key is the
+                // wrong length, throw a runtime type error.
+                if pk_bytes.len() != 33 {
+                    return Err(CheckErrors::TypeValueError(
+                        BUFF_33.clone(),
+                        Value::buff_from(pk_bytes)?,
+                    )
+                    .into());
+                }
 
                 Ok(secp256k1_verify(&msg_bytes, &sig_bytes, &pk_bytes).map_or(0i32, |_| 1i32))
             },
