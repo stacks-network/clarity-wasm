@@ -16,7 +16,8 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
-use crate::initialize::{initialize_contract, CostLimit};
+use crate::initialize::initialize_contract;
+use crate::wasm_cost::WasmCost;
 
 #[derive(Clone)]
 pub struct TestEnvironment {
@@ -26,11 +27,11 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
-    fuel_limit: CostLimit,
+    fuel_limit: WasmCost,
 }
 
 impl TestEnvironment {
-    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: CostLimit) -> Self {
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: WasmCost) -> Self {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
@@ -110,6 +111,7 @@ impl TestEnvironment {
             &self.burn_datastore,
             &self.burn_datastore,
         );
+
         let mut global_context =
             GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
         global_context.begin();
@@ -246,7 +248,7 @@ impl Default for TestEnvironment {
         Self::new(
             StacksEpochId::latest(),
             ClarityVersion::latest(),
-            CostLimit::max(),
+            WasmCost::max(),
         )
     }
 }
@@ -271,7 +273,7 @@ pub fn evaluate_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version, CostLimit::max());
+    let mut env = TestEnvironment::new(epoch, version, WasmCost::max());
     env.evaluate(snippet)
 }
 
@@ -289,7 +291,7 @@ pub fn interpret_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version, CostLimit::max());
+    let mut env = TestEnvironment::new(epoch, version, WasmCost::max());
     env.interpret(snippet)
 }
 
@@ -340,7 +342,7 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut compiler_env = TestEnvironment::new(
         StacksEpochId::latest(),
         ClarityVersion::latest(),
-        CostLimit::max(),
+        WasmCost::max(),
     );
     compiler_env.advance_chain_tip(count);
 
@@ -386,7 +388,7 @@ fn test_fuel_limit() {
     let mut env = TestEnvironment::new(
         StacksEpochId::latest(),
         ClarityVersion::latest(),
-        CostLimit::default(),
+        WasmCost::default(),
     );
 
     assert!(env.evaluate("(+ 1 2)").is_err());
@@ -394,10 +396,18 @@ fn test_fuel_limit() {
     let mut env = TestEnvironment::new(
         StacksEpochId::latest(),
         ClarityVersion::latest(),
-        CostLimit::default().set_runtime(90),
+        WasmCost::default().set_runtime(100),
     );
 
-    assert!(env.init_contract_with_snippet("a", "(+ 1 2)").is_ok());
-    assert!(env.init_contract_with_snippet("b", "(+ 1 2)").is_ok());
-    assert!(env.init_contract_with_snippet("c", "(+ 1 2)").is_err());
+    assert!(env.init_contract_with_snippet("a0", "(+ 1 2)").is_ok());
+    // exhaust fuel
+    for i in 1..100 {
+        if env
+            .init_contract_with_snippet(&format!("a{i}"), "(+ 1 2)")
+            .is_err()
+        {
+            return;
+        }
+    }
+    panic!("did not run out of fuel");
 }
