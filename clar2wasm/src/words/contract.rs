@@ -136,15 +136,9 @@ mod tests {
     #[test]
     fn static_no_args() {
         let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet(
-            "contract-callee",
-            r#"
-(define-public (no-args)
-    (ok u42)
-)
-            "#,
-        )
-        .expect("Failed to init contract.");
+        env.init_contract_with_snippet("contract-callee", r#"(define-public (no-args) (ok u42))"#)
+            .expect("Failed to init contract.");
+
         let val = env
             .init_contract_with_snippet(
                 "contract-caller",

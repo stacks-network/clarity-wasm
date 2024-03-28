@@ -8,6 +8,7 @@ use stacks_common::types::chainstate::StacksBlockId;
 use wasmtime::{Config, Engine, Linker, Module, Store};
 
 use crate::linker::link_host_functions;
+use crate::wasm_cost::WasmCost;
 use crate::wasm_utils::*;
 
 // The context used when making calls into the Wasm module.
@@ -30,7 +31,7 @@ pub struct ClarityWasmContext<'a, 'b> {
     /// when initializing a contract. Should always be `Some` when initializing
     /// a contract, and `None` otherwise.
     pub contract_analysis: Option<&'a ContractAnalysis>,
-    cost_limits: CostLimit,
+    cost_limits: WasmCost,
 }
 
 impl<'a, 'b> ClarityWasmContext<'a, 'b> {
@@ -42,7 +43,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         caller: Option<PrincipalData>,
         sponsor: Option<PrincipalData>,
         contract_analysis: Option<&'a ContractAnalysis>,
-        cost_limits: CostLimit,
+        cost_limits: WasmCost,
     ) -> Self {
         ClarityWasmContext {
             global_context,
@@ -81,7 +82,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
             caller_stack: vec![],
             bhh_stack: vec![],
             contract_analysis,
-            cost_limits: CostLimit::max(),
+            cost_limits: WasmCost::max(),
         }
     }
 
@@ -315,31 +316,9 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         self.push_to_event_batch(event);
         Ok(())
     }
-}
 
-#[derive(Clone, Default)]
-pub struct CostLimit {
-    runtime: u64,
-    read_count: u64,
-    read_bytes: u64,
-    write_count: u64,
-    write_bytes: u64,
-}
-
-impl CostLimit {
-    pub fn max() -> Self {
-        CostLimit {
-            runtime: u64::MAX,
-            read_count: u64::MAX,
-            read_bytes: u64::MAX,
-            write_count: u64::MAX,
-            write_bytes: u64::MAX,
-        }
-    }
-
-    pub fn set_runtime(mut self, runtime: u64) -> Self {
-        self.runtime = runtime;
-        self
+    pub fn deduct(&mut self, cost: WasmCost) -> Result<(), WasmError> {
+        self.cost_limits.deduct(cost)
     }
 }
 
@@ -351,7 +330,7 @@ pub fn initialize_contract(
     contract_context: &mut ContractContext,
     sponsor: Option<PrincipalData>,
     contract_analysis: &ContractAnalysis,
-    fuel_limit: &mut CostLimit,
+    fuel_limit: &mut WasmCost,
 ) -> Result<Option<Value>, Error> {
     let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
 
@@ -361,7 +340,7 @@ pub fn initialize_contract(
     let mut config = Config::new();
     config.consume_fuel(true);
 
-    let runtime_limit = fuel_limit.runtime;
+    let runtime_limit = fuel_limit.runtime();
 
     let init_context = ClarityWasmContext::new_init(
         global_context,
@@ -387,6 +366,7 @@ pub fn initialize_contract(
         })?;
 
     let mut store = Store::new(&engine, init_context);
+
     store.set_fuel(runtime_limit).map_err(|_| {
         Error::Wasm(WasmError::WasmGeneratorError(
             "invalid engine fuel configuration".into(),
@@ -416,9 +396,13 @@ pub fn initialize_contract(
         results.push(placeholder_for_type(result_ty));
     }
 
+    println!("A");
+
     top_level
         .call(&mut store, &[], results.as_mut_slice())
         .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
+
+    println!("B");
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(
@@ -444,7 +428,11 @@ pub fn initialize_contract(
             "invalid engine fuel configuration".into(),
         ))
     }) {
-        fuel_limit.runtime = fuel_left;
+        let delta = runtime_limit - fuel_left;
+
+        fuel_limit
+            .deduct(WasmCost::new().set_runtime(delta))
+            .map_err(|e| Error::Wasm(e))?;
     }
 
     if let Some(return_type) = return_type {

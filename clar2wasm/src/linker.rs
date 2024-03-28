@@ -17,6 +17,7 @@ use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp25
 use wasmtime::{Caller, Linker};
 
 use crate::initialize::ClarityWasmContext;
+use crate::wasm_cost::WasmCost;
 use crate::wasm_utils::*;
 
 /// Link the host interface functions for into the Wasm module.
@@ -91,8 +92,19 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
              name_length: i32,
              mut value_offset: i32,
              mut value_length: i32| {
-                // TODO: Include this cost
-                // runtime_cost(ClarityCostFunction::CreateVar, global_context, value_type.size())?;
+                // {
+                //     runtime: (linear n u7 u2025),
+                //     write_length: (linear n u1 u1),
+                //     write_count: u2,
+                //     read_count: u0,
+                //     read_length: u0
+                // }
+
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_write_length(value_length as u64 + name_length as u64)
+                        .set_write_count(2),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -195,7 +207,18 @@ fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
              supply_indicator: i32,
              supply_lo: i64,
              supply_hi: i64| {
-                // runtime_cost(ClarityCostFunction::CreateFt, global_context, 0)?;
+                // (define-read-only (cost_create_ft (n uint))
+                // {
+                //     runtime: u1831,
+                //     write_length: u1,
+                //     write_count: u2,
+                //     read_count: u0,
+                //     read_length: u0
+                // })
+
+                caller
+                    .data_mut()
+                    .deduct(WasmCost::new().set_write_length(1).set_write_count(2))?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -260,8 +283,6 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
             "clarity",
             "define_nft",
             |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
-                // runtime_cost(ClarityCostFunction::CreateNft, global_context, asset_type.size())?;
-
                 // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")
@@ -286,6 +307,16 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .non_fungible_tokens
                     .get(&cname)
                     .ok_or(Error::Unchecked(CheckErrors::DefineNFTBadSignature))?;
+
+                // runtime_cost(ClarityCostFunction::CreateNft, global_context, asset_type.size())?;
+                // cost_create_nft
+                let n = asset_type.size()? as u64;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(n + 1570)
+                        .set_write_length(n)
+                        .set_write_count(1),
+                )?;
 
                 caller
                     .data_mut()
@@ -329,12 +360,6 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
             "clarity",
             "define_map",
             |mut caller: Caller<'_, ClarityWasmContext>, name_offset: i32, name_length: i32| {
-                // runtime_cost(
-                //     ClarityCostFunction::CreateMap,
-                //     global_context,
-                //     u64::from(key_type.size()).cost_overflow_add(u64::from(value_type.size()))?,
-                // )?;
-
                 // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")
@@ -357,6 +382,20 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
                     .get_map_type(&name)
                     .ok_or(Error::Unchecked(CheckErrors::BadMapTypeDefinition))?;
+
+                // runtime_cost(
+                //     ClarityCostFunction::CreateMap,
+                //     global_context,
+                //     u64::from(key_type.size()).cost_overflow_add(u64::from(value_type.size()))?,
+                // )?;
+                // cost_create_map
+                let n = key_type.size()? as u64 + value_type.size()? as u64;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(n + 1564)
+                        .set_write_length(n)
+                        .set_write_count(1),
+                )?;
 
                 caller
                     .data_mut()
@@ -619,13 +658,19 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .database
                     .lookup_variable_with_size(&contract, var_name.as_str(), &data_types, &epoch);
 
-                let _result_size = match &result {
+                let result_size = match &result {
                     Ok(data) => data.serialized_byte_len,
                     Err(_e) => data_types.value_type.size()? as u64,
                 };
 
-                // TODO: Include this cost
                 // runtime_cost(ClarityCostFunction::FetchVar, env, result_size)?;
+                // cost_fetch_var
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(result_size + 468)
+                        .set_read_length(result_size)
+                        .set_read_count(1),
+                )?;
 
                 let value = result.map(|data| data.value)?;
                 let memory = caller
@@ -691,12 +736,20 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     )))?
                     .clone();
 
-                // TODO: Include this cost
                 // runtime_cost(
                 //     ClarityCostFunction::SetVar,
                 //     env,
                 //     data_types.value_type.size(),
                 // )?;
+                // cost_set_var
+                let n = data_types.value_type.size()? as u64;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(n * 5 + 655)
+                        .set_write_length(n)
+                        .set_write_count(1)
+                        .set_read_count(1),
+                )?;
 
                 // Read in the value from the Wasm memory
                 if is_in_memory_type(&data_types.value_type) {
@@ -712,8 +765,10 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     epoch,
                 )?;
 
-                // TODO: Include this cost
-                // env.add_memory(value.get_memory_use())?;
+                caller
+                    .data_mut()
+                    .global_context
+                    .add_memory(value.size()? as u64)?;
 
                 // Store the variable in the global context
                 caller
@@ -1442,6 +1497,12 @@ fn link_ft_get_supply_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     caller.data().contract_context().contract_identifier.clone();
 
                 // runtime_cost(ClarityCostFunction::FtSupply, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(420)
+                        .set_read_length(1)
+                        .set_read_count(1),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1484,6 +1545,12 @@ fn link_ft_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
              owner_offset: i32,
              owner_length: i32| {
                 // runtime_cost(ClarityCostFunction::FtBalance, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(479)
+                        .set_read_length(1)
+                        .set_read_count(1),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1553,6 +1620,14 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
              sender_offset: i32,
              sender_length: i32| {
                 // runtime_cost(ClarityCostFunction::FtBurn, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(549)
+                        .set_read_length(1)
+                        .set_read_count(2)
+                        .set_write_length(1)
+                        .set_write_count(2),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1680,7 +1755,15 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
              amount_hi: i64,
              sender_offset: i32,
              sender_length: i32| {
-                // runtime_cost(ClarityCostFunction::FtBurn, env, 0)?;
+                // runtime_cost(ClarityCostFunction::FtMint, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(549)
+                        .set_read_length(1)
+                        .set_read_count(1)
+                        .set_write_length(1)
+                        .set_write_count(1),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1806,6 +1889,14 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
              recipient_offset: i32,
              recipient_length: i32| {
                 // runtime_cost(ClarityCostFunction::FtTransfer, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(549)
+                        .set_read_length(1)
+                        .set_read_count(2)
+                        .set_write_length(1)
+                        .set_write_count(2),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -2015,9 +2106,18 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     epoch,
                 )?;
 
-                let _asset_size = asset.serialized_size()? as u64;
+                let asset_size = asset.serialized_size()? as u64;
 
                 // runtime_cost(ClarityCostFunction::NftOwner, env, asset_size)?;
+                // cost_nft_owner
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(asset_size * 9 + 795)
+                        .set_read_length(1)
+                        .set_read_count(1)
+                        .set_write_length(1)
+                        .set_write_count(1),
+                )?;
 
                 if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
                     return Err(
@@ -2126,6 +2226,14 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 let asset_size = asset.serialized_size()? as u64;
 
                 // runtime_cost(ClarityCostFunction::NftBurn, env, asset_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(asset_size * 9 + 572)
+                        .set_read_length(1)
+                        .set_read_count(1)
+                        .set_write_length(1)
+                        .set_write_count(1),
+                )?;
 
                 if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
                     return Err(
@@ -2260,6 +2368,14 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
 
                 let asset_size = asset.serialized_size()? as u64;
                 // runtime_cost(ClarityCostFunction::NftMint, env, asset_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(asset_size * 9 + 575)
+                        .set_read_length(1)
+                        .set_read_count(1)
+                        .set_write_length(1)
+                        .set_write_count(1),
+                )?;
 
                 if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
                     return Err(
@@ -2397,6 +2513,14 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
 
                 let asset_size = asset.serialized_size()? as u64;
                 // runtime_cost(ClarityCostFunction::NftTransfer, env, asset_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(asset_size * 9 + 572)
+                        .set_read_length(1)
+                        .set_read_count(1)
+                        .set_write_length(1)
+                        .set_write_count(1),
+                )?;
 
                 if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
                     return Err(
@@ -2547,12 +2671,18 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .database
                     .fetch_entry_with_size(&contract, &map_name, &key, &data_types, &epoch);
 
-                let _result_size = match &result {
+                let result_size = match &result {
                     Ok(data) => data.serialized_byte_len,
                     Err(_e) => (data_types.value_type.size()? + data_types.key_type.size()?) as u64,
                 };
 
                 // runtime_cost(ClarityCostFunction::FetchEntry, env, result_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(result_size + 1025)
+                        .set_read_length(1)
+                        .set_read_count(1),
+                )?;
 
                 let value = result.map(|data| data.value)?;
 
@@ -2670,6 +2800,13 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 };
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(result_size * 4 + 1899)
+                        .set_read_count(1)
+                        .set_write_length(result_size)
+                        .set_write_count(1),
+                )?;
 
                 caller
                     .data_mut()
@@ -2780,6 +2917,13 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 };
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(result_size * 4 + 1899)
+                        .set_read_count(1)
+                        .set_write_length(result_size)
+                        .set_write_count(1),
+                )?;
 
                 caller
                     .data_mut()
@@ -2872,6 +3016,13 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 };
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(result_size * 4 + 1899)
+                        .set_read_count(1)
+                        .set_write_length(result_size)
+                        .set_write_count(1),
+                )?;
 
                 caller
                     .data_mut()
@@ -2911,7 +3062,12 @@ fn link_get_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
              return_offset: i32,
              _return_length: i32| {
                 // runtime_cost(ClarityCostFunction::BlockInfo, env, 0)?;
-
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(6361)
+                        .set_read_count(1)
+                        .set_read_length(1),
+                )?;
                 // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")
@@ -3127,6 +3283,12 @@ fn link_get_burn_block_info_fn(linker: &mut Linker<ClarityWasmContext>) -> Resul
              return_offset: i32,
              _return_length: i32| {
                 // runtime_cost(ClarityCostFunction::GetBurnBlockInfo, env, 0)?;
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(86479)
+                        .set_read_count(1)
+                        .set_read_length(1),
+                )?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -3262,6 +3424,7 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 //   is checked in `execute_contract`, and the function _application_ cost
                 //   is checked in callables::DefinedFunction::execute_apply.
                 // runtime_cost(ClarityCostFunction::ContractCall, env, 0)?;
+                caller.data_mut().deduct(WasmCost::new().set_runtime(134))?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -3493,6 +3656,10 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
             |mut caller: Caller<'_, ClarityWasmContext>, value_offset: i32, value_length: i32| {
                 // runtime_cost(ClarityCostFunction::Print, env, input.size())?;
 
+                caller
+                    .data_mut()
+                    .deduct(WasmCost::new().set_runtime(value_length as u64 * 15 + 1458))?;
+
                 // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")
@@ -3529,7 +3696,12 @@ fn link_enter_at_block_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
              block_hash_offset: i32,
              block_hash_length: i32| {
                 // runtime_cost(ClarityCostFunction::AtBlock, env, 0)?;
-
+                caller.data_mut().deduct(
+                    WasmCost::new()
+                        .set_runtime(1327)
+                        .set_read_count(1)
+                        .set_read_length(1),
+                )?;
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -3749,6 +3921,9 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
              return_offset: i32,
              _return_length: i32| {
                 // runtime_cost(ClarityCostFunction::Secp256k1recover, env, 0)?;
+                caller
+                    .data_mut()
+                    .deduct(WasmCost::new().set_runtime(8655))?;
 
                 // Get the memory from the caller
                 let memory = caller
@@ -3807,8 +3982,10 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
              pk_offset: i32,
              pk_length: i32| {
                 // runtime_cost(ClarityCostFunction::Secp256k1verify, env, 0)?;
+                caller
+                    .data_mut() // Get the memory from the caller
+                    .deduct(WasmCost::new().set_runtime(8349))?;
 
-                // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -3847,7 +4024,9 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
              key_length: i32,
              principal_offset: i32| {
                 // runtime_cost(ClarityCostFunction::PrincipalOf, env, 0)?;
-
+                caller
+                    .data_mut() // Get the memory from the calle
+                    .deduct(WasmCost::new().set_runtime(984))?;
                 // Get the memory from the caller
                 let memory = caller
                     .get_export("memory")

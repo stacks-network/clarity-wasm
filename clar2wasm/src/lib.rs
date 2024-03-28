@@ -14,6 +14,7 @@ mod deserialize;
 pub mod initialize;
 mod linker;
 mod serialize;
+pub mod wasm_cost;
 pub mod wasm_generator;
 pub mod wasm_utils;
 mod words;
