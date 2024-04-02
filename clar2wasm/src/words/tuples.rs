@@ -162,7 +162,7 @@ impl ComplexWord for TupleMerge {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
@@ -178,6 +178,7 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
+            .get_type_map()
             .clone();
 
         let rhs_tuple_ty = generator
@@ -187,53 +188,78 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
+            .get_type_map()
             .clone();
+
+        // Those locals will contain the resulting tuple after the merge operation
+        let result_locals: BTreeMap<_, Vec<_>> = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("merge expression must be typed".to_owned()))
+            .and_then(|lhs_ty| match lhs_ty {
+                TypeSignature::TupleType(tuple) => Ok(tuple),
+                _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
+            })?
+            .get_type_map()
+            .clone()
+            .into_iter()
+            .map(|(name, ty_)| {
+                (
+                    name,
+                    clar2wasm_ty(&ty_)
+                        .into_iter()
+                        .map(|local_ty| generator.module.locals.add(local_ty))
+                        .collect(),
+                )
+            })
+            .collect();
 
         // Traverse the LHS tuple argument, leaving it on top of the stack.
         generator.traverse_expr(builder, &args[0])?;
 
-        // We need to merge the two tuples and then push the combined tuple
-        // back onto the stack in the correct order. To do this, we'll store
-        // the values of the LHS tuple in locals, and then store the values of
-        // the RHS tuple in locals (overwriting LHS values when there are name
-        // collisions). Finally, we'll load the values from those locals in the
-        // correct order.
-        let mut locals = BTreeMap::new();
-        // LHS
-        for (field_name, field_ty) in lhs_tuple_ty.get_type_map().iter().rev() {
-            let field_locals = generator.save_to_locals(builder, field_ty, false);
-            locals.insert(field_name, field_locals);
+        // We will copy the values from LHS into the result locals iff the key is not
+        // present in RHS. Otherwise, we drop the values.
+        for (name, ty_) in lhs_tuple_ty.into_iter().rev() {
+            if !rhs_tuple_ty.contains_key(&name) {
+                result_locals
+                    .get(&name)
+                    .ok_or_else(|| {
+                        GeneratorError::InternalError(
+                            "merge result tuple should contain all the keys of LHS".to_owned(),
+                        )
+                    })?
+                    .iter()
+                    .rev()
+                    .for_each(|local| {
+                        builder.local_set(*local);
+                    });
+            } else {
+                drop_value(builder, &ty_);
+            }
         }
 
-        // Traverse the LHS tuple argument, leaving it on top of the stack.
+        // Traverse the RHS tuple argument, leaving it on top of the stack.
         generator.traverse_expr(builder, &args[1])?;
 
-        // RHS
-        for (field_name, field_ty) in rhs_tuple_ty.get_type_map().iter().rev() {
-            let wasm_types = clar2wasm_ty(field_ty);
-            let mut field_locals = Vec::with_capacity(wasm_types.len());
-            // If this field was in the LHS, then we'll store to the existing
-            // locals instead of creating new ones.
-            if let Some(field_locals) = locals.get(field_name) {
-                for local in field_locals {
+        // We will copy all values of RHS into the result locals
+        for name in rhs_tuple_ty.into_keys().rev() {
+            result_locals
+                .get(&name)
+                .ok_or_else(|| {
+                    GeneratorError::InternalError(
+                        "merge result tuple should contain all the keys of RHS".to_owned(),
+                    )
+                })?
+                .iter()
+                .rev()
+                .for_each(|local| {
                     builder.local_set(*local);
-                }
-            } else {
-                for local_ty in wasm_types.iter().rev() {
-                    let local = generator.module.locals.add(*local_ty);
-                    builder.local_set(local);
-                    field_locals.push(local);
-                }
-                locals.insert(field_name, field_locals);
-            }
+                });
         }
 
-        // Now load the combined values from the locals we created above.
-        for (_, field_locals) in locals {
-            for local in field_locals.iter().rev() {
-                builder.local_get(*local);
-            }
-        }
+        // Now we load the result locals onto the stack
+        result_locals.into_values().flatten().for_each(|local| {
+            builder.local_get(local);
+        });
 
         Ok(())
     }
@@ -260,5 +286,74 @@ mod test {
             &format!("{preamble} (get-optional-tuple (some {{ a: 3 }} ))"),
             Ok(Some(Value::some(Value::Int(3)).unwrap())),
         );
+    }
+
+    #[test]
+    fn merge_same_key_different_type() {
+        let snippet = r#"(merge {a: 42} {a: "Hello, World!"})"#;
+
+        let expected = Value::from(
+            clarity::vm::types::TupleData::from_data(vec![(
+                clarity::vm::ClarityName::from("a"),
+                Value::Sequence(clarity::vm::types::SequenceData::String(
+                    clarity::vm::types::CharType::ASCII(clarity::vm::types::ASCIIData {
+                        data: "Hello, World!".bytes().collect(),
+                    }),
+                )),
+            )])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    #[test]
+    fn merge_multiple_same_key_different_type() {
+        let snippet =
+            r#"(merge {a: 42, b: 0x24, c: 0xdeadbeef} {a: "Hello, World!", b: u789, d: 123})"#;
+
+        let expected = Value::from(
+            clarity::vm::types::TupleData::from_data(vec![
+                (
+                    clarity::vm::ClarityName::from("a"),
+                    Value::Sequence(clarity::vm::types::SequenceData::String(
+                        clarity::vm::types::CharType::ASCII(clarity::vm::types::ASCIIData {
+                            data: "Hello, World!".bytes().collect(),
+                        }),
+                    )),
+                ),
+                (clarity::vm::ClarityName::from("b"), Value::UInt(789)),
+                (
+                    clarity::vm::ClarityName::from("c"),
+                    Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                        clarity::vm::types::BuffData {
+                            data: vec![0xde, 0xad, 0xbe, 0xef],
+                        },
+                    )),
+                ),
+                (clarity::vm::ClarityName::from("d"), Value::Int(123)),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    #[test]
+    fn merge_real_example() {
+        // issue #372
+        let snippet = r#"
+(define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
+    (ok {
+        value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
+        next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
+    }))
+
+(define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
+    (let ((cursor-bytes (try! (read-buff-1 cursor))))
+        (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
+            "#;
+
+        crosscheck(snippet, Ok(None));
     }
 }
