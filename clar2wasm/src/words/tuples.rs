@@ -287,4 +287,23 @@ mod test {
             Ok(Some(Value::some(Value::Int(3)).unwrap())),
         );
     }
+
+    #[test]
+    fn merge_same_key_different_type() {
+        let snippet = r#"(merge {a: 42} {a: "Hello, World!"})"#;
+
+        let expected = Value::from(
+            clarity::vm::types::TupleData::from_data(vec![(
+                clarity::vm::ClarityName::from("a"),
+                Value::Sequence(clarity::vm::types::SequenceData::String(
+                    clarity::vm::types::CharType::ASCII(clarity::vm::types::ASCIIData {
+                        data: "Hello, World!".bytes().collect(),
+                    }),
+                )),
+            )])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
+    }
 }
