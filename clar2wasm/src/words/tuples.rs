@@ -306,4 +306,36 @@ mod test {
 
         crosscheck(snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn merge_multiple_same_key_different_type() {
+        let snippet =
+            r#"(merge {a: 42, b: 0x24, c: 0xdeadbeef} {a: "Hello, World!", b: u789, d: 123})"#;
+
+        let expected = Value::from(
+            clarity::vm::types::TupleData::from_data(vec![
+                (
+                    clarity::vm::ClarityName::from("a"),
+                    Value::Sequence(clarity::vm::types::SequenceData::String(
+                        clarity::vm::types::CharType::ASCII(clarity::vm::types::ASCIIData {
+                            data: "Hello, World!".bytes().collect(),
+                        }),
+                    )),
+                ),
+                (clarity::vm::ClarityName::from("b"), Value::UInt(789)),
+                (
+                    clarity::vm::ClarityName::from("c"),
+                    Value::Sequence(clarity::vm::types::SequenceData::Buffer(
+                        clarity::vm::types::BuffData {
+                            data: vec![0xde, 0xad, 0xbe, 0xef],
+                        },
+                    )),
+                ),
+                (clarity::vm::ClarityName::from("d"), Value::Int(123)),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
+    }
 }
