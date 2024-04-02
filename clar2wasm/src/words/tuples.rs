@@ -338,4 +338,22 @@ mod test {
 
         crosscheck(snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn merge_real_example() {
+        // issue #372
+        let snippet = r#"
+(define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
+    (ok {
+        value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
+        next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
+    }))
+
+(define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
+    (let ((cursor-bytes (try! (read-buff-1 cursor))))
+        (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
+            "#;
+
+        crosscheck(snippet, Ok(None));
+    }
 }
