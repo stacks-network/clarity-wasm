@@ -1,3 +1,4 @@
+use clap::builder::StringValueParser;
 use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
@@ -8,6 +9,30 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+
+trait EqCompatible {
+    fn compatible(&self, other: &Self) -> bool;
+}
+
+impl EqCompatible for TypeSignature {
+    fn compatible(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+            ) => true,
+            (
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
+            ) => true,
+            (
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
+            ) => true,
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -403,11 +428,10 @@ fn wasm_equal(
         }
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_)))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_)))
+        | TypeSignature::SequenceType(SequenceSubtype::StringType(_))
         | TypeSignature::PrincipalType
         | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
-            if ty == nth_ty {
+            if ty.compatible(nth_ty) {
                 wasm_equal_bytes(generator, builder, first_op, nth_op)
             } else {
                 no_type_match()
@@ -1201,5 +1225,32 @@ mod tests {
         crosscheck("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))",
             Ok(Some(Value::none()))
         );
+    }
+
+    #[test]
+    fn is_eq_equal_buffers_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (buff 2) 0x00)
+        (define-data-var b (buff 3) 0x00)
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_ascii_strings_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (string-ascii 3) \"lol\")
+        (define-data-var b (string-ascii 4) \"lol\")
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_lists_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (list 3 int) (list 1 2 3))
+        (define-data-var b (list 4 int) (list 1 2 3))
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
 }
