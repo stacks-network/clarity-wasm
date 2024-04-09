@@ -9,26 +9,20 @@ use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
 
-trait EqCompatible {
-    fn compatible(&self, other: &Self) -> bool;
-}
-
-impl EqCompatible for TypeSignature {
-    fn compatible(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-            ) | (
-                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
-                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
-            ) | (
-                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
-                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
-            )
+fn eq_compatible(a: &TypeSignature, b: &TypeSignature) -> bool {
+    matches!(
+        (a, b),
+        (
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+        ) | (
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
+        ) | (
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
         )
-    }
+    )
 }
 
 #[derive(Debug)]
@@ -426,7 +420,7 @@ fn wasm_equal(
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
         | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
-            if ty.compatible(nth_ty) {
+            if eq_compatible(ty, nth_ty) {
                 wasm_equal_bytes(generator, builder, first_op, nth_op)
             } else {
                 no_type_match()
@@ -1245,6 +1239,15 @@ mod tests {
         (define-data-var a (string-ascii 3) \"lol\")
         (define-data-var b (string-ascii 4) \"lol\")
         (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_utf8_strings_with_different_max_len() {
+        let snippet = r#"
+        (define-data-var a (string-utf8 22) u"lol")
+        (define-data-var b (string-utf8 21) u"lol")
+        (is-eq (var-get a) (var-get b))"#;
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
 
