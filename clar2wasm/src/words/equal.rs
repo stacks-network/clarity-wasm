@@ -425,10 +425,16 @@ fn wasm_equal(
         }
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(_))
-        | TypeSignature::PrincipalType
-        | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
+        | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
             if ty.compatible(nth_ty) {
+                wasm_equal_bytes(generator, builder, first_op, nth_op)
+            } else {
+                no_type_match()
+            }
+        }
+        TypeSignature::PrincipalType
+        | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
+            if ty == nth_ty {
                 wasm_equal_bytes(generator, builder, first_op, nth_op)
             } else {
                 no_type_match()
