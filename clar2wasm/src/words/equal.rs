@@ -1,4 +1,3 @@
-use clap::builder::StringValueParser;
 use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
@@ -16,21 +15,19 @@ trait EqCompatible {
 
 impl EqCompatible for TypeSignature {
     fn compatible(&self, other: &Self) -> bool {
-        match (self, other) {
+        matches!(
+            (self, other),
             (
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-            ) => true,
-            (
+            ) | (
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
-            ) => true,
-            (
+            ) | (
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
-            ) => true,
-            _ => false,
-        }
+            )
+        )
     }
 }
 
