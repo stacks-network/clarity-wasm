@@ -9,22 +9,6 @@ use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
 
-fn eq_compatible(a: &TypeSignature, b: &TypeSignature) -> bool {
-    matches!(
-        (a, b),
-        (
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-        ) | (
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))),
-        ) | (
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))),
-        )
-    )
-}
-
 #[derive(Debug)]
 pub struct IsEq;
 
@@ -420,7 +404,27 @@ fn wasm_equal(
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
         | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
-            if eq_compatible(ty, nth_ty) {
+            if matches!(
+                (ty, nth_ty),
+                (
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+                ) | (
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                        _
+                    ))),
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                        _
+                    ))),
+                ) | (
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                        _
+                    ))),
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                        _
+                    ))),
+                )
+            ) {
                 wasm_equal_bytes(generator, builder, first_op, nth_op)
             } else {
                 no_type_match()
