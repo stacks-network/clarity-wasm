@@ -403,9 +403,34 @@ fn wasm_equal(
         }
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_)))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_)))
-        | TypeSignature::PrincipalType
+        | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
+            if matches!(
+                (ty, nth_ty),
+                (
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
+                ) | (
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                        _
+                    ))),
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                        _
+                    ))),
+                ) | (
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                        _
+                    ))),
+                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                        _
+                    ))),
+                )
+            ) {
+                wasm_equal_bytes(generator, builder, first_op, nth_op)
+            } else {
+                no_type_match()
+            }
+        }
+        TypeSignature::PrincipalType
         | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
             if ty == nth_ty {
                 wasm_equal_bytes(generator, builder, first_op, nth_op)
@@ -1201,5 +1226,41 @@ mod tests {
         crosscheck("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))",
             Ok(Some(Value::none()))
         );
+    }
+
+    #[test]
+    fn is_eq_equal_buffers_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (buff 2) 0x00)
+        (define-data-var b (buff 3) 0x00)
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_ascii_strings_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (string-ascii 3) \"lol\")
+        (define-data-var b (string-ascii 4) \"lol\")
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_utf8_strings_with_different_max_len() {
+        let snippet = r#"
+        (define-data-var a (string-utf8 22) u"lol")
+        (define-data-var b (string-utf8 21) u"lol")
+        (is-eq (var-get a) (var-get b))"#;
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn is_eq_equal_lists_with_different_max_len() {
+        let snippet = "
+        (define-data-var a (list 3 int) (list 1 2 3))
+        (define-data-var b (list 4 int) (list 1 2 3))
+        (is-eq (var-get a) (var-get b))";
+        crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
 }
