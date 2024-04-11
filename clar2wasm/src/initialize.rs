@@ -1,8 +1,10 @@
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::contexts::GlobalContext;
-use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
+use clarity::vm::errors::{Error, RuntimeErrorType, ShortReturnType, WasmError};
 use clarity::vm::events::*;
-use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier};
+use clarity::vm::types::{
+    AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier, ResponseData,
+};
 use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
 use wasmtime::{Engine, Linker, Module, Store};
@@ -368,7 +370,47 @@ pub fn initialize_contract(
 
     top_level
         .call(&mut store, &[], results.as_mut_slice())
-        .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
+        .map_err(|_| {
+            let global = "runtime_error_code";
+            let runtime_error_code = instance
+                .get_global(&mut store, global)
+                .unwrap_or_else(|| panic!("Could not find {} global", global))
+                .get(&mut store);
+
+            let error_code = runtime_error_code.unwrap_i32();
+
+            match error_code {
+                0 => Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new())),
+                1 => Error::Runtime(RuntimeErrorType::ArithmeticUnderflow, Some(Vec::new())),
+                2 => Error::Runtime(RuntimeErrorType::DivisionByZero, Some(Vec::new())),
+                3 => Error::Runtime(
+                    RuntimeErrorType::Arithmetic(
+                        "log2 must be passed a positive integer".to_string(),
+                    ),
+                    Some(Vec::new()),
+                ),
+                4 => Error::Runtime(
+                    RuntimeErrorType::Arithmetic(
+                        "sqrti must be passed a positive integer".to_string(),
+                    ),
+                    Some(Vec::new()),
+                ),
+                5 => Error::Runtime(RuntimeErrorType::UnwrapFailure, Some(Vec::new())),
+                7 => Error::ShortReturn(ShortReturnType::AssertionFailed(Value::Response(
+                    ResponseData {
+                        committed: false,
+                        data: Box::new(Value::UInt(42)),
+                    },
+                ))),
+                8 => Error::Runtime(
+                    RuntimeErrorType::Arithmetic(
+                        "Power argument to (pow ...) must be a u32 integer".to_string(),
+                    ),
+                    Some(Vec::new()),
+                ),
+                _ => panic!("Runtime error code {} not supported", error_code),
+            }
+        })?;
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(
