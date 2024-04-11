@@ -52,13 +52,7 @@ impl SimpleWord for Hash160 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash(
-            "hash160",
-            core::mem::size_of::<u32>() * 5,
-            generator,
-            builder,
-            arg_types,
-        )
+        traverse_hash("hash160", 160, generator, builder, arg_types)
     }
 }
 
@@ -77,13 +71,7 @@ impl SimpleWord for Sha256 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash(
-            "sha256",
-            core::mem::size_of::<u32>() * 8,
-            generator,
-            builder,
-            arg_types,
-        )
+        traverse_hash("sha256", 256, generator, builder, arg_types)
     }
 }
 
@@ -157,13 +145,7 @@ impl SimpleWord for Sha512 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash(
-            "sha512",
-            core::mem::size_of::<u32>() * 8,
-            generator,
-            builder,
-            arg_types,
-        )
+        traverse_hash("sha512", 512, generator, builder, arg_types)
     }
 }
 
@@ -207,7 +189,7 @@ impl SimpleWord for Sha512_256 {
             generator.create_call_stack_local(builder, &ret_ty, false, true);
         builder.local_get(result_local).i32_const(result_size);
 
-        // Call the host interface function, `sha512`
+        // Call the host interface function, `sha512_256`
         builder.call(
             generator
                 .module
@@ -252,6 +234,36 @@ mod tests {
         .unwrap();
         crosscheck(
             "(sha512 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn test_sha512_overwrite() {
+        let expected = [0u8; 64];
+        crosscheck(
+            "(sha512 1)
+0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn test_sha512_256_overwrite() {
+        let expected = [0u8; 32];
+        crosscheck(
+            "(sha512/256 1)
+0x0000000000000000000000000000000000000000000000000000000000000000",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn test_sha256_overwrite() {
+        let expected = [0u8; 32];
+        crosscheck(
+            "(sha256 1)
+0x0000000000000000000000000000000000000000000000000000000000000000",
             Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
         );
     }
