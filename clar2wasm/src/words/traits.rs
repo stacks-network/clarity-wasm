@@ -248,18 +248,16 @@ mod tests {
             "#,
         )
         .expect("Failed to init contract my-trait.");
-        let val = env
-            .init_contract_with_snippet(
-                "use-trait",
-                r#"
+        let val = env.init_contract_with_snippet(
+            "use-trait",
+            r#"
 (use-trait the-trait .my-trait.my-trait)
 (define-private (foo (adder <the-trait>))
     (print (list adder adder))
 )
 (foo .my-trait)
             "#,
-            )
-            .map_err(|_| ());
+        );
 
         assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
     }

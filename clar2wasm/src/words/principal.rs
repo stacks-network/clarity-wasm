@@ -294,6 +294,7 @@ impl ComplexWord for PrincipalOf {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::types::{PrincipalData, ResponseData, StandardPrincipalData, TupleData};
     use clarity::vm::Value;
 
@@ -668,7 +669,9 @@ mod tests {
     fn test_principal_of_runtime_err() {
         crosscheck(
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
-            Err(()),
+            Err(Error::Wasm(WasmError::WasmGeneratorError(
+                "[TODO] change that".to_string(),
+            ))),
         );
     }
 

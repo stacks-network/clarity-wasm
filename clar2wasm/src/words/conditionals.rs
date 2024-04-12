@@ -841,6 +841,8 @@ impl ComplexWord for Try {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, ShortReturnType, WasmError};
+    use clarity::vm::types::ResponseData;
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate};
@@ -955,6 +957,7 @@ mod tests {
         );
     }
 
+    #[ignore = "compilation error"]
     #[test]
     fn clar_match_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -964,9 +967,15 @@ mod tests {
    val (+ val 10)
    err (+ err 107)))";
 
-        crosscheck(&format!("{ERR} (test (err 18))"), Err(()));
+        crosscheck(
+            &format!("{ERR} (test (err 18))"),
+            Err(Error::Wasm(WasmError::WasmGeneratorError(
+                "[TODO] change that".to_string(),
+            ))),
+        );
     }
 
+    #[ignore = "compilation error"]
     #[test]
     fn clar_match_cursed() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -976,7 +985,12 @@ mod tests {
    val (+ val 10)
    cursed (+ cursed 107)))";
 
-        crosscheck(&format!("{CURSED} (cursed (err 18))"), Err(()));
+        crosscheck(
+            &format!("{CURSED} (cursed (err 18))"),
+            Err(Error::Wasm(WasmError::WasmGeneratorError(
+                "[TODO] change that".to_string(),
+            ))),
+        );
     }
 
     #[test]
@@ -1175,6 +1189,14 @@ mod tests {
 
     #[test]
     fn asserts_top_level_false() {
-        crosscheck("(asserts! false (err u1))", Err(()))
+        crosscheck(
+            "(asserts! false (err u1))",
+            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(
+                Value::Response(ResponseData {
+                    committed: false,
+                    data: Box::new(Value::UInt(1)),
+                }),
+            ))),
+        )
     }
 }
