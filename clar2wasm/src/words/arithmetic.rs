@@ -74,25 +74,39 @@ impl SimpleWord for Sub {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let type_suffix = match return_type {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
+        let func = match return_type {
+            TypeSignature::IntType => {
+                let type_suffix = "int";
+                if arg_types.len() == 1 {
+                    // unary 'int' subtraction:
+                    // multiply by -1.
+                    builder.i64_const(-1);
+                    builder.i64_const(-1);
+                    generator.func_by_name(&format!("stdlib.mul-{type_suffix}"))
+                } else {
+                    generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
+                }
+            }
+            TypeSignature::UIntType => {
+                let type_suffix = "uint";
+                if arg_types.len() == 1 {
+                    // unary 'uint' subtraction:
+                    // throws an underflow runtime error.
+                    builder.i32_const(1);
+                    generator.func_by_name("stdlib.runtime-error")
+                } else {
+                    generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
+                }
+            }
             _ => {
                 return Err(GeneratorError::TypeError(
                     "invalid type for arithmetic".to_string(),
                 ));
             }
         };
-        if arg_types.len() == 1 {
-            // unary is eq to mult by -1
-            builder.i64_const(-1);
-            builder.i64_const(-1);
-            let func = generator.func_by_name(&format!("stdlib.mul-{type_suffix}"));
-            builder.call(func);
-        } else {
-            let func = generator.func_by_name(&format!("stdlib.sub-{type_suffix}"));
-            builder.call(func);
-        }
+
+        builder.call(func);
+
         Ok(())
     }
 }
@@ -446,6 +460,11 @@ mod tests {
                 Some(Vec::new()),
             )),
         );
+    }
+
+    #[test]
+    fn test_sub_uint() {
+        crosscheck("(- u10 u5 u3 u1)", Ok(Some(Value::UInt(1))));
     }
 
     #[test]
