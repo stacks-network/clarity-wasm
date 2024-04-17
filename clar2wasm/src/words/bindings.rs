@@ -84,7 +84,7 @@ mod tests {
 
     use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch};
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn clar_let_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -101,7 +101,7 @@ mod tests {
         );
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn clar_let_disallow_user_defined_names() {
         // It's not allowed to use names of user-defined functions as bindings

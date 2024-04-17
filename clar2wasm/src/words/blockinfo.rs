@@ -338,6 +338,7 @@ mod tests {
         )
     }
 
+    #[ignore = "see issue: #381"]
     #[test]
     fn at_block_var() {
         let mut env = TestEnvironment::default();

@@ -500,7 +500,7 @@ mod tests {
     use crate::tools::{crosscheck, crosscheck_with_epoch};
     use clarity::vm::errors::{Error, WasmError};
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn bar_mint_too_many() {
         crosscheck(
@@ -511,7 +511,7 @@ mod tests {
         );
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn bar_mint_too_many_2() {
         crosscheck(

@@ -362,7 +362,7 @@ mod tests {
         Ok(())
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_none() {
         crosscheck(
@@ -378,7 +378,7 @@ mod tests {
         )
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_error() {
         crosscheck(

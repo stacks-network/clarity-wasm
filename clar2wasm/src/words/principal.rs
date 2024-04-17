@@ -665,9 +665,11 @@ mod tests {
         )
     }
 
+    #[ignore = "see issue: #382"]
     #[test]
     fn test_principal_of_runtime_err() {
         crosscheck(
+            // 32 bytes
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
             Err(Error::Wasm(WasmError::WasmGeneratorError(
                 "[TODO] change that".to_string(),

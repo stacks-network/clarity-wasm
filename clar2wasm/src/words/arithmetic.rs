@@ -297,7 +297,7 @@ mod tests {
         crosscheck("(- 123239)", Ok(Some(Value::Int(-123239))));
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn test_subtraction_nullary() {
         crosscheck(

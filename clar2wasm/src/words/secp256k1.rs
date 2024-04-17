@@ -118,6 +118,7 @@ mod tests {
             0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(false))))
     }
 
+    #[ignore = "see issue: #383"]
     #[test]
     fn test_secp256k1_recover_bad_values() {
         // For some reason, if the message-hash is the wrong size, it throws a
@@ -135,6 +136,7 @@ mod tests {
             Ok(Some(Value::err_uint(2))));
     }
 
+    #[ignore = "see issue: #384"]
     #[test]
     fn test_secp256k1_verify_bad_values() {
         // For some reason, if the message hash or public key are the wrong

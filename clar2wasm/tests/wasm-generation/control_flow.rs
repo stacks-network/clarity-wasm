@@ -66,7 +66,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_panic_response_err(val in PropValue::any()) {
         crosscheck(
@@ -91,7 +91,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_err_panic_ok(val in PropValue::any()) {
         crosscheck(

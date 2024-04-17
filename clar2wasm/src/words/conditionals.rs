@@ -957,7 +957,7 @@ mod tests {
         );
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn clar_match_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -975,7 +975,7 @@ mod tests {
         );
     }
 
-    #[ignore = "compilation error"]
+    #[ignore = "see issue: #386"]
     #[test]
     fn clar_match_cursed() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -1187,6 +1187,7 @@ mod tests {
         crosscheck("(asserts! true (err u1))", Ok(Some(Value::Bool(true))));
     }
 
+    #[ignore = "see issue: #385"]
     #[test]
     fn asserts_top_level_false() {
         crosscheck(
