@@ -1556,13 +1556,13 @@ impl WasmGenerator {
 
     #[allow(dead_code)]
     /// Log an i64 that is on top of the stack.
-    fn debug_log_i64(&self, builder: &mut InstrSeqBuilder) {
+    pub fn debug_log_i64(&self, builder: &mut InstrSeqBuilder) {
         builder.call(self.func_by_name("log"));
     }
 
     #[allow(dead_code)]
     /// Log an i32 that is on top of the stack.
-    fn debug_log_i32(&self, builder: &mut InstrSeqBuilder) {
+    pub fn debug_log_i32(&self, builder: &mut InstrSeqBuilder) {
         builder
             .unop(UnaryOp::I64ExtendUI32)
             .call(self.func_by_name("log"));
