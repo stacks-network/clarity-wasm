@@ -292,7 +292,7 @@ proptest! {
 
     #[test]
     fn crosscheck_filter(
-        seq in PropValue::any_sequence(3usize)
+        seq in (0usize..=10).prop_flat_map(PropValue::any_sequence)
     ) {
         let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
 
