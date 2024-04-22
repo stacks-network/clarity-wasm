@@ -1,4 +1,5 @@
-use clar2wasm::tools::crosscheck;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::types::{ASCIIData, CharType, SequenceData};
 use clarity::vm::Value;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
@@ -283,5 +284,56 @@ proptest! {
             &snippet,
             Ok(Some(expected.into()))
         );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_filter(
+        seq in PropValue::any_sequence(3usize)
+    ) {
+        let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+
+        match seq_data {
+            clarity::vm::types::SequenceData::Buffer(_) => {
+                let snippet = format!("(define-private (only-zero (byte (buff 1))) (is-eq byte 0x00)) (buff-to-int-be (filter only-zero {seq}))");
+
+                crosscheck(
+                    &snippet,
+                    Ok(Some(Value::Int(0)))
+                )
+            },
+            clarity::vm::types::SequenceData::List(data) => {
+                let max_len = data.type_signature.get_max_len();
+                let item_ty = data.type_signature.get_list_item_type().to_string();
+
+                crosscheck_compare_only(
+                    &format!("(define-private (foo (el (list {max_len} {item_ty})))
+                        (not (is-eq u0 (len el))))
+                        (filter foo (list {seq}))"
+                    )
+                );
+            },
+            clarity::vm::types::SequenceData::String(data) => {
+                let data = data.to_string();
+                let v: Vec<u32> = data.as_str().chars().filter_map(|a| a.to_digit(10)).collect();
+                let expected: String = v.into_iter().map(|i| i.to_string()).collect::<String>();
+                let snippet = format!("(define-private (is-int (char (string-ascii 1)))
+                    (is-eq 0 (* 0 (unwrap! (string-to-int? char) false))))
+                    (filter is-int {seq})"
+                );
+
+                crosscheck(
+                    &snippet,
+                    Ok(Some(Value::Sequence(SequenceData::String(
+                        CharType::ASCII(ASCIIData {
+                            data: expected.bytes().collect(),
+                        }),
+                    )))),
+                )
+            },
+        };
     }
 }
