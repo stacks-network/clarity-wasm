@@ -345,8 +345,8 @@ mod tests {
     /// Verify that the full response type is set correctly for the last
     /// expression in a `begin` block.
     #[test]
-    fn begin_response_type_bug() -> Result<(), ()> {
-        let _ = evaluate(
+    fn begin_response_type_bug() -> Result<(), Error> {
+        evaluate(
             r#"
 (define-private (foo)
     (err u1)
@@ -358,7 +358,7 @@ mod tests {
     )
 )
             "#,
-        );
+        )?;
         Ok(())
     }
 
