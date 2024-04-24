@@ -1,9 +1,14 @@
 /// This files purpose is to add examples of generated values that failed,
 /// so that we can be sure they won't fail again after some random refactor
 /// in the future.
-use clar2wasm::tools::{crosscheck, evaluate};
-use clarity::vm::types::{ListData, ListTypeData, ResponseData, SequenceData, TypeSignature};
-use clarity::vm::Value;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only, evaluate, evaluate_at, interpret_at};
+use clarity::types::StacksEpochId;
+use clarity::vm::types::CharType::ASCII;
+use clarity::vm::types::{
+    ASCIIData, ListData, ListTypeData, ResponseData, SequenceData, TypeSignature,
+};
+
+use clarity::vm::{ClarityVersion, Value};
 use hex::FromHex as _;
 
 use crate::PropValue;
@@ -79,4 +84,19 @@ fn default_to_2() {
             data: Box::new(Value::Int(94740629357611018681632671610045749418))
         })))
     );
+}
+
+#[test]
+fn tuple_des_extra_fields() {
+    let snippet = "(from-consensus-buff? {n: int, extra: uint} 0x0c00000002016e000000000000000000000000000000002a0565787472610100000000000000000000000000000020)";
+    //let snippet_double_n = "(from-consensus-buff? {n: int} 0x0c00000002016e000000000000000000000000000000002a016e000000000000000000000000000000002b)"; // shouldn't work
+    //let rev_keys_snippet = "(from-consensus-buff? {n: int} 0x0c00000002016e000000000000000000000000000000002a0565787472610100000000000000000000000000000020)";
+    //let extra_keys_around_snippet = "(from-consensus-buff? {n: int} 0x0c00000003016d0000000000000000000000000000000007016e000000000000000000000000000000002a0565787472610100000000000000000000000000000020)";
+
+    let res = interpret_at(
+        snippet,
+        clarity::types::StacksEpochId::latest(),
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    eprintln!("{res:?}");
 }

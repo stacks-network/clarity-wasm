@@ -4,6 +4,7 @@ use clarity::vm::costs::{constants as cost_constants, CostTracker};
 use clarity::vm::database::STXBalance;
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
+use clarity::vm::types::serialization::TypePrefix;
 use clarity::vm::types::{
     AssetIdentifier, BlockInfoProperty, BuffData, BufferLength, BurnBlockInfoProperty,
     FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
@@ -75,6 +76,7 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_secp256k1_recover_fn(linker)?;
     link_secp256k1_verify_fn(linker)?;
     link_principal_of_fn(linker)?;
+    link_skip_list(linker)?;
 
     link_log(linker)
 }
@@ -3967,6 +3969,45 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         .map_err(|e| {
             Error::Wasm(WasmError::UnableToLinkHostFunction(
                 "secp256k1_verify".to_string(),
+                e,
+            ))
+        })
+}
+
+fn link_skip_list(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "skip_list",
+            |mut caller: Caller<'_, ClarityWasmContext>, offset_beg: i32, offset_end: i32| {
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // we will read the remaining serialized buffer here, and start it with the list type prefix
+                let mut serialized_buffer =
+                    Vec::with_capacity((offset_end - offset_beg) as usize + 1);
+                serialized_buffer[0] = TypePrefix::List as u8;
+                memory
+                    .read(
+                        &mut caller,
+                        offset_beg as usize,
+                        &mut serialized_buffer[1..],
+                    )
+                    .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
+
+                match Value::deserialize_read_count(&mut serialized_buffer.as_slice(), None, false)
+                {
+                    Ok((_, bytes_read)) => Ok(offset_beg + bytes_read as i32),
+                    Err(_) => Ok(0),
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "skip_list".to_string(),
                 e,
             ))
         })

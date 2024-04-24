@@ -223,6 +223,8 @@
     (import "clarity" "block_height" (func $stdlib.block_height (result i64 i64)))
     (import "clarity" "burn_block_height" (func $stdlib.burn_block_height (result i64 i64)))
     (import "clarity" "stx_liquid_supply" (func $stdlib.stx_liquid_supply (result i64 i64)))
+    (import "clarity" "skip_list" (func $skip_list (param $offset i32) (param $offset_end i32) (result i32)))
+
     ;; TODO: these three funcs below could be hard-coded at compile-time.
     (import "clarity" "is_in_regtest" (func $stdlib.is_in_regtest (result i32)))
     (import "clarity" "is_in_mainnet" (func $stdlib.is_in_mainnet (result i32)))
@@ -269,6 +271,10 @@
     (type $hash160-compress-function (func (param i32 i32 i32 i32) (result i32)))
     (table 5 funcref) ;; table for hash160 compress function
     (elem (i32.const 0) $hash160-f1 $hash160-f2 $hash160-f3 $hash160-f4 $hash160-f5)
+
+    (type $skip-function (func (param i32 i32) (result i32)))
+    (table 15 funcref) ;; table for skip functions
+    (elem (i32.const 5) $skip_int128 $skip_int128 $skip_buffer $skip_boolean_or_none $skip_boolean_or_none $skip_principal $skip_contract $skip_some_ok_err $skip_some_ok_err $skip_boolean_or_none $skip_some_ok_err $skip_list $skip_tuple $skip_string_ascii $skip_string_utf8)
 
     ;; The error code is one of:
         ;; 0: overflow
@@ -3409,6 +3415,436 @@
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
+    (func $compare_clarity_names (param $offset_a i32) (param $len_a i32) (param $offset_b i32) (param $len_b i32) (result i32)
+        ;; compare two clarity names and return -1 if a < b, 0 if a == b or 1 if a > b
+        (local $min_len i32) (local $a i32) (local $b i32)
+
+        (local.set $min_len (select (local.get $len_a) (local.get $len_b) (i32.lt_u (local.get $len_a) (local.get $len_b))))
+
+        (loop
+            (if 
+                (i32.eq
+                    (local.tee $a (i32.load8_u (local.get $offset_a)))
+                    (local.tee $b (i32.load8_u (local.get $offset_b)))
+                )
+                (then 
+                    (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                    (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                    (br_if 1 (local.tee $min_len (i32.sub (local.get $min_len) (i32.const 1))))
+                )
+            )
+        )
+
+        (select
+            (select (i32.const -1) (i32.ne (local.get $len_a) (local.get $len_b)) (i32.lt_u (local.get $len_a) (local.get $len_b)))
+            (select (i32.const -1) (i32.ne (local.get $a) (local.get $b)) (i32.lt_u (local.get $a) (local.get $b)))
+            (i32.eq (local.get $a) (local.get $b))
+        )
+    )
+
+    (func $stdlib.bsearch_clarity_name (param $offset_list i32) (param $len_list i32) (param $offset_elem i32) (param $len_elem i32) (result i32)
+        ;; find the index of a clarity name in a list with this format: [number of elem as u32, offset 1 u32, offset 2 u32,... , len 1 u8, len 2 u8, ..., item 1 [u8...], item 2 [u8...], ...]
+        (local $size i32) (local $i i32) (local $j i32) (local $mid i32) (local $cmp i32) (local $offset_len i32)
+
+        (local.set $j (local.tee $size (i32.load (local.get $offset_list))))
+        (local.set $offset_list (i32.add (local.get $offset_list) (i32.const 4)))
+        (local.set $offset_len (i32.add (local.get $offset_list) (i32.shl (local.get $size) (i32.const 2))))
+
+        (loop $loop
+            (local.set $mid (i32.add (local.get $i) (i32.shr_u (local.get $size) (i32.const 1))))
+
+            (local.set $cmp 
+                (call $compare_clarity_names 
+                    (local.get $offset_elem)
+                    (local.get $len_elem)
+                    (i32.load (i32.add (local.get $offset_list) (i32.shl (local.get $mid) (i32.const 2))))
+                    (i32.load8_u (i32.add (local.get $offset_len) (local.get $mid)))
+                )
+            )
+            (if (i32.eqz (local.get $cmp))
+                (then (return (local.get $mid)))
+            )
+            (local.set $i 
+                (select 
+                    (local.get $i)
+                    (i32.add (local.get $mid) (i32.const 1)) 
+                    (i32.eq (local.get $cmp) (i32.const -1))
+                )
+            )
+            (local.set $j
+                (select
+                    (local.get $j)
+                    (local.get $mid)
+                    (i32.eq (local.get $cmp) (i32.const 1))
+                )
+            )
+
+            (local.set $size (i32.sub (local.get $j) (local.get $i)))
+            (br_if $loop (i32.lt_u (local.get $i) (local.get $j)))
+        )
+        (i32.const -1)
+    )
+
+    (func $stdlib.skip_unknown_value (param $offset i32) (param $offset_end i32) (result i32)
+        (local $id i32)
+        (if (result i32)
+            (i32.eq (local.get $offset) (local.get $offset_end))
+            (then (local.get $offset))
+            (else
+                (if (i32.gt_u (local.tee $id (i32.load8_u (local.get $offset))) (i32.const 0xe))
+                    (then (return (i32.const 0)))
+                )
+                (i32.add (local.get $offset) (i32.const 1))
+                (local.get $offset_end)
+                (call_indirect (type $skip-function) (i32.add (local.get $id) (i32.const 5)))
+            )
+        )
+    )
+
+    (func $skip_int128 (param $offset i32) (param $offset_end i32) (result i32)
+        ;; nothing to check here, we should just make sure that 16 bytes further is <= offset_end
+        (select    
+            (local.tee $offset (i32.add (local.get $offset) (i32.const 16)))
+            (i32.const 0)
+            (i32.le_u (local.get $offset) (local.get $offset_end))
+        )
+    )
+
+    (func $skip_buffer (param $offset i32) (param $offset_end i32) (result i32)
+        ;; read the size in the first 4 bytes, and skip that many bytes
+        (local $size i32)
+        (if (i32.gt_u (i32.add (local.get $offset) (i32.const 4)) (local.get $offset_end))
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (call $stdlib.load-i32-be (local.get $offset)))
+        (select
+            (local.tee $offset (i32.add (i32.add (local.get $offset) (i32.const 4)) (local.get $size)))
+            (i32.const 0)
+            (i32.le_u (local.get $offset) (local.get $offset_end))
+        )
+    )
+
+    (func $skip_boolean_or_none (param $offset i32) (param $offset_end i32) (result i32)
+        ;; nothing to do here
+        (local.get $offset)
+    )
+
+    (func $skip_principal (param $offset i32) (param $offset_end i32) (result i32)
+        ;; first byte <= 32, and skip 20 next bytes
+        (if (result i32)
+            (i32.ge_u 
+                (local.get $offset_end)
+                (local.tee $offset_end (i32.add (local.get $offset) (i32.const 21)))
+            )
+            (then
+                (select
+                    (local.get $offset_end)
+                    (i32.const 0)
+                    (i32.le_u (i32.load8_u (local.get $offset) (i32.const 32)))
+                )
+            )
+            (else (i32.const 0))
+        )
+    )
+
+    (func $skip_contract (param $offset i32) (param $offset_end i32) (result i32)
+        ;; we need to skip a principal, then a clarity name
+        (local.tee $offset 
+            (call $skip_principal (local.get $offset) (local.get $offset_end))
+        )
+        (if
+            (then
+                (local.tee $offset_end 
+                    (call $stdlib.check_clarity_name (local.get $offset) (local.get $offset_end))
+                )
+                (if
+                    (then (return (i32.add (local.get $offset) (local.get $offset_end))))
+                )
+            )
+        )
+        (i32.const 0)
+        
+    )
+
+    (func $skip_some_ok_err (param $offset i32) (param $offset_end i32) (result i32)
+        ;; we need to skip the following value
+        (call $stdlib.skip_unknown_value (local.get $offset) (local.get $offset_end))
+    )
+
+    (func $skip_tuple (param $offset i32) (param $offset_end i32) (result i32)
+        ;; get first 4 bytes as size then parse "size" times a clarity name and a value
+        (local $size i32) (local $tmp i32)
+        (if (i32.gt_u (i32.add (local.get $offset) (i32.const 4)) (local.get $offset_end))
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (call $stdlib.load-i32-be (local.get $offset)))
+        (if (i32.lt_u (i32.sub (local.get $offset_end) (local.tee $offset (i32.add (local.get $offset) (i32.const 4)))) (local.get $size))
+            (then (return (i32.const 0)))
+        )
+        (block $done
+            (br_if $done (i32.eqz (local.get $size)))
+            (loop $loop
+                ;; check clarity name
+                (local.tee $tmp (call $stdlib.check_clarity_name (local.get $offset) (local.get $offset_end)))
+                (br_if $done (i32.eqz))
+                (local.tee $offset (call $stdlib.skip_unknown_value (i32.add (local.get $offset) (local.get $tmp)) (local.get $offset_end)))
+                (br_if $done (i32.eqz))
+                (br_if $loop (local.tee $size (i32.sub (local.get $size) (i32.const 1))))
+            )
+        )
+        (select (i32.const 0) (local.get $offset) (local.get $size))
+    )
+
+    (func $skip_string_ascii (param $offset i32) (param $offset_end i32) (result i32)
+        (local $size i32)
+        (if (i32.lt_s (i32.sub (local.get $offset_end) (local.get $offset)) (i32.const 4))
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (call $stdlib.load-i32-be (local.get $offset)))
+        (if 
+            (i32.lt_s
+                (i32.sub (local.get $offset_end) (local.tee $offset (i32.add (local.get $offset) (i32.const 4))))
+                (local.get $size)
+            )
+            (then (return (i32.const 0)))
+        )
+        (select
+            (i32.add (local.get $offset) (local.get $size))
+            (i32.const 0)
+            (call $stdlib.is-valid-string-ascii (local.get $offset) (local.get $size))
+        )
+    )
+
+    (func $skip_string_utf8 (param $offset i32) (param $offset_end i32) (result i32)
+        (local $size i32) (local $char i32) (local $byte i32)
+        (if (i32.lt_s (i32.sub (local.get $offset_end) (local.get $offset)) (i32.const 4))
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (call $stdlib.load-i32-be (local.get $offset)))
+        (if 
+            (i32.lt_s
+                (i32.sub (local.get $offset_end) (local.tee $offset (i32.add (local.get $offset) (i32.const 4))))
+                (local.get $size)
+            )
+            (then (return (i32.const 0)))
+        )
+        (block $done
+            ;; empty string case
+            (br_if $done (i32.eqz (local.get $size)))
+            ;; for more info on utf8 decoding, check $stdlib.utf8-to-string-utf8
+            (loop $loop
+                (local.set $char (i32.load8_u (local.get $offset)))
+                ;; try one byte utf8
+                (if (i32.lt_u (local.get $char) (i32.const 0x80))
+                    (then
+                        (local.get $offset (i32.add (local.get $offset) (i32.const 1)))
+                        (br_if $loop (local.tee $size (i32.sub (local.get $size) (i32.const 1))))
+                        (br $done)
+                    )
+                )
+                ;; try 2 bytes utf8
+                (if (i32.eq (i32.and (local.get $char) (i32.const 0xe0)) (i32.const 0xc0))
+                    (then
+                        (br_if $done (i32.lt_u (local.get $size) (i32.const 2)))
+                        (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))
+                        (local.set $char
+                            (i32.or
+                                (i32.shl (i32.and (local.get $char) (i32.const 0x1f)) (i32.const 6))
+                                (i32.and (local.get $byte) (i32.const 0x3f))
+                            )
+                        )
+                        (br_if $done (i32.lt_u (local.get $char) (i32.const 0x80)))
+                        (local.set $offset (i32.add (local.get $offset) (i32.const 2)))
+                        (br_if $loop (local.tee $size (i32.sub (local.get $size) (i32.const 2))))
+                        (br $done)
+                    )
+                )
+                ;; try 3 bytes utf8
+                (if (i32.eq (i32.and (local.get $char) (i32.const 0xf0)) (i32.const 0xe0))
+                    (then
+                        (br_if $done (i32.lt_u (local.get $size) (i32.const 3)))
+                        (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))
+                        (local.set $char
+                            (i32.or
+                                (i32.or 
+                                    (i32.shl (i32.and (local.get $char) (i32.const 0xf)) (i32.const 12))
+                                    (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6))
+                                )
+                                (i32.and
+                                    (local.tee $byte (i32.load8_u offset=2 (local.get $offset)))
+                                    (i32.const 0x3f)
+                                )
+                            )
+                        )
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))
+                        (br_if $done (i32.lt_u (local.get $char) (i32.const 0x800)))
+                        (br_if $done (i32.eq (i32.and (local.get $char) (i32.const 0xfffff800)) (i32.const 0xd800)))
+                        (local.set $offset (i32.add (local.get $offset) (i32.const 3)))
+                        (br_if $loop (local.tee $size (i32.sub (local.get $size) (i32.const 3))))
+                        (br $done)
+                    )
+                )
+                ;; finally, try 4 bytes utf8
+                (if (i32.eq (i32.and (local.get $char) (i32.const 0xf8)) (i32.const 0xf0))
+                    (then
+                        (br_if $done (i32.lt_u (local.get $size) (i32.const 4)))
+                        (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))
+                        (local.set $char
+                            (i32.or
+                                (i32.or 
+                                    (i32.shl (i32.and (local.get $char) (i32.const 0x7)) (i32.const 18))
+                                    (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 12))
+                                )
+                                (i32.shl
+                                    (i32.and 
+                                        (local.tee $byte (i32.load8_u offset=2 (local.get $offset)))
+                                        (i32.const 0x3f)
+                                    )
+                                    (i32.const 6)
+                                )
+                            )
+                        )
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))
+                        (local.set $byte (i32.load8_u offset=3 (local.get $offset)))
+                        (br_if $done (i32.ne (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80)))   
+                        (local.set $char 
+                            (i32.or
+                                (local.get $char)
+                                (i32.and (local.get $byte) (i32.const 0x3f))
+                            )
+                        )
+                        (br_if $done (i32.lt_u (i32.sub (local.get $char) (i32.const 0x110000)) (i32.const 0xfff00000)))
+                        (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+                        (br_if $loop (local.tee $size (i32.sub (local.get $size) (i32.const 4))))
+                    )
+                )
+            )
+        )
+        (select
+            (i32.const 0)
+            (local.get $offset)
+            (local.get $size)
+        )
+    )
+
+    (func $stdlib.check_clarity_name (param $offset i32) (param $offset_end i32) (result i32)
+        ;; check if clarity is valid, and if yes the size to skip
+        (local $size i32) (local $char i32)
+        (if (i32.eq (local.get $offset) (local.get $offset_end)) 
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (i32.load8_u (local.get $offset)))
+
+        ;; check if size is in [1, 128] and doesn't go over $offset_end
+        (if 
+            (i32.or
+                (i32.lt_u (i32.sub (local.get $size) (i32.const 129)) (i32.const -128)) 
+                (i32.gt_u (i32.add (local.get $offset) (local.get $size)) (local.get $offset_end))
+            )
+            (then (return (i32.const 0)))
+        )
+
+        ;; if first char is alpha, we start validating that remainings are in [a-zA-Z0-9-_!?+<>=/*]
+        (if
+            (i32.lt_u
+                (i32.sub
+                    (i32.and (i32.load8_u offset=1 (local.get $offset)) (i32.const 0x1fffdf))
+                    (i32.const 65)
+                )
+                (i32.const 26)
+            )
+            (then
+                (local.set $offset_end (i32.sub (local.get $size) (i32.const 2)))
+                (block $done
+                    (loop $loop
+                        (br_if $done (i32.eqz (local.tee $offset_end (i32.sub (local.get $offset_end) (i32.const 1)))))
+                        (local.set $char 
+                            (i32.load8_u offset=1 
+                                (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
+                            )
+                        )
+                        ;; check if is_alpha
+                        (br_if $loop
+                            (i32.lt_u
+                                (i32.sub
+                                    (i32.and (local.get $char) (i32.const 0x1fffdf))
+                                    (i32.const 65)
+                                )
+                                (i32.const 26)
+                            )
+                        )
+                        ;; check if is_num
+                        (br_if $loop
+                            (i32.lt_u (i32.sub (local.get $char) (i32.const 48)) (i32.const 10))
+                        )
+                        ;; check if is special char -_!?+<>=/*
+                        (br_if $loop
+                            (i32.and
+                                (i32.lt_u 
+                                    (local.tee $char (i32.sub (local.get $char) (i32.const 33))) 
+                                    (i32.const 63)
+                                )
+                                (i32.wrap_i64
+                                    (i64.shr_u
+                                        (i64.const 0x4000000078005601)
+                                        (i64.extend_i32_u (local.get $char))
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+                (return 
+                    (select
+                        (i32.add (local.get $size) (i32.const 1))
+                        (i32.const 0)
+                        (local.get $offset_end)
+                    )
+                )
+            )
+        )
+
+        ;; check for size 1 with -+=/*<>
+        (if (i32.eq (local.get $size) (i32.const 1))
+            (then
+                (return
+                    (i32.shl
+                        (i32.and
+                            (i32.lt_u
+                                (local.tee $char (i32.load8_u offset=1 (local.get $offset)))
+                                (i32.const 63)
+                            )
+                            (i32.wrap_i64
+                                (i64.shr_u (i64.const 0x7000ac0000000000) (i64.extend_i32_u (local.get $char)))
+                            )
+                        )
+                        (i32.const 1)
+                    )
+                )
+            )
+        )
+
+        ;; check for <= and >=, which are [0x3c, 0x3d] and [0x3e, 0x3d]
+        (if (i32.eq (local.get $size) (i32.const 2))
+            (then
+                (return 
+                    (i32.mul
+                        (i32.eq
+                            (i32.and (i32.load16_u offset=1 (local.get $offset)) (i32.const -3))
+                            (i32.const 0x3d3c)
+                        )
+                        (i32.const 3)
+                    )
+                )
+            )
+        )
+
+        (i32.const 0)
+    )
+
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))
@@ -3482,4 +3918,7 @@
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
     (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
+    (export "stdlib.bsearch_clarity_name" (func $stdlib.bsearch_clarity_name))
+    (export "stdlib.check_clarity_name" (func $stdlib.check_clarity_name))
+    (export "stdlib.skip_unknown_value" (func $stdlib.skip_unknown_value))
 )

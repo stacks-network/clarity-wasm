@@ -513,7 +513,6 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.3.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#96aba4746c9db60200b26147a0b1368fae4664b2"
 dependencies = [
  "hashbrown 0.14.3",
  "integer-sqrt",
