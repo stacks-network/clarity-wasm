@@ -153,6 +153,9 @@ impl ComplexWord for FromConsensusBuff {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+    use std::fmt::Write as _;
+
     use clarity::vm::types::{BuffData, PrincipalData, SequenceData, TupleData};
     use clarity::vm::Value;
     use hex::FromHex as _;
@@ -874,6 +877,45 @@ mod tests {
                 .unwrap(),
             )),
         )
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_all_chars() {
+        let all_chars = "\t\n\x0c\r !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        let snippet = "(from-consensus-buff? (string-ascii 256) 0x0d00000063090a0c0d202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e)";
+        crosscheck(
+            snippet,
+            Ok(Some(
+                Value::some(Value::string_ascii_from_bytes(all_chars.bytes().collect()).unwrap())
+                    .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
+    fn from_consensus_buff_string_ascii_all_invalid_chars() {
+        let valid_chars: BTreeSet<u8> = b"\t\n\x0c\r !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~".iter().copied().collect();
+        let all_u8: BTreeSet<u8> = (u8::MIN..=u8::MAX).collect();
+        let mut counter = 0;
+
+        // Much faster to compute the result of one crosscheck on a list of x elements than the results of x crosschecks.
+        let mut snippet = "(list".to_owned();
+        for &c in all_u8.difference(&valid_chars) {
+            write!(
+                &mut snippet,
+                " (from-consensus-buff? (string-ascii 1) 0x0d00000001{c:02x})"
+            )
+            .unwrap();
+            counter += 1;
+        }
+        snippet += ")";
+
+        crosscheck(
+            &snippet,
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::none(); counter]).unwrap(),
+            )),
+        );
     }
 
     #[test]

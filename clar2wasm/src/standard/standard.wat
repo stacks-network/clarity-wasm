@@ -3246,34 +3246,26 @@
     ;; Validates that the bytes at the specified offset and length form a valid
     ;; Clarity string-ascii value.
     (func $stdlib.is-valid-string-ascii (param $offset i32) (param $length i32) (result i32)
-        (local $end i32)
-        (local $byte i32)
-
-        ;; If the length is 0, just return true
-        (if (i32.eqz (local.get $length))
-            (then (return (i32.const 1)))
-        )
-
-        ;; Calculate the end offset
-        (local.set $end (i32.add (local.get $offset) (local.get $length)))
-
+        (local $char i32) (local $current_length i32)
         (loop $loop
-            ;; Read in the next byte
-            (local.set $byte (i32.load8_u (local.get $offset)))
-            ;; Valid characters are between 32 (' ') and 126 ('~')
-            (if (i32.or
-                    (i32.lt_u (local.get $byte) (i32.const 32))
-                    (i32.gt_u (local.get $byte) (i32.const 126))
+            (if (local.tee $current_length (local.get $length))
+                (then
+                    (local.set $char (i32.load8_u (local.get $offset)))
+                    (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+                    (local.set $length (i32.sub (local.get $length) (i32.const 1)))
+                    ;; keep looping if char is in [32..=126]
+                    (br_if $loop (i32.lt_u (i32.sub (local.get $char) (i32.const 32)) (i32.const 95)))
+                    ;; keep looping if char is in [\t, \n, \x0c, \r]
+                    (br_if $loop
+                        (i32.and
+                            (i32.shr_u (i32.const 0x3600) (local.get $char))
+                            (i32.lt_u (local.get $char) (i32.const 14))
+                        )
+                    )
                 )
-                (then (return (i32.const 0)))
             )
-            ;; Increment the offset, then loop if we haven't reached the end
-            (br_if $loop (i32.lt_u
-                (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
-                (local.get $end)
-            ))
         )
-        (i32.const 1)
+        (i32.eqz (local.get $current_length))
     )
 
     (func $stdlib.utf8-to-string-utf8
