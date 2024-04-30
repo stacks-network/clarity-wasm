@@ -259,12 +259,12 @@
     ;; (hash-160) K' constants
     (data (i32.const 628) "\e6\8b\a2\50\24\d1\4d\5c\f3\3e\70\6d\e9\76\6d\7a\00\00\00\00")
 
-    ;; sha512 initial values (64 bytes) 
+    ;; sha512 initial values (64 bytes)
     (data (i32.const 648) "\08\c9\bc\f3\67\e6\09\6a\3b\a7\ca\84\85\ae\67\bb\2b\f8\94\fe\72\f3\6e\3c\f1\36\1d\5f\3a\f5\4f\a5\d1\82\e6\ad\7f\52\0e\51\1f\6c\3e\2b\8c\68\05\9b\6b\bd\41\fb\ab\d9\83\1f\79\21\7e\13\19\cd\e0\5b")
 
     ;; sha512 K constants
     (data (i32.const 712) "\22\ae\28\d7\98\2f\8a\42\cd\65\ef\23\91\44\37\71\2f\3b\4d\ec\cf\fb\c0\b5\bc\db\89\81\a5\db\b5\e9\38\b5\48\f3\5b\c2\56\39\19\d0\05\b6\f1\11\f1\59\9b\4f\19\af\a4\82\3f\92\18\81\6d\da\d5\5e\1c\ab\42\02\03\a3\98\aa\07\d8\be\6f\70\45\01\5b\83\12\8c\b2\e4\4e\be\85\31\24\e2\b4\ff\d5\c3\7d\0c\55\6f\89\7b\f2\74\5d\be\72\b1\96\16\3b\fe\b1\de\80\35\12\c7\25\a7\06\dc\9b\94\26\69\cf\74\f1\9b\c1\d2\4a\f1\9e\c1\69\9b\e4\e3\25\4f\38\86\47\be\ef\b5\d5\8c\8b\c6\9d\c1\0f\65\9c\ac\77\cc\a1\0c\24\75\02\2b\59\6f\2c\e9\2d\83\e4\a6\6e\aa\84\74\4a\d4\fb\41\bd\dc\a9\b0\5c\b5\53\11\83\da\88\f9\76\ab\df\66\ee\52\51\3e\98\10\32\b4\2d\6d\c6\31\a8\3f\21\fb\98\c8\27\03\b0\e4\0e\ef\be\c7\7f\59\bf\c2\8f\a8\3d\f3\0b\e0\c6\25\a7\0a\93\47\91\a7\d5\6f\82\03\e0\51\63\ca\06\70\6e\0e\0a\67\29\29\14\fc\2f\d2\46\85\0a\b7\27\26\c9\26\5c\38\21\1b\2e\ed\2a\c4\5a\fc\6d\2c\4d\df\b3\95\9d\13\0d\38\53\de\63\af\8b\54\73\0a\65\a8\b2\77\3c\bb\0a\6a\76\e6\ae\ed\47\2e\c9\c2\81\3b\35\82\14\85\2c\72\92\64\03\f1\4c\a1\e8\bf\a2\01\30\42\bc\4b\66\1a\a8\91\97\f8\d0\70\8b\4b\c2\30\be\54\06\a3\51\6c\c7\18\52\ef\d6\19\e8\92\d1\10\a9\65\55\24\06\99\d6\2a\20\71\57\85\35\0e\f4\b8\d1\bb\32\70\a0\6a\10\c8\d0\d2\b8\16\c1\a4\19\53\ab\41\51\08\6c\37\1e\99\eb\8e\df\4c\77\48\27\a8\48\9b\e1\b5\bc\b0\34\63\5a\c9\c5\b3\0c\1c\39\cb\8a\41\e3\4a\aa\d8\4e\73\e3\63\77\4f\ca\9c\5b\a3\b8\b2\d6\f3\6f\2e\68\fc\b2\ef\5d\ee\82\8f\74\60\2f\17\43\6f\63\a5\78\72\ab\f0\a1\14\78\c8\84\ec\39\64\1a\08\02\c7\8c\28\1e\63\23\fa\ff\be\90\e9\bd\82\de\eb\6c\50\a4\15\79\c6\b2\f7\a3\f9\be\2b\53\72\e3\f2\78\71\c6\9c\61\26\ea\ce\3e\27\ca\07\c2\c0\21\c7\b8\86\d1\1e\eb\e0\cd\d6\7d\da\ea\78\d1\6e\ee\7f\4f\7d\f5\ba\6f\17\72\aa\67\f0\06\a6\98\c8\a2\c5\7d\63\0a\ae\0d\f9\be\04\98\3f\11\1b\47\1c\13\35\0b\71\1b\84\7d\04\23\f5\77\db\28\93\24\c7\40\7b\ab\ca\32\bc\be\c9\15\0a\be\9e\3c\4c\0d\10\9c\c4\67\1d\43\b6\42\3e\cb\be\d4\c5\4c\2a\7e\65\fc\9c\29\7f\59\ec\fa\d6\3a\ab\6f\cb\5f\17\58\47\4a\8c\19\44\6c")
-    
+
     ;; table that contains the 5 hash160 functions used during compression
     (type $hash160-compress-function (func (param i32 i32 i32 i32) (result i32)))
     (table 5 funcref) ;; table for hash160 compress function
@@ -514,7 +514,6 @@
         (local.get $b_lo) (local.get $b_hi)
     )
 
-
     (func $stdlib.mul-int (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i64 i64)
         (local $sign i32)
 
@@ -681,7 +680,7 @@
         (local $expected_sign i64)
 
         ;; overflow if i128::MIN / -1
-        (if 
+        (if
             (i32.and
                 (i32.and (i64.eqz (local.get $dividend_lo)) (i64.eq (local.get $dividend_hi) (i64.const 0x8000000000000000)))
                 (i64.eq (i64.and (local.get $divisor_lo) (local.get $divisor_hi)) (i64.const -1))
@@ -1311,7 +1310,6 @@
             (then (return (i64.const 1) (i64.const 0)))
         )
 
-
         ;; (a == 0 => 0) & (a == 1 => 1) ==> (a < 2 => a)
         ;; also, (b == 1 => a)
         (if (i32.or
@@ -1520,7 +1518,7 @@
             (i32.add (global.get $stack-pointer) (local.get $length))
             (i32.const 0x80)
         )
-        
+
         ;; Fill the remaining part before the size with 0s
         (memory.fill
             (i32.add (i32.add (global.get $stack-pointer) (local.get $length)) (i32.const 289))
@@ -1735,7 +1733,7 @@
     (func $hash160-pad
         ;; MD-padding: (already placed sha256 +) "1" + "00000..." + size as i64 big endian
         (i64.store offset=32 (global.get $stack-pointer) (i64.const 0x80))
-        (memory.fill 
+        (memory.fill
             (i32.add (global.get $stack-pointer) (i32.const 40))
             (i32.const 0)
             (i32.const 16)
@@ -1761,7 +1759,7 @@
             ;; ROUND
             ;; a
             (local.get $a1)
-      
+
             ;; + f(round, b, c, d) + K(i)
             (local.get $b1) (local.get $c1) (local.get $d1)
             (i32.load offset=608 (i32.shl (local.get $round) (i32.const 2)))
@@ -1771,12 +1769,12 @@
             ;; + word[r[i]]
             (i32.load
                 (i32.add
-                    (global.get $stack-pointer) 
+                    (global.get $stack-pointer)
                     (i32.shl (i32.load8_u offset=288 (local.get $i)) (i32.const 2))
                 )
             )
             i32.add
-      
+
             ;; left-rotate the addition by s[i]
             (i32.load8_u offset=448 (local.get $i))
             i32.rotl
@@ -1804,7 +1802,7 @@
             ;; + word[r'[i]]
             (i32.load
                 (i32.add
-                    (global.get $stack-pointer) 
+                    (global.get $stack-pointer)
                     (i32.shl (i32.load8_u offset=368 (local.get $i)) (i32.const 2))
                 )
             )
@@ -1824,8 +1822,8 @@
             (local.set $c2 (local.get $b2))
             (local.set $b2) ;; set with addition on the top of the stack
 
-            (br_if 0 
-                (i32.lt_u 
+            (br_if 0
+                (i32.lt_u
                     (local.tee $i (i32.add (local.get $i) (i32.const 1)))
                     (i32.const 80)
                 )
@@ -1883,7 +1881,7 @@
     )
 
     (func $stdlib.store-i32-be (param $address i32) (param $value i32)
-        (i32.store 
+        (i32.store
             (local.get $address)
             (i32.or
                 (i32.or
@@ -1912,9 +1910,9 @@
             )
         )
     )
-    
+
     (func $stdlib.store-i64-be (param $address i32) (param $value i64)
-        (i64.store 
+        (i64.store
             (local.get $address)
             (i64.or
                 (i64.or
@@ -1928,7 +1926,7 @@
                     )
                 )
                 (i64.or
-                    (i64.or 
+                    (i64.or
                         (i64.and (i64.shr_u (local.get $value) (i64.const 8)) (i64.const 0xff000000))
                         (i64.and (i64.shr_u (local.get $value) (i64.const 24)) (i64.const 0xff0000))
                     )
@@ -2027,7 +2025,7 @@
 
         (loop $loop
             (if (i32.eq (i32.load8_u (local.get $offset_a)) (i32.load8_u (local.get $offset_b)))
-                (then 
+                (then
                     (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
                     (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
                     (br_if $loop (local.tee $length_a (i32.sub (local.get $length_a) (i32.const 1))))
@@ -2180,7 +2178,6 @@
         (global.set $stack-pointer (i32.add (global.get $stack-pointer) (local.get $result_length)))
     )
 
-
     (func $stdlib.is-valid-contract-name (param $offset i32) (param $length i32) (result i32)
         (local $end i32)
 
@@ -2193,7 +2190,7 @@
         ;; Check the first character: [a-zA-Z]
         (call $stdlib.is-alpha (i32.load8_u (local.get $offset)))
         (if (i32.eqz)
-            (then 
+            (then
                 ;; There is a special case for the contract name `__transient`.
                 (if (call $stdlib.is-transient (local.get $offset) (local.get $length))
                     (then (return (i32.const 1)))
@@ -2236,7 +2233,7 @@
     ;; Helper function to check if a character is valid [a-zA-Z0-9_-]
     (func $stdlib.is-valid-char (param $char i32) (result i32)
         (call $stdlib.is-alpha (local.get $char)) ;; [a-zA-Z]
-        
+
         (i32.ge_u (local.get $char) (i32.const 48)) ;; >= '0'
         (i32.le_u (local.get $char) (i32.const 57)) ;; <= '9'
         (i32.and)
@@ -2291,7 +2288,7 @@
             )
         )
     )
-    
+
     (func $stdlib.string-to-uint (param $offset i32) (param $len i32) (result i32 i64 i64)
         (local $lo i64) (local $hi i64) (local $loaded i64)
         ;; a string is automatically invalid if its size is 0 or
@@ -2299,12 +2296,12 @@
         (if (i32.lt_u (i32.sub (local.get $len) (i32.const 40)) (i32.const -39))
             (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
         )
-        
+
         ;; loop with simple multiplication, for speed
         (loop $loop_small
             ;; if next digit is valid, $lo * 10 + digit, otherwise we return none
             (if (i64.lt_u (local.tee $loaded (i64.sub (i64.load8_u (local.get $offset)) (i64.const 48))) (i64.const 10))
-                (then 
+                (then
                     (local.set $lo (i64.add (i64.mul (local.get $lo) (i64.const 10)) (local.get $loaded)))
                 )
                 (else
@@ -2313,8 +2310,8 @@
             )
             (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
             ;; we branch while we still have digits to add and $lo < (u64::MAX / 10)
-            (br_if $loop_small 
-                (i32.and 
+            (br_if $loop_small
+                (i32.and
                     (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 1))) (i32.const 0))
                     (i64.lt_u (local.get $lo) (i64.const 1844674407370955161))
                 )
@@ -2329,8 +2326,8 @@
         ;; here we keep looping but with our defined mul and add instead of i64.mul and i64.add
         (loop $loop_big
             (if (i64.lt_u (local.tee $loaded (i64.sub (i64.load8_u (local.get $offset)) (i64.const 48))) (i64.const 10))
-                (then 
-                    (call $stdlib.add-int128 
+                (then
+                    (call $stdlib.add-int128
                       (call $stdlib.mul-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
                       (local.get $loaded) (i64.const 0)
                     )
@@ -2344,7 +2341,7 @@
             (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
             ;; we branch while we still have digits and $result < (u128::MAX / 10)
             (br_if $loop_big
-                (i32.and 
+                (i32.and
                     (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 1))) (i32.const 0))
                     (select
                         (i64.lt_u (local.get $lo) (i64.const -7378697629483820647))
@@ -2354,7 +2351,7 @@
                 )
             )
         )
-        ;; we have to return if we have no more digits, otherwise it means that we have 
+        ;; we have to return if we have no more digits, otherwise it means that we have
         ;; a result between (u128::MAX - 5)..u128::MAX or an overflow
         (if (result i32 i64 i64)
             (i32.eqz (local.get $len))
@@ -2376,7 +2373,7 @@
         (if (i32.lt_u (i32.sub (local.get $len) (i32.const 157)) (i32.const -156))
             (then (return (i32.const 0) (i64.const 0) (i64.const 0)))
         )
-        
+
         ;; loop with simple multiplication, for speed
         (loop $loop_small
             ;; valid digit: 24 first bits are 0 and rest is valid ascii char
@@ -2391,8 +2388,8 @@
             )
             (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
             ;; we branch while we still have digits to add and $lo < (u64::MAX / 10)
-            (br_if $loop_small 
-                (i32.and 
+            (br_if $loop_small
+                (i32.and
                     (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 4))) (i32.const 0))
                     (i64.lt_u (local.get $lo) (i64.const 1844674407370955161))
                 )
@@ -2411,8 +2408,8 @@
                 (i64.lt_u (local.tee $loaded (i64.sub (i64.shr_u (local.get $loaded) (i64.const 24)) (i64.const 48))) (i64.const 10))
             )
             (if
-                (then 
-                    (call $stdlib.add-int128 
+                (then
+                    (call $stdlib.add-int128
                       (call $stdlib.mul-int128 (local.get $lo) (local.get $hi) (i64.const 10) (i64.const 0))
                       (local.get $loaded) (i64.const 0)
                     )
@@ -2424,7 +2421,7 @@
             (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
             ;; we branch while we still have digits and $result < (u128::MAX / 10)
             (br_if $loop_big
-                (i32.and 
+                (i32.and
                     (i32.ne (local.tee $len (i32.sub (local.get $len) (i32.const 4))) (i32.const 0))
                     (select
                         (i64.lt_u (local.get $lo) (i64.const -7378697629483820647))
@@ -2434,7 +2431,7 @@
                 )
             )
         )
-        ;; we have to return if we have no more digits, otherwise it means that we have 
+        ;; we have to return if we have no more digits, otherwise it means that we have
         ;; a result between (u128::MAX - 5)..u128::MAX or an overflow
         (if (result i32 i64 i64)
             (i32.eqz (local.get $len))
@@ -2458,7 +2455,7 @@
         ;; Save in neg if the number starts with "-"
         (local.set $neg (i32.eq (i32.load8_u (local.get $offset)) (i32.const 45)))
 
-        (call $stdlib.string-to-uint 
+        (call $stdlib.string-to-uint
             (i32.add (local.get $offset) (local.get $neg))
             (i32.sub (local.get $len) (local.get $neg))
         )
@@ -2488,7 +2485,7 @@
         (if (result i64 i64)
             (i32.eqz (local.get $neg))
             (then (local.get $lo) (local.get $hi))
-            (else 
+            (else
                 (i64.sub (i64.const 0) (local.get $lo))
                 (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
             )
@@ -2566,7 +2563,7 @@
         (loop $loop
             (local.get $i)
 
-            ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n 
+            ;; divmod(n, 10) => div = n / 10, mod = (div * -10) + n
             (i64.add
                 (local.get $lo)
                 (i64.mul
@@ -2597,7 +2594,7 @@
 
             (local.get $i)
             (i32.load8_u (local.get $j))
-        
+
             i32.store8
             i32.store8
 
@@ -2617,7 +2614,7 @@
         (local.set $negative (i64.lt_s (local.get $hi) (i64.const 0)))
         ;; add a '-' if n < 0
         (if (local.get $negative)
-            (then 
+            (then
                 (i32.store8 (global.get $stack-pointer) (i32.const 45))
                 (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const 1)))
             )
@@ -2631,8 +2628,8 @@
                 (i64.eq (local.get $hi) (i64.const 0x8000000000000000))
             )
             (then (call $stdlib.uint-to-string (local.get $lo) (local.get $hi)))
-            (else 
-                (call $stdlib.uint-to-string 
+            (else
+                (call $stdlib.uint-to-string
                     (i64.sub (i64.const 0) (local.get $lo))
                     (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
                 )
@@ -2640,7 +2637,7 @@
         )
 
         ;; we adjust offset and length to account for the '-'
-        ;; we save the length to pop it from the stack and so that we can update the offset 
+        ;; we save the length to pop it from the stack and so that we can update the offset
         ;; and return it in the right order after the offset
         (local.set $len (i32.add (local.get $negative)))
         (i32.sub (local.get $negative))
@@ -2793,7 +2790,6 @@
         (local.get $hi)
     )
 
-
     (func $stdlib.sha512-buf (param $offset i32) (param $length i32) (param $offset-result i32)(result i32 i32)
 
         ;; For binary representation, you can take a look at https://sha256algorithm.com/
@@ -2806,11 +2802,11 @@
         ;; Length of the data after adding padding and length to it
         (local $length_after_padding i32)
         ;; Index to track all blocks
-        (local $index i32) 
+        (local $index i32)
 
         (call $pad-sha512-data (local.get $offset) (local.get $length))
         (local.set $length_after_padding)
-        
+
         (local.set $index (i32.const 0))
         ;; Iterations on blocks
         (loop
@@ -2850,7 +2846,7 @@
 
         ;; store at result position with correct endianness
         (call $store-calculated-sha512 (local.get $offset-result))
-        
+
         (local.get $offset-result) (i32.const 64)
     )
 
@@ -2926,7 +2922,7 @@
         i64.store offset=704
 
         (local.get $length_after_padding)
-    
+
     )
 
     (func $process-sha512-block (param $current-block-index i32)
@@ -2938,9 +2934,9 @@
 
         ;; Temporary block data (a word of 8 bytes) in current block iteration
         (local $block-iteration-temp i64)
-        
+
         (local $index i32)
-        
+
         (local.set $origin (global.get $stack-pointer))
         (local.set $temp-block-data (i32.add (local.get $origin) (local.get $current-block-index)))
 
@@ -2961,16 +2957,16 @@
                 )
             )
         )
-            
+
         (local.set $index (i32.const 0))
         (loop
             (local.set $temp-block-data (i32.add (local.get $origin) (local.get $index)))
-            ;; Location to store the calculated word in current iteration (current-word + 16) 
+            ;; Location to store the calculated word in current iteration (current-word + 16)
             (i32.add (local.get $temp-block-data) (i32.const 128))
             ;; w(current)
             (i64.load offset=64 (local.get $temp-block-data))
             ;; sigma 0
-            (local.set $block-iteration-temp (i64.load offset=72 (local.get $temp-block-data))) ;; offset (w+1) = 64 + 8 
+            (local.set $block-iteration-temp (i64.load offset=72 (local.get $temp-block-data))) ;; offset (w+1) = 64 + 8
             (i64.rotr (local.get $block-iteration-temp) (i64.const 1))
             (i64.xor (i64.rotr (local.get $block-iteration-temp) (i64.const 8)))
             (i64.xor (i64.shr_u (local.get $block-iteration-temp) (i64.const 7)))
@@ -3033,7 +3029,7 @@
             i64.add ;; + choice
 
             (i64.add (i64.load offset=712 (local.get $index))) ;; + k(current)
-            
+
             (i64.add (i64.load offset=64 (i32.add (local.get $origin) (local.get $index)))) ;; + w(current)
 
             (local.set $temp1)
@@ -3059,7 +3055,7 @@
             (local.set $c (local.get $b))
             (local.set $b (local.get $a))
             (local.set $a (i64.add (local.get $temp1) (local.get $temp2)))
-            
+
             (br_if 0
                 (i32.lt_u
                     (local.tee $index (i32.add (local.get $index) (i32.const 8)))
@@ -3126,11 +3122,11 @@
         (local.set $initial-output-offset (local.get $output-offset))
 
         ;; Initialize loop counter
-        (local.set $i (i32.const 0))  
+        (local.set $i (i32.const 0))
 
         ;; Check if the length is zero to avoid unnecessary processing
         (if (i32.eqz (local.get $length))
-            (then 
+            (then
                 (i32.const 0)  ;; Push 0 as the return value
                 (return)       ;; Return with two values on the stack
             )
@@ -3277,7 +3273,7 @@
         (local $scalar i32) (local $byte i32) (local $writeptr i32)
 
         ;; returns (some u"") if empty string
-        (if (i32.eqz (local.get $len)) 
+        (if (i32.eqz (local.get $len))
             (then (return (i32.const 1) (local.get $output-offset) (i32.const 0)))
         )
 
@@ -3300,10 +3296,10 @@
                     (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
                     (local.set $len (i32.sub (local.get $len) (i32.const 1)))
                 )
-                (else 
+                (else
                     ;; utf8 on 2 bytes is of the form [0b110xxxxx 0b10xxxxxx]
                     (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xe0)) (i32.const 0xc0))
-                        (then 
+                        (then
                             ;; we shift the scalar so that we can add the next bits at the right position after
                             (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0x1f)) (i32.const 6)))
                             ;; reading and checking of the next byte
@@ -3313,7 +3309,7 @@
                                 (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
                                 (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
-                            ;; The result number cannot be < 0x80 
+                            ;; The result number cannot be < 0x80
                             (if (i32.lt_u (local.get $scalar) (i32.const 0x80))
                                 (then (return (i32.const 0) (i32.const 0) (i32.const 0)))
                             )
@@ -3321,10 +3317,10 @@
                             (local.set $offset (i32.add (local.get $offset) (i32.const 2)))
                             (local.set $len (i32.sub (local.get $len) (i32.const 2)))
                         )
-                        (else 
+                        (else
                             ;; utf8 on 3 bytes is of the form [0b1110xxxx 0b10xxxxxx 0b10xxxxxx]
                             (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf0)) (i32.const 0xe0))
-                                (then 
+                                (then
                                     ;; this will be the same principle as the 2-bytes case, but with 2 next bytes to parse
                                     (local.set $scalar (i32.shl (i32.and (local.get $scalar) (i32.const 0xf)) (i32.const 12)))
                                     (local.set $byte (i32.load8_u offset=1 (local.get $offset)))
@@ -3348,7 +3344,7 @@
                                     (local.set $offset (i32.add (local.get $offset) (i32.const 3)))
                                     (local.set $len (i32.sub (local.get $len) (i32.const 3)))
                                 )
-                                (else 
+                                (else
                                     ;; utf8 on 4 bytes is of the form [0b11110xxx 0b10xxxxxx 0b10xxxxxx 0b10xxxxxx]
                                     (if (i32.eq (i32.and (local.get $scalar) (i32.const 0xf8)) (i32.const 0xf0))
                                         (then
@@ -3363,7 +3359,7 @@
                                             (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
                                                 (then (local.set $scalar (i32.or (local.get $scalar) (i32.shl (i32.and (local.get $byte) (i32.const 0x3f)) (i32.const 6)))))
                                                 (else (return (i32.const 0) (i32.const 0) (i32.const 0)))
-                                            )                                   
+                                            )
                                             (local.set $byte (i32.load8_u offset=3 (local.get $offset)))
                                             (if (i32.eq (i32.and (local.get $byte) (i32.const 0xc0)) (i32.const 0x80))
                                                 (then (local.set $scalar (i32.or (local.get $scalar) (i32.and (local.get $byte) (i32.const 0x3f)))))
@@ -3388,8 +3384,8 @@
             )
             ;; we store the read character in big endian
             (i32.store (local.get $writeptr)
-                (i32.or 
-                    (i32.or 
+                (i32.or
+                    (i32.or
                         (i32.shl (local.get $scalar) (i32.const 24))
                         (i32.shl (i32.and (local.get $scalar) (i32.const 0xff00)) (i32.const 8))
                     )
@@ -3478,7 +3474,7 @@
     (export "stdlib.to-uint" (func $stdlib.to-uint))
     (export "stdlib.to-int" (func $stdlib.to-int))
     (export "stdlib.sha512-buf" (func $stdlib.sha512-buf))
-    (export "stdlib.sha512-int" (func $stdlib.sha512-int))  
+    (export "stdlib.sha512-int" (func $stdlib.sha512-int))
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
     (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
