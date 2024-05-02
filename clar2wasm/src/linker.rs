@@ -1976,8 +1976,8 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             asset_offset: i32,
-             asset_length: i32,
+             mut asset_offset: i32,
+             mut asset_length: i32,
              return_offset: i32,
              _return_length: i32| {
                 // Get the memory from the caller
@@ -2006,6 +2006,10 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 let expected_asset_type = &nft_metadata.key_type;
 
                 // Read in the NFT identifier from the Wasm memory
+                if is_in_memory_type(expected_asset_type) {
+                    (asset_offset, asset_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                }
                 let asset = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2072,8 +2076,8 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             asset_offset: i32,
-             asset_length: i32,
+             mut asset_offset: i32,
+             mut asset_length: i32,
              sender_offset: i32,
              sender_length: i32| {
                 // Get the memory from the caller
@@ -2103,6 +2107,10 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 let expected_asset_type = &nft_metadata.key_type;
 
                 // Read in the NFT identifier from the Wasm memory
+                if is_in_memory_type(expected_asset_type) {
+                    (asset_offset, asset_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                }
                 let asset = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2207,8 +2215,8 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             asset_offset: i32,
-             asset_length: i32,
+             mut asset_offset: i32,
+             mut asset_length: i32,
              recipient_offset: i32,
              recipient_length: i32| {
                 // Get the memory from the caller
@@ -2238,6 +2246,10 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 let expected_asset_type = &nft_metadata.key_type;
 
                 // Read in the NFT identifier from the Wasm memory
+                if is_in_memory_type(expected_asset_type) {
+                    (asset_offset, asset_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                }
                 let asset = read_from_wasm(
                     memory,
                     &mut caller,
@@ -2331,8 +2343,8 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             asset_offset: i32,
-             asset_length: i32,
+             mut asset_offset: i32,
+             mut asset_length: i32,
              sender_offset: i32,
              sender_length: i32,
              recipient_offset: i32,
@@ -2364,6 +2376,10 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 let expected_asset_type = &nft_metadata.key_type;
 
                 // Read in the NFT identifier from the Wasm memory
+                if is_in_memory_type(expected_asset_type) {
+                    (asset_offset, asset_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                }
                 let asset = read_from_wasm(
                     memory,
                     &mut caller,
