@@ -2076,8 +2076,8 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             asset_offset: i32,
-             asset_length: i32,
+             mut asset_offset: i32,
+             mut asset_length: i32,
              sender_offset: i32,
              sender_length: i32| {
                 // Get the memory from the caller
@@ -2107,6 +2107,10 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 let expected_asset_type = &nft_metadata.key_type;
 
                 // Read in the NFT identifier from the Wasm memory
+                if is_in_memory_type(expected_asset_type) {
+                    (asset_offset, asset_length) =
+                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                }
                 let asset = read_from_wasm(
                     memory,
                     &mut caller,
