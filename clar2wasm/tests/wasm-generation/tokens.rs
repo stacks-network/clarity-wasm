@@ -1,10 +1,8 @@
 use clar2wasm::tools::crosscheck;
+use clarity::vm::types::signatures::TypeSignature::PrincipalType;
+use clarity::vm::types::TupleData;
+use clarity::vm::{ClarityName, Value};
 use proptest::prelude::*;
-
-use clarity::vm::{
-    types::{signatures::TypeSignature::PrincipalType, TupleData},
-    ClarityName, Value,
-};
 
 use crate::{PropValue, TypePrinter};
 
@@ -111,5 +109,4 @@ proptest! {
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
-
 }
