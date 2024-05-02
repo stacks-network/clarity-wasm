@@ -4,6 +4,7 @@ use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, StacksConstants};
 use clar2wasm::initialize::initialize_contract;
 use clar2wasm::tools::execute;
+use clar2wasm::wasm_cost::WasmCost;
 use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
@@ -104,6 +105,7 @@ macro_rules! test_multi_contract_init {
                     &mut contract_context,
                     None,
                     &compile_result.contract_analysis,
+                    &mut WasmCost::max(),
                 )
                 .expect("Failed to initialize contract.");
 

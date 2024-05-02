@@ -27,7 +27,9 @@ use wasmtime::{
 /// the standard.wat file and link in all of the host interface functions.
 pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let standard_lib = include_str!("../src/standard/standard.wat");
-    let engine = Engine::default();
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config).unwrap();
     let mut store = Store::new(&engine, ());
 
     let mut linker = Linker::new(&engine);
@@ -1108,6 +1110,7 @@ fn add_externfunc(c: &mut Criterion) {
 
         // Initialize config which allows for reference types.
         let mut config = Config::new();
+        config.consume_fuel(true);
         config.wasm_reference_types(true);
 
         // Initialize the wasmtime engine.

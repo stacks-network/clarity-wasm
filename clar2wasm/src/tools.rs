@@ -1,7 +1,3 @@
-//! The `tools` module contains tools for evaluating Clarity snippets.
-//! It is intended for use in tooling and tests, but not intended to be used
-//! in production. The `tools` module is only available when the
-//! `developer-mode` feature is enabled.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
@@ -21,6 +17,7 @@ use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 use crate::initialize::initialize_contract;
+use crate::wasm_cost::WasmCost;
 
 #[derive(Clone)]
 pub struct TestEnvironment {
@@ -30,10 +27,11 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
+    fuel_limit: WasmCost,
 }
 
 impl TestEnvironment {
-    pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion, fuel_limit: WasmCost) -> Self {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
@@ -64,6 +62,7 @@ impl TestEnvironment {
             datastore,
             burn_datastore,
             cost_tracker,
+            fuel_limit,
         }
     }
 
@@ -112,6 +111,7 @@ impl TestEnvironment {
             &self.burn_datastore,
             &self.burn_datastore,
         );
+
         let mut global_context =
             GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
         global_context.begin();
@@ -124,6 +124,7 @@ impl TestEnvironment {
             &mut contract_context,
             None,
             &compile_result.contract_analysis,
+            &mut self.fuel_limit,
         )?;
 
         let data_size = contract_context.data_size;
@@ -244,7 +245,11 @@ impl TestEnvironment {
 
 impl Default for TestEnvironment {
     fn default() -> Self {
-        Self::new(StacksEpochId::latest(), ClarityVersion::latest())
+        Self::new(
+            StacksEpochId::latest(),
+            ClarityVersion::latest(),
+            WasmCost::max(),
+        )
     }
 }
 
@@ -268,7 +273,7 @@ pub fn evaluate_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
+    let mut env = TestEnvironment::new(epoch, version, WasmCost::max());
     env.evaluate(snippet)
 }
 
@@ -286,7 +291,7 @@ pub fn interpret_at(
     epoch: StacksEpochId,
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
-    let mut env = TestEnvironment::new(epoch, version);
+    let mut env = TestEnvironment::new(epoch, version, WasmCost::max());
     env.interpret(snippet)
 }
 
@@ -334,7 +339,11 @@ pub fn crosscheck_compare_only(snippet: &str) {
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+    let mut compiler_env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        WasmCost::max(),
+    );
     compiler_env.advance_chain_tip(count);
 
     let mut interpreter_env = compiler_env.clone();
@@ -372,4 +381,33 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+}
+
+#[test]
+fn test_fuel_limit() {
+    let mut env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        WasmCost::default(),
+    );
+
+    assert!(env.evaluate("(+ 1 2)").is_err());
+
+    let mut env = TestEnvironment::new(
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+        WasmCost::default().set_runtime(100),
+    );
+
+    assert!(env.init_contract_with_snippet("a0", "(+ 1 2)").is_ok());
+    // exhaust fuel
+    for i in 1..100 {
+        if env
+            .init_contract_with_snippet(&format!("a{i}"), "(+ 1 2)")
+            .is_err()
+        {
+            return;
+        }
+    }
+    panic!("did not run out of fuel");
 }

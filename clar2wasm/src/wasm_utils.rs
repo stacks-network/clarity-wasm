@@ -12,7 +12,7 @@ use clarity::vm::types::{
 };
 use clarity::vm::{CallStack, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
-use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
+use wasmtime::{AsContextMut, Config, Engine, Linker, Memory, Module, Store, Val, ValType};
 
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
@@ -1211,7 +1211,15 @@ pub fn call_function<'a>(
         .contract_context()
         .lookup_function(function_name)
         .ok_or(CheckErrors::UndefinedFunction(function_name.to_string()))?;
-    let engine = Engine::default();
+
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config).map_err(|_| {
+        Error::Wasm(WasmError::WasmGeneratorError(
+            "invalid engine fuel configuration".into(),
+        ))
+    })?;
+
     let module = context
         .contract_context()
         .with_wasm_module(|wasm_module| unsafe {

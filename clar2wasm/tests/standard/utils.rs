@@ -4,13 +4,17 @@ use std::ops::{Deref, DerefMut};
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::ToHex;
 use proptest::prelude::*;
-use wasmtime::{Caller, Engine, Instance, Linker, Module, Store, Val};
+use wasmtime::{Caller, Config, Engine, Instance, Linker, Module, Store, Val};
 
 /// Load the standard library into a Wasmtime instance. This is used to load in
 /// the standard.wat file and link in all of the host interface functions.
 pub(crate) fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let standard_lib = include_str!("../../src/standard/standard.wat");
-    let engine = Engine::default();
+
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config).unwrap();
+
     let mut store = Store::new(&engine, ());
 
     let mut linker = Linker::new(&engine);
