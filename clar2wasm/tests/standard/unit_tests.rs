@@ -4140,41 +4140,39 @@ fn utf8_to_string_utf8_invalid() {
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1110_1010, 0b1011_0101], 1);
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1010_1010, 0b1111_0101], 1);
 
-    // SAFETY: WRONG ON PURPOSE!
     // converts a random u32 to a char without validating utf-8 correctness
-    let u32_to_utf8_raw = unsafe {
+    let u32_to_utf8_raw = |code: u32| {
         // adapted from core::char::encode_utf8_raw
-        |code: u32| {
-            let mut buff = [0; 4];
+        let mut buff = [0; 4];
 
-            #[allow(clippy::transmute_int_to_char)]
-            let c: char = std::mem::transmute(code);
-            let len_utf8 = c.len_utf8();
+        #[allow(clippy::transmute_int_to_char)]
+        // SAFETY: WRONG ON PURPOSE! We convert any u32 to a char!
+        let c: char = unsafe { std::mem::transmute(code) };
+        let len_utf8 = c.len_utf8();
 
-            match (len_utf8, &mut buff[..]) {
-                (1, [a, ..]) => {
-                    *a = code as u8;
-                }
-                (2, [a, b, ..]) => {
-                    *a = (code >> 6 & 0x1F) as u8 | 0b1100_0000;
-                    *b = (code & 0x3F) as u8 | 0b1000_0000;
-                }
-                (3, [a, b, c, ..]) => {
-                    *a = (code >> 12 & 0x0F) as u8 | 0b1110_0000;
-                    *b = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
-                    *c = (code & 0x3F) as u8 | 0b1000_0000;
-                }
-                (_, [a, b, c, d]) => {
-                    *a = (code >> 18 & 0x07) as u8 | 0b1111_0000;
-                    *b = (code >> 12 & 0x3F) as u8 | 0b1000_0000;
-                    *c = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
-                    *d = (code & 0x3F) as u8 | 0b1000_0000;
-                }
-                _ => std::hint::unreachable_unchecked(),
+        match (len_utf8, &mut buff[..]) {
+            (1, [a, ..]) => {
+                *a = code as u8;
             }
-
-            buff[..len_utf8].to_vec()
+            (2, [a, b, ..]) => {
+                *a = (code >> 6 & 0x1F) as u8 | 0b1100_0000;
+                *b = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            (3, [a, b, c, ..]) => {
+                *a = (code >> 12 & 0x0F) as u8 | 0b1110_0000;
+                *b = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *c = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            (4, [a, b, c, d]) => {
+                *a = (code >> 18 & 0x07) as u8 | 0b1111_0000;
+                *b = (code >> 12 & 0x3F) as u8 | 0b1000_0000;
+                *c = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *d = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            _ => panic!("Cannot create a utf8 with more than 4 bytes"),
         }
+
+        buff[..len_utf8].to_vec()
     };
 
     // invalid utf-16 surrogate characters
