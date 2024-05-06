@@ -98,6 +98,9 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v4
 
+      - name: Use Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
@@ -127,6 +130,9 @@ jobs:
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
+
+      - name: Use Rust stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
