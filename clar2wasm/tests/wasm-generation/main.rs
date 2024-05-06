@@ -14,6 +14,7 @@ pub mod optional;
 pub mod regression;
 pub mod response;
 pub mod sequences;
+pub mod stx;
 pub mod tokens;
 pub mod tuple;
 pub mod values;
