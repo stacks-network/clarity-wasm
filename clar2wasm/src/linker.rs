@@ -1208,7 +1208,7 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
              amount_hi: i64,
              principal_offset: i32,
              principal_length: i32| {
-                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
 
                 // Get the memory from the caller
                 let memory = caller
