@@ -1306,7 +1306,7 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
              recipient_length: i32,
              memo_offset: i32,
              memo_length: i32| {
-                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
 
                 // Get the memory from the caller
                 let memory = caller
