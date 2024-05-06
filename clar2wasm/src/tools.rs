@@ -202,22 +202,11 @@ impl TestEnvironment {
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
-        let mut conn = ClarityDatabase::new(
+        let conn = ClarityDatabase::new(
             &mut self.datastore,
             &self.burn_datastore,
             &self.burn_datastore,
         );
-
-        // Give one account a starting balance, to be used for testing.
-        let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
-        let amount = 1_000_000_000;
-        execute(&mut conn, |database| {
-            let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
-            snapshot.credit(amount)?;
-            snapshot.save()?;
-            database.increment_ustx_liquid_supply(amount)
-        })
-        .expect("Failed to increment liquid supply.");
 
         let mut global_context = GlobalContext::new(
             false,
