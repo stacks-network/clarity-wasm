@@ -84,7 +84,7 @@ pub fn compile(
         cost_tracker,
         epoch,
         clarity_version,
-        false,
+        true,
     ) {
         Ok(contract_analysis) => contract_analysis,
         Err((e, cost_track)) => {

@@ -129,7 +129,9 @@ impl ComplexWord for TupleGet {
         // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
-        for (field_name, field_ty) in field_types.iter().rev() {
+        let mut reversed_field_types = field_types.iter().collect::<Vec<_>>();
+        reversed_field_types.sort_by(|x, y| y.0.cmp(x.0));
+        for (field_name, field_ty) in reversed_field_types {
             // If this is the target field, store it in the locals we created
             // above.
             if field_name == target_field_name {
@@ -218,10 +220,12 @@ impl ComplexWord for TupleMerge {
 
         // We will copy the values from LHS into the result locals iff the key is not
         // present in RHS. Otherwise, we drop the values.
-        for (name, ty_) in lhs_tuple_ty.into_iter().rev() {
-            if !rhs_tuple_ty.contains_key(&name) {
+        let mut reversed_lhs_tuple_ty = lhs_tuple_ty.iter().collect::<Vec<_>>();
+        reversed_lhs_tuple_ty.sort_by(|x, y| y.0.cmp(x.0));
+        for (name, ty_) in reversed_lhs_tuple_ty {
+            if !rhs_tuple_ty.contains_key(name) {
                 result_locals
-                    .get(&name)
+                    .get(name)
                     .ok_or_else(|| {
                         GeneratorError::InternalError(
                             "merge result tuple should contain all the keys of LHS".to_owned(),
@@ -233,7 +237,7 @@ impl ComplexWord for TupleMerge {
                         builder.local_set(*local);
                     });
             } else {
-                drop_value(builder, &ty_);
+                drop_value(builder, ty_);
             }
         }
 
@@ -241,9 +245,11 @@ impl ComplexWord for TupleMerge {
         generator.traverse_expr(builder, &args[1])?;
 
         // We will copy all values of RHS into the result locals
-        for name in rhs_tuple_ty.into_keys().rev() {
+        let mut rhs_tuple_ty_reversed = rhs_tuple_ty.keys().collect::<Vec<_>>();
+        rhs_tuple_ty_reversed.sort_by(|x, y| y.cmp(x));
+        for name in rhs_tuple_ty_reversed {
             result_locals
-                .get(&name)
+                .get(name)
                 .ok_or_else(|| {
                     GeneratorError::InternalError(
                         "merge result tuple should contain all the keys of RHS".to_owned(),

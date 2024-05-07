@@ -712,6 +712,7 @@ fn clarity_add(c: &mut Criterion) {
         cost_tracker,
         StacksEpochId::latest(),
         ClarityVersion::latest(),
+        true,
     )
     .expect("Failed to run analysis");
 
@@ -851,6 +852,7 @@ fn clarity_sha512(c: &mut Criterion) {
         cost_tracker,
         StacksEpochId::latest(),
         ClarityVersion::latest(),
+        true,
     )
     .expect("Failed to run analysis");
 
@@ -1003,6 +1005,7 @@ fn clarity_sha256(c: &mut Criterion) {
         cost_tracker,
         StacksEpochId::latest(),
         ClarityVersion::latest(),
+        true,
     )
     .expect("Failed to run analysis");
 
