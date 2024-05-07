@@ -143,4 +143,57 @@ proptest! {
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn ft_mint_mint_supply_transfer_balance(
+        total_supply in any::<u128>(),
+        sender in PropValue::from_type(PrincipalType),
+        recipient in PropValue::from_type(PrincipalType),
+    ) {
+        let mint_supply = total_supply >> 1;
+
+        let snippet = format!(r#"
+            (define-fungible-token stackaroo u{total_supply})
+            {{
+                a-mint1: (ft-mint? stackaroo u{mint_supply} {sender}),
+                b-mint2: (ft-mint? stackaroo u{mint_supply} {recipient}),
+                c-supply: (ft-get-supply stackaroo),
+                d-transfer: (ft-transfer? stackaroo u{mint_supply} {sender} {recipient}),
+                e-balance-sender: (ft-get-balance stackaroo {sender}),
+                f-balance-recipient: (ft-get-balance stackaroo {recipient}),
+            }}
+        "#);
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("a-mint1"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("b-mint2"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("c-supply"),
+                    Value::UInt(total_supply & !1),
+                ),
+                (
+                    ClarityName::from("d-transfer"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("e-balance-sender"),
+                    Value::UInt(0),
+                ),
+                (
+                    ClarityName::from("f-balance-recipient"),
+                    Value::UInt(mint_supply * 2),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
 }
