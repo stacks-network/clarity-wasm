@@ -4140,7 +4140,7 @@ fn utf8_to_string_utf8_invalid() {
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1110_1010, 0b1011_0101], 1);
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1010_1010, 0b1111_0101], 1);
 
-    // converts a random u32 to a char without validating utf-8 correctness
+    // converts a random u32 to its utf8 representation without checking for validity.
     let u32_to_utf8_raw = |code: u32| {
         // adapted from core::char::encode_utf8_raw
         let mut buff = [0; 4];
