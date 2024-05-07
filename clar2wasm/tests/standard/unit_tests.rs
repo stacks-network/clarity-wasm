@@ -4140,18 +4140,51 @@ fn utf8_to_string_utf8_invalid() {
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1110_1010, 0b1011_0101], 1);
     check_invalid_conversion(&[0b1111_0111, 0b1000_0000, 0b1010_1010, 0b1111_0101], 1);
 
+    // converts a random u32 to its utf8 representation without checking for validity.
+    let u32_to_utf8_raw = |code: u32| {
+        // adapted from core::char::encode_utf8_raw
+        let mut buff = [0; 4];
+
+        #[allow(clippy::transmute_int_to_char)]
+        // SAFETY: WRONG ON PURPOSE! We convert any u32 to a char!
+        let c: char = unsafe { std::mem::transmute(code) };
+        let len_utf8 = c.len_utf8();
+
+        match (len_utf8, &mut buff[..]) {
+            (1, [a, ..]) => {
+                *a = code as u8;
+            }
+            (2, [a, b, ..]) => {
+                *a = (code >> 6 & 0x1F) as u8 | 0b1100_0000;
+                *b = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            (3, [a, b, c, ..]) => {
+                *a = (code >> 12 & 0x0F) as u8 | 0b1110_0000;
+                *b = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *c = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            (4, [a, b, c, d]) => {
+                *a = (code >> 18 & 0x07) as u8 | 0b1111_0000;
+                *b = (code >> 12 & 0x3F) as u8 | 0b1000_0000;
+                *c = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *d = (code & 0x3F) as u8 | 0b1000_0000;
+            }
+            _ => panic!("Cannot create a utf8 with more than 4 bytes"),
+        }
+
+        buff[..len_utf8].to_vec()
+    };
+
     // invalid utf-16 surrogate characters
     for n in 0xd800..=0xdfff {
-        // SAFETY: this is wrong! The purpose *is* to create an invalid char.
-        let surrogate_str: String = unsafe { char::from_u32_unchecked(n).into() };
-        check_invalid_conversion(surrogate_str.as_bytes(), 1);
+        let surrogate_bytes = u32_to_utf8_raw(n);
+        check_invalid_conversion(&surrogate_bytes, 1);
     }
 
     // invalid too large chars > U+10FFFF (max 21 bits in a 4 bytes utf-8 char)
     for n in ((char::MAX as u32) + 1..=0b1_1111_1111_1111_1111_1111).step_by(10000) {
-        // SAFETY: this is wrong! The purpose *is* to create an invalid char.
-        let surrogate_str: String = unsafe { char::from_u32_unchecked(n).into() };
-        check_invalid_conversion(surrogate_str.as_bytes(), 1);
+        let large_chars_bytes = u32_to_utf8_raw(n);
+        check_invalid_conversion(&large_chars_bytes, 1);
     }
 
     // tests with too short max-size

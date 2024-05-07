@@ -1,15 +1,7 @@
-use clarity::vm::representations::Span;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
-
-#[derive(Clone)]
-pub struct TypedVar<'a> {
-    pub name: &'a ClarityName,
-    pub type_expr: &'a SymbolicExpression,
-    pub decl_span: Span,
-}
 
 #[derive(Debug)]
 pub struct DefinePrivateFunction;

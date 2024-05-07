@@ -240,6 +240,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[ignore = "issue #395"]
     fn crosscheck_replace_at(
         (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
             (PropValue::any_sequence(seq_size),

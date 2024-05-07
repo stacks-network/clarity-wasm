@@ -145,7 +145,7 @@ impl ComplexWord for Match {
                 let ok_block = generator.block_from_expr(builder, success_body)?;
 
                 // restore named locals
-                generator.bindings = saved_bindings.clone();
+                generator.bindings.clone_from(&saved_bindings);
 
                 // bind err branch local
                 generator
