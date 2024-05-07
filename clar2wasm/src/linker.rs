@@ -1698,7 +1698,7 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
-                let amount = (amount_hi as u128) << 64 | (amount_lo as u128);
+                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
