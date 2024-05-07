@@ -185,7 +185,7 @@ proptest! {
         sender in PropValue::from_type(PrincipalType),
         recipient in PropValue::from_type(PrincipalType),
     ) {
-        let mint_supply = total_supply >> 1;
+        let mint_supply = total_supply / 2;
 
         let snippet = format!(r#"
             (define-fungible-token stackaroo u{total_supply})
@@ -211,7 +211,7 @@ proptest! {
                 ),
                 (
                     ClarityName::from("c-supply"),
-                    Value::UInt(total_supply & !1),
+                    Value::UInt(mint_supply * 2),
                 ),
                 (
                     ClarityName::from("d-transfer"),
