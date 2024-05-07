@@ -110,3 +110,37 @@ proptest! {
         crosscheck(&snippet, Ok(Some(expected)));
     }
 }
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn ft_mint_balance(
+        total_supply in any::<u128>(),
+        recipient in PropValue::from_type(PrincipalType),
+    ) {
+        let snippet = format!(r#"
+            (define-fungible-token stackaroo u{total_supply})
+            {{
+                a-mint: (ft-mint? stackaroo u{total_supply} {recipient}),
+                b-balance: (ft-get-balance stackaroo {recipient}),
+            }}
+        "#);
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("a-mint"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("b-balance"),
+                    Value::UInt(total_supply),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
+}
