@@ -539,7 +539,7 @@ impl WasmGenerator {
         self.contract_analysis
             .type_map
             .as_ref()
-            .and_then(|ty| ty.get_type(expr))
+            .and_then(|ty| ty.get_type_expected(expr))
     }
 
     /// Sets the result type of the given `SymbolicExpression`. This is

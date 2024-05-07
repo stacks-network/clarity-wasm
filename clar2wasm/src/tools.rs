@@ -196,6 +196,7 @@ impl TestEnvironment {
                 cost_tracker,
                 self.epoch,
                 self.version,
+                false,
             )
             .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
         })?;
