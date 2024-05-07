@@ -145,6 +145,41 @@ proptest! {
     }
 
     #[test]
+    fn ft_mint_burn(
+        total_supply in any::<u128>(),
+        recipient in PropValue::from_type(PrincipalType),
+    ) {
+        let snippet = format!(r#"
+            (define-fungible-token stackaroo u{total_supply})
+            {{
+                a-mint: (ft-mint? stackaroo u{total_supply} {recipient}),
+                b-burn: (ft-burn? stackaroo u{total_supply} {recipient}),
+                c-balance: (ft-get-balance stackaroo {recipient}),
+            }}
+        "#);
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("a-mint"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("b-burn"),
+                    Value::okay_true(),
+                ),
+                (
+                    ClarityName::from("c-balance"),
+                    Value::UInt(0),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
+
+    #[test]
     fn ft_mint_mint_supply_transfer_balance(
         total_supply in any::<u128>(),
         sender in PropValue::from_type(PrincipalType),
