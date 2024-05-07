@@ -33,7 +33,7 @@ pub struct TestEnvironment {
 }
 
 impl TestEnvironment {
-    pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+    pub fn new_with_amount(amount: u128, epoch: StacksEpochId, version: ClarityVersion) -> Self {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
@@ -47,7 +47,6 @@ impl TestEnvironment {
 
         // Give one account a starting balance, to be used for testing.
         let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
-        let amount = 1_000_000_000;
         let mut conn = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
         execute(&mut conn, |database| {
             let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
@@ -65,6 +64,10 @@ impl TestEnvironment {
             burn_datastore,
             cost_tracker,
         }
+    }
+
+    pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        Self::new_with_amount(1_000_000_000, epoch, version)
     }
 
     pub fn init_contract_with_snippet(
@@ -199,22 +202,11 @@ impl TestEnvironment {
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
-        let mut conn = ClarityDatabase::new(
+        let conn = ClarityDatabase::new(
             &mut self.datastore,
             &self.burn_datastore,
             &self.burn_datastore,
         );
-
-        // Give one account a starting balance, to be used for testing.
-        let recipient = PrincipalData::Standard(StandardPrincipalData::transient());
-        let amount = 1_000_000_000;
-        execute(&mut conn, |database| {
-            let mut snapshot = database.get_stx_balance_snapshot(&recipient)?;
-            snapshot.credit(amount)?;
-            snapshot.save()?;
-            database.increment_ustx_liquid_supply(amount)
-        })
-        .expect("Failed to increment liquid supply.");
 
         let mut global_context = GlobalContext::new(
             false,
@@ -272,6 +264,19 @@ pub fn evaluate_at(
     env.evaluate(snippet)
 }
 
+/// Evaluate a Clarity snippet at a specific epoch and version, with a default
+/// amount of money for the transient principal account.
+/// Returns an optional value -- the result of the evaluation.
+pub fn evaluate_at_with_amount(
+    snippet: &str,
+    amount: u128,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) -> Result<Option<Value>, Error> {
+    let mut env = TestEnvironment::new_with_amount(amount, epoch, version);
+    env.evaluate(snippet)
+}
+
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
 #[allow(clippy::result_unit_err)]
@@ -290,6 +295,19 @@ pub fn interpret_at(
     env.interpret(snippet)
 }
 
+/// Interpret a Clarity snippet at a specific epoch and version, with a default
+/// amount of money for the transient principal account.
+/// Returns an optional value -- the result of the evaluation.
+pub fn interpret_at_with_amount(
+    snippet: &str,
+    amount: u128,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) -> Result<Option<Value>, Error> {
+    let mut env = TestEnvironment::new_with_amount(amount, epoch, version);
+    env.interpret(snippet)
+}
+
 /// Interprets a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
 #[allow(clippy::result_unit_err)]
@@ -300,6 +318,36 @@ pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
     let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
     let interpreted = interpret(snippet);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
+        &compiled,
+        &interpreted
+    );
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        expected.as_ref(),
+        "value is not the expected {:?}",
+        compiled
+    );
+}
+
+pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, ()>) {
+    let compiled = evaluate_at_with_amount(
+        snippet,
+        amount,
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+    );
+    let interpreted = interpret_at_with_amount(
+        snippet,
+        amount,
+        StacksEpochId::latest(),
+        ClarityVersion::latest(),
+    );
 
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
