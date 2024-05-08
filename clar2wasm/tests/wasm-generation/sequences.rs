@@ -113,6 +113,22 @@ proptest! {
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
+
+    #[test]
+    fn slice_crosscheck_invalid_range(
+        (seq, lo, hi) in (1usize..=16)
+        .prop_flat_map(PropValue::any_sequence)
+        .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
+        .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
+        .prop_map(|((seq, lo), hi)| (seq, lo, hi))
+    )
+    {
+        // always make sure hi is strictly larger than lo
+        let snippet = format!("(slice? {seq} (+ u{hi} u1) u{lo})");
+        let expected = Value::none();
+
+        crosscheck(&snippet, Ok(Some(expected)));
+    }
 }
 
 proptest! {

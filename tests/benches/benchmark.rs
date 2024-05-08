@@ -1,11 +1,12 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
+use clar2wasm::initialize::initialize_contract;
+use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
 use clarity::vm::ast::build_ast_with_diagnostics;
-use clarity::vm::clarity_wasm::{call_function, initialize_contract};
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
