@@ -5,6 +5,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -27,7 +28,7 @@ impl ComplexWord for TupleCons {
             .clone();
 
         let tuple_ty = match ty {
-            TypeSignature::TupleType(tuple) => tuple,
+            TypeSignature::TupleType(ref tuple) => ordered_tuple_signature(tuple),
             _ => return Err(GeneratorError::TypeError("expected tuple type".to_string())),
         };
 
@@ -53,7 +54,7 @@ impl ComplexWord for TupleCons {
         }
 
         // Now we can iterate over the tuple type and build the tuple.
-        for (key, ty) in tuple_ty.get_type_map() {
+        for (key, ty) in tuple_ty {
             let value = values.remove(key).ok_or_else(|| {
                 GeneratorError::InternalError(format!("missing key '{key}' in tuple"))
             })?;
@@ -114,7 +115,7 @@ impl ComplexWord for TupleGet {
         generator.traverse_expr(builder, &args[1])?;
 
         // Determine the wasm types for each field of the tuple
-        let field_types = tuple_ty.get_type_map();
+        let field_types = ordered_tuple_signature(&tuple_ty);
 
         // Create locals for the target field
         let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or_else(|| {
@@ -129,9 +130,7 @@ impl ComplexWord for TupleGet {
         // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
-        let mut reversed_field_types = field_types.iter().collect::<Vec<_>>();
-        reversed_field_types.sort_by(|x, y| y.0.cmp(x.0));
-        for (field_name, field_ty) in reversed_field_types {
+        for (field_name, field_ty) in field_types.into_iter().rev() {
             // If this is the target field, store it in the locals we created
             // above.
             if field_name == target_field_name {
@@ -180,7 +179,6 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
-            .get_type_map()
             .clone();
 
         let rhs_tuple_ty = generator
@@ -190,19 +188,17 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })?
-            .get_type_map()
             .clone();
 
         // Those locals will contain the resulting tuple after the merge operation
         let result_locals: BTreeMap<_, Vec<_>> = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("merge expression must be typed".to_owned()))
-            .and_then(|lhs_ty| match lhs_ty {
+            .and_then(|expr_ty| match expr_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
-            })?
-            .get_type_map()
-            .clone()
+            })
+            .map(owned_ordered_tuple_signature)?
             .into_iter()
             .map(|(name, ty_)| {
                 (
@@ -220,10 +216,8 @@ impl ComplexWord for TupleMerge {
 
         // We will copy the values from LHS into the result locals iff the key is not
         // present in RHS. Otherwise, we drop the values.
-        let mut reversed_lhs_tuple_ty = lhs_tuple_ty.iter().collect::<Vec<_>>();
-        reversed_lhs_tuple_ty.sort_by(|x, y| y.0.cmp(x.0));
-        for (name, ty_) in reversed_lhs_tuple_ty {
-            if !rhs_tuple_ty.contains_key(name) {
+        for (name, ty_) in ordered_tuple_signature(&lhs_tuple_ty).into_iter().rev() {
+            if !rhs_tuple_ty.get_type_map().contains_key(name) {
                 result_locals
                     .get(name)
                     .ok_or_else(|| {
@@ -245,9 +239,7 @@ impl ComplexWord for TupleMerge {
         generator.traverse_expr(builder, &args[1])?;
 
         // We will copy all values of RHS into the result locals
-        let mut rhs_tuple_ty_reversed = rhs_tuple_ty.keys().collect::<Vec<_>>();
-        rhs_tuple_ty_reversed.sort_by(|x, y| y.cmp(x));
-        for name in rhs_tuple_ty_reversed {
+        for (name, _) in ordered_tuple_signature(&rhs_tuple_ty).into_iter().rev() {
             result_locals
                 .get(name)
                 .ok_or_else(|| {

@@ -491,9 +491,14 @@ pub fn type_string(ty: &TypeSignature) -> String {
             )
         }
         TypeSignature::TupleType(tuple_ty) => {
+            let tuple_ty = {
+                let mut v: Vec<_> = tuple_ty.get_type_map().iter().collect();
+                v.sort_unstable_by_key(|&(k, _)| k);
+                v
+            };
             let mut s = String::new();
             s.push('{');
-            for (key, value) in tuple_ty.get_type_map() {
+            for (key, value) in tuple_ty {
                 s.push_str(key);
                 s.push(':');
                 s.push_str(&type_string(value));

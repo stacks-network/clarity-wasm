@@ -18,7 +18,10 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
-use crate::wasm_utils::{get_type_in_memory_size, get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    get_type_in_memory_size, get_type_size, is_in_memory_type, ordered_tuple_signature,
+    owned_ordered_tuple_signature,
+};
 use crate::words;
 
 // First free position after data directly defined in standard.wat
@@ -171,7 +174,7 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
         }
         TypeSignature::TupleType(inner_types) => {
             let mut types = vec![];
-            for inner_type in inner_types.get_type_map().values() {
+            for &inner_type in ordered_tuple_signature(inner_types).values() {
                 types.extend(clar2wasm_ty(inner_type));
             }
             types
@@ -916,7 +919,9 @@ impl WasmGenerator {
                 // Data stack: TOP | last_value | value_before_last | ... | first_value
                 // we will write the values from last to first by setting the correct offset at which it's supposed to be written
                 let mut bytes_written = 0;
-                let types: Vec<_> = tuple_ty.get_type_map().values().collect();
+                let types: Vec<_> = owned_ordered_tuple_signature(tuple_ty)
+                    .into_values()
+                    .collect();
                 let offsets_delta: Vec<_> = std::iter::once(0u32)
                     .chain(
                         types
@@ -933,7 +938,7 @@ impl WasmGenerator {
                         builder,
                         offset_local,
                         offset + offset_delta,
-                        elem_ty,
+                        &elem_ty,
                     )?;
                 }
                 Ok(bytes_written)
@@ -1045,7 +1050,7 @@ impl WasmGenerator {
             TypeSignature::TupleType(tuple) => {
                 // Memory: Offset -> | Value1 | Value2 | ... |
                 let mut offset_adjust = 0;
-                for ty in tuple.get_type_map().values() {
+                for &ty in ordered_tuple_signature(tuple).values() {
                     offset_adjust +=
                         self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)?
                             as u32;

@@ -8,6 +8,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -331,17 +332,16 @@ fn assign_to_locals(
         }
         (TypeSignature::TupleType(t), TypeSignature::TupleType(s)) => {
             let mut remaining_locals = locals;
-            let mut reversed_t = t.get_type_map().iter().collect::<Vec<_>>();
-            reversed_t.sort_by(|x, y| y.0.cmp(x.0));
-            let mut reversed_s = s.get_type_map().iter().collect::<Vec<_>>();
-            reversed_s.sort_by(|x, y| y.0.cmp(x.0));
-
-            for (tt, ss) in reversed_t.iter().zip(reversed_s) {
-                let tt_size = clar2wasm_ty(tt.1).len();
+            for (tt, ss) in ordered_tuple_signature(t)
+                .values()
+                .rev()
+                .zip(ordered_tuple_signature(s).values().rev())
+            {
+                let tt_size = clar2wasm_ty(tt).len();
                 let (rest, cur_locals) =
                     remaining_locals.split_at(remaining_locals.len() - tt_size);
                 remaining_locals = rest;
-                assign_to_locals(builder, tt.1, ss.1, cur_locals)?;
+                assign_to_locals(builder, tt, ss, cur_locals)?;
             }
         }
         // All the other types aren't influenced by inner NoType and can just be assigned automatically
@@ -707,7 +707,7 @@ fn wasm_equal_tuple(
     // ```
     // we have to build the if sequence bottom-up
 
-    let field_types = tuple_ty.get_type_map();
+    let field_types = owned_ordered_tuple_signature(tuple_ty);
 
     // this is the number of elements in the tuple. Always >= 1 due to Clarity constraints.
     let mut depth = field_types.len();
@@ -715,10 +715,7 @@ fn wasm_equal_tuple(
     // this is an iterator in reverse order (for bottom-up sequence) of
     // `(ty, range)`, where `ty` is the type of the current tuple element and `range` is
     // the range index of this element in the list of locals
-    let mut reversed_field_types = field_types.iter().collect::<Vec<_>>();
-    reversed_field_types.sort_by(|x, y| y.0.cmp(x.0));
-
-    let mut wasm_ranges = reversed_field_types.into_iter().map(|x| x.1).scan(
+    let mut wasm_ranges = field_types.values().rev().scan(
         field_types.values().map(|ty| clar2wasm_ty(ty).len()).sum(),
         |i, ty| {
             (*i != 0).then(|| {
@@ -731,9 +728,8 @@ fn wasm_equal_tuple(
     );
 
     // types for nth argument
-    let mut nth_types = nth_tuple_ty.get_type_map().iter().collect::<Vec<_>>();
-    nth_types.sort_by(|x, y| y.0.cmp(x.0));
-    let mut nth_types = nth_types.into_iter().map(|x| x.1);
+    let nth_type_map = ordered_tuple_signature(nth_tuple_ty);
+    let mut nth_types = nth_type_map.values().rev();
 
     // if this is a 1-tuple, we can just check for equality of element
     if depth == 1 {
