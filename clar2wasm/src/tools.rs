@@ -16,11 +16,13 @@ use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
+use clarity::vm::{
+    eval_all, functions, CallStack, ClarityVersion, ContractContext, Environment, Value,
+};
 
-use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 use crate::initialize::initialize_contract;
+use crate::{compile, CompileResult};
 
 #[derive(Clone)]
 pub struct TestEnvironment {
@@ -104,8 +106,6 @@ impl TestEnvironment {
             .expect("Failed to insert contract analysis.");
 
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
-        // compile_result.module.emit_wasm_file("test.wasm").unwrap();
-        contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
         let mut cost_tracker = LimitedCostTracker::new_free();
         std::mem::swap(&mut self.cost_tracker, &mut cost_tracker);
@@ -117,6 +117,12 @@ impl TestEnvironment {
         );
         let mut global_context =
             GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
+
+        validate_define_functions(&contract_context, &compile_result, &mut global_context)?;
+
+        // compile_result.module.emit_wasm_file("test.wasm").unwrap();
+        contract_context.set_wasm_module(compile_result.module.emit_wasm());
+
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -238,6 +244,27 @@ impl Default for TestEnvironment {
     fn default() -> Self {
         Self::new(StacksEpochId::latest(), ClarityVersion::latest())
     }
+}
+
+fn validate_define_functions(
+    contract_context: &ContractContext,
+    compile_result: &CompileResult,
+    global_context: &mut GlobalContext,
+) -> Result<(), Error> {
+    let publisher: PrincipalData = contract_context.contract_identifier.issuer.clone().into();
+    for expr in &compile_result.ast.expressions {
+        let mut call_stack = CallStack::new();
+        let mut env = Environment::new(
+            global_context,
+            contract_context,
+            &mut call_stack,
+            Some(publisher.clone()),
+            Some(publisher.clone()),
+            None,
+        );
+        functions::define::evaluate_define(expr, &mut env)?;
+    }
+    Ok(())
 }
 
 pub fn execute<F, T, E>(conn: &mut ClarityDatabase, f: F) -> std::result::Result<T, E>
@@ -420,4 +447,13 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+}
+
+#[test]
+fn test_evaluate_define() {
+    let compiled = evaluate("(define-data-var map int 0)");
+    assert!(
+        compiled.is_err(),
+        "Reserved keyword is being used an identifier"
+    );
 }
