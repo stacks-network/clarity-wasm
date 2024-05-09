@@ -451,9 +451,44 @@ fn test_evaluate_snippet() {
 
 #[test]
 fn test_evaluate_define() {
-    let compiled = evaluate("(define-data-var map int 0)");
+    let constant = evaluate("(define-constant map (+ 2 2))");
+    let data_var = evaluate("(define-data-var map int 0)");
+    let fungible_token = evaluate("(define-fungible-token map u100)");
+    let map = evaluate("(define-map map {x: int} {square: int})");
+    let non_fungible_token = evaluate("(define-non-fungible-token map (buff 50))");
+    let private = evaluate("(define-private (map) true)");
+    let public = evaluate("(define-public (map) (ok true))");
+    let read_only = evaluate("(define-read-only (map) (ok true))");
+    let trait_def = evaluate("(define-trait map ((func (int) (response int int))))");
+
     assert!(
-        compiled.is_err(),
-        "Reserved keyword is being used an identifier"
+        constant.is_err(),
+        "Can't define reserved keyword as a constant"
+    );
+    assert!(data_var.is_err(), "Can't define reserved keyword as a var");
+    assert!(
+        fungible_token.is_err(),
+        "Can't define reserved keyword as a fungible token"
+    );
+    assert!(map.is_err(), "Can't define reserved keyword as a map");
+    assert!(
+        non_fungible_token.is_err(),
+        "Can't define reserved keyword as a non fungible token"
+    );
+    assert!(
+        private.is_err(),
+        "Can't define reserved keyword as a private function"
+    );
+    assert!(
+        public.is_err(),
+        "Can't define reserved keyword as a public function"
+    );
+    assert!(
+        read_only.is_err(),
+        "Can't define reserved keyword as a read only function"
+    );
+    assert!(
+        trait_def.is_err(),
+        "Can't define reserved keyword as a trait"
     );
 }
