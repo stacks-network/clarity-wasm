@@ -32,10 +32,8 @@ impl ComplexWord for TupleCons {
         };
 
         // The args for `tuple` should be pairs of values, with the first value
-        // being the key and the second being the value. We need to arrange the
-        // values in the correct order for the tuple type, so we'll build a map
-        // of the keys to their values.
-        let mut values = HashMap::new();
+        // being the key and the second being the value.
+        let mut values = Vec::with_capacity(args.len());
         for arg in args {
             let list = arg.match_list().ok_or_else(|| {
                 GeneratorError::InternalError("expected key-value pairs in tuple".to_string())
@@ -49,13 +47,18 @@ impl ComplexWord for TupleCons {
             let key = list[0].match_atom().ok_or_else(|| {
                 GeneratorError::InternalError("expected key-value pairs in tuple".to_string())
             })?;
-            values.insert(key, &list[1]);
+            values.push((key, &list[1]));
         }
 
-        // Now we can iterate over the tuple type and build the tuple.
-        for (key, ty) in tuple_ty.get_type_map() {
-            let value = values.remove(key).ok_or_else(|| {
-                GeneratorError::InternalError(format!("missing key '{key}' in tuple"))
+        // Since we have to evaluate the fields in the order of definition but the result will be
+        // in the lexicographic order of the keys, we'll add locals to store all evaluated fields.
+        let mut locals_map = BTreeMap::new();
+        let mut types_map: HashMap<_, _> = tuple_ty.get_type_map().iter().collect();
+
+        // Now we can iterate over the fields and evaluate them.
+        for (key, value) in values {
+            let value_ty = types_map.remove(key).ok_or_else(|| {
+                GeneratorError::TypeError("Tuples fields should be typed".to_owned())
             })?;
 
             // WORKAROUND: if you have a tuple like `(tuple (foo none))`, the `none` will have the type
@@ -63,9 +66,22 @@ impl ComplexWord for TupleCons {
             // does not have the same amount of values in the Wasm code than the correct type.
             // While we wait for a real fix in the typechecker, here is a workaround to make sure that the type
             // is correct.
-            generator.set_expr_type(value, ty.clone())?;
+            generator.set_expr_type(value, value_ty.clone())?;
 
             generator.traverse_expr(builder, value)?;
+            locals_map.insert(key, generator.save_to_locals(builder, value_ty, true));
+        }
+
+        // Make sure that all the tuples keys were defined
+        if !types_map.is_empty() {
+            return Err(GeneratorError::TypeError(
+                "Tuple should define each of its fields".to_owned(),
+            ));
+        }
+
+        // Finally load the locals onto the stack
+        for local in locals_map.into_values().flatten() {
+            builder.local_get(local);
         }
 
         Ok(())
@@ -267,7 +283,8 @@ impl ComplexWord for TupleMerge {
 
 #[cfg(test)]
 mod test {
-    use clarity::vm::Value;
+    use clarity::vm::types::TupleData;
+    use clarity::vm::{ClarityName, Value};
 
     use crate::tools::crosscheck;
 
@@ -355,5 +372,26 @@ mod test {
             "#;
 
         crosscheck(snippet, Ok(None));
+    }
+
+    #[test]
+    fn tuple_check_evaluation_order() {
+        let snippet = r#"
+        (define-data-var foo int 1)
+        {
+            b: (var-set foo 2),
+            a: (var-get foo)
+        }
+    "#;
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (ClarityName::from("b"), Value::Bool(true)),
+                (ClarityName::from("a"), Value::Int(2)),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
     }
 }
