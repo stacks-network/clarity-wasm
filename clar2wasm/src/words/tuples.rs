@@ -267,7 +267,7 @@ impl ComplexWord for TupleMerge {
 
 #[cfg(test)]
 mod test {
-    use clarity::vm::Value;
+    use clarity::vm::{types::TupleData, ClarityName, Value};
 
     use crate::tools::crosscheck;
 
@@ -355,5 +355,26 @@ mod test {
             "#;
 
         crosscheck(snippet, Ok(None));
+    }
+
+    #[test]
+    fn tuple_check_evaluation_order() {
+        let snippet = r#"
+        (define-data-var foo int 1)
+        {
+            b: (var-set foo 2),
+            a: (var-get foo)
+        }
+    "#;
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (ClarityName::from("b"), Value::Bool(true)),
+                (ClarityName::from("a"), Value::Int(2)),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
     }
 }
