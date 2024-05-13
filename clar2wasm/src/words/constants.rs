@@ -21,6 +21,14 @@ impl ComplexWord for DefineConstant {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let value = args.get_expr(1)?;
 
         // If the initial value is a literal, then we can directly add it to
@@ -66,7 +74,7 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -159,5 +167,15 @@ mod tests {
 ",
             evaluate("(ok 0x12345678)"),
         );
+    }
+
+    #[test]
+    fn validate_define_const() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-constant map (+ 2 2))");
+        // Custom constant name
+        crosscheck_compare_only("(define-constant a (+ 2 2))");
+        // Custom constant name duplicate
+        crosscheck_compare_only("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))");
     }
 }

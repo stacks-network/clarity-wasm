@@ -19,6 +19,13 @@ impl ComplexWord for DefineTrait {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -112,7 +119,7 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
@@ -254,5 +261,20 @@ mod tests {
             .map_err(|_| ());
 
         assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
+    }
+
+    #[test]
+    fn validate_define_trait() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-trait map ((func (int) (response int int))))");
+        // Custom trait token name
+        crosscheck_compare_only("(define-trait a ((func (int) (response int int))))");
+        // Custom trait name duplicate
+        crosscheck_compare_only(
+            r#"
+        (define-trait a ((func (int) (response int int))))
+         (define-trait a ((func (int) (response int int))))
+         "#,
+        );
     }
 }

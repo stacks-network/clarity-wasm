@@ -28,9 +28,7 @@ impl ComplexWord for Let {
             let pair = bindings.get_list(i)?;
             let name = pair.get_name(0)?;
             let value = pair.get_expr(1)?;
-
-            // make sure name does not collide with builtin or user-defined symbols
-
+            // make sure name does not collide with builtin symbols
             if generator.is_reserved_name(name) {
                 return Err(GeneratorError::InternalError(format!(
                     "Name already used {:?}",
@@ -118,5 +116,15 @@ mod tests {
                 )
             "#,
         )
+    }
+
+    #[test]
+    fn validate_let() {
+        // Reserved keyword
+        crosscheck_compare_only("(let ((map 2)) (+ map map))");
+        // Custom variable name
+        crosscheck_compare_only("(let ((a 2)) (+ a a))");
+        // Custom variable name duplicate
+        crosscheck_compare_only("(let ((a 2) (a 3)) (+ a a))");
     }
 }

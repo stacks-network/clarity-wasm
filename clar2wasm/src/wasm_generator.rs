@@ -1572,10 +1572,10 @@ impl WasmGenerator {
         words::lookup_complex(name).is_some()
             || words::lookup_simple(name).is_some()
             || words::lookup_variadic_simple(name).is_some()
-            || self
-                .contract_analysis
-                .get_public_function_type(name.as_str())
-                .is_some()
+        // || self
+        //     .contract_analysis
+        //     .get_public_function_type(name.as_str())
+        //     .is_some()
     }
 
     pub fn get_sequence_element_type(

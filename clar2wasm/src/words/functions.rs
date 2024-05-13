@@ -22,6 +22,14 @@ impl ComplexWord for DefinePrivateFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
@@ -48,6 +56,14 @@ impl ComplexWord for DefineReadonlyFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         let function_id =
@@ -76,6 +92,14 @@ impl ComplexWord for DefinePublicFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         let function_id =
@@ -89,7 +113,7 @@ impl ComplexWord for DefinePublicFunction {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
     #[test]
     fn top_level_define_first() {
@@ -210,5 +234,35 @@ mod tests {
             "(define-read-only (foo) (list 'S33GG8QRVWKM7AR8EFN0KZHWD5ZXPHKCWPCZ07BHE.A 'S530MSMK2C8KCDN61ZFMYKFXBHKAP6P32P4S74CJ3.a)) (foo)",
             evaluate("(list 'S33GG8QRVWKM7AR8EFN0KZHWD5ZXPHKCWPCZ07BHE.A 'S530MSMK2C8KCDN61ZFMYKFXBHKAP6P32P4S74CJ3.a)")
         );
+    }
+
+    #[test]
+    fn validate_define_private() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-private (map) (ok true))");
+        // Custom function name
+        crosscheck_compare_only("(define-private (a) (ok true))");
+        // Custom functiona name duplicate
+        crosscheck_compare_only("(define-private (a) (ok true))(define-private (a) (ok true))");
+    }
+
+    #[test]
+    fn validate_define_public() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-public (map) (ok true))");
+        // Custom function name
+        crosscheck_compare_only("(define-public (a) (ok true))");
+        // Custom functiona name duplicate
+        crosscheck_compare_only("(define-public (a) (ok true))(define-public (a) (ok true))");
+    }
+
+    #[test]
+    fn validate_define_read_only() {
+        // Rserved keyword
+        crosscheck_compare_only("(define-read-only (map) (ok true))");
+        // Custom function name
+        crosscheck_compare_only("(define-read-only (a) (ok true))");
+        // Custom function name duplicate
+        crosscheck_compare_only("(define-read-only (a) (ok true))(define-read-only (a) (ok true))");
     }
 }

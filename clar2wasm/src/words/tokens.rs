@@ -20,6 +20,14 @@ impl ComplexWord for DefineFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let supply = args.get(1);
 
         // Store the identifier as a string literal in the memory
@@ -233,6 +241,14 @@ impl ComplexWord for DefineNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let _nft_type = args.get_expr(1)?;
 
         // Store the identifier as a string literal in the memory
@@ -479,7 +495,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_compare_only};
 
     #[test]
     fn bar_mint_too_many() {
@@ -498,6 +514,28 @@ mod tests {
 (bar-mint-too-many-2)
 ",
             Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_fungible_tokens() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-fungible-token map u100)");
+        // Custom fungible token name
+        crosscheck_compare_only("(define-fungible-token a u100)");
+        // Custom fungible token name duplicate
+        crosscheck_compare_only("(define-fungible-token a u100) (define-fungible-token a u100)");
+    }
+
+    #[test]
+    fn validate_define_non_fungible_tokens() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-non-fungible-token map (buff 50))");
+        // Custom nft name
+        crosscheck_compare_only("(define-non-fungible-token a (buff 50))");
+        // Custom nft name duplicate
+        crosscheck_compare_only(
+            "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
         );
     }
 }

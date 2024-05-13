@@ -20,6 +20,14 @@ impl ComplexWord for MapDefinition {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let key_type = args.get_expr(1).and_then(|sym_ty| {
             TypeSignature::parse_type_repr(generator.contract_analysis.epoch, sym_ty, &mut ())
                 .map_err(|e| GeneratorError::TypeError(format!("invalid type for map key: {e}")))
@@ -366,7 +374,7 @@ impl ComplexWord for MapDelete {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_compare_only};
 
     #[test]
     fn map_define_get() {
@@ -394,5 +402,17 @@ mod tests {
     #[test]
     fn map_define_set_get() {
         crosscheck("(define-map approved-contracts principal bool) (map-insert approved-contracts tx-sender true) (map-get? approved-contracts tx-sender)", Ok(Some(Value::some(Value::Bool(true)).unwrap())));
+    }
+
+    #[test]
+    fn validate_define_map() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-map map {x: int} {square: int})");
+        // Custom map name
+        crosscheck_compare_only("(define-map a {x: int} {square: int})");
+        // Custom map name duplicate
+        crosscheck_compare_only(
+            "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
+        );
     }
 }

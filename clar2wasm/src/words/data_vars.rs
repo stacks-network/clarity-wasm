@@ -20,6 +20,14 @@ impl ComplexWord for DefineDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let _data_type = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
 
@@ -218,7 +226,7 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
     #[test]
     fn test_var_get() {
@@ -250,5 +258,15 @@ mod tests {
 ",
             evaluate("(ok 5368002525449479521366)"),
         );
+    }
+
+    #[test]
+    fn validate_define_data_var() {
+        // Reserved keyword
+        crosscheck_compare_only("(define-data-var map int 0)");
+        // Custom variable name
+        crosscheck_compare_only("(define-data-var a int 0)");
+        // Custom variable name duplicate
+        crosscheck_compare_only("(define-data-var a int 0) (define-data-var a int 0)");
     }
 }
