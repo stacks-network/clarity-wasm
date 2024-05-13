@@ -9,7 +9,7 @@ use clarity::vm::types::{
     StringSubtype, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
-use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
+use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{
     BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp,
 };
@@ -1569,13 +1569,10 @@ impl WasmGenerator {
     }
 
     pub(crate) fn is_reserved_name(&self, name: &ClarityName) -> bool {
-        words::lookup_complex(name).is_some()
-            || words::lookup_simple(name).is_some()
-            || words::lookup_variadic_simple(name).is_some()
-        // || self
-        //     .contract_analysis
-        //     .get_public_function_type(name.as_str())
-        //     .is_some()
+        let version = self.contract_analysis.clarity_version;
+
+        functions::lookup_reserved_functions(name.as_str(), &version).is_some()
+            || variables::is_reserved_name(name, &version)
     }
 
     pub fn get_sequence_element_type(

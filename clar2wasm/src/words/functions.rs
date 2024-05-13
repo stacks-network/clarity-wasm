@@ -111,9 +111,12 @@ impl ComplexWord for DefinePublicFunction {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_compare_only, crosscheck_compare_only_epoch, evaluate,
+    };
 
     #[test]
     fn top_level_define_first() {
@@ -264,5 +267,32 @@ mod tests {
         crosscheck_compare_only("(define-read-only (a) (ok true))");
         // Custom function name duplicate
         crosscheck_compare_only("(define-read-only (a) (ok true))(define-read-only (a) (ok true))");
+    }
+
+    #[test]
+    fn validate_define_x_epochs() {
+        // Epoch20
+        crosscheck_compare_only_epoch(
+            "(define-private (index-of?) (ok u0))",
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_compare_only_epoch(
+            "(define-private (index-of) (ok u0))",
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_compare_only_epoch(
+            "(define-public (element-at?) (ok u0))",
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_compare_only_epoch(
+            "(define-public (element-at) (ok u0))",
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck_compare_only("(define-private (index-of?) (ok u0))");
+        crosscheck_compare_only("(define-private (index-of) (ok u0))");
+        crosscheck_compare_only("(define-public (element-at?) (ok u0))");
+        crosscheck_compare_only("(define-public (element-at) (ok u0))");
     }
 }
