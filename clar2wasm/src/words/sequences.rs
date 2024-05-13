@@ -1464,6 +1464,19 @@ impl ComplexWord for Slice {
             .binop(BinaryOp::I64Add)
             .local_set(right_local);
 
+        // check if length is negative
+
+        builder.local_get(right_local);
+        builder.local_get(left_local);
+
+        builder.binop(BinaryOp::I64LtU);
+
+        // Or with the overflow indicator.
+        builder
+            .local_get(overflow_local)
+            .binop(BinaryOp::I32Or)
+            .local_set(overflow_local);
+
         // Push a `0` and a `1` to the stack, for none or some, to be selected
         // by the `select` instruction, using the overflow indicator.
         builder.i32_const(0).i32_const(1).local_get(overflow_local);
@@ -1937,5 +1950,33 @@ mod tests {
     #[test]
     fn map_unary() {
         crosscheck("(map - (list 10 20 30))", evaluate("(list -10 -20 -30)"));
+    }
+
+    #[test]
+    fn slice_right_lt_left() {
+        crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
+        crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
+    }
+
+    #[test]
+    fn slice_overflow() {
+        crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
+    }
+
+    #[test]
+    fn slice() {
+        crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
+    }
+
+    #[test]
+    fn slice_null() {
+        crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
+        crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
+        crosscheck("(slice? \"abc\" u2 u2)", evaluate("(some \"\")"));
+    }
+
+    #[test]
+    fn slice_full() {
+        crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
     }
 }
