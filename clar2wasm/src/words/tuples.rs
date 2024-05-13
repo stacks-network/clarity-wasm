@@ -283,7 +283,8 @@ impl ComplexWord for TupleMerge {
 
 #[cfg(test)]
 mod test {
-    use clarity::vm::{types::TupleData, ClarityName, Value};
+    use clarity::vm::types::TupleData;
+    use clarity::vm::{ClarityName, Value};
 
     use crate::tools::crosscheck;
 
