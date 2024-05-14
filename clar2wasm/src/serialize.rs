@@ -7,6 +7,7 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, MemArg, StoreKind};
 use walrus::{InstrSeqBuilder, LocalId, MemoryId, ValType};
 
 use crate::wasm_generator::{clar2wasm_ty, GeneratorError, WasmGenerator};
+use crate::wasm_utils::ordered_tuple_signature;
 
 impl WasmGenerator {
     /// Serialize an integer (`int` or `uint`) to memory using consensus
@@ -827,7 +828,7 @@ impl WasmGenerator {
             .local_tee(write_ptr);
 
         // Now serialize the keys/values to memory
-        for (key, value_ty) in tuple_ty.get_type_map() {
+        for (key, value_ty) in ordered_tuple_signature(tuple_ty) {
             // Serialize the key length
             builder.i32_const(key.len() as i32).store(
                 memory,

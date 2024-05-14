@@ -8,6 +8,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -331,11 +332,10 @@ fn assign_to_locals(
         }
         (TypeSignature::TupleType(t), TypeSignature::TupleType(s)) => {
             let mut remaining_locals = locals;
-            for (tt, ss) in t
-                .get_type_map()
+            for (tt, ss) in ordered_tuple_signature(t)
                 .values()
                 .rev()
-                .zip(s.get_type_map().values().rev())
+                .zip(ordered_tuple_signature(s).values().rev())
             {
                 let tt_size = clar2wasm_ty(tt).len();
                 let (rest, cur_locals) =
@@ -707,7 +707,7 @@ fn wasm_equal_tuple(
     // ```
     // we have to build the if sequence bottom-up
 
-    let field_types = tuple_ty.get_type_map();
+    let field_types = owned_ordered_tuple_signature(tuple_ty);
 
     // this is the number of elements in the tuple. Always >= 1 due to Clarity constraints.
     let mut depth = field_types.len();
@@ -728,7 +728,8 @@ fn wasm_equal_tuple(
     );
 
     // types for nth argument
-    let mut nth_types = nth_tuple_ty.get_type_map().values().rev();
+    let nth_type_map = ordered_tuple_signature(nth_tuple_ty);
+    let mut nth_types = nth_type_map.values().rev();
 
     // if this is a 1-tuple, we can just check for equality of element
     if depth == 1 {

@@ -11,6 +11,7 @@ use walrus::{InstrSeqBuilder, LocalId, MemoryId, ValType};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::ordered_tuple_signature;
 
 impl WasmGenerator {
     /// Deserialize an integer (`int` or `uint`) from memory using consensus
@@ -1048,7 +1049,7 @@ impl WasmGenerator {
 
         // For each key in the type, verify that the key matches the type,
         // and deserialize the value.
-        for (key, value_ty) in tuple_ty.get_type_map() {
+        for (key, value_ty) in ordered_tuple_signature(tuple_ty) {
             // The key is a 1-byte length followed by the string bytes.
             // First, verify that the key is within the buffer.
             block

@@ -513,11 +513,12 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.3.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#96aba4746c9db60200b26147a0b1368fae4664b2"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#b141dd00fc753e14ad93e43d9681a3d65e4805f0"
 dependencies = [
  "hashbrown 0.14.3",
  "integer-sqrt",
  "lazy_static",
+ "mutants",
  "rand",
  "rand_chacha",
  "regex",
@@ -528,7 +529,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_stacker",
- "sha2-asm",
+ "sha2-asm 0.5.5",
  "slog",
  "stacks-common",
  "wasmtime",
@@ -1689,6 +1690,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutants"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc0287524726960e07b119cebd01678f852f147742ae0d925e6a520dca956126"
+
+[[package]]
 name = "nix"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,9 +1818,9 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "p256k1"
-version = "7.0.0"
+version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a64d160b891178fb9d43d1a58ddcafb6502daeb54d810e5e92a7c3c9bfacc07"
+checksum = "a40a031a559eb38c35a14096f21c366254501a06d41c4b327d2a7515d713a5b7"
 dependencies = [
  "bitvec",
  "bs58 0.4.0",
@@ -2548,6 +2555,7 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.7",
+ "sha2-asm 0.6.3",
 ]
 
 [[package]]
@@ -2555,6 +2563,15 @@ name = "sha2-asm"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7c2f225be6502f2134e6bbb35bb5e2957e41ffa0495ed08bce2e2b4ca885da4"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "sha2-asm"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f27ba7066011e3fb30d808b51affff34f0a66d3a03a58edd787c6e420e40e44e"
 dependencies = [
  "cc",
 ]
@@ -2677,7 +2694,7 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.2"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#96aba4746c9db60200b26147a0b1368fae4664b2"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#b141dd00fc753e14ad93e43d9681a3d65e4805f0"
 dependencies = [
  "chrono",
  "curve25519-dalek 2.0.0",
@@ -3800,9 +3817,9 @@ dependencies = [
 
 [[package]]
 name = "wsts"
-version = "8.1.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467aa8e40ed0277d19922fd0e7357c16552cb900e5138f61a48ac23c4b7878e0"
+checksum = "9c80d57a61294350ed91e91eb20a6c34da084ec8f15d039bab79ce3efabbd1a4"
 dependencies = [
  "aes-gcm",
  "bs58 0.5.0",

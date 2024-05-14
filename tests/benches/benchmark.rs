@@ -155,6 +155,7 @@ fn interp_fold_add_square(c: &mut Criterion) {
         cost_tracker,
         StacksEpochId::latest(),
         ClarityVersion::latest(),
+        true,
     )
     .expect("Failed to run analysis");
 
