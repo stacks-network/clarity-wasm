@@ -188,6 +188,9 @@ impl ComplexWord for Filter {
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
+        let expr_ty = generator.get_expr_type(_expr).unwrap().clone();
+        generator.set_expr_type(sequence, expr_ty)?;
+
         generator.traverse_expr(builder, sequence)?;
 
         // Get the type of the sequence
