@@ -3516,9 +3516,15 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 // Read in the bytes from the Wasm memory
-                let bytes = read_bytes_from_wasm(memory, &mut caller, value_offset, value_length)?;
+                let bytes = dbg!(read_bytes_from_wasm(
+                    memory,
+                    &mut caller,
+                    value_offset,
+                    value_length
+                ))?;
 
-                let clarity_val = Value::deserialize_read(&mut bytes.as_slice(), None, false)?;
+                let clarity_val =
+                    dbg!(Value::deserialize_read(&mut bytes.as_slice(), None, false))?;
 
                 if cfg!(feature = "developer-mode") {
                     //debug!("{}", &clarity_val);

@@ -366,8 +366,7 @@ pub fn initialize_contract(
         results.push(placeholder_for_type(result_ty));
     }
 
-    top_level
-        .call(&mut store, &[], results.as_mut_slice())
+    dbg!(top_level.call(&mut store, &[], results.as_mut_slice()))
         .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
 
     // Save the compiled Wasm module into the contract context
