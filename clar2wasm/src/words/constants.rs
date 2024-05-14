@@ -74,7 +74,7 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -172,10 +172,13 @@ mod tests {
     #[test]
     fn validate_define_const() {
         // Reserved keyword
-        crosscheck_compare_only("(define-constant map (+ 2 2))");
+        crosscheck("(define-constant map (+ 2 2))", Err(()));
         // Custom constant name
-        crosscheck_compare_only("(define-constant a (+ 2 2))");
+        crosscheck("(define-constant a (+ 2 2))", Ok(None));
         // Custom constant name duplicate
-        crosscheck_compare_only("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))");
+        crosscheck(
+            "(define-constant a (+ 2 2)) (define-constant a (+ 2 2))",
+            Err(()),
+        );
     }
 }

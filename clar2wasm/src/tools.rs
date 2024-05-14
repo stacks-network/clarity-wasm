@@ -400,7 +400,7 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     );
 }
 
-pub fn crosscheck_compare_only_epoch(snippet: &str, epoch: StacksEpochId) {
+pub fn crosscheck_at(snippet: &str, expected: Result<Option<Value>, ()>, epoch: StacksEpochId) {
     let clarity_version = ClarityVersion::default_for_epoch(epoch);
     let compiled = evaluate_at(snippet, epoch, clarity_version);
     let interpreted = interpret_at(snippet, epoch, clarity_version);
@@ -408,10 +408,16 @@ pub fn crosscheck_compare_only_epoch(snippet: &str, epoch: StacksEpochId) {
     assert_eq!(
         compiled.as_ref().map_err(|_| &()),
         interpreted.as_ref().map_err(|_| &()),
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet,
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
         &compiled,
         &interpreted
+    );
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        expected.as_ref(),
+        "value is not the expected {:?}",
+        compiled
     );
 }
 

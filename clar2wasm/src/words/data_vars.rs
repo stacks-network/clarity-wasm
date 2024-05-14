@@ -226,7 +226,7 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_var_get() {
@@ -263,10 +263,13 @@ mod tests {
     #[test]
     fn validate_define_data_var() {
         // Reserved keyword
-        crosscheck_compare_only("(define-data-var map int 0)");
+        crosscheck("(define-data-var map int 0)", Err(()));
         // Custom variable name
-        crosscheck_compare_only("(define-data-var a int 0)");
+        crosscheck("(define-data-var a int 0)", Ok(None));
         // Custom variable name duplicate
-        crosscheck_compare_only("(define-data-var a int 0) (define-data-var a int 0)");
+        crosscheck(
+            "(define-data-var a int 0) (define-data-var a int 0)",
+            Err(()),
+        );
     }
 }

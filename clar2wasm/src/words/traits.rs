@@ -119,7 +119,7 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
@@ -266,15 +266,22 @@ mod tests {
     #[test]
     fn validate_define_trait() {
         // Reserved keyword
-        crosscheck_compare_only("(define-trait map ((func (int) (response int int))))");
+        crosscheck(
+            "(define-trait map ((func (int) (response int int))))",
+            Err(()),
+        );
         // Custom trait token name
-        crosscheck_compare_only("(define-trait a ((func (int) (response int int))))");
+        crosscheck(
+            "(define-trait a ((func (int) (response int int))))",
+            Ok(None),
+        );
         // Custom trait name duplicate
-        crosscheck_compare_only(
+        crosscheck(
             r#"
         (define-trait a ((func (int) (response int int))))
          (define-trait a ((func (int) (response int int))))
          "#,
+            Err(()),
         );
     }
 }

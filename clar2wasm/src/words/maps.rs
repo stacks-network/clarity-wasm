@@ -374,7 +374,7 @@ impl ComplexWord for MapDelete {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only};
+    use crate::tools::crosscheck;
 
     #[test]
     fn map_define_get() {
@@ -407,12 +407,13 @@ mod tests {
     #[test]
     fn validate_define_map() {
         // Reserved keyword
-        crosscheck_compare_only("(define-map map {x: int} {square: int})");
+        crosscheck("(define-map map {x: int} {square: int})", Err(()));
         // Custom map name
-        crosscheck_compare_only("(define-map a {x: int} {square: int})");
+        crosscheck("(define-map a {x: int} {square: int})", Ok(None));
         // Custom map name duplicate
-        crosscheck_compare_only(
+        crosscheck(
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
+            Err(()),
         );
     }
 }

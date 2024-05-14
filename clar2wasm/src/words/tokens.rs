@@ -495,7 +495,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, crosscheck_compare_only};
+    use crate::tools::crosscheck;
 
     #[test]
     fn bar_mint_too_many() {
@@ -520,22 +520,26 @@ mod tests {
     #[test]
     fn validate_define_fungible_tokens() {
         // Reserved keyword
-        crosscheck_compare_only("(define-fungible-token map u100)");
+        crosscheck("(define-fungible-token map u100)", Err(()));
         // Custom fungible token name
-        crosscheck_compare_only("(define-fungible-token a u100)");
+        crosscheck("(define-fungible-token a u100)", Ok(None));
         // Custom fungible token name duplicate
-        crosscheck_compare_only("(define-fungible-token a u100) (define-fungible-token a u100)");
+        crosscheck(
+            "(define-fungible-token a u100) (define-fungible-token a u100)",
+            Err(()),
+        );
     }
 
     #[test]
     fn validate_define_non_fungible_tokens() {
         // Reserved keyword
-        crosscheck_compare_only("(define-non-fungible-token map (buff 50))");
+        crosscheck("(define-non-fungible-token map (buff 50))", Err(()));
         // Custom nft name
-        crosscheck_compare_only("(define-non-fungible-token a (buff 50))");
+        crosscheck("(define-non-fungible-token a (buff 50))", Ok(None));
         // Custom nft name duplicate
-        crosscheck_compare_only(
+        crosscheck(
             "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
+            Err(()),
         );
     }
 }

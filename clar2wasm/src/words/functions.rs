@@ -114,9 +114,7 @@ mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{
-        crosscheck, crosscheck_compare_only, crosscheck_compare_only_epoch, evaluate,
-    };
+    use crate::tools::{crosscheck, crosscheck_at, evaluate};
 
     #[test]
     fn top_level_define_first() {
@@ -242,57 +240,70 @@ mod tests {
     #[test]
     fn validate_define_private() {
         // Reserved keyword
-        crosscheck_compare_only("(define-private (map) (ok true))");
+        crosscheck("(define-private (map) (ok true))", Err(()));
         // Custom function name
-        crosscheck_compare_only("(define-private (a) (ok true))");
+        crosscheck("(define-private (a) (ok true))", Ok(None));
         // Custom functiona name duplicate
-        crosscheck_compare_only("(define-private (a) (ok true))(define-private (a) (ok true))");
+        crosscheck(
+            "(define-private (a) (ok true))(define-private (a) (ok true))",
+            Err(()),
+        );
     }
 
     #[test]
     fn validate_define_public() {
         // Reserved keyword
-        crosscheck_compare_only("(define-public (map) (ok true))");
+        crosscheck("(define-public (map) (ok true))", Err(()));
         // Custom function name
-        crosscheck_compare_only("(define-public (a) (ok true))");
+        crosscheck("(define-public (a) (ok true))", Ok(None));
         // Custom functiona name duplicate
-        crosscheck_compare_only("(define-public (a) (ok true))(define-public (a) (ok true))");
+        crosscheck(
+            "(define-public (a) (ok true))(define-public (a) (ok true))",
+            Err(()),
+        );
     }
 
     #[test]
     fn validate_define_read_only() {
         // Rserved keyword
-        crosscheck_compare_only("(define-read-only (map) (ok true))");
+        crosscheck("(define-read-only (map) (ok true))", Err(()));
         // Custom function name
-        crosscheck_compare_only("(define-read-only (a) (ok true))");
+        crosscheck("(define-read-only (a) (ok true))", Ok(None));
         // Custom function name duplicate
-        crosscheck_compare_only("(define-read-only (a) (ok true))(define-read-only (a) (ok true))");
+        crosscheck(
+            "(define-read-only (a) (ok true))(define-read-only (a) (ok true))",
+            Err(()),
+        );
     }
 
     #[test]
     fn validate_define_x_epochs() {
         // Epoch20
-        crosscheck_compare_only_epoch(
+        crosscheck_at(
             "(define-private (index-of?) (ok u0))",
+            Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_compare_only_epoch(
+        crosscheck_at(
             "(define-private (index-of) (ok u0))",
+            Err(()),
             StacksEpochId::Epoch20,
         );
-        crosscheck_compare_only_epoch(
+        crosscheck_at(
             "(define-public (element-at?) (ok u0))",
+            Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_compare_only_epoch(
+        crosscheck_at(
             "(define-public (element-at) (ok u0))",
+            Err(()),
             StacksEpochId::Epoch20,
         );
 
         // Latest Epoch and clarity version
-        crosscheck_compare_only("(define-private (index-of?) (ok u0))");
-        crosscheck_compare_only("(define-private (index-of) (ok u0))");
-        crosscheck_compare_only("(define-public (element-at?) (ok u0))");
-        crosscheck_compare_only("(define-public (element-at) (ok u0))");
+        crosscheck("(define-private (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-private (index-of) (ok u0))", Err(()));
+        crosscheck("(define-public (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-public (element-at) (ok u0))", Err(()));
     }
 }

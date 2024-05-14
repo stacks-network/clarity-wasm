@@ -78,6 +78,8 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::Value;
+
     use crate::tools::{crosscheck, crosscheck_compare_only};
 
     #[test]
@@ -121,10 +123,10 @@ mod tests {
     #[test]
     fn validate_let() {
         // Reserved keyword
-        crosscheck_compare_only("(let ((map 2)) (+ map map))");
+        crosscheck("(let ((map 2)) (+ map map))", Err(()));
         // Custom variable name
-        crosscheck_compare_only("(let ((a 2)) (+ a a))");
+        crosscheck("(let ((a 2)) (+ a a))", Ok(Some(Value::Int(4))));
         // Custom variable name duplicate
-        crosscheck_compare_only("(let ((a 2) (a 3)) (+ a a))");
+        crosscheck("(let ((a 2) (a 3)) (+ a a))", Err(()));
     }
 }
