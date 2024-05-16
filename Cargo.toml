@@ -1,5 +1,5 @@
 [workspace]
-members = ["clar2wasm", "tests"]
+members = ["clar2wasm"]
 exclude = ["stacks-core"]
 resolver = "2"
 

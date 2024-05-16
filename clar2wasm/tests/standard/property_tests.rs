@@ -1,16 +1,16 @@
 use std::cell::RefCell;
 use std::ops::DerefMut;
 
+use clar2wasm::linker::load_stdlib;
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use clarity::util::hash::{Hash160, Sha256Sum, Sha512Sum};
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
 use crate::utils::{
-    self, load_stdlib, medium_int128, medium_uint128, small_int128, small_uint128,
-    test_buff_comparison, test_buff_to_uint, test_on_buffer_hash, test_on_int_hash,
-    test_on_uint_hash, tiny_int128, tiny_uint128, FromWasmResult, PropInt, SIGNED_STRATEGIES,
-    UNSIGNED_STRATEGIES,
+    self, medium_int128, medium_uint128, small_int128, small_uint128, test_buff_comparison,
+    test_buff_to_uint, test_on_buffer_hash, test_on_int_hash, test_on_uint_hash, tiny_int128,
+    tiny_uint128, FromWasmResult, PropInt, SIGNED_STRATEGIES, UNSIGNED_STRATEGIES,
 };
 
 #[test]

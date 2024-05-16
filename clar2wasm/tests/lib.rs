@@ -8,9 +8,10 @@ mod tests {
     #[test]
     /// Specific test for the fix of [issue 340](https://github.com/stacks-network/clarity-wasm/issues/340)
     fn test_bns_contract_latest() {
-        let bns =
-            std::fs::read_to_string(env!("CARGO_MANIFEST_DIR").to_owned() + "/contracts/bns.clar")
-                .expect("Can't find bns contract");
+        let bns = std::fs::read_to_string(
+            env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/contracts/bns.clar",
+        )
+        .expect("Can't find bns contract");
 
         // check for normal behavior with latest epoch/version
         clar2wasm::tools::crosscheck(&bns, Ok(None));

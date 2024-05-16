@@ -13,7 +13,7 @@ fn test_clar2wasm_no_args() {
 fn test_clar2wasm_with_input() {
     let temp = assert_fs::TempDir::new().unwrap();
 
-    for file in std::fs::read_dir("./contracts/").unwrap() {
+    for file in std::fs::read_dir("./tests/contracts/").unwrap() {
         let file = file.unwrap();
         if file.path().extension().unwrap_or(OsStr::new("")) != "clar" {
             continue;
