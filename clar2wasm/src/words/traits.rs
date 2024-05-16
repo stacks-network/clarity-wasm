@@ -116,10 +116,11 @@ impl ComplexWord for ImplTrait {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
@@ -281,6 +282,31 @@ mod tests {
         (define-trait a ((func (int) (response int int))))
          (define-trait a ((func (int) (response int int))))
          "#,
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_trait_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-trait index-of ((func (int) (response int int))))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-trait index-of? ((func (int) (response int int))))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck(
+            "(define-trait index-of ((func (int) (response int int))))",
+            Err(()),
+        );
+        crosscheck(
+            "(define-trait index-of? ((func (int) (response int int))))",
             Err(()),
         );
     }

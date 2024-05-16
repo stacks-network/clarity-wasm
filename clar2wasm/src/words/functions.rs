@@ -114,7 +114,7 @@ mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_at, evaluate};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn top_level_define_first() {
@@ -277,25 +277,25 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_x_epochs() {
+    fn validate_define_private_epoch() {
         // Epoch20
-        crosscheck_at(
+        crosscheck_with_epoch(
             "(define-private (index-of?) (ok u0))",
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_at(
+        crosscheck_with_epoch(
             "(define-private (index-of) (ok u0))",
             Err(()),
             StacksEpochId::Epoch20,
         );
-        crosscheck_at(
-            "(define-public (element-at?) (ok u0))",
+        crosscheck_with_epoch(
+            "(define-private (element-at?) (ok u0))",
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_at(
-            "(define-public (element-at) (ok u0))",
+        crosscheck_with_epoch(
+            "(define-private (element-at) (ok u0))",
             Err(()),
             StacksEpochId::Epoch20,
         );
@@ -303,7 +303,69 @@ mod tests {
         // Latest Epoch and clarity version
         crosscheck("(define-private (index-of?) (ok u0))", Err(()));
         crosscheck("(define-private (index-of) (ok u0))", Err(()));
+        crosscheck("(define-private (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-private (element-at) (ok u0))", Err(()));
+    }
+
+    #[test]
+    fn validate_define_public_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-public (index-of?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (index-of) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (element-at?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (element-at) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck("(define-public (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-public (index-of) (ok u0))", Err(()));
         crosscheck("(define-public (element-at?) (ok u0))", Err(()));
         crosscheck("(define-public (element-at) (ok u0))", Err(()));
+    }
+
+    #[test]
+    fn validate_define_read_only_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-read-only (index-of?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (index-of) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (element-at?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (element-at) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck("(define-read-only (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-read-only (index-of) (ok u0))", Err(()));
+        crosscheck("(define-read-only (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-read-only (element-at) (ok u0))", Err(()));
     }
 }

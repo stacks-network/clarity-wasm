@@ -78,9 +78,10 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only};
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch};
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -128,5 +129,20 @@ mod tests {
         crosscheck("(let ((a 2)) (+ a a))", Ok(Some(Value::Int(4))));
         // Custom variable name duplicate
         crosscheck("(let ((a 2) (a 3)) (+ a a))", Err(()));
+    }
+
+    #[test]
+    fn validate_let_epoch() {
+        // Epoch20
+        crosscheck_with_epoch("(let ((index-of 2)) 2)", Err(()), StacksEpochId::Epoch20);
+        crosscheck_with_epoch(
+            "(let ((index-of? 2)) (+ index-of? index-of?))",
+            Ok(Some(Value::Int(4))),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(let ((index-of 2)) 2)", Err(()));
+        crosscheck("let ((index-of? 2)) 2)", Err(()));
     }
 }

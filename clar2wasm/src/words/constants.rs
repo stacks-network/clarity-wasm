@@ -71,10 +71,11 @@ impl ComplexWord for DefineConstant {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -180,5 +181,24 @@ mod tests {
             "(define-constant a (+ 2 2)) (define-constant a (+ 2 2))",
             Err(()),
         );
+    }
+
+    #[test]
+    fn validate_define_const_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-constant index-of? (+ 2 2))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-constant index-of (+ 2 2))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-constant index-of (+ 2 2))", Err(()));
+        crosscheck("(define-constant index-of? (+ 2 2))", Err(()));
     }
 }

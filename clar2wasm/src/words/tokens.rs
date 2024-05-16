@@ -495,7 +495,9 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck;
+    use clarity::types::StacksEpochId;
+
+    use crate::tools::{crosscheck, crosscheck_with_epoch};
 
     #[test]
     fn bar_mint_too_many() {
@@ -531,6 +533,25 @@ mod tests {
     }
 
     #[test]
+    fn validate_define_fungible_tokens_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-fungible-token index-of u100)",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-fungible-token index-of? u100)",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-fungible-token index-of? u100)", Err(()));
+        crosscheck("(define-fungible-token index-of u100)", Err(()));
+    }
+
+    #[test]
     fn validate_define_non_fungible_tokens() {
         // Reserved keyword
         crosscheck("(define-non-fungible-token map (buff 50))", Err(()));
@@ -541,5 +562,24 @@ mod tests {
             "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
             Err(()),
         );
+    }
+
+    #[test]
+    fn validate_define_non_fungible_tokens_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-non-fungible-token index-of (buff 50))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-non-fungible-token index-of? (buff 50))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-non-fungible-token index-of (buff 50))", Err(()));
+        crosscheck("(define-non-fungible-token index-of? (buff 50))", Err(()));
     }
 }

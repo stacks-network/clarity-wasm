@@ -372,9 +372,10 @@ impl ComplexWord for MapDelete {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_with_epoch};
 
     #[test]
     fn map_define_get() {
@@ -415,5 +416,25 @@ mod tests {
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
             Err(()),
         );
+    }
+
+    #[test]
+    fn validate_define_map_epoch() {
+        // Epoch
+        crosscheck_with_epoch(
+            "(define-map index-of {x: int} {square: int})",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-map index-of? {x: int} {square: int})",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        // Epoch
+        crosscheck("(define-map index-of {x: int} {square: int})", Err(()));
+        crosscheck("(define-map index-of? {x: int} {square: int})", Err(()));
     }
 }
