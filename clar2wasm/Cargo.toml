@@ -25,7 +25,7 @@ flamegraph = []
 pb = []
 
 [dev-dependencies]
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next", features = ["testing"] }
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", features = ["testing"] }
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
