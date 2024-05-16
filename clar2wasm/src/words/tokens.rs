@@ -20,6 +20,14 @@ impl ComplexWord for DefineFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let supply = args.get(1);
 
         // Store the identifier as a string literal in the memory
@@ -233,6 +241,14 @@ impl ComplexWord for DefineNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let _nft_type = args.get_expr(1)?;
 
         // Store the identifier as a string literal in the memory
@@ -479,7 +495,9 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck;
+    use clarity::types::StacksEpochId;
+
+    use crate::tools::{crosscheck, crosscheck_with_epoch};
 
     #[test]
     fn bar_mint_too_many() {
@@ -499,5 +517,69 @@ mod tests {
 ",
             Err(()),
         );
+    }
+
+    #[test]
+    fn validate_define_fungible_tokens() {
+        // Reserved keyword
+        crosscheck("(define-fungible-token map u100)", Err(()));
+        // Custom fungible token name
+        crosscheck("(define-fungible-token a u100)", Ok(None));
+        // Custom fungible token name duplicate
+        crosscheck(
+            "(define-fungible-token a u100) (define-fungible-token a u100)",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_fungible_tokens_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-fungible-token index-of u100)",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-fungible-token index-of? u100)",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-fungible-token index-of? u100)", Err(()));
+        crosscheck("(define-fungible-token index-of u100)", Err(()));
+    }
+
+    #[test]
+    fn validate_define_non_fungible_tokens() {
+        // Reserved keyword
+        crosscheck("(define-non-fungible-token map (buff 50))", Err(()));
+        // Custom nft name
+        crosscheck("(define-non-fungible-token a (buff 50))", Ok(None));
+        // Custom nft name duplicate
+        crosscheck(
+            "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_non_fungible_tokens_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-non-fungible-token index-of (buff 50))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-non-fungible-token index-of? (buff 50))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-non-fungible-token index-of (buff 50))", Err(()));
+        crosscheck("(define-non-fungible-token index-of? (buff 50))", Err(()));
     }
 }

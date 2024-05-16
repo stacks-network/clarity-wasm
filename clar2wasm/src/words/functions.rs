@@ -22,6 +22,14 @@ impl ComplexWord for DefinePrivateFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
@@ -48,6 +56,14 @@ impl ComplexWord for DefineReadonlyFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         let function_id =
@@ -76,6 +92,14 @@ impl ComplexWord for DefinePublicFunction {
             return Err(GeneratorError::NotImplemented);
         };
         let name = signature.get_name(0)?;
+        // Making sure name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let body = args.get_expr(1)?;
 
         let function_id =
@@ -87,9 +111,10 @@ impl ComplexWord for DefinePublicFunction {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn top_level_define_first() {
@@ -210,5 +235,137 @@ mod tests {
             "(define-read-only (foo) (list 'S33GG8QRVWKM7AR8EFN0KZHWD5ZXPHKCWPCZ07BHE.A 'S530MSMK2C8KCDN61ZFMYKFXBHKAP6P32P4S74CJ3.a)) (foo)",
             evaluate("(list 'S33GG8QRVWKM7AR8EFN0KZHWD5ZXPHKCWPCZ07BHE.A 'S530MSMK2C8KCDN61ZFMYKFXBHKAP6P32P4S74CJ3.a)")
         );
+    }
+
+    #[test]
+    fn validate_define_private() {
+        // Reserved keyword
+        crosscheck("(define-private (map) (ok true))", Err(()));
+        // Custom function name
+        crosscheck("(define-private (a) (ok true))", Ok(None));
+        // Custom functiona name duplicate
+        crosscheck(
+            "(define-private (a) (ok true))(define-private (a) (ok true))",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_public() {
+        // Reserved keyword
+        crosscheck("(define-public (map) (ok true))", Err(()));
+        // Custom function name
+        crosscheck("(define-public (a) (ok true))", Ok(None));
+        // Custom functiona name duplicate
+        crosscheck(
+            "(define-public (a) (ok true))(define-public (a) (ok true))",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_read_only() {
+        // Rserved keyword
+        crosscheck("(define-read-only (map) (ok true))", Err(()));
+        // Custom function name
+        crosscheck("(define-read-only (a) (ok true))", Ok(None));
+        // Custom function name duplicate
+        crosscheck(
+            "(define-read-only (a) (ok true))(define-read-only (a) (ok true))",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_private_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-private (index-of?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-private (index-of) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-private (element-at?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-private (element-at) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck("(define-private (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-private (index-of) (ok u0))", Err(()));
+        crosscheck("(define-private (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-private (element-at) (ok u0))", Err(()));
+    }
+
+    #[test]
+    fn validate_define_public_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-public (index-of?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (index-of) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (element-at?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-public (element-at) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck("(define-public (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-public (index-of) (ok u0))", Err(()));
+        crosscheck("(define-public (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-public (element-at) (ok u0))", Err(()));
+    }
+
+    #[test]
+    fn validate_define_read_only_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-read-only (index-of?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (index-of) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (element-at?) (ok u0))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-read-only (element-at) (ok u0))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and clarity version
+        crosscheck("(define-read-only (index-of?) (ok u0))", Err(()));
+        crosscheck("(define-read-only (index-of) (ok u0))", Err(()));
+        crosscheck("(define-read-only (element-at?) (ok u0))", Err(()));
+        crosscheck("(define-read-only (element-at) (ok u0))", Err(()));
     }
 }

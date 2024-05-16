@@ -19,6 +19,13 @@ impl ComplexWord for DefineTrait {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -109,10 +116,11 @@ impl ComplexWord for ImplTrait {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
 
     #[test]
     fn define_trait_eval() {
@@ -254,5 +262,52 @@ mod tests {
             .map_err(|_| ());
 
         assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
+    }
+
+    #[test]
+    fn validate_define_trait() {
+        // Reserved keyword
+        crosscheck(
+            "(define-trait map ((func (int) (response int int))))",
+            Err(()),
+        );
+        // Custom trait token name
+        crosscheck(
+            "(define-trait a ((func (int) (response int int))))",
+            Ok(None),
+        );
+        // Custom trait name duplicate
+        crosscheck(
+            r#"
+        (define-trait a ((func (int) (response int int))))
+         (define-trait a ((func (int) (response int int))))
+         "#,
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_trait_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-trait index-of ((func (int) (response int int))))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-trait index-of? ((func (int) (response int int))))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck(
+            "(define-trait index-of ((func (int) (response int int))))",
+            Err(()),
+        );
+        crosscheck(
+            "(define-trait index-of? ((func (int) (response int int))))",
+            Err(()),
+        );
     }
 }

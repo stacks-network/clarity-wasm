@@ -20,6 +20,14 @@ impl ComplexWord for DefineDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let _data_type = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
 
@@ -218,7 +226,9 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, evaluate};
+    use clarity::types::StacksEpochId;
+
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn test_var_get() {
@@ -250,5 +260,36 @@ mod tests {
 ",
             evaluate("(ok 5368002525449479521366)"),
         );
+    }
+
+    #[test]
+    fn validate_define_data_var() {
+        // Reserved keyword
+        crosscheck("(define-data-var map int 0)", Err(()));
+        // Custom variable name
+        crosscheck("(define-data-var a int 0)", Ok(None));
+        // Custom variable name duplicate
+        crosscheck(
+            "(define-data-var a int 0) (define-data-var a int 0)",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_data_var_epoch() {
+        crosscheck_with_epoch(
+            "(define-data-var index-of int 0)",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-data-var index-of? int 0)",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-data-var index-of int 0)", Err(()));
+        crosscheck("(define-data-var index-of? int 0)", Err(()));
     }
 }

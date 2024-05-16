@@ -401,6 +401,31 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     );
 }
 
+pub fn crosscheck_with_epoch(
+    snippet: &str,
+    expected: Result<Option<Value>, ()>,
+    epoch: StacksEpochId,
+) {
+    let clarity_version = ClarityVersion::default_for_epoch(epoch);
+    let compiled = evaluate_at(snippet, epoch, clarity_version);
+    let interpreted = interpret_at(snippet, epoch, clarity_version);
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        interpreted.as_ref().map_err(|_| &()),
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
+        &compiled,
+        &interpreted
+    );
+
+    assert_eq!(
+        compiled.as_ref().map_err(|_| &()),
+        expected.as_ref(),
+        "value is not the expected {:?}",
+        compiled
+    );
+}
+
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
     let interpreted = interpret(snippet);

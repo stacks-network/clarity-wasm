@@ -21,6 +21,14 @@ impl ComplexWord for DefineConstant {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let name = args.get_name(0)?;
+        // Making sure if name is not reserved
+        if generator.is_reserved_name(name) {
+            return Err(GeneratorError::InternalError(format!(
+                "Name already used {:?}",
+                name
+            )));
+        }
+
         let value = args.get_expr(1)?;
 
         // If the initial value is a literal, then we can directly add it to
@@ -63,10 +71,11 @@ impl ComplexWord for DefineConstant {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -159,5 +168,37 @@ mod tests {
 ",
             evaluate("(ok 0x12345678)"),
         );
+    }
+
+    #[test]
+    fn validate_define_const() {
+        // Reserved keyword
+        crosscheck("(define-constant map (+ 2 2))", Err(()));
+        // Custom constant name
+        crosscheck("(define-constant a (+ 2 2))", Ok(None));
+        // Custom constant name duplicate
+        crosscheck(
+            "(define-constant a (+ 2 2)) (define-constant a (+ 2 2))",
+            Err(()),
+        );
+    }
+
+    #[test]
+    fn validate_define_const_epoch() {
+        // Epoch20
+        crosscheck_with_epoch(
+            "(define-constant index-of? (+ 2 2))",
+            Ok(None),
+            StacksEpochId::Epoch20,
+        );
+        crosscheck_with_epoch(
+            "(define-constant index-of (+ 2 2))",
+            Err(()),
+            StacksEpochId::Epoch20,
+        );
+
+        // Latest Epoch and Clarity Version
+        crosscheck("(define-constant index-of (+ 2 2))", Err(()));
+        crosscheck("(define-constant index-of? (+ 2 2))", Err(()));
     }
 }
