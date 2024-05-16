@@ -1,8 +1,7 @@
+use clar2wasm::linker::load_stdlib;
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use hex::FromHex;
 use wasmtime::Val;
-
-use clar2wasm::linker::load_stdlib;
 
 #[test]
 fn test_add_uint() {
