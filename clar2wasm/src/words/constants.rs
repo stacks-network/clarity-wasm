@@ -72,7 +72,7 @@ impl ComplexWord for DefineConstant {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{ListData, ListTypeData, SequenceData};
+    use clarity::vm::types::{ASCIIData, CharType, ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
@@ -200,5 +200,17 @@ mod tests {
         // Latest Epoch and Clarity Version
         crosscheck("(define-constant index-of (+ 2 2))", Err(()));
         crosscheck("(define-constant index-of? (+ 2 2))", Err(()));
+    }
+
+    #[test]
+    fn test_non_litteral_string() {
+        crosscheck(
+            r#"(define-constant cst (concat "Hello," " World!")) cst"#,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "Hello, World!".bytes().collect(),
+                }),
+            )))),
+        )
     }
 }
