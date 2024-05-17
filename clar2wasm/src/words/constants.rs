@@ -1,14 +1,10 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
-use walrus::{
-    ir::{MemArg, StoreKind},
-    ValType,
-};
+use walrus::ir::{MemArg, StoreKind};
+use walrus::ValType;
 
 use super::ComplexWord;
-use crate::{
-    wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator},
-    wasm_utils::{get_type_size, is_in_memory_type},
-};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{get_type_size, is_in_memory_type};
 
 #[derive(Debug)]
 pub struct DefineConstant;
@@ -46,8 +42,8 @@ impl ComplexWord for DefineConstant {
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
             let (mut offset, len) = generator.add_literal(value)?;
 
-            // in-memory litterals should write (offset, len) to memory, so that their
-            // representation is consistent with in-memory non-litterals.
+            // in-memory literals should write (offset, len) to memory, so that their
+            // representation is consistent with in-memory non-literals.
             if is_in_memory_type(&ty) {
                 let ref_offset = generator.literal_memory_end;
                 generator.literal_memory_end += 8; // offset + len bytes
@@ -241,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_litteral_string() {
+    fn test_non_literal_string() {
         crosscheck(
             r#"(define-constant cst (concat "Hello," " World!")) cst"#,
             Ok(Some(Value::Sequence(SequenceData::String(
