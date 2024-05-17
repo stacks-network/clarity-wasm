@@ -1,9 +1,14 @@
-use clarity::vm::clarity_wasm::get_type_in_memory_size;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
-use walrus::ValType;
+use walrus::{
+    ir::{MemArg, StoreKind},
+    ValType,
+};
 
 use super::ComplexWord;
-use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::{
+    wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator},
+    wasm_utils::{get_type_size, is_in_memory_type},
+};
 
 #[derive(Debug)]
 pub struct DefineConstant;
@@ -31,10 +36,50 @@ impl ComplexWord for DefineConstant {
 
         let value = args.get_expr(1)?;
 
+        let ty = generator
+            .get_expr_type(value)
+            .ok_or_else(|| GeneratorError::TypeError("constant value must be typed".to_owned()))?
+            .clone();
+
         // If the initial value is a literal, then we can directly add it to
         // the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
-            let (offset, _len) = generator.add_literal(value)?;
+            let (mut offset, len) = generator.add_literal(value)?;
+
+            // in-memory litterals should write (offset, len) to memory, so that their
+            // representation is consistent with in-memory non-litterals.
+            if is_in_memory_type(&ty) {
+                let ref_offset = generator.literal_memory_end;
+                generator.literal_memory_end += 8; // offset + len bytes
+
+                let memory = generator.get_memory()?;
+                builder
+                    .i32_const(ref_offset as i32)
+                    .i32_const(offset as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32 { atomic: false },
+                        MemArg {
+                            align: 4,
+                            offset: 0,
+                        },
+                    );
+                builder
+                    .i32_const(ref_offset as i32)
+                    .i32_const(len as i32)
+                    .store(
+                        memory,
+                        StoreKind::I32 { atomic: false },
+                        MemArg {
+                            align: 4,
+                            offset: 4,
+                        },
+                    );
+
+                // update offset to point to reference
+                offset = ref_offset;
+            }
+
             offset
         } else {
             // Traverse the initial value expression.
@@ -47,14 +92,7 @@ impl ComplexWord for DefineConstant {
             let offset_local = generator.module.locals.add(ValType::I32);
             builder.i32_const(offset as i32).local_set(offset_local);
 
-            let ty = generator
-                .get_expr_type(value)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("constant value must be typed".to_owned())
-                })?
-                .clone();
-
-            let len = get_type_in_memory_size(&ty, true) as u32;
+            let len = get_type_size(&ty) as u32;
             generator.literal_memory_end += len;
 
             // Write the initial value to the memory, to be read by the host.
