@@ -5,6 +5,7 @@ pub mod bitwise;
 pub mod blockinfo;
 pub mod comparison;
 pub mod conditionals;
+pub mod constants;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;

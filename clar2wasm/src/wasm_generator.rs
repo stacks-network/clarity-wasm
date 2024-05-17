@@ -1239,25 +1239,8 @@ impl WasmGenerator {
                 .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
                 .clone();
 
-            // If `ty` is a value that stays in memory, we can just push the
-            // offset and length to the stack.
-            // CAUTION: list type needs to be dereferenced, contrarily to other
-            //          in-memory types
-            if is_in_memory_type(&ty)
-                && !matches!(
-                    &ty,
-                    TypeSignature::SequenceType(seq) if seq.is_list_type()
-                )
-            {
-                builder
-                    .local_get(offset_local)
-                    .i32_const(get_type_in_memory_size(&ty, false));
-                Ok(true)
-            } else {
-                // Otherwise, we need to load the value from memory.
-                self.read_from_memory(builder, offset_local, 0, &ty)?;
-                Ok(true)
-            }
+            self.read_from_memory(builder, offset_local, 0, &ty)?;
+            Ok(true)
         } else {
             Ok(false)
         }
