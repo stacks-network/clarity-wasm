@@ -1,6 +1,5 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
-use walrus::ir::{MemArg, StoreKind};
-use walrus::ValType;
+use walrus::{ActiveData, DataKind, ValType};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
@@ -49,28 +48,17 @@ impl ComplexWord for DefineConstant {
                 generator.literal_memory_end += 8; // offset + len bytes
 
                 let memory = generator.get_memory()?;
-                builder
-                    .i32_const(ref_offset as i32)
-                    .i32_const(offset as i32)
-                    .store(
+                generator.module.data.add(
+                    DataKind::Active(ActiveData {
                         memory,
-                        StoreKind::I32 { atomic: false },
-                        MemArg {
-                            align: 4,
-                            offset: 0,
-                        },
-                    );
-                builder
-                    .i32_const(ref_offset as i32)
-                    .i32_const(len as i32)
-                    .store(
-                        memory,
-                        StoreKind::I32 { atomic: false },
-                        MemArg {
-                            align: 4,
-                            offset: 4,
-                        },
-                    );
+                        location: walrus::ActiveDataLocation::Absolute(ref_offset),
+                    }),
+                    offset
+                        .to_le_bytes()
+                        .into_iter()
+                        .chain(len.to_le_bytes())
+                        .collect(),
+                );
 
                 // update offset to point to reference
                 offset = ref_offset;
