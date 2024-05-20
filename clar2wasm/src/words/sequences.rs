@@ -280,9 +280,9 @@ impl ComplexWord for Append {
             TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
                 generator.set_expr_type(
                     list,
-                    #[allow(clippy::unwrap_used)]
+                    #[allow(clippy::expect_used)]
                     ListTypeData::new_list(ltd.get_list_item_type().clone(), ltd.get_max_len() - 1)
-                        .unwrap() // this type is same as expr but smaller -> valid
+                        .expect("Argument type should be correct as it is the same as the expression type with a smaller max_len")
                         .into(),
                 )?;
                 generator.set_expr_type(elem, ltd.get_list_item_type().clone())?;
