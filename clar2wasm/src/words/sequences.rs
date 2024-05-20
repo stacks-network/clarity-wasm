@@ -1,5 +1,7 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::{FunctionType, SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::types::{
+    FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
+};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
@@ -270,6 +272,28 @@ impl ComplexWord for Append {
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
             .clone();
 
+        let list = args.get_expr(0)?;
+        let elem = args.get_expr(1)?;
+
+        // WORKAROUND: setting correct types for arguments
+        match &ty {
+            TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+                generator.set_expr_type(
+                    list,
+                    #[allow(clippy::expect_used)]
+                    ListTypeData::new_list(ltd.get_list_item_type().clone(), ltd.get_max_len() - 1)
+                        .expect("Argument type should be correct as it is the same as the expression type with a smaller max_len")
+                        .into(),
+                )?;
+                generator.set_expr_type(elem, ltd.get_list_item_type().clone())?;
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "append result should be a list".to_owned(),
+                ))
+            }
+        }
+
         let memory = generator.get_memory()?;
 
         // Allocate stack space for the new list.
@@ -283,9 +307,6 @@ impl ComplexWord for Append {
 
         // Traverse the list to append to, leaving the offset and length on
         // top of the stack.
-        let list = args.get_expr(0)?;
-        // WORKAROUND: setting types of list argument
-        generator.set_expr_type(list, ty.clone())?;
         generator.traverse_expr(builder, list)?;
 
         // The stack now has the destination, source and length arguments in
@@ -303,18 +324,6 @@ impl ComplexWord for Append {
             .local_set(write_ptr);
 
         // Traverse the element that we're appending to the list.
-        let elem = args.get_expr(1)?;
-        // WORKAROUND: setting type of elem
-        match ty {
-            TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
-                generator.set_expr_type(elem, ltd.get_list_item_type().clone())?;
-            }
-            _ => {
-                return Err(GeneratorError::TypeError(
-                    "append result should be a list".to_owned(),
-                ))
-            }
-        }
         generator.traverse_expr(builder, elem)?;
 
         // Get the type of the element that we're appending.
@@ -1978,5 +1987,16 @@ mod tests {
     #[test]
     fn slice_full() {
         crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
+    }
+
+    #[test]
+    fn double_append() {
+        let snippet = "(append (append (list 1) 2) 3)";
+
+        let expected =
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap();
+
+        crosscheck(snippet, Ok(Some(expected)))
     }
 }
