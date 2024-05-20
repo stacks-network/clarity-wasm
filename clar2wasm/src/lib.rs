@@ -12,15 +12,13 @@ use wasm_generator::{GeneratorError, WasmGenerator};
 
 mod deserialize;
 pub mod initialize;
-mod linker;
+pub mod linker;
 mod serialize;
 pub mod wasm_generator;
 pub mod wasm_utils;
 mod words;
 
-#[cfg(feature = "developer-mode")]
 pub mod datastore;
-#[cfg(feature = "developer-mode")]
 pub mod tools;
 
 // FIXME: This is copied from stacks-blockchain

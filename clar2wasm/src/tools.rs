@@ -1,7 +1,6 @@
 //! The `tools` module contains tools for evaluating Clarity snippets.
 //! It is intended for use in tooling and tests, but not intended to be used
-//! in production. The `tools` module is only available when the
-//! `developer-mode` feature is enabled.
+//! in production.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;

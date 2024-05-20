@@ -14,7 +14,7 @@ use clarity::vm::{ClarityName, ClarityVersion, Environment, SymbolicExpression, 
 use stacks_common::types::chainstate::StacksBlockId;
 use stacks_common::util::hash::{Keccak256Hash, Sha512Sum, Sha512Trunc256Sum};
 use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp256k1PublicKey};
-use wasmtime::{Caller, Linker};
+use wasmtime::{Caller, Engine, Instance, Linker, Module, Store};
 
 use crate::initialize::ClarityWasmContext;
 use crate::wasm_utils::*;
@@ -3520,10 +3520,6 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
 
                 let clarity_val = Value::deserialize_read(&mut bytes.as_slice(), None, false)?;
 
-                if cfg!(feature = "developer-mode") {
-                    //debug!("{}", &clarity_val);
-                }
-
                 caller.data_mut().register_print_event(clarity_val)?;
 
                 Ok(())
@@ -3998,4 +3994,483 @@ fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
         })
         .map(|_| ())
         .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("log".to_string(), e)))
+}
+
+/// the standard.wat file and link in all of the host interface functions.
+pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
+    let standard_lib = include_str!("standard/standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+
+    let mut linker = Linker::new(&engine);
+
+    // Link in the host interface functions.
+    linker.func_wrap(
+        "clarity",
+        "define_function",
+        |_kind: i32, _name_offset: i32, _name_length: i32| {
+            println!("define-function");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "define_variable",
+        |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+            println!("define-data-var");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "define_ft",
+        |_name_offset: i32,
+         _name_length: i32,
+         _supply_indicator: i32,
+         _supply_lo: i64,
+         _supply_hi: i64| {
+            println!("define-ft");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "define_nft",
+        |_name_offset: i32, _name_length: i32| {
+            println!("define-ft");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "define_map",
+        |_name_offset: i32, _name_length: i32| {
+            println!("define-map");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "define_trait",
+        |_name_offset: i32, _name_length: i32| {
+            println!("define-trait");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "impl_trait",
+        |_name_offset: i32, _name_length: i32| {
+            println!("impl-trait");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "get_variable",
+        |_name_offset: i32, _name_length: i32, _return_offset: i32, _return_length: i32| {
+            println!("var-get");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "set_variable",
+        |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+            println!("var-set");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "print",
+        |_value_offset: i32, _value_length: i32| {
+            println!("print");
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "tx_sender",
+        |_return_offset: i32, _return_length: i32| {
+            println!("tx-sender");
+            Ok((0i32, 0i32))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "contract_caller",
+        |_return_offset: i32, _return_length: i32| {
+            println!("tx-sender");
+            Ok((0i32, 0i32))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "tx_sponsor",
+        |_return_offset: i32, _return_length: i32| {
+            println!("tx-sponsor");
+            Ok((0i32, 0i32, 0i32))
+        },
+    )?;
+
+    linker.func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
+        println!("block-height");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "burn_block_height", |_: Caller<'_, ()>| {
+        println!("burn-block-height");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "stx_liquid_supply", |_: Caller<'_, ()>| {
+        println!("stx-liquid-supply");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "is_in_regtest", |_: Caller<'_, ()>| {
+        println!("is-in-regtest");
+        Ok(0i32)
+    })?;
+
+    linker.func_wrap("clarity", "is_in_mainnet", |_: Caller<'_, ()>| {
+        println!("is-in-mainnet");
+        Ok(0i32)
+    })?;
+
+    linker.func_wrap("clarity", "chain_id", |_: Caller<'_, ()>| {
+        println!("chain-id");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "enter_as_contract", |_: Caller<'_, ()>| {
+        println!("as-contract: enter");
+        Ok(())
+    })?;
+
+    linker.func_wrap("clarity", "exit_as_contract", |_: Caller<'_, ()>| {
+        println!("as-contract: exit");
+        Ok(())
+    })?;
+
+    linker.func_wrap(
+        "clarity",
+        "enter_at_block",
+        |_block_hash_offset: i32, _block_hash_length: i32| {
+            println!("at-block: enter");
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap("clarity", "exit_at_block", |_: Caller<'_, ()>| {
+        println!("at-block: exit");
+        Ok(())
+    })?;
+
+    linker.func_wrap(
+        "clarity",
+        "stx_get_balance",
+        |_principal_offset: i32, _principal_length: i32| Ok((0i64, 0i64)),
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "stx_account",
+        |_principal_offset: i32, _principal_length: i32| Ok((0i64, 0i64, 0i64, 0i64, 0i64, 0i64)),
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "stx_burn",
+        |_amount_lo: i64, _amount_hi: i64, _principal_offset: i32, _principal_length: i32| {
+            Ok((0i32, 0i32, 0i64, 0i64))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "stx_transfer",
+        |_amount_lo: i64,
+         _amount_hi: i64,
+         _from_offset: i32,
+         _from_length: i32,
+         _to_offset: i32,
+         _to_length: i32,
+         _memo_offset: i32,
+         _memo_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "ft_get_supply",
+        |_name_offset: i32, _name_length: i32| Ok((0i64, 0i64)),
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "ft_get_balance",
+        |_name_offset: i32, _name_length: i32, _owner_offset: i32, _owner_length: i32| {
+            Ok((0i64, 0i64))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "ft_burn",
+        |_name_offset: i32,
+         _name_length: i32,
+         _amount_lo: i64,
+         _amount_hi: i64,
+         _sender_offset: i32,
+         _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "ft_mint",
+        |_name_offset: i32,
+         _name_length: i32,
+         _amount_lo: i64,
+         _amount_hi: i64,
+         _sender_offset: i32,
+         _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "ft_transfer",
+        |_name_offset: i32,
+         _name_length: i32,
+         _amount_lo: i64,
+         _amount_hi: i64,
+         _sender_offset: i32,
+         _sender_length: i32,
+         _recipient_offset: i32,
+         _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "nft_get_owner",
+        |_name_offset: i32,
+         _name_length: i32,
+         _asset_offset: i32,
+         _asset_length: i32,
+         _return_offset: i32,
+         _return_length: i32| { Ok((0i32, 0i32, 0i32)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "nft_burn",
+        |_name_offset: i32,
+         _name_length: i32,
+         _asset_offset: i32,
+         _asset_length: i32,
+         _sender_offset: i32,
+         _sender_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "nft_mint",
+        |_name_offset: i32,
+         _name_length: i32,
+         _asset_offset: i32,
+         _asset_length: i32,
+         _recipient_offset: i32,
+         _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "nft_transfer",
+        |_name_offset: i32,
+         _name_length: i32,
+         _asset_offset: i32,
+         _asset_length: i32,
+         _sender_offset: i32,
+         _sender_length: i32,
+         _recipient_offset: i32,
+         _recipient_length: i32| { Ok((0i32, 0i32, 0i64, 0i64)) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "map_get",
+        |_name_offset: i32,
+         _name_length: i32,
+         _key_offset: i32,
+         _key_length: i32,
+         _return_offset: i32,
+         _return_length: i32| { Ok(()) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "map_set",
+        |_name_offset: i32,
+         _name_length: i32,
+         _key_offset: i32,
+         _key_length: i32,
+         _value_offset: i32,
+         _value_length: i32| { Ok(0i32) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "map_insert",
+        |_name_offset: i32,
+         _name_length: i32,
+         _key_offset: i32,
+         _key_length: i32,
+         _value_offset: i32,
+         _value_length: i32| { Ok(0i32) },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "map_delete",
+        |_name_offset: i32, _name_length: i32, _key_offset: i32, _key_length: i32| Ok(0i32),
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "get_block_info",
+        |_name_offset: i32,
+         _name_length: i32,
+         _height_lo: i64,
+         _height_hi: i64,
+         _return_offset: i32,
+         _return_length: i32| {
+            println!("get_block_info");
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "get_burn_block_info",
+        |_name_offset: i32,
+         _name_length: i32,
+         _height_lo: i64,
+         _height_hi: i64,
+         _return_offset: i32,
+         _return_length: i32| {
+            println!("get_burn_block_info");
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "contract_call",
+        |_contract_offset: i32,
+         _contract_length: i32,
+         _function_offset: i32,
+         _function_length: i32,
+         _args_offset: i32,
+         _args_length: i32,
+         _return_offset: i32,
+         _return_length: i32| {
+            println!("contract_call");
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap("clarity", "begin_public_call", || {
+        println!("begin_public_call");
+        Ok(())
+    })?;
+
+    linker.func_wrap("clarity", "begin_read_only_call", || {
+        println!("begin_read_only_call");
+        Ok(())
+    })?;
+
+    linker.func_wrap("clarity", "commit_call", || {
+        println!("commit_call");
+        Ok(())
+    })?;
+
+    linker.func_wrap("clarity", "roll_back_call", || {
+        println!("roll_back_call");
+        Ok(())
+    })?;
+
+    linker.func_wrap(
+        "clarity",
+        "keccak256",
+        |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+            println!("keccak256");
+            Ok((_return_offset, _return_length))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "sha512",
+        |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+            println!("sha512");
+            Ok((_return_offset, _return_length))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "sha512_256",
+        |_buffer_offset: i32, _buffer_length: i32, _return_offset: i32, _return_length: i32| {
+            println!("sha512_256");
+            Ok((_return_offset, _return_length))
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "secp256k1_recover",
+        |_msg_offset: i32,
+         _msg_length: i32,
+         _sig_offset: i32,
+         _sig_length: i32,
+         _return_offset: i32,
+         _return_length: i32| {
+            println!("secp256k1_recover");
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "secp256k1_verify",
+        |_msg_offset: i32,
+         _msg_length: i32,
+         _sig_offset: i32,
+         _sig_length: i32,
+         _pk_offset: i32,
+         _pk_length: i32| {
+            println!("secp256k1_verify");
+            Ok(0i32)
+        },
+    )?;
+
+    linker.func_wrap(
+        "clarity",
+        "principal_of",
+        |_key_offset: i32, _key_length: i32, _principal_offset: i32| {
+            println!("secp256k1_verify");
+            Ok((0i32, 0i32, 0i32, 0i64, 0i64))
+        },
+    )?;
+
+    // Create a log function for debugging.
+    linker.func_wrap("", "log", |param: i64| {
+        println!("log: {param}");
+    })?;
+
+    let module = Module::new(&engine, standard_lib)?;
+    let instance = linker.instantiate(&mut store, &module)?;
+    Ok((instance, store))
 }

@@ -56,8 +56,11 @@ macro_rules! test_multi_contract_init {
                     (*contract_name).into(),
                 );
 
-                let contract_path =
-                    format!("{}/contracts/{}.clar", env!("CARGO_MANIFEST_DIR"), contract);
+                let contract_path = format!(
+                    "{}/tests/contracts/{}.clar",
+                    env!("CARGO_MANIFEST_DIR"),
+                    contract
+                );
                 let contract_str = std::fs::read_to_string(contract_path).unwrap();
 
                 let mut compile_result = clarity_store

@@ -33,12 +33,12 @@ fn wasm_fold_add_square(c: &mut Criterion) {
     conn.commit().unwrap();
     let mut contract_context = ContractContext::new(contract_id.clone(), ClarityVersion::latest());
 
-    let contract_str = std::fs::read_to_string("contracts/fold-bench.clar").unwrap();
+    let contract_str = include_str!("../tests/contracts/fold-bench.clar");
     let mut compile_result = clarity_store
         .as_analysis_db()
         .execute(|analysis_db| {
             compile(
-                contract_str.as_str(),
+                contract_str,
                 &contract_id,
                 LimitedCostTracker::new_free(),
                 ClarityVersion::latest(),

@@ -1,6 +1,5 @@
 [workspace]
-members = ["clar2wasm", "tests"]
-exclude = ["stacks-core"]
+members = ["clar2wasm"]
 resolver = "2"
 
 [profile.bench]
