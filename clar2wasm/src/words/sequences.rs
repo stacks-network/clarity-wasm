@@ -1979,4 +1979,22 @@ mod tests {
     fn slice_full() {
         crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
     }
+
+    #[test]
+    fn double_append() {
+        let snippet = "(append (append (list 1) 2) 3)";
+
+        let expected = Value::Sequence(clarity::vm::types::SequenceData::List(
+            clarity::vm::types::ListData {
+                data: vec![Value::Int(1), Value::Int(2), Value::Int(3)],
+                type_signature: clarity::vm::types::ListTypeData::new_list(
+                    clarity::vm::types::TypeSignature::IntType,
+                    3,
+                )
+                .unwrap(),
+            },
+        ));
+
+        crosscheck(snippet, Ok(Some(expected)))
+    }
 }
