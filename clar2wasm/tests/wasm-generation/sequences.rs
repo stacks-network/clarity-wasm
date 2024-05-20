@@ -17,6 +17,17 @@ proptest! {
 
         crosscheck(&format!("(append {values} {elem})"), Ok(Some(expected)))
     }
+
+    #[test]
+    fn double_append_value_to_list(mut values in (prop_signature(), 2usize..16).prop_flat_map(|(ty, size)| PropValue::many_from_type(ty, size))) {
+        let expected = Value::cons_list_unsanitized(values.iter().cloned().map(Value::from).collect()).unwrap();
+
+        let elem_last = values.pop().unwrap();
+        let elem_before_last = values.pop().unwrap();
+        let values = PropValue::try_from(values).unwrap();
+
+        crosscheck(&format!("(append (append {values} {elem_before_last}) {elem_last})"), Ok(Some(expected)))
+    }
 }
 
 proptest! {
