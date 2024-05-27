@@ -5,7 +5,9 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop" }
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", features = [
+  "testing",
+] }
 clap = { version = "4.3.17", features = ["derive"] }
 regex = "1.9.1"
 walrus = "0.20.1"
@@ -25,7 +27,6 @@ flamegraph = []
 pb = []
 
 [dev-dependencies]
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", features = ["testing"] }
 criterion = "0.5.1"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
