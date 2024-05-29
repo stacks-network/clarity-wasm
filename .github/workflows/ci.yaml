@@ -90,6 +90,21 @@ jobs:
           path: ${{github.workspace}}/clar2wasm/src/standard/standard.wasm
           if-no-files-found: error
 
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Use Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binaries
+        run: |
+          cargo build
+
   run-tests:
     name: Run Tests
     runs-on: ubuntu-latest
