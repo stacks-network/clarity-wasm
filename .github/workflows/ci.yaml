@@ -93,7 +93,7 @@ jobs:
   build:
     name: Build binaries
     runs-on: ubuntu-latest
-    needs: [build-test-artifacts]
+    needs: []
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
@@ -101,12 +101,7 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Download archive
-        uses: actions/download-artifact@v4
-        with:
-          name: nextest-archive
-
-      - name: Run tests
+      - name: Build binaries
         run: |
           cargo build
 
@@ -142,7 +137,6 @@ jobs:
         run: |
           cargo llvm-cov nextest \
             --archive-file nextest-archive.tar.zst
-
 
   codecov:
     name: Code Coverage
