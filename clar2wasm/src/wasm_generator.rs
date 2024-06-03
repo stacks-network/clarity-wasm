@@ -1216,6 +1216,8 @@ impl WasmGenerator {
                     builder.call(self.func_by_name("stdlib.chain_id"));
                     Ok(true)
                 }
+                NativeVariables::StacksBlockHeight => todo!(),
+                NativeVariables::TenureHeight => todo!(),
             }
         } else {
             Ok(false)

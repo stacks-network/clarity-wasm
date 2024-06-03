@@ -11,8 +11,8 @@ use crate::linker::link_host_functions;
 use crate::wasm_utils::*;
 
 // The context used when making calls into the Wasm module.
-pub struct ClarityWasmContext<'a, 'b> {
-    pub global_context: &'a mut GlobalContext<'b>,
+pub struct ClarityWasmContext<'a, 'b, 'hooks> {
+    pub global_context: &'a mut GlobalContext<'b, 'hooks>,
     contract_context: Option<&'a ContractContext>,
     contract_context_mut: Option<&'a mut ContractContext>,
     pub call_stack: &'a mut CallStack,
@@ -32,9 +32,9 @@ pub struct ClarityWasmContext<'a, 'b> {
     pub contract_analysis: Option<&'a ContractAnalysis>,
 }
 
-impl<'a, 'b> ClarityWasmContext<'a, 'b> {
+impl<'a, 'b, 'hooks> ClarityWasmContext<'a, 'b, 'hooks> {
     pub fn new_init(
-        global_context: &'a mut GlobalContext<'b>,
+        global_context: &'a mut GlobalContext<'b, 'hooks>,
         contract_context: &'a mut ContractContext,
         call_stack: &'a mut CallStack,
         sender: Option<PrincipalData>,
@@ -58,7 +58,7 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
     }
 
     pub fn new_run(
-        global_context: &'a mut GlobalContext<'b>,
+        global_context: &'a mut GlobalContext<'b, 'hooks>,
         contract_context: &'a ContractContext,
         call_stack: &'a mut CallStack,
         sender: Option<PrincipalData>,
