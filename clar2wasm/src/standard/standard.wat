@@ -221,6 +221,8 @@
                                                      (param $return_length i32)
                                                      (result i32 i32 i32)))
     (import "clarity" "block_height" (func $stdlib.block_height (result i64 i64)))
+    (import "clarity" "stacks_block_height" (func $stdlib.stacks_block_height (result i64 i64)))
+    (import "clarity" "tenure_height" (func $stdlib.tenure_height (result i64 i64)))
     (import "clarity" "burn_block_height" (func $stdlib.burn_block_height (result i64 i64)))
     (import "clarity" "stx_liquid_supply" (func $stdlib.stx_liquid_supply (result i64 i64)))
     ;; TODO: these three funcs below could be hard-coded at compile-time.

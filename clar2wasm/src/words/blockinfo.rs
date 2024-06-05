@@ -333,7 +333,7 @@ mod tests {
     //- At Block
     #[test]
     fn at_block() {
-        crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+        crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
             Ok(Some(Value::UInt(0xFFFFFFFF)))
         )
     }
@@ -360,7 +360,7 @@ mod tests {
     fn test_block_height() {
         let snpt = "
 (define-public (block)
-  (ok block-height))
+  (ok stacks-block-height))
 
 (define-public (burn-block)
   (ok burn-block-height))
