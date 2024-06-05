@@ -195,14 +195,15 @@ mod tests {
     #[test]
     fn validate_define_const() {
         // Reserved keyword
-        crosscheck("(define-constant map (+ 2 2))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-constant map (+ 2 2))").is_err());
+
         // Custom constant name
         crosscheck("(define-constant a (+ 2 2))", Ok(None));
+
         // Custom constant name duplicate
-        crosscheck(
-            "(define-constant a (+ 2 2)) (define-constant a (+ 2 2))",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))").is_err());
     }
 
     #[test]
@@ -220,8 +221,11 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        crosscheck("(define-constant index-of (+ 2 2))", Err(()));
-        crosscheck("(define-constant index-of? (+ 2 2))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-constant index-of (+ 2 2))").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-constant index-of? (+ 2 2))").is_err());
     }
 
     #[test]

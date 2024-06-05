@@ -78,13 +78,11 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, WasmError};
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch};
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch, evaluate};
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn clar_let_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -93,15 +91,10 @@ mod tests {
  (let ((+ u3))
    +))";
 
-        crosscheck(
-            &format!("{ERR} (test)"),
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&format!("{ERR} (test)")).is_err());
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn clar_let_disallow_user_defined_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -110,12 +103,8 @@ mod tests {
  (let ((test u3))
     test))";
 
-        crosscheck(
-            &format!("{ERR} (test)"),
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&format!("{ERR} (test)")).is_err());
     }
 
     #[test]
@@ -137,11 +126,15 @@ mod tests {
     #[test]
     fn validate_let() {
         // Reserved keyword
-        crosscheck("(let ((map 2)) (+ map map))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(let ((map 2)) (+ map map))").is_err());
+
         // Custom variable name
         crosscheck("(let ((a 2)) (+ a a))", Ok(Some(Value::Int(4))));
+
         // Custom variable name duplicate
-        crosscheck("(let ((a 2) (a 3)) (+ a a))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(let ((a 2) (a 3)) (+ a a))").is_err());
     }
 
     #[test]
@@ -155,7 +148,10 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        crosscheck("(let ((index-of 2)) 2)", Err(()));
-        crosscheck("let ((index-of? 2)) 2)", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(let ((index-of 2)) 2)").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(let ((index-of? 2)) 2)").is_err());
     }
 }

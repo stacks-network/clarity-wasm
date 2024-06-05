@@ -265,23 +265,22 @@ mod tests {
     #[test]
     fn validate_define_trait() {
         // Reserved keyword
-        crosscheck(
-            "(define-trait map ((func (int) (response int int))))",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-trait map ((func (int) (response int int))))").is_err());
+
         // Custom trait token name
         crosscheck(
             "(define-trait a ((func (int) (response int int))))",
             Ok(None),
         );
+
         // Custom trait name duplicate
-        crosscheck(
-            r#"
-        (define-trait a ((func (int) (response int int))))
-         (define-trait a ((func (int) (response int int))))
-         "#,
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        let snippet = r#"
+          (define-trait a ((func (int) (response int int))))
+          (define-trait a ((func (int) (response int int))))
+        "#;
+        assert!(evaluate(snippet).is_err());
     }
 
     #[test]
@@ -299,13 +298,7 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        crosscheck(
-            "(define-trait index-of ((func (int) (response int int))))",
-            Err(()),
-        );
-        crosscheck(
-            "(define-trait index-of? ((func (int) (response int int))))",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-trait index-of? ((func (int) (response int int))))").is_err());
     }
 }

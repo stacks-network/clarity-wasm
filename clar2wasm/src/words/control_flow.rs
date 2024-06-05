@@ -362,35 +362,30 @@ mod tests {
         Ok(())
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_none() {
-        crosscheck(
-            "
-(define-public (unwrap-none)
-  (ok (try-opt none)))
-
-(unwrap-none)
-",
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(
+            r#"
+              (define-public (unwrap-none)
+                (ok (try-opt none)))
+              (unwrap-none)
+            "#
         )
+        .is_err());
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_error() {
-        crosscheck(
-            "
-(define-public (unwrap-error)
-  (ok (try-res (err u1))))
-(unwrap-error)
-",
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(
+            r#"
+              (define-public (unwrap-error)
+                (ok (try-res (err u1))))
+              (unwrap-error)
+            "#
         )
+        .is_err());
     }
 
     #[test]

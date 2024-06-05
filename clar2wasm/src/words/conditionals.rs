@@ -841,7 +841,7 @@ impl ComplexWord for Try {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, ShortReturnType, WasmError};
+    use clarity::vm::errors::{Error, ShortReturnType};
     use clarity::vm::types::ResponseData;
     use clarity::vm::Value;
 
@@ -957,7 +957,6 @@ mod tests {
         );
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn clar_match_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -967,15 +966,10 @@ mod tests {
    val (+ val 10)
    err (+ err 107)))";
 
-        crosscheck(
-            &format!("{ERR} (test (err 18))"),
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&format!("{ERR} (test (err 18))")).is_err());
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn clar_match_cursed() {
         // It's not allowed to use names of user-defined functions as bindings
@@ -985,12 +979,8 @@ mod tests {
    val (+ val 10)
    cursed (+ cursed 107)))";
 
-        crosscheck(
-            &format!("{CURSED} (cursed (err 18))"),
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&format!("{CURSED} (cursed (err 18))")).is_err());
     }
 
     #[test]

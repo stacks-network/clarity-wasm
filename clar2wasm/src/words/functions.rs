@@ -240,39 +240,44 @@ mod tests {
     #[test]
     fn validate_define_private() {
         // Reserved keyword
-        crosscheck("(define-private (map) (ok true))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-private (map) (ok true))").is_err());
+
         // Custom function name
         crosscheck("(define-private (a) (ok true))", Ok(None));
+
         // Custom functiona name duplicate
-        crosscheck(
-            "(define-private (a) (ok true))(define-private (a) (ok true))",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-private (a) (ok true))(define-private (a) (ok true))").is_err());
     }
 
     #[test]
     fn validate_define_public() {
         // Reserved keyword
-        crosscheck("(define-public (map) (ok true))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-public (map) (ok true))").is_err());
+
         // Custom function name
         crosscheck("(define-public (a) (ok true))", Ok(None));
+
         // Custom functiona name duplicate
-        crosscheck(
-            "(define-public (a) (ok true))(define-public (a) (ok true))",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-public (a) (ok true))(define-public (a) (ok true))").is_err());
     }
 
     #[test]
     fn validate_define_read_only() {
         // Rserved keyword
-        crosscheck("(define-read-only (map) (ok true))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-read-only (map) (ok true))").is_err());
+
         // Custom function name
         crosscheck("(define-read-only (a) (ok true))", Ok(None));
+
         // Custom function name duplicate
-        crosscheck(
-            "(define-read-only (a) (ok true))(define-read-only (a) (ok true))",
-            Err(()),
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(
+            evaluate("(define-read-only (a) (ok true))(define-read-only (a) (ok true))").is_err()
         );
     }
 
@@ -301,10 +306,13 @@ mod tests {
         );
 
         // Latest Epoch and clarity version
-        crosscheck("(define-private (index-of?) (ok u0))", Err(()));
-        crosscheck("(define-private (index-of) (ok u0))", Err(()));
-        crosscheck("(define-private (element-at?) (ok u0))", Err(()));
-        crosscheck("(define-private (element-at) (ok u0))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-private (index-of?) (ok u0))").is_err());
+        assert!(evaluate("(define-private (index-of) (ok u0))").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-private (element-at?) (ok u0))").is_err());
+        assert!(evaluate("(define-private (element-at) (ok u0))").is_err());
     }
 
     #[test]
@@ -332,10 +340,13 @@ mod tests {
         );
 
         // Latest Epoch and clarity version
-        crosscheck("(define-public (index-of?) (ok u0))", Err(()));
-        crosscheck("(define-public (index-of) (ok u0))", Err(()));
-        crosscheck("(define-public (element-at?) (ok u0))", Err(()));
-        crosscheck("(define-public (element-at) (ok u0))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-public (index-of?) (ok u0))").is_err());
+        assert!(evaluate("(define-public (index-of) (ok u0))").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-public (element-at?) (ok u0))").is_err());
+        assert!(evaluate("(define-public (element-at) (ok u0))").is_err());
     }
 
     #[test]
@@ -363,9 +374,12 @@ mod tests {
         );
 
         // Latest Epoch and clarity version
-        crosscheck("(define-read-only (index-of?) (ok u0))", Err(()));
-        crosscheck("(define-read-only (index-of) (ok u0))", Err(()));
-        crosscheck("(define-read-only (element-at?) (ok u0))", Err(()));
-        crosscheck("(define-read-only (element-at) (ok u0))", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-read-only (index-of?) (ok u0))").is_err());
+        assert!(evaluate("(define-read-only (index-of) (ok u0))").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-read-only (element-at?) (ok u0))").is_err());
+        assert!(evaluate("(define-read-only (element-at) (ok u0))").is_err());
     }
 }

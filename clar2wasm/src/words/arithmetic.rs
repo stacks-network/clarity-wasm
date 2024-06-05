@@ -253,7 +253,7 @@ impl SimpleWord for Sqrti {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
+    use clarity::vm::errors::{Error, RuntimeErrorType};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate};
@@ -297,16 +297,10 @@ mod tests {
         crosscheck("(- 123239)", Ok(Some(Value::Int(-123239))));
     }
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn test_subtraction_nullary() {
-        crosscheck(
-            "
-            (-)",
-            Err(Error::Wasm(WasmError::WasmGeneratorError(
-                "[TODO] change that".to_string(),
-            ))),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(-)").is_err());
     }
 
     #[test]

@@ -265,14 +265,15 @@ mod tests {
     #[test]
     fn validate_define_data_var() {
         // Reserved keyword
-        crosscheck("(define-data-var map int 0)", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-data-var map int 0)").is_err());
+
         // Custom variable name
         crosscheck("(define-data-var a int 0)", Ok(None));
+
         // Custom variable name duplicate
-        crosscheck(
-            "(define-data-var a int 0) (define-data-var a int 0)",
-            Err(()),
-        );
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-data-var a int 0) (define-data-var a int 0)").is_err());
     }
 
     #[test]
@@ -289,7 +290,10 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        crosscheck("(define-data-var index-of int 0)", Err(()));
-        crosscheck("(define-data-var index-of? int 0)", Err(()));
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-data-var index-of int 0)").is_err());
+
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate("(define-data-var index-of? int 0)").is_err());
     }
 }

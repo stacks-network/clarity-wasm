@@ -373,6 +373,9 @@ pub fn initialize_contract(
             let global = "runtime_error_code";
             let runtime_error_code = instance
                 .get_global(&mut store, global)
+                // TODO: change that to a proper error when PR below is merged on stacks-core.
+                // https://github.com/stacks-network/stacks-core/pull/4878 introduces a
+                // generic error handling for global variables.
                 .unwrap_or_else(|| panic!("Could not find {} global", global))
                 .get(&mut store);
 

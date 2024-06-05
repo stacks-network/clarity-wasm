@@ -182,6 +182,7 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     }
 }
 
+#[derive(Debug)]
 pub enum SequenceElementType {
     /// A byte, from a string-ascii or buffer.
     Byte,

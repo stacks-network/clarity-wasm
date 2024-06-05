@@ -1,7 +1,7 @@
-use clar2wasm::tools::crosscheck;
 use clarity::vm::Value;
 use proptest::prelude::prop;
 use clarity::vm::errors::{Error, WasmError};
+use clar2wasm::tools::{crosscheck, evaluate};
 
 use proptest::proptest;
 use proptest::strategy::Strategy;
@@ -66,13 +66,11 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_panic_response_err(val in PropValue::any()) {
-        crosscheck(
-            &format!(r#"(unwrap-panic (err {val}))"#),
-            Err(Error::Wasm(WasmError::WasmGeneratorError("[TODO] change that".to_string()))),
-        );
+        let snippet = format!("(unwrap-panic (err {val}))");
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&snippet).is_err());
     }
 }
 
@@ -91,13 +89,11 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #386"]
     #[test]
     fn unwrap_err_panic_ok(val in PropValue::any()) {
-        crosscheck(
-            &format!(r#"(unwrap-err-panic (ok {val}))"#),
-            Err(Error::Wasm(WasmError::WasmGeneratorError("[TODO] change that".to_string()))),
-        );
+        let snippet = format!("(unwrap-err-panic (ok {val}))");
+        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
+        assert!(evaluate(&snippet).is_err());
     }
 }
 
