@@ -145,10 +145,11 @@ impl ComplexWord for AtBlock {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
 
     //- Block Info
 
@@ -333,8 +334,9 @@ mod tests {
     //- At Block
     #[test]
     fn at_block() {
-        crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF)))
+        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF))),
+            StacksEpochId::Epoch24,
         )
     }
 
@@ -360,14 +362,22 @@ mod tests {
     fn test_block_height() {
         let snpt = "
 (define-public (block)
-  (ok stacks-block-height))
+  (ok block-height))
 
 (define-public (burn-block)
   (ok burn-block-height))
 ";
 
-        crosscheck(&format!("{snpt} (block)"), evaluate("(ok u0)"));
-        crosscheck(&format!("{snpt} (burn-block)"), evaluate("(ok u0)"));
+        crosscheck_with_epoch(
+            &format!("{snpt} (block)"),
+            evaluate("(ok u0)"),
+            StacksEpochId::Epoch24,
+        );
+        crosscheck_with_epoch(
+            &format!("{snpt} (burn-block)"),
+            evaluate("(ok u0)"),
+            StacksEpochId::Epoch24,
+        );
     }
 
     #[test]
