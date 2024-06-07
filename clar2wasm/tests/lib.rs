@@ -14,13 +14,17 @@ mod tests {
         .expect("Can't find bns contract");
 
         // check for normal behavior with latest epoch/version
-        clar2wasm::tools::crosscheck(&bns, Ok(None));
+        clar2wasm::tools::crosscheck_with_epoch(
+            &bns,
+            Ok(None),
+            clarity::types::StacksEpochId::Epoch20,
+        );
 
         // check with the issue's problematic epoch
         assert!(clar2wasm::tools::evaluate_at(
             &bns,
             clarity::types::StacksEpochId::Epoch20,
-            clarity::vm::version::ClarityVersion::latest(),
+            clarity::vm::version::ClarityVersion::Clarity2,
         )
         .is_ok());
     }

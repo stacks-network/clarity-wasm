@@ -1,5 +1,5 @@
 (define-public (block)
-  (ok block-height)
+  (ok stacks-block-height)
 )
 
 (define-public (burn-block)

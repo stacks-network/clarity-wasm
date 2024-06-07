@@ -334,9 +334,18 @@ mod tests {
     //- At Block
     #[test]
     fn at_block() {
-        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
             Ok(Some(Value::UInt(0xFFFFFFFF))),
             StacksEpochId::Epoch24,
+        )
+    }
+
+    //- At Block
+    #[test]
+    fn at_block_with_stacks_block_height() {
+        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF))),
+            StacksEpochId::Epoch30,
         )
     }
 
