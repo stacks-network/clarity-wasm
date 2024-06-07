@@ -501,12 +501,11 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.3.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#a0e0fa8ab6ddeec7c0abc9b81c8e784cc9b4f10a"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#a744f29410009f41b56874cbb9254df78bb68209"
 dependencies = [
  "hashbrown 0.14.3",
  "integer-sqrt",
  "lazy_static",
- "mutants",
  "rand",
  "rand_chacha",
  "regex",
@@ -1669,12 +1668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mutants"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc0287524726960e07b119cebd01678f852f147742ae0d925e6a520dca956126"
-
-[[package]]
 name = "nix"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2672,7 +2665,7 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.2"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#a0e0fa8ab6ddeec7c0abc9b81c8e784cc9b4f10a"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#a744f29410009f41b56874cbb9254df78bb68209"
 dependencies = [
  "chrono",
  "curve25519-dalek 2.0.0",
