@@ -1999,4 +1999,19 @@ mod tests {
 
         crosscheck(snippet, Ok(Some(expected)))
     }
+
+    #[test]
+    fn replace_element_cannot_be_empty_string_ascii() {
+        crosscheck(r#"(replace-at? "abcd" u0 "")"#, Err(()))
+    }
+
+    #[test]
+    fn replace_element_cannot_be_empty_string_utf8() {
+        crosscheck(r#"(replace-at? u"abcd" u0 u"")"#, Err(()))
+    }
+
+    #[test]
+    fn replace_element_cannot_be_empty_buff() {
+        crosscheck(r#"(replace-at? 0x12345678 u0 0x)"#, Err(()))
+    }
 }
