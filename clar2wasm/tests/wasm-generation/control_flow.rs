@@ -2,6 +2,7 @@ use clarity::vm::Value;
 use proptest::prelude::prop;
 use clarity::vm::errors::{Error, WasmError};
 use clar2wasm::tools::{crosscheck, evaluate};
+use clar2wasm::tools::{crosscheck_expect_failure};
 
 use proptest::proptest;
 use proptest::strategy::Strategy;
@@ -69,8 +70,8 @@ proptest! {
     #[test]
     fn unwrap_panic_response_err(val in PropValue::any()) {
         let snippet = format!("(unwrap-panic (err {val}))");
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&snippet).is_err());
+
+        crosscheck_expect_failure(&snippet);
     }
 }
 
@@ -92,8 +93,8 @@ proptest! {
     #[test]
     fn unwrap_err_panic_ok(val in PropValue::any()) {
         let snippet = format!("(unwrap-err-panic (ok {val}))");
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&snippet).is_err());
+
+        crosscheck_expect_failure(&snippet);
     }
 }
 

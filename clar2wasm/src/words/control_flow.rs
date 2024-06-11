@@ -278,7 +278,7 @@ mod tests {
     use clarity::vm::errors::{Error, WasmError};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
 
     #[test]
     fn test_unwrap_panic_some() {
@@ -364,28 +364,24 @@ mod tests {
 
     #[test]
     fn unwrap_none() {
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(
+        crosscheck_expect_failure(
             r#"
               (define-public (unwrap-none)
                 (ok (try-opt none)))
               (unwrap-none)
-            "#
-        )
-        .is_err());
+            "#,
+        );
     }
 
     #[test]
     fn unwrap_error() {
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(
+        crosscheck_expect_failure(
             r#"
               (define-public (unwrap-error)
                 (ok (try-res (err u1))))
               (unwrap-error)
-            "#
-        )
-        .is_err());
+            "#,
+        );
     }
 
     #[test]

@@ -375,7 +375,7 @@ mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
 
     #[test]
     fn map_define_get() {
@@ -408,18 +408,15 @@ mod tests {
     #[test]
     fn validate_define_map() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-map map {x: int} {square: int})").is_err());
+        crosscheck_expect_failure("(define-map map {x: int} {square: int})");
 
         // Custom map name
         crosscheck("(define-map a {x: int} {square: int})", Ok(None));
 
         // Custom map name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(
-            "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})"
-        )
-        .is_err());
+        crosscheck_expect_failure(
+            "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
+        );
     }
 
     #[test]
@@ -436,10 +433,6 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // Epoch
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-map index-of {x: int} {square: int})").is_err());
-        assert!(evaluate("(define-map index-of? {x: int} {square: int})").is_err());
+        crosscheck_expect_failure("(define-map index-of? {x: int} {square: int})");
     }
 }

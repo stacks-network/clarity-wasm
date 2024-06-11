@@ -845,7 +845,7 @@ mod tests {
     use clarity::vm::types::ResponseData;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     #[test]
     fn trivial() {
@@ -966,8 +966,7 @@ mod tests {
    val (+ val 10)
    err (+ err 107)))";
 
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&format!("{ERR} (test (err 18))")).is_err());
+        crosscheck_expect_failure(&format!("{ERR} (test (err 18))"));
     }
 
     #[test]
@@ -979,8 +978,7 @@ mod tests {
    val (+ val 10)
    cursed (+ cursed 107)))";
 
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&format!("{CURSED} (cursed (err 18))")).is_err());
+        crosscheck_expect_failure(&format!("{CURSED} (cursed (err 18))"));
     }
 
     #[test]

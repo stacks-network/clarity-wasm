@@ -430,6 +430,22 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     validator(value)
 }
 
+// TODO: After issue #421 is complete,
+// several tests that call this function will need to be adjusted.
+pub fn crosscheck_expect_failure(snippet: &str) {
+    let compiled = evaluate(snippet);
+    let interpreted = interpret(snippet);
+
+    assert_eq!(
+        compiled.is_err(),
+        interpreted.is_err(),
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet,
+        &compiled,
+        &interpreted
+    );
+}
+
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));

@@ -497,12 +497,11 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 mod tests {
     use clarity::types::StacksEpochId;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
 
     #[test]
     fn bar_mint_too_many() {
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(ft-mint? bar u1000001 tx-sender)").is_err());
+        crosscheck_expect_failure("(ft-mint? bar u1000001 tx-sender)");
     }
 
     #[test]
@@ -515,22 +514,19 @@ mod tests {
           (bar-mint-too-many-2)
         "#;
 
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(ERR).is_err());
+        crosscheck_expect_failure(ERR);
     }
 
     #[test]
     fn validate_define_fungible_tokens() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-fungible-token map u100)").is_err());
+        crosscheck_expect_failure("(define-fungible-token map u100)");
 
         // Custom fungible token name
         crosscheck("(define-fungible-token a u100)", Ok(None));
 
         // Custom fungible token name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-fungible-token a u100) (define-fungible-token a u100)").is_err());
+        crosscheck_expect_failure("(define-fungible-token a u100) (define-fungible-token a u100)");
     }
 
     #[test]
@@ -547,26 +543,21 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-fungible-token index-of? u100)").is_err());
+        crosscheck_expect_failure("(define-fungible-token index-of? u100)");
     }
 
     #[test]
     fn validate_define_non_fungible_tokens() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-non-fungible-token map (buff 50))").is_err());
+        crosscheck_expect_failure("(define-non-fungible-token map (buff 50))");
 
         // Custom nft name
         crosscheck("(define-non-fungible-token a (buff 50))", Ok(None));
 
         // Custom nft name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(
-            "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))"
-        )
-        .is_err());
+        crosscheck_expect_failure(
+            "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
+        );
     }
 
     #[test]
@@ -583,8 +574,6 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-non-fungible-token index-of? (buff 50))").is_err());
+        crosscheck_expect_failure("(define-non-fungible-token index-of? (buff 50))");
     }
 }

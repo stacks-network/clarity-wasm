@@ -81,7 +81,9 @@ mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_compare_only, crosscheck_expect_failure, crosscheck_with_epoch,
+    };
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -91,8 +93,7 @@ mod tests {
  (let ((+ u3))
    +))";
 
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&format!("{ERR} (test)")).is_err());
+        crosscheck_expect_failure(&format!("{ERR} (test)"));
     }
 
     #[test]
@@ -103,8 +104,7 @@ mod tests {
  (let ((test u3))
     test))";
 
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate(&format!("{ERR} (test)")).is_err());
+        crosscheck_expect_failure(&format!("{ERR} (test)"));
     }
 
     #[test]
@@ -126,15 +126,13 @@ mod tests {
     #[test]
     fn validate_let() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(let ((map 2)) (+ map map))").is_err());
+        crosscheck_expect_failure("(let ((map 2)) (+ map map))");
 
         // Custom variable name
         crosscheck("(let ((a 2)) (+ a a))", Ok(Some(Value::Int(4))));
 
         // Custom variable name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(let ((a 2) (a 3)) (+ a a))").is_err());
+        crosscheck_expect_failure("(let ((a 2) (a 3)) (+ a a))");
     }
 
     #[test]
@@ -148,10 +146,7 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(let ((index-of 2)) 2)").is_err());
-
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(let ((index-of? 2)) 2)").is_err());
+        crosscheck_expect_failure("(let ((index-of 2)) 2)");
+        crosscheck_expect_failure("(let ((index-of? 2)) 2)");
     }
 }

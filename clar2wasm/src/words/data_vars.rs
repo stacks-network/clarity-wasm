@@ -228,7 +228,7 @@ impl ComplexWord for GetDataVar {
 mod tests {
     use clarity::types::StacksEpochId;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn test_var_get() {
@@ -265,15 +265,13 @@ mod tests {
     #[test]
     fn validate_define_data_var() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-data-var map int 0)").is_err());
+        crosscheck_expect_failure("(define-data-var map int 0)");
 
         // Custom variable name
         crosscheck("(define-data-var a int 0)", Ok(None));
 
         // Custom variable name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-data-var a int 0) (define-data-var a int 0)").is_err());
+        crosscheck_expect_failure("(define-data-var a int 0) (define-data-var a int 0)");
     }
 
     #[test]
@@ -289,11 +287,6 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-data-var index-of int 0)").is_err());
-
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-data-var index-of? int 0)").is_err());
+        crosscheck_expect_failure("(define-data-var index-of? int 0)");
     }
 }

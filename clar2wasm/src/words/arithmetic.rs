@@ -256,7 +256,7 @@ mod tests {
     use clarity::vm::errors::{Error, RuntimeErrorType};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     #[test]
     fn test_overflow() {
@@ -299,8 +299,7 @@ mod tests {
 
     #[test]
     fn test_subtraction_nullary() {
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(-)").is_err());
+        crosscheck_expect_failure("(-)");
     }
 
     #[test]

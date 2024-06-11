@@ -120,7 +120,9 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate, TestEnvironment,
+    };
 
     #[test]
     fn define_trait_eval() {
@@ -265,8 +267,7 @@ mod tests {
     #[test]
     fn validate_define_trait() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-trait map ((func (int) (response int int))))").is_err());
+        crosscheck_expect_failure("(define-trait map ((func (int) (response int int))))");
 
         // Custom trait token name
         crosscheck(
@@ -275,12 +276,11 @@ mod tests {
         );
 
         // Custom trait name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
         let snippet = r#"
           (define-trait a ((func (int) (response int int))))
           (define-trait a ((func (int) (response int int))))
         "#;
-        assert!(evaluate(snippet).is_err());
+        crosscheck_expect_failure(snippet);
     }
 
     #[test]
@@ -297,8 +297,6 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-trait index-of? ((func (int) (response int int))))").is_err());
+        crosscheck_expect_failure("(define-trait index-of? ((func (int) (response int int))))");
     }
 }

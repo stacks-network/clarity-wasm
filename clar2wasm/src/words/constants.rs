@@ -97,7 +97,7 @@ mod tests {
     use clarity::vm::types::{ASCIIData, CharType, ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn define_constant_const() {
@@ -195,15 +195,13 @@ mod tests {
     #[test]
     fn validate_define_const() {
         // Reserved keyword
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-constant map (+ 2 2))").is_err());
+        crosscheck_expect_failure("(define-constant map (+ 2 2))");
 
         // Custom constant name
         crosscheck("(define-constant a (+ 2 2))", Ok(None));
 
         // Custom constant name duplicate
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))").is_err());
+        crosscheck_expect_failure("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))");
     }
 
     #[test]
@@ -220,12 +218,7 @@ mod tests {
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-constant index-of (+ 2 2))").is_err());
-
-        // TODO: change that assertion to validate the exact error thrown. Handle that when issue #421 is complete.
-        assert!(evaluate("(define-constant index-of? (+ 2 2))").is_err());
+        crosscheck_expect_failure("(define-constant index-of? (+ 2 2))");
     }
 
     #[test]
