@@ -1,9 +1,9 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{ListData, ListTypeData, SequenceData, TypeSignature};
+use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{bool, int, prop_signature, PropValue};
+use crate::{bool, int, prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -267,7 +267,6 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    #[ignore = "issue #395"]
     fn crosscheck_replace_at(
         (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
             (PropValue::any_sequence(seq_size),
@@ -275,10 +274,20 @@ proptest! {
             // to not occur on operations out of boundaries.
             (0usize..=seq_size - 1),
             (0usize..=seq_size - 1))
-        })
+        }).no_shrink()
     ) {
+        let list_ty = seq.type_string();
+
+        let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+
+        let repl_ty = match &seq_data {
+            SequenceData::Buffer(_) => "(buff 1)".to_owned(),
+            SequenceData::String(CharType::ASCII(_)) => "(string-ascii 1)".to_owned(),
+            SequenceData::String(CharType::UTF8(_)) => "(string-utf8 1)".to_owned(),
+            SequenceData::List(ld) => type_string(ld.type_signature.get_list_item_type()),
+        };
+
         let (expected, el) = {
-            let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
             // collect an element from the sequence at 'source' position.
             let el = seq_data.clone().element_at(source).expect("element_at failed").map_or_else(Value::none, |value| value);
             // replace the element at 'dest' position
@@ -291,7 +300,13 @@ proptest! {
             PropValue::from(el)) // returning that to be used by the 'replace-at' Clarity function.
         };
 
-        let snippet = format!("(replace-at? {seq} u{dest} {el})");
+        // Workaround needed for https://github.com/stacks-network/stacks-core/issues/4622
+        let snippet = format!(r#"
+            (define-private (replace-at-workaround? (seq {list_ty}) (idx uint) (repl {repl_ty}))
+                (replace-at? seq idx repl)
+            )
+            (replace-at-workaround? {seq} u{dest} {el})
+        "#);
 
         crosscheck(
             &snippet,
