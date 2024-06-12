@@ -1143,6 +1143,26 @@ impl ComplexWord for ReplaceAt {
         let replacement = args.get_expr(2)?;
         generator.traverse_expr(builder, replacement)?;
 
+        // For types `string-ascii`, `string-utf8` and `buff`, an empty replacement could be a
+        // valid value with a max-len of 1. However, using one is a runtime error.
+        if matches!(
+            element_ty,
+            SequenceElementType::Byte | SequenceElementType::UnicodeScalar
+        ) {
+            let repl_len = generator.module.locals.add(ValType::I32);
+            builder.local_tee(repl_len).unop(UnaryOp::I32Eqz).if_else(
+                None,
+                |then| {
+                    then
+                        // TODO: this is a panic, should be replaced by correct runtime error
+                        .i32_const(6)
+                        .call(generator.func_by_name("stdlib.runtime-error"));
+                },
+                |_| {},
+            );
+            builder.local_get(repl_len);
+        }
+
         let input_ty = generator.get_expr_type(replacement).ok_or_else(|| {
             GeneratorError::TypeError("replace-at? value must be typed".to_string())
         })?;
@@ -1998,5 +2018,20 @@ mod tests {
                 .unwrap();
 
         crosscheck(snippet, Ok(Some(expected)))
+    }
+
+    #[test]
+    fn replace_element_cannot_be_empty_string_ascii() {
+        crosscheck(r#"(replace-at? "abcd" u0 "")"#, Err(()))
+    }
+
+    #[test]
+    fn replace_element_cannot_be_empty_string_utf8() {
+        crosscheck(r#"(replace-at? u"abcd" u0 u"")"#, Err(()))
+    }
+
+    #[test]
+    fn replace_element_cannot_be_empty_buff() {
+        crosscheck(r#"(replace-at? 0x12345678 u0 0x)"#, Err(()))
     }
 }
