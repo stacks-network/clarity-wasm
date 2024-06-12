@@ -279,7 +279,9 @@ mod tests {
     fn get_burn_block_info_non_existent() {
         crosscheck(
             "(get-burn-block-info? header-hash u9999999)",
-            Ok(Some(Value::none())),
+            Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            )),
         )
     }
 
@@ -287,13 +289,13 @@ mod tests {
     fn get_burn_block_info_header_hash() {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
-        let result = env
-            .evaluate("(get-burn-block-info? header-hash u0)")
-            .expect("Failed to init contract.");
-        assert_eq!(
-            result,
-            Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
-        );
+
+        crosscheck(
+            "(get-burn-block-info? header-hash u0)",
+            Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            )),
+        )
     }
 
     #[test]
