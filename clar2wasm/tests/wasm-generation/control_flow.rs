@@ -1,11 +1,41 @@
-use clar2wasm::tools::crosscheck;
-use clarity::vm::types::ResponseData;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
 use clarity::vm::Value;
 use proptest::prelude::prop;
 use proptest::proptest;
 use proptest::strategy::Strategy;
 
 use crate::PropValue;
+
+fn begin_strategy() -> impl Strategy<Value = (String, PropValue, bool)> {
+    prop::collection::vec(PropValue::any(), 1..=100).prop_map(|values| {
+        let mut expressions = String::new();
+        let len = values.len();
+        let mut is_response_intermediary = false;
+
+        for (i, v) in values.iter().enumerate() {
+            let s = format!("{}", v);
+            if i != len - 1 {
+                if let Value::Response(_) = v.0 {
+                    is_response_intermediary = true;
+                }
+            }
+
+            if !expressions.is_empty() {
+                expressions.push(' ');
+            }
+
+            expressions.push_str(&s);
+        }
+
+        let last_value = values.last().unwrap().clone();
+
+        (
+            format!("(begin {})", expressions),
+            last_value,
+            is_response_intermediary,
+        )
+    })
+}
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -17,53 +47,6 @@ proptest! {
             Ok(Some(val.into()))
         );
     }
-}
-
-fn unwrap_response_expression(value: PropValue) -> String {
-    match value.clone().0 {
-        Value::Response(ResponseData {
-            committed: false,
-            data,
-        }) => match *data {
-            Value::Response(_) => unwrap_response_expression(PropValue::from(*data)),
-            _ => format!("(unwrap-err! {} false)", value),
-        },
-        Value::Response(ResponseData {
-            committed: true,
-            data,
-        }) => match *data {
-            Value::Response(_) => unwrap_response_expression(PropValue::from(*data)),
-            _ => format!("(unwrap! {} (err 1))", value),
-        },
-        _ => {
-            format!("{}", value)
-        }
-    }
-}
-
-fn begin_strategy() -> impl Strategy<Value = (String, PropValue)> {
-    prop::collection::vec(PropValue::any(), 1..=100).prop_map(|values| {
-        let mut expressions = String::new();
-        let len = values.len();
-
-        for (i, v) in values.iter().enumerate() {
-            let s = if i == len - 1 {
-                format!("{}", v)
-            } else {
-                unwrap_response_expression(v.clone())
-            };
-
-            if !expressions.is_empty() {
-                expressions.push(' ');
-            }
-
-            expressions.push_str(&s);
-        }
-
-        let last_value = values.last().unwrap().clone();
-
-        (format!("(begin {})", expressions), last_value)
-    })
 }
 
 proptest! {
@@ -118,10 +101,14 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn begin((expr, expected_val) in begin_strategy()) {
-        crosscheck(
-            &expr,
-            Ok(Some(expected_val.into()))
-        );
+    fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
+        if is_response_intermediary{
+            crosscheck_compare_only(&expr);
+        }else{
+            crosscheck(
+                &expr,
+                Ok(Some(expected_val.into()))
+            );
+        }
     }
 }
