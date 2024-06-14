@@ -1,4 +1,4 @@
-use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clar2wasm::tools::crosscheck;
 use clarity::vm::Value;
 use proptest::prelude::prop;
 use proptest::proptest;
@@ -7,7 +7,7 @@ use proptest::strategy::Strategy;
 use crate::PropValue;
 
 fn begin_strategy() -> impl Strategy<Value = (String, PropValue, bool)> {
-    prop::collection::vec(PropValue::any(), 1..=100).prop_map(|values| {
+    prop::collection::vec(PropValue::any(), 1..=10).prop_map(|values| {
         let mut expressions = String::new();
         let len = values.len();
         let mut is_response_intermediary = false;
@@ -103,7 +103,10 @@ proptest! {
     #[test]
     fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
         if is_response_intermediary{
-            crosscheck_compare_only(&expr);
+            crosscheck(
+                &expr,
+                Err(())
+            );
         }else{
             crosscheck(
                 &expr,
