@@ -9,6 +9,7 @@ pub mod constants;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;
+pub mod functions;
 pub mod maps;
 pub mod noop;
 pub mod optional;
