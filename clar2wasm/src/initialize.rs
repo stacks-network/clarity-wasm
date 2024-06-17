@@ -369,20 +369,7 @@ pub fn initialize_contract(
 
     top_level
         .call(&mut store, &[], results.as_mut_slice())
-        .map_err(|_| {
-            let global = "runtime_error_code";
-            let runtime_error_code = instance
-                .get_global(&mut store, global)
-                // TODO: change that to a proper error when PR below is merged on stacks-core.
-                // https://github.com/stacks-network/stacks-core/pull/4878 introduces a
-                // generic error handling for global variables.
-                .unwrap_or_else(|| panic!("Could not find {} global", global))
-                .get(&mut store);
-
-            let error_code = runtime_error_code.unwrap_i32();
-
-            error_mapping::runtime_map(error_code)
-        })?;
+        .map_err(|_| error_mapping::map(instance, &mut store))?;
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(

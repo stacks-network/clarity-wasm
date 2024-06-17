@@ -1285,17 +1285,7 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|_| {
-            let global = "runtime_error_code";
-            let runtime_error_code = instance
-                .get_global(&mut store, global)
-                .unwrap_or_else(|| panic!("Could not find {} global", global))
-                .get(&mut store);
-
-            let error_code = runtime_error_code.unwrap_i32();
-
-            error_mapping::runtime_map(error_code)
-        })?;
+        .map_err(|_| error_mapping::map(instance, &mut store))?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)
