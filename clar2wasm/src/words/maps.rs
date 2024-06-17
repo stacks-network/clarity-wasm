@@ -434,5 +434,6 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-map index-of? {x: int} {square: int})");
+        crosscheck_expect_failure("(define-map index-of {x: int} {square: int})");
     }
 }

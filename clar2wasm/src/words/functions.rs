@@ -300,8 +300,10 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-private (index-of?) (ok u0))");
+        crosscheck_expect_failure("(define-private (index-of) (ok u0))");
 
         crosscheck_expect_failure("(define-private (element-at?) (ok u0))");
+        crosscheck_expect_failure("(define-private (element-at) (ok u0))");
     }
 
     #[test]
@@ -329,8 +331,10 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-public (index-of?) (ok u0))");
+        crosscheck_expect_failure("(define-public (index-of) (ok u0))");
 
         crosscheck_expect_failure("(define-public (element-at?) (ok u0))");
+        crosscheck_expect_failure("(define-public (element-at) (ok u0))");
     }
 
     #[test]
@@ -358,7 +362,9 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-read-only (index-of?) (ok u0))");
+        crosscheck_expect_failure("(define-read-only (index-of) (ok u0))");
 
         crosscheck_expect_failure("(define-read-only (element-at?) (ok u0))");
+        crosscheck_expect_failure("(define-read-only (element-at) (ok u0))");
     }
 }
