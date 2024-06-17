@@ -102,16 +102,16 @@ proptest! {
 
     #[test]
     fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
+        let mut expected_val:Result<Option<Value>, ()> = Ok(Some(expected_val.into()));
+
         if is_response_intermediary{
-            crosscheck(
-                &expr,
-                Err(())
-            );
-        }else{
-            crosscheck(
-                &expr,
-                Ok(Some(expected_val.into()))
-            );
+            expected_val=Err(());
         }
+
+        crosscheck(
+            &expr,
+            expected_val
+        );
+
     }
 }
