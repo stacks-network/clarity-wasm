@@ -234,7 +234,7 @@
     ;;
     ;; Global definitions
     (global $stack-pointer (mut i32) (i32.const 0))
-    (global $runtime_error_code (mut i32) (i32.const -1))
+    (global $runtime-error-code (mut i32) (i32.const -1))
 
     ;; (sha256) initial hash values: first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19
     (data (i32.const 0) "\67\e6\09\6a\85\ae\67\bb\72\f3\6e\3c\3a\f5\4f\a5\7f\52\0e\51\8c\68\05\9b\ab\d9\83\1f\19\cd\e0\5b")
@@ -281,7 +281,7 @@
         ;; 6: panic
         ;; 7: short return
     (func $stdlib.runtime-error (param $error_code i32)
-        (global.set $runtime_error_code (local.get $error_code))
+        (global.set $runtime-error-code (local.get $error_code))
 
         (unreachable)
     )
@@ -3423,7 +3423,7 @@
 
     ;; Globals
     (export "stack-pointer" (global $stack-pointer))
-    (export "runtime_error_code" (global $runtime_error_code))
+    (export "runtime-error-code" (global $runtime-error-code))
 
     ;; Functions
     (export "stdlib.add-uint" (func $stdlib.add-uint))
