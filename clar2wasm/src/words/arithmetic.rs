@@ -1,5 +1,6 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
+use walrus::ValType;
 
 use super::SimpleWord;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
@@ -78,14 +79,18 @@ impl SimpleWord for Sub {
             TypeSignature::IntType => {
                 let type_suffix = "int";
                 if arg_types.len() == 1 {
+                    // Locals declaration.
+                    let op_lo = generator.module.locals.add(ValType::I64);
+                    let op_hi = generator.module.locals.add(ValType::I64);
+                    builder.local_set(op_hi).local_set(op_lo);
                     // unary 'int' subtraction:
-                    // multiply by -1.
-                    builder.i64_const(-1);
-                    builder.i64_const(-1);
-                    generator.func_by_name(&format!("stdlib.mul-{type_suffix}"))
-                } else {
-                    generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
+                    // 0 - n.
+                    builder.i64_const(0);
+                    builder.i64_const(0);
+                    builder.local_get(op_lo).local_get(op_hi);
                 }
+
+                generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
             }
             TypeSignature::UIntType => {
                 let type_suffix = "uint";
