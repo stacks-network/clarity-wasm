@@ -1154,8 +1154,7 @@ impl ComplexWord for ReplaceAt {
             builder.local_tee(repl_len).unop(UnaryOp::I32Eqz).if_else(
                 None,
                 |then| {
-                    then
-                        .i32_const(ErrorMap::Panic as i32)
+                    then.i32_const(ErrorMap::Panic as i32)
                         .call(generator.func_by_name("stdlib.runtime-error"));
                 },
                 |_| {},
