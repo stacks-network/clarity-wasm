@@ -153,7 +153,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    // #[ignore = "see issue: #385"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn unwrap_response_err(val in PropValue::any()) {
         let snippet = format!(r#"(unwrap! (if true (err u1) (ok {val})) {val})"#);

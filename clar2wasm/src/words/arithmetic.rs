@@ -3,6 +3,7 @@ use clarity::vm::ClarityName;
 use walrus::ValType;
 
 use super::SimpleWord;
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn simple_typed_one_call(
@@ -97,7 +98,7 @@ impl SimpleWord for Sub {
                 if arg_types.len() == 1 {
                     // unary 'uint' subtraction:
                     // throws an underflow runtime error.
-                    builder.i32_const(1);
+                    builder.i32_const(ErrorMap::ArithmeticUnderflow as i32);
                     generator.func_by_name("stdlib.runtime-error")
                 } else {
                     generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
