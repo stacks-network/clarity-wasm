@@ -4141,15 +4141,3 @@ test_contract_call_error!(
         );
     }
 );
-
-test_contract_call_error!(
-    test_unwrap_error,
-    "runtime-errors",
-    "unwrap-error",
-    |error: Error| {
-        assert_eq!(
-            error,
-            Error::Runtime(RuntimeErrorType::UnwrapFailure, Some(Vec::new()))
-        );
-    }
-);

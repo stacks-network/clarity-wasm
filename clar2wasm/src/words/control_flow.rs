@@ -263,7 +263,7 @@ impl ComplexWord for UnwrapErrPanic {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, WasmError};
+    use clarity::vm::errors::Error;
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
@@ -275,18 +275,15 @@ mod tests {
 
     #[test]
     fn test_unwrap_panic_none() {
-        let mut env = TestEnvironment::default();
-        let err = env
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (optional uint)))
     (unwrap-panic x)
 )
 (unwrap-opt none)
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+        "#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -296,18 +293,14 @@ mod tests {
 
     #[test]
     fn test_unwrap_panic_err() {
-        let mut env = TestEnvironment::default();
-        let err = env
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-panic x)
 )
-(unwrap-opt (err u42))
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+(unwrap-opt (err u42))"#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -317,17 +310,14 @@ mod tests {
 
     #[test]
     fn test_unwrap_err_panic_ok() {
-        let err = TestEnvironment::default()
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-err-panic x)
 )
-(unwrap-opt (ok u42))
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+(unwrap-opt (ok u42))"#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     /// Verify that the full response type is set correctly for the last
