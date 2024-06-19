@@ -1,9 +1,6 @@
+use clar2wasm::tools::{crosscheck, crosscheck_expect_failure};
 use clarity::vm::Value;
 use proptest::prelude::prop;
-use clarity::vm::errors::{Error, WasmError};
-use clar2wasm::tools::{crosscheck, evaluate};
-use clar2wasm::tools::{crosscheck_expect_failure};
-
 use proptest::proptest;
 use proptest::strategy::Strategy;
 
@@ -103,16 +100,12 @@ proptest! {
 
     #[test]
     fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
-        let expected_val:Result<Option<Value>, ()> = if is_response_intermediary{
+        let _expected_val: Result<Option<Value>, ()> = if is_response_intermediary {
             Err(())
         } else{
             Ok(Some(expected_val.into()))
         };
 
-        crosscheck(
-            &expr,
-            expected_val
-        );
-
+        crosscheck_expect_failure(&expr);
     }
 }
