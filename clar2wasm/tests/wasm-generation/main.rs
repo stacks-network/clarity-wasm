@@ -621,7 +621,7 @@ mod tests {
                 .unwrap()
             )
             .type_string(),
-            "{a:int,b:uint,c:bool,}"
+            "{a: int,b: uint,c: bool,}"
         );
         assert_eq!(
             Value::from(
