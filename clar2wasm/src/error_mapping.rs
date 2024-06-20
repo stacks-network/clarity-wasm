@@ -71,6 +71,9 @@ pub(crate) fn map(instance: Instance, mut store: impl AsContextMut) -> Error {
         ErrorMap::Panic => {
             panic!("An error has been detected in the code")
         }
+        // TODO: UInt(42) value below is just a placeholder.
+        // It should be replaced by the current "thrown-value" when issue #385 is resolved.
+        // Tests that reach this code are currently ignored.
         ErrorMap::ShortReturnAssertionFailure => Error::ShortReturn(
             ShortReturnType::AssertionFailed(Value::Response(ResponseData {
                 committed: false,
