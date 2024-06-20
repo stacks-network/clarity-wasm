@@ -1,36 +1,41 @@
 use clar2wasm::tools::crosscheck;
+use clarity::vm::types::ResponseData;
 use clarity::vm::Value;
+use proptest::prelude::prop;
 use proptest::proptest;
 use proptest::strategy::Strategy;
 
-use crate::{random_expressions, PropValue, TypePrinter};
+use crate::{PropValue, TypePrinter};
 
-const DEFINE_PRIVATE_READONLY: [&str; 2] = ["define-private", "define-read-only"];
+fn generate_random_function_arguments(
+    maximum_arguments: usize,
+) -> impl Strategy<Value = (String, String)> {
+    prop::collection::vec(PropValue::any(), 1..=maximum_arguments).prop_map(|values| {
+        let mut arguments = String::from("");
+        let mut parameters = String::from("");
+
+        for (i, v) in values.iter().enumerate() {
+            arguments.push_str(&format!("(a{i} {}) ", v.type_string()));
+            parameters.push_str(&format!("{} ", v));
+        }
+
+        (arguments, parameters)
+    })
+}
 
 proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn define_private_readonly(
-        (v, (expr, expected_val, is_response_intermediary)) in PropValue::any().prop_flat_map(|v| {
-            random_expressions(20,false).prop_map(move |tuple| (v.clone(), tuple))
-        })
-) {
-        for function in DEFINE_PRIVATE_READONLY{
-            let expr=format!("(begin {expr})");
-            let snippet=&format!(r#"({function} (func (a {})) {expr}) (func {v})"#,v.type_string());
-
-            let expected_val: Result<Option<Value>,()>=if is_response_intermediary{
-                Err(())
-            }else{
-                Ok(Some(expected_val.clone().into()))
-            };
+    fn define_private(
+        (arguments, parameters) in generate_random_function_arguments(20)
+    ) {
+            let snippet=&format!("(define-private (func {arguments}) 1) (func {parameters})");
 
             crosscheck(
                 snippet,
-                expected_val
+                Ok(Some(Value::Int(1)))
             );
-        }
     }
 }
 
@@ -38,23 +43,46 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn define_public(
-        (v, (expr, expected_val, is_response_intermediary)) in PropValue::any().prop_flat_map(|v| {
-            random_expressions(10,true).prop_map(move |tuple| (v.clone(), tuple))
-        })
-) {
-            let expr=format!("(begin {expr})");
-            let snippet=&format!(r#"(define-public (func (a {})) {expr}) (func {v})"#,v.type_string());
-
-            let expected_val: Result<Option<Value>,()>=if is_response_intermediary{
-                Err(())
-            }else{
-                Ok(Some(expected_val.clone().into()))
-            };
+    fn define_read_only(
+        (arguments, parameters) in generate_random_function_arguments(20)
+    ) {
+            let snippet=&format!("(define-read-only (func {arguments}) 1) (func {parameters})");
 
             crosscheck(
                 snippet,
-                expected_val
+                Ok(Some(Value::Int(1)))
+            );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn define_public_ok(
+        (arguments, parameters) in generate_random_function_arguments(20)
+    ) {
+            let snippet=&format!("(define-public (func {arguments}) (ok 1)) (func {parameters})");
+
+            crosscheck(
+                snippet,
+                Ok(Some(Value::Response(ResponseData { committed: true, data: Box::new(Value::Int(1)) })))
+            );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn define_public_err(
+        (arguments, parameters) in generate_random_function_arguments(20)
+    ) {
+            let snippet=&format!("(define-public (func {arguments}) (err 1)) (func {parameters})");
+
+            crosscheck(
+                snippet,
+                Ok(Some(Value::Response(ResponseData { committed: false, data: Box::new(Value::Int(1)) })))
             );
     }
 }

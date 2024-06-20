@@ -1,8 +1,37 @@
 use clar2wasm::tools::crosscheck;
 use clarity::vm::Value;
-use proptest::proptest;
+use proptest::prelude::{prop, proptest};
+use proptest::strategy::Strategy;
 
-use crate::{random_expressions, PropValue};
+use crate::PropValue;
+
+fn generate_begin_expressions(
+    maximum_expressions: usize,
+) -> impl Strategy<Value = (String, PropValue, bool)> {
+    prop::collection::vec(PropValue::any(), 1..=maximum_expressions).prop_map(move |values| {
+        let mut expressions = String::new();
+        let len = values.len();
+        let mut is_response_intermediary = false;
+
+        for (i, v) in values.iter().enumerate() {
+            if i != len - 1 {
+                if let Value::Response(_) = v.0 {
+                    is_response_intermediary = true;
+                }
+            }
+
+            if !expressions.is_empty() {
+                expressions.push(' ');
+            }
+
+            expressions.push_str(&format!("{v}"));
+        }
+
+        let last_value = values.last().unwrap().clone();
+
+        (expressions, last_value, is_response_intermediary)
+    })
+}
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -68,8 +97,9 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn begin((expr, expected_val, is_response_intermediary) in random_expressions(20,false)) {
+    fn begin((expr, expected_val, is_response_intermediary) in generate_begin_expressions(20)) {
         let expr=format!("(begin {})", expr);
+
         let expected_val:Result<Option<Value>, ()> = if is_response_intermediary{
             Err(())
         } else{

@@ -382,63 +382,6 @@ fn qualified_principal() -> impl Strategy<Value = Value> {
     })
 }
 
-fn value_to_string(value: &PropValue, to_response: bool) -> String {
-    match value.0 {
-        Value::Response(_) => format!("{}", value),
-        _ if to_response => format!("(ok {value})"),
-        _ => format!("{}", value),
-    }
-}
-
-fn ensure_last_response(last_value: PropValue, is_public_function: bool) -> PropValue {
-    if is_public_function {
-        match last_value.0 {
-            Value::Response(_) => PropValue::from(last_value.0),
-            _ => {
-                let val = Value::Response(ResponseData {
-                    committed: true,
-                    data: Box::new(last_value.0),
-                });
-                PropValue::from(val)
-            }
-        }
-    } else {
-        PropValue::from(last_value.0)
-    }
-}
-
-fn random_expressions(
-    limit: usize,
-    is_public_function: bool,
-) -> impl Strategy<Value = (String, PropValue, bool)> {
-    prop::collection::vec(PropValue::any(), 1..=limit).prop_map(move |values| {
-        let mut expressions = String::new();
-        let len = values.len();
-        let mut is_response_intermediary = false;
-
-        for (i, v) in values.iter().enumerate() {
-            if i != len - 1 {
-                if let Value::Response(_) = v.0 {
-                    is_response_intermediary = true;
-                }
-            }
-
-            let s = value_to_string(v, i == len - 1 && is_public_function);
-
-            if !expressions.is_empty() {
-                expressions.push(' ');
-            }
-
-            expressions.push_str(&s);
-        }
-
-        let last_value = values.last().unwrap().clone();
-        let last_value = ensure_last_response(last_value, is_public_function);
-
-        (expressions, last_value, is_response_intermediary)
-    })
-}
-
 trait TypePrinter {
     fn type_string(&self) -> String;
 }
@@ -560,6 +503,7 @@ pub fn type_string(ty: &TypeSignature) -> String {
             for (key, value) in tuple_ty {
                 s.push_str(key);
                 s.push(':');
+                s.push(' '); // Space required after colon in tuple as function argument
                 s.push_str(&type_string(value));
                 s.push(',');
             }
