@@ -1,6 +1,7 @@
 use clar2wasm::tools::crosscheck;
 use clarity::vm::Value;
 use proptest::proptest;
+
 use crate::{random_expressions, PropValue};
 
 proptest! {
