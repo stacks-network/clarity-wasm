@@ -1,27 +1,35 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::{types::ResponseData, Value};
-use proptest::proptest;
+use clarity::vm::Value;
+use proptest::{proptest, strategy::Strategy};
 
-use crate::{PropValue, TypePrinter};
+use crate::{random_expressions, PropValue, TypePrinter};
 
-const NO_RESPONSE_FUNCTIONS: [&str; 2] = ["define-private", "define-read-only"];
+const DEFINE_PRIVATE_READONLY: [&str; 2] = ["define-private", "define-read-only"];
 
 proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn define_no_response_functions(
-        v in PropValue::any()
+    fn define_private_readonly(
+        (v, (expr, expected_val, is_response_intermediary)) in PropValue::any().prop_flat_map(|v| {
+            random_expressions(20,false).prop_map(move |tuple| (v.clone(), tuple))
+        })
 ) {
-        for function in NO_RESPONSE_FUNCTIONS{
-            let snippet=&format!(r#"({function} (func (a {})) 1) (func {v})"#,v.type_string());
-            
+        for function in DEFINE_PRIVATE_READONLY{
+            let expr=format!("(begin {expr})");
+            let snippet=&format!(r#"({function} (func (a {})) {expr}) (func {v})"#,v.type_string());
+
+            let expected_val: Result<Option<Value>,()>=if is_response_intermediary{
+                Err(())
+            }else{
+                Ok(Some(expected_val.clone().into()))
+            };
+
             crosscheck(
                 snippet,
-                Ok(Some(Value::Int(1)))
+                expected_val
             );
         }
-
     }
 }
 
@@ -30,13 +38,22 @@ proptest! {
 
     #[test]
     fn define_public(
-        v in PropValue::any()
+        (v, (expr, expected_val, is_response_intermediary)) in PropValue::any().prop_flat_map(|v| {
+            random_expressions(10,true).prop_map(move |tuple| (v.clone(), tuple))
+        })
 ) {
-            let snippet=&format!(r#"(define-public (func (a {})) (ok 1)) (func {v})"#,v.type_string());
+            let expr=format!("(begin {expr})");
+            let snippet=&format!(r#"(define-public (func (a {})) {expr}) (func {v})"#,v.type_string());
+
+            let expected_val: Result<Option<Value>,()>=if is_response_intermediary{
+                Err(())
+            }else{
+                Ok(Some(expected_val.clone().into()))
+            };
 
             crosscheck(
                 snippet,
-                Ok(Some(Value::Response(ResponseData{committed:true, data: Box::new(Value::Int(1))})))
+                expected_val
             );
     }
 }
