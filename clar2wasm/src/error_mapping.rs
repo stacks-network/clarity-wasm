@@ -37,7 +37,7 @@ impl ErrorMap {
     }
 }
 
-pub(crate) fn map(instance: Instance, mut store: impl AsContextMut) -> Error {
+pub(crate) fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut) -> Error {
     let global = "runtime-error-code";
     let runtime_error_code = instance
         .get_global(&mut store, global)

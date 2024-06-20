@@ -1285,7 +1285,7 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|_| error_mapping::map(instance, &mut store))?;
+        .map_err(|_| error_mapping::from_runtime_error_code(instance, &mut store))?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)
