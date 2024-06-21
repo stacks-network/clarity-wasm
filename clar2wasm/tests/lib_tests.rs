@@ -6,6 +6,7 @@ use clar2wasm::initialize::initialize_contract;
 use clar2wasm::tools::execute;
 use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::chainstate::BlockHeaderHash;
 use clarity::types::StacksEpochId;
 use clarity::vm::callables::DefineType;
 use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
@@ -4141,3 +4142,16 @@ test_contract_call_error!(
         );
     }
 );
+
+test_contract_call_error!(
+    test_root_cause_error_case,
+    "root-cause-error-case",
+    "foo", |error: Error| {
+    assert_eq!(
+        error,
+        Error::Runtime(
+            RuntimeErrorType::UnknownBlockHeaderHash(BlockHeaderHash([0xff; 32])),
+            None
+        )
+    );
+});

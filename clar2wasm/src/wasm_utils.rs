@@ -1285,7 +1285,15 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|_| error_mapping::from_runtime_error_code(instance, &mut store))?;
+        .map_err(|e| {
+            if let Some(vm_error) = e.root_cause().downcast_ref::<Error>() {
+                // This is sound since vm_error points
+                // to a properly initialized value of Error.
+                return unsafe { core::ptr::read(vm_error) };
+            }
+
+            error_mapping::from_runtime_error_code(instance, &mut store)
+        })?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)
