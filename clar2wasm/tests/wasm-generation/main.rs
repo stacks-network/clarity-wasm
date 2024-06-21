@@ -502,8 +502,7 @@ pub fn type_string(ty: &TypeSignature) -> String {
             s.push('{');
             for (key, value) in tuple_ty {
                 s.push_str(key);
-                s.push(':');
-                s.push(' '); // Space required after colon in tuple as function argument
+                s.push_str(": "); // Space required after colon in tuple as function argument
                 s.push_str(&type_string(value));
                 s.push(',');
             }

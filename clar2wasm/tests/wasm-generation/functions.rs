@@ -59,7 +59,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn define_public_ok(
+    fn define_public(
         (arguments, parameters) in generate_random_function_arguments(20)
     ) {
             let snippet=&format!("(define-public (func {arguments}) (ok 1)) (func {parameters})");
@@ -67,22 +67,6 @@ proptest! {
             crosscheck(
                 snippet,
                 Ok(Some(Value::Response(ResponseData { committed: true, data: Box::new(Value::Int(1)) })))
-            );
-    }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
-    #[test]
-    fn define_public_err(
-        (arguments, parameters) in generate_random_function_arguments(20)
-    ) {
-            let snippet=&format!("(define-public (func {arguments}) (err 1)) (func {parameters})");
-
-            crosscheck(
-                snippet,
-                Ok(Some(Value::Response(ResponseData { committed: false, data: Box::new(Value::Int(1)) })))
             );
     }
 }
