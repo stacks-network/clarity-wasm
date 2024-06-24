@@ -1287,9 +1287,18 @@ pub fn call_function<'a>(
     func.call(&mut store, &wasm_args, &mut results)
         .map_err(|e| {
             if let Some(vm_error) = e.root_cause().downcast_ref::<Error>() {
-                // This is sound since vm_error points
-                // to a properly initialized value of Error.
-                return unsafe { core::ptr::read(vm_error) };
+                // This unsafe operation returns the value of a location pointed by `*mut T`.
+                // The purpose of this code is to take the ownership of the `vm_error` value.
+                // The replaced `T` value is deallocated after the operation. Therefore, the chosen `T`
+                // is a dummy value, solely to satisfy the signature of the replace function
+                // and not cause harm when it is deallocated.
+                // Specifically, Error::Wasm(WasmError::ModuleNotFound) was selected as the placeholder value.
+                return unsafe {
+                    core::ptr::replace(
+                        (vm_error as *const Error) as *mut Error,
+                        Error::Wasm(WasmError::ModuleNotFound),
+                    )
+                };
             }
 
             error_mapping::from_runtime_error_code(instance, &mut store)

@@ -4146,12 +4146,14 @@ test_contract_call_error!(
 test_contract_call_error!(
     test_root_cause_error_case,
     "root-cause-error-case",
-    "foo", |error: Error| {
-    assert_eq!(
-        error,
-        Error::Runtime(
-            RuntimeErrorType::UnknownBlockHeaderHash(BlockHeaderHash([0xff; 32])),
-            None
-        )
-    );
-});
+    "foo",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::UnknownBlockHeaderHash(BlockHeaderHash([0xff; 32])),
+                None
+            )
+        );
+    }
+);
