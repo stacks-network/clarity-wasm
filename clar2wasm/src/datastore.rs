@@ -408,6 +408,7 @@ impl HeadersDB for BurnDatastore {
     fn get_stacks_block_header_hash_for_block(
         &self,
         id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
     ) -> Option<BlockHeaderHash> {
         self.store.get(id_bhh).map(|id| id.block_header_hash)
     }
@@ -419,32 +420,63 @@ impl HeadersDB for BurnDatastore {
         self.store.get(id_bhh).map(|id| id.burn_block_header_hash)
     }
 
-    fn get_consensus_hash_for_block(&self, id_bhh: &StacksBlockId) -> Option<ConsensusHash> {
+    fn get_consensus_hash_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<ConsensusHash> {
         self.store.get(id_bhh).map(|id| id.consensus_hash)
     }
-    fn get_vrf_seed_for_block(&self, id_bhh: &StacksBlockId) -> Option<VRFSeed> {
+    fn get_vrf_seed_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<VRFSeed> {
         self.store.get(id_bhh).map(|id| id.vrf_seed)
     }
-    fn get_burn_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64> {
+    fn get_stacks_block_time_for_block(&self, _id_bhh: &StacksBlockId) -> Option<u64> {
+        None
+    }
+    fn get_burn_block_time_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: Option<&StacksEpochId>,
+    ) -> Option<u64> {
         self.store.get(id_bhh).map(|id| id.burn_block_time)
     }
     fn get_burn_block_height_for_block(&self, id_bhh: &StacksBlockId) -> Option<u32> {
         self.store.get(id_bhh).map(|id| id.burn_block_height)
     }
-    fn get_miner_address(&self, id_bhh: &StacksBlockId) -> Option<StacksAddress> {
+    fn get_miner_address(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<StacksAddress> {
         self.store.get(id_bhh).map(|id| id.miner)
     }
-    fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_burnchain_tokens_spent_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store
             .get(id_bhh)
             .map(|id| id.burnchain_tokens_spent_for_block)
     }
-    fn get_burnchain_tokens_spent_for_winning_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_burnchain_tokens_spent_for_winning_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store
             .get(id_bhh)
             .map(|id| id.get_burnchain_tokens_spent_for_winning_block)
     }
-    fn get_tokens_earned_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_tokens_earned_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store.get(id_bhh).map(|id| id.tokens_earned_for_block)
     }
 }
