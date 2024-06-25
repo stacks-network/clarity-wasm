@@ -198,6 +198,30 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    fn crosscheck_fold(
+        seq in proptest::collection::vec(1u128..=1000, 1..=100)
+    ) {
+
+        let result =
+        seq.iter().fold(0, |a, b| a + b);
+
+        let expected = Value::UInt(
+            result
+        );
+
+        let snippet = format!("(fold + (list {}) u0)", seq.iter().map(|f| format!("u{f} ")).collect::<String>());
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
     fn crosscheck_map_not(
         seq in proptest::collection::vec(bool(), 1..=100)
         .prop_map(|v| {

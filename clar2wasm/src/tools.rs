@@ -312,7 +312,8 @@ pub fn interpret_at_with_amount(
 /// Returns an optional value -- the result of the evaluation.
 #[allow(clippy::result_unit_err)]
 pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
-    interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
+    interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
+        .map_err(|e| println!("interpreter error: {:?}", e))
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
