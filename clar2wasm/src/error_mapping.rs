@@ -20,8 +20,8 @@ pub enum ErrorMap {
     NotMapped = 99,
 }
 
-impl ErrorMap {
-    pub fn from(error_code: i32) -> ErrorMap {
+impl From<i32> for ErrorMap {
+    fn from(error_code: i32) -> Self {
         match error_code {
             0 => ErrorMap::ArithmeticOverflow,
             1 => ErrorMap::ArithmeticUnderflow,
@@ -98,23 +98,28 @@ pub(crate) fn resolve_error(
     // In this case, runtime errors are handled
     // by being mapped to the corresponding ClarityWasm Errors.
     if let Some(Trap::UnreachableCodeReached) = e.root_cause().downcast_ref::<Trap>() {
-        return from_runtime_error_code(instance, &mut store);
+        let global = "runtime-error-code";
+        let runtime_error_code = instance
+            .get_global(&mut store, global)
+            .and_then(|glob| glob.get(&mut store).i32())
+            .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
+
+        return match runtime_error_code {
+            // -1 is the default global wasm runtime error code.
+            // If the global wasm runtime error code is the default,
+            // the thrown error is not a ClarityWasm runtime error.
+            -1 => Error::Wasm(WasmError::Runtime(e)),
+            // If the global wasm runtime error code differs from the default,
+            // the thrown error should be treated as a ClarityWasm runtime error.
+            _ => from_runtime_error_code(runtime_error_code),
+        };
     }
 
     // All other errors are treated as general runtime errors.
     Error::Wasm(WasmError::Runtime(e))
 }
 
-fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut) -> Error {
-    let global = "runtime-error-code";
-    let runtime_error_code = instance
-        .get_global(&mut store, global)
-        .and_then(|glob| glob.get(&mut store).i32())
-        // TODO: change that to a proper error when PR below is merged on stacks-core.
-        // https://github.com/stacks-network/stacks-core/pull/4878 introduces a
-        // generic error handling for global variables.
-        .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
-
+fn from_runtime_error_code(runtime_error_code: i32) -> Error {
     match ErrorMap::from(runtime_error_code) {
         ErrorMap::ArithmeticOverflow => {
             Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new()))
