@@ -12,7 +12,7 @@ use clarity::vm::types::{
 };
 use clarity::vm::{CallStack, ClarityName, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
-use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Trap, Val, ValType};
+use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
 use crate::error_mapping;
 use crate::initialize::ClarityWasmContext;
@@ -1285,42 +1285,7 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|e| {
-            if let Some(vm_error) = e.root_cause().downcast_ref::<Error>() {
-                // SAFETY:
-                //
-                // This unsafe operation returns the value of a location pointed by `*mut T`.
-                //
-                // The purpose of this code is to take the ownership of the `vm_error` value
-                // since clarity::vm::errors::Error is not a Clonable type.
-                //
-                // Converting a `&T` (vm_error) to a `*mut T` doesn't cause any issues here
-                // because the reference is not borrowed elsewhere.
-                //
-                // The replaced `T` value is deallocated after the operation. Therefore, the chosen `T`
-                // is a dummy value, solely to satisfy the signature of the replace function
-                // and not cause harm when it is deallocated.
-                //
-                // Specifically, Error::Wasm(WasmError::ModuleNotFound) was selected as the placeholder value.
-                return unsafe {
-                    core::ptr::replace(
-                        (vm_error as *const Error) as *mut Error,
-                        Error::Wasm(WasmError::ModuleNotFound),
-                    )
-                };
-            }
-
-            // Check if the error is caused by a Wasm trap.
-            //
-            // In this case, runtime errors are handled
-            // by being mapped to the corresponding ClarityWasm Errors.
-            if let Some(_trap) = e.root_cause().downcast_ref::<Trap>() {
-                return error_mapping::from_runtime_error_code(instance, &mut store);
-            }
-
-            // All other errors are treated as general runtime errors.
-            Error::Wasm(WasmError::Runtime(e))
-        })?;
+        .map_err(|e| error_mapping::resolve_error(e, instance, &mut store))?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)

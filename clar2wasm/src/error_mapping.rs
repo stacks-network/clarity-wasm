@@ -1,7 +1,7 @@
-use clarity::vm::errors::{Error, RuntimeErrorType, ShortReturnType};
+use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType, ShortReturnType, WasmError};
 use clarity::vm::types::ResponseData;
 use clarity::vm::Value;
-use wasmtime::{AsContextMut, Instance};
+use wasmtime::{AsContextMut, Instance, Trap};
 
 const LOG2_ERROR_MESSAGE: &str = "log2 must be passed a positive integer";
 const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
@@ -37,7 +37,75 @@ impl ErrorMap {
     }
 }
 
-pub(crate) fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut) -> Error {
+pub(crate) fn resolve_error(
+    e: wasmtime::Error,
+    instance: Instance,
+    mut store: impl AsContextMut,
+) -> Error {
+    if let Some(vm_error) = e.root_cause().downcast_ref::<Error>() {
+        // SAFETY:
+        //
+        // This unsafe operation returns the value of a location pointed by `*mut T`.
+        //
+        // The purpose of this code is to take the ownership of the `vm_error` value
+        // since clarity::vm::errors::Error is not a Clonable type.
+        //
+        // Converting a `&T` (vm_error) to a `*mut T` doesn't cause any issues here
+        // because the reference is not borrowed elsewhere.
+        //
+        // The replaced `T` value is deallocated after the operation. Therefore, the chosen `T`
+        // is a dummy value, solely to satisfy the signature of the replace function
+        // and not cause harm when it is deallocated.
+        //
+        // Specifically, Error::Wasm(WasmError::ModuleNotFound) was selected as the placeholder value.
+        return unsafe {
+            core::ptr::replace(
+                (vm_error as *const Error) as *mut Error,
+                Error::Wasm(WasmError::ModuleNotFound),
+            )
+        };
+    }
+
+    if let Some(vm_error) = e.root_cause().downcast_ref::<CheckErrors>() {
+        // SAFETY:
+        //
+        // This unsafe operation returns the value of a location pointed by `*mut T`.
+        //
+        // The purpose of this code is to take the ownership of the `vm_error` value
+        // since clarity::vm::errors::Error is not a Clonable type.
+        //
+        // Converting a `&T` (vm_error) to a `*mut T` doesn't cause any issues here
+        // because the reference is not borrowed elsewhere.
+        //
+        // The replaced `T` value is deallocated after the operation. Therefore, the chosen `T`
+        // is a dummy value, solely to satisfy the signature of the replace function
+        // and not cause harm when it is deallocated.
+        //
+        // Specifically, CheckErrors::ExpectedName was selected as the placeholder value.
+        return unsafe {
+            let err = core::ptr::replace(
+                (vm_error as *const CheckErrors) as *mut CheckErrors,
+                CheckErrors::ExpectedName,
+            );
+
+            <CheckErrors as std::convert::Into<Error>>::into(err)
+        };
+    }
+
+    // Check if the error is caused by
+    // an unreachable Wasm trap.
+    //
+    // In this case, runtime errors are handled
+    // by being mapped to the corresponding ClarityWasm Errors.
+    if let Some(Trap::UnreachableCodeReached) = e.root_cause().downcast_ref::<Trap>() {
+        return from_runtime_error_code(instance, &mut store);
+    }
+
+    // All other errors are treated as general runtime errors.
+    Error::Wasm(WasmError::Runtime(e))
+}
+
+fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut) -> Error {
     let global = "runtime-error-code";
     let runtime_error_code = instance
         .get_global(&mut store, global)
