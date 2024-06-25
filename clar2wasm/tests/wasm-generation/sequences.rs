@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use clar2wasm::tools::crosscheck;
 use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
@@ -186,6 +188,30 @@ proptest! {
 
         let lists_str: String = lists.iter().map(|el| el.to_string() + " ").collect();
         let snippet = format!("(map + {})", lists_str);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_fold(
+        seq in proptest::collection::vec(1u128..=1000, 1..=100)
+    ) {
+
+        let result =
+        seq.iter().sum();
+
+        let expected = Value::UInt(
+            result
+        );
+
+        let snippet = format!("(fold + (list {}) u0)", seq.iter().fold(String::new(), |mut s, n| {write!(s, "u{n} ").unwrap(); s}));
 
         crosscheck(
             &snippet,
