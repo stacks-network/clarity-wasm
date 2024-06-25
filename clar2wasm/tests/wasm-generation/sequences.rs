@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use clar2wasm::tools::crosscheck;
 use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
 use clarity::vm::Value;
@@ -203,13 +205,13 @@ proptest! {
     ) {
 
         let result =
-        seq.iter().fold(0, |a, b| a + b);
+        seq.iter().sum();
 
         let expected = Value::UInt(
             result
         );
 
-        let snippet = format!("(fold + (list {}) u0)", seq.iter().map(|f| format!("u{f} ")).collect::<String>());
+        let snippet = format!("(fold + (list {}) u0)", seq.iter().fold(String::new(), |mut s, n| {write!(s, "u{n} ").unwrap(); s}));
 
         crosscheck(
             &snippet,
