@@ -86,7 +86,10 @@ impl ComplexWord for Verify {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, WasmError};
+    use clarity::vm::errors::Error;
+    use clarity::vm::types::{
+        BuffData, BufferLength, SequenceData, SequenceSubtype, TypeSignature,
+    };
     use clarity::vm::Value;
 
     use crate::tools::crosscheck;
@@ -118,7 +121,6 @@ mod tests {
             0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(false))))
     }
 
-    #[ignore = "see issue: #383"]
     #[test]
     fn test_secp256k1_recover_bad_values() {
         // For some reason, if the message-hash is the wrong size, it throws a
@@ -126,9 +128,19 @@ mod tests {
         // normal clarity error.
 
         // Message hash too short
-        crosscheck("(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f
-            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)",
-            Err(Error::Wasm(WasmError::WasmGeneratorError("[TODO] change that".to_string()))));
+        let short_hash = "de5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f";
+        crosscheck(&format!("(secp256k1-recover? 0x{}
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)", short_hash),
+            Err(Error::Unchecked(
+                clarity::vm::errors::CheckErrors::TypeValueError(
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(32_u32).unwrap(),
+                    )),
+                    Value::Sequence(SequenceData::Buffer(BuffData {
+                        data: hex::decode(short_hash).unwrap(),
+                    })),
+                ),
+            )));
 
         // Signature too short
         crosscheck("(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
@@ -136,7 +148,6 @@ mod tests {
             Ok(Some(Value::err_uint(2))));
     }
 
-    #[ignore = "see issue: #384"]
     #[test]
     fn test_secp256k1_verify_bad_values() {
         // For some reason, if the message hash or public key are the wrong
@@ -144,21 +155,45 @@ mod tests {
         // wrong size, it's a normal clarity error.
 
         // Message hash too short
-        crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f
+        let short_hash = "de5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f";
+
+        crosscheck(&format!("(secp256k1-verify 0x{}
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)",
-            Err(Error::Wasm(WasmError::WasmGeneratorError("[TODO] change that".to_string()))));
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", short_hash),
+            Err(Error::Unchecked(
+                clarity::vm::errors::CheckErrors::TypeValueError(
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(32_u32).unwrap(),
+                    )),
+                    Value::Sequence(SequenceData::Buffer(BuffData {
+                        data: hex::decode(short_hash).unwrap(),
+                    })),
+                ),
+            )));
 
         // Signature too short
-        crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
-            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)",
+        let short_sig = "8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a";
+
+        crosscheck(&format!("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+            0x{}
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", short_sig),
             Ok(Some(Value::Bool(false))));
 
         // Public key is too short
-        crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+        let short_pubkey = "03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861";
+
+        crosscheck(&format!("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
-            Err(Error::Wasm(WasmError::WasmGeneratorError("[TODO] change that".to_string()))));
+            0x{})", short_pubkey),
+            Err(Error::Unchecked(
+                clarity::vm::errors::CheckErrors::TypeValueError(
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(33_u32).unwrap(),
+                    )),
+                    Value::Sequence(SequenceData::Buffer(BuffData {
+                        data: hex::decode(short_pubkey).unwrap(),
+                    })),
+                ),
+            )));
     }
 }
