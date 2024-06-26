@@ -8,7 +8,7 @@ const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
 const POW_ERROR_MESSAGE: &str = "Power argument to (pow ...) must be a u32 integer";
 
 pub enum ErrorMap {
-    NotWasmError = -1,
+    NotClarityError = -1,
     ArithmeticOverflow = 0,
     ArithmeticUnderflow = 1,
     DivisionByZero = 2,
@@ -24,7 +24,7 @@ pub enum ErrorMap {
 impl From<i32> for ErrorMap {
     fn from(error_code: i32) -> Self {
         match error_code {
-            -1 => ErrorMap::NotWasmError,
+            -1 => ErrorMap::NotClarityError,
             0 => ErrorMap::ArithmeticOverflow,
             1 => ErrorMap::ArithmeticUnderflow,
             2 => ErrorMap::DivisionByZero,
@@ -119,7 +119,7 @@ fn from_runtime_error_code(
         .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
 
     match ErrorMap::from(runtime_error_code) {
-        ErrorMap::NotWasmError => Error::Wasm(WasmError::Runtime(e)),
+        ErrorMap::NotClarityError => Error::Wasm(WasmError::Runtime(e)),
         ErrorMap::ArithmeticOverflow => {
             Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new()))
         }
