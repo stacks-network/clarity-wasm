@@ -393,7 +393,7 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
 
 pub fn crosscheck_with_epoch(
     snippet: &str,
-    expected: Result<Option<Value>, ()>,
+    expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
     let clarity_version = ClarityVersion::default_for_epoch(epoch);
@@ -401,16 +401,13 @@ pub fn crosscheck_with_epoch(
     let interpreted = interpret_at(snippet, epoch, clarity_version);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
         "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled,
-        &interpreted
+        &compiled, &interpreted
     );
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        expected.as_ref(),
+        compiled, expected,
         "value is not the expected {:?}",
         compiled
     );
@@ -430,8 +427,11 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     validator(value)
 }
 
-// TODO: After issue #421 is complete,
-// several tests that call this function will need to be adjusted.
+// TODO: This function is a temporary solution until issue #421 is addressed.
+// Tests that call this function will need to be adjusted.
+//
+// Consider gating tests to epochs whenever possible
+// using the `crosscheck_with_epoch` function.
 pub fn crosscheck_expect_failure(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);

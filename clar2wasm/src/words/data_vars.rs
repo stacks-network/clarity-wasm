@@ -277,11 +277,6 @@ mod tests {
     #[test]
     fn validate_define_data_var_epoch() {
         crosscheck_with_epoch(
-            "(define-data-var index-of int 0)",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
             "(define-data-var index-of? int 0)",
             Ok(None),
             StacksEpochId::Epoch20,

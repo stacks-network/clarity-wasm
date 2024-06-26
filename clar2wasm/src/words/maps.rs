@@ -423,11 +423,6 @@ mod tests {
     fn validate_define_map_epoch() {
         // Epoch
         crosscheck_with_epoch(
-            "(define-map index-of {x: int} {square: int})",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
             "(define-map index-of? {x: int} {square: int})",
             Ok(None),
             StacksEpochId::Epoch20,

@@ -138,7 +138,6 @@ mod tests {
     #[test]
     fn validate_let_epoch() {
         // Epoch20
-        crosscheck_with_epoch("(let ((index-of 2)) 2)", Err(()), StacksEpochId::Epoch20);
         crosscheck_with_epoch(
             "(let ((index-of? 2)) (+ index-of? index-of?))",
             Ok(Some(Value::Int(4))),

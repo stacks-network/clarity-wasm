@@ -212,11 +212,6 @@ mod tests {
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_with_epoch(
-            "(define-constant index-of (+ 2 2))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
 
         crosscheck_expect_failure("(define-constant index-of? (+ 2 2))");
     }

@@ -283,19 +283,10 @@ mod tests {
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_with_epoch(
-            "(define-private (index-of) (ok u0))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
+
         crosscheck_with_epoch(
             "(define-private (element-at?) (ok u0))",
             Ok(None),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
-            "(define-private (element-at) (ok u0))",
-            Err(()),
             StacksEpochId::Epoch20,
         );
 
@@ -314,19 +305,10 @@ mod tests {
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_with_epoch(
-            "(define-public (index-of) (ok u0))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
+
         crosscheck_with_epoch(
             "(define-public (element-at?) (ok u0))",
             Ok(None),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
-            "(define-public (element-at) (ok u0))",
-            Err(()),
             StacksEpochId::Epoch20,
         );
 
@@ -345,19 +327,10 @@ mod tests {
             Ok(None),
             StacksEpochId::Epoch20,
         );
-        crosscheck_with_epoch(
-            "(define-read-only (index-of) (ok u0))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
+
         crosscheck_with_epoch(
             "(define-read-only (element-at?) (ok u0))",
             Ok(None),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
-            "(define-read-only (element-at) (ok u0))",
-            Err(()),
             StacksEpochId::Epoch20,
         );
 

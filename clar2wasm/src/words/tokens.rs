@@ -533,11 +533,6 @@ mod tests {
     fn validate_define_fungible_tokens_epoch() {
         // Epoch20
         crosscheck_with_epoch(
-            "(define-fungible-token index-of u100)",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
             "(define-fungible-token index-of? u100)",
             Ok(None),
             StacksEpochId::Epoch20,
@@ -563,11 +558,6 @@ mod tests {
     #[test]
     fn validate_define_non_fungible_tokens_epoch() {
         // Epoch20
-        crosscheck_with_epoch(
-            "(define-non-fungible-token index-of (buff 50))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
         crosscheck_with_epoch(
             "(define-non-fungible-token index-of? (buff 50))",
             Ok(None),

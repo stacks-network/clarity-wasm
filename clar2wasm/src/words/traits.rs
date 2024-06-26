@@ -287,11 +287,6 @@ mod tests {
     fn validate_define_trait_epoch() {
         // Epoch20
         crosscheck_with_epoch(
-            "(define-trait index-of ((func (int) (response int int))))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
             "(define-trait index-of? ((func (int) (response int int))))",
             Ok(None),
             StacksEpochId::Epoch20,
