@@ -155,7 +155,11 @@ mod tests {
 
     #[test]
     fn get_block_info_non_existent() {
-        crosscheck("(get-block-info? time u9999999)", Ok(Some(Value::none())));
+        crosscheck_with_epoch(
+            "(get-block-info? time u9999999)",
+            Ok(Some(Value::none())),
+            StacksEpochId::Epoch25,
+        );
     }
 
     #[test]
