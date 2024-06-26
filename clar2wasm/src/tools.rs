@@ -236,7 +236,7 @@ impl TestEnvironment {
 
 impl Default for TestEnvironment {
     fn default() -> Self {
-        Self::new(StacksEpochId::latest(), ClarityVersion::latest())
+        Self::new(StacksEpochId::Epoch25, ClarityVersion::Clarity2)
     }
 }
 

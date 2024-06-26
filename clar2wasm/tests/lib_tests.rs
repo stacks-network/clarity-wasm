@@ -71,7 +71,7 @@ macro_rules! test_multi_contract_init {
                             contract_str.as_str(),
                             &contract_id,
                             LimitedCostTracker::new_free(),
-                            ClarityVersion::latest(),
+                            ClarityVersion::Clarity2,
                             StacksEpochId::latest(),
                             analysis_db,
                         )
@@ -87,7 +87,7 @@ macro_rules! test_multi_contract_init {
                     .expect("Failed to insert contract analysis.");
 
                 let mut contract_context =
-                    ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+                    ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
                 // compile_result.module.emit_wasm_file("test.wasm").unwrap();
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
