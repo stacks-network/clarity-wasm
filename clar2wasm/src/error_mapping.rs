@@ -8,6 +8,7 @@ const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
 const POW_ERROR_MESSAGE: &str = "Power argument to (pow ...) must be a u32 integer";
 
 pub enum ErrorMap {
+    NotWasmError = -1,
     ArithmeticOverflow = 0,
     ArithmeticUnderflow = 1,
     DivisionByZero = 2,
@@ -23,6 +24,7 @@ pub enum ErrorMap {
 impl From<i32> for ErrorMap {
     fn from(error_code: i32) -> Self {
         match error_code {
+            -1 => ErrorMap::NotWasmError,
             0 => ErrorMap::ArithmeticOverflow,
             1 => ErrorMap::ArithmeticUnderflow,
             2 => ErrorMap::DivisionByZero,
@@ -98,29 +100,24 @@ pub(crate) fn resolve_error(
     // In this case, runtime errors are handled
     // by being mapped to the corresponding ClarityWasm Errors.
     if let Some(Trap::UnreachableCodeReached) = e.root_cause().downcast_ref::<Trap>() {
-        let global = "runtime-error-code";
-        let runtime_error_code = instance
-            .get_global(&mut store, global)
-            .and_then(|glob| glob.get(&mut store).i32())
-            .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
-
-        return match runtime_error_code {
-            // -1 is the default global wasm runtime error code.
-            // If the global wasm runtime error code is the default,
-            // the thrown error is not a ClarityWasm runtime error.
-            -1 => Error::Wasm(WasmError::Runtime(e)),
-            // If the global wasm runtime error code differs from the default,
-            // the thrown error should be treated as a ClarityWasm runtime error.
-            _ => from_runtime_error_code(runtime_error_code),
-        };
+        return from_runtime_error_code(instance, &mut store, e);
     }
 
     // All other errors are treated as general runtime errors.
     Error::Wasm(WasmError::Runtime(e))
 }
 
-fn from_runtime_error_code(runtime_error_code: i32) -> Error {
+fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut, e: wasmtime::Error) -> Error {
+    let global = "runtime-error-code";
+    let runtime_error_code = instance
+        .get_global(&mut store, global)
+        .and_then(|glob| glob.get(&mut store).i32())
+        .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
+
     match ErrorMap::from(runtime_error_code) {
+        ErrorMap::NotWasmError => {
+            Error::Wasm(WasmError::Runtime(e))
+        }
         ErrorMap::ArithmeticOverflow => {
             Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new()))
         }
