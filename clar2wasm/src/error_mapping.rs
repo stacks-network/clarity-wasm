@@ -107,7 +107,11 @@ pub(crate) fn resolve_error(
     Error::Wasm(WasmError::Runtime(e))
 }
 
-fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut, e: wasmtime::Error) -> Error {
+fn from_runtime_error_code(
+    instance: Instance,
+    mut store: impl AsContextMut,
+    e: wasmtime::Error,
+) -> Error {
     let global = "runtime-error-code";
     let runtime_error_code = instance
         .get_global(&mut store, global)
@@ -115,9 +119,7 @@ fn from_runtime_error_code(instance: Instance, mut store: impl AsContextMut, e: 
         .unwrap_or_else(|| panic!("Could not find {global} global with i32 value"));
 
     match ErrorMap::from(runtime_error_code) {
-        ErrorMap::NotWasmError => {
-            Error::Wasm(WasmError::Runtime(e))
-        }
+        ErrorMap::NotWasmError => Error::Wasm(WasmError::Runtime(e)),
         ErrorMap::ArithmeticOverflow => {
             Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new()))
         }
