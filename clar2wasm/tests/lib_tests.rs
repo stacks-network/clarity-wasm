@@ -1148,15 +1148,15 @@ test_contract_call_response!(
 // chain, which is not the case when running the tests. Once the test framework
 // supports this, these tests can be re-enabled.
 
-test_contract_call_response!(
-    test_gbi_non_existent,
-    "get-block-info",
-    "non-existent",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::none());
-    }
-);
+// test_contract_call_response!(
+//     test_gbi_non_existent,
+//     "get-block-info",
+//     "non-existent",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::none());
+//     }
+// );
 
 // test_contract_call_response!(
 //     test_gbi_bhh,
@@ -1230,25 +1230,25 @@ test_contract_call_response!(
 //     }
 // );
 
-test_contract_call_response!(
-    test_gbi_miner_spend_total,
-    "get-block-info",
-    "get-miner-spend-total",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-    }
-);
+// test_contract_call_response!(
+//     test_gbi_miner_spend_total,
+//     "get-block-info",
+//     "get-miner-spend-total",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+//     }
+// );
 
-test_contract_call_response!(
-    test_gbi_miner_spend_winner,
-    "get-block-info",
-    "get-miner-spend-winner",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-    }
-);
+// test_contract_call_response!(
+//     test_gbi_miner_spend_winner,
+//     "get-block-info",
+//     "get-miner-spend-winner",
+//     |response: ResponseData| {
+//         assert!(response.committed);
+//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+//     }
+// );
 
 test_multi_contract_call_response!(
     test_contract_call_no_args,
