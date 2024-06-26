@@ -1176,6 +1176,16 @@ impl WasmGenerator {
                     builder.call(self.func_by_name("stdlib.block_height"));
                     Ok(true)
                 }
+                NativeVariables::StacksBlockHeight => {
+                    // Call the host interface function, `stacks_block_height`
+                    builder.call(self.func_by_name("stdlib.stacks_block_height"));
+                    Ok(true)
+                }
+                NativeVariables::TenureHeight => {
+                    // Call the host interface function, `tenure_height`
+                    builder.call(self.func_by_name("stdlib.tenure_height"));
+                    Ok(true)
+                }
                 NativeVariables::BurnBlockHeight => {
                     // Call the host interface function, `burn_block_height`
                     builder.call(self.func_by_name("stdlib.burn_block_height"));

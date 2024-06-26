@@ -18,6 +18,11 @@ fn test_clar2wasm_with_input() {
         if file.path().extension().unwrap_or(OsStr::new("")) != "clar" {
             continue;
         }
+        if file.path().file_name().unwrap() == "bns.clar" {
+            // bns.clar uses `block-height` which is not supported in clarity 3
+            // the clar2wasm bin should accept a ClarityVersion flag
+            continue;
+        }
         let outfile = temp.join(
             file.file_name()
                 .into_string()

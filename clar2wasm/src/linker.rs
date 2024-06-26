@@ -35,6 +35,8 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_contract_caller_fn(linker)?;
     link_tx_sponsor_fn(linker)?;
     link_block_height_fn(linker)?;
+    link_stacks_block_height_fn(linker)?;
+    link_tenure_height_fn(linker)?;
     link_burn_block_height_fn(linker)?;
     link_stx_liquid_supply_fn(linker)?;
     link_is_in_regtest_fn(linker)?;
@@ -883,6 +885,56 @@ fn link_block_height_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         .map_err(|e| {
             Error::Wasm(WasmError::UnableToLinkHostFunction(
                 "block_height".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `stacks_block_height`, into the Wasm module.
+/// This function is called for use of the builtin variable, `stacks_block-height`.
+fn link_stacks_block_height_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "stacks_block_height",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let height = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_current_block_height();
+                Ok((height as i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "stacks_block_height".to_string(),
+                e,
+            ))
+        })
+}
+
+/// Link host interface function, `tenure_height`, into the Wasm module.
+/// This function is called for use of the builtin variable, `tenure-height`.
+fn link_tenure_height_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "tenure_height",
+            |mut caller: Caller<'_, ClarityWasmContext>| {
+                let height = caller
+                    .data_mut()
+                    .global_context
+                    .database
+                    .get_tenure_height()?;
+                Ok((height as i64, 0i64))
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "tenure_height".to_string(),
                 e,
             ))
         })
@@ -4118,6 +4170,16 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 
     linker.func_wrap("clarity", "block_height", |_: Caller<'_, ()>| {
         println!("block-height");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "stacks_block_height", |_: Caller<'_, ()>| {
+        println!("stacks-block-height");
+        Ok((0i64, 0i64))
+    })?;
+
+    linker.func_wrap("clarity", "tenure_height", |_: Caller<'_, ()>| {
+        println!("tenure-height");
         Ok((0i64, 0i64))
     })?;
 

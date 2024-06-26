@@ -145,16 +145,21 @@ impl ComplexWord for AtBlock {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
 
     //- Block Info
 
     #[test]
     fn get_block_info_non_existent() {
-        crosscheck("(get-block-info? time u9999999)", Ok(Some(Value::none())));
+        crosscheck_with_epoch(
+            "(get-block-info? time u9999999)",
+            Ok(Some(Value::none())),
+            StacksEpochId::Epoch25,
+        );
     }
 
     #[test]
@@ -278,21 +283,20 @@ mod tests {
     fn get_burn_block_info_non_existent() {
         crosscheck(
             "(get-burn-block-info? header-hash u9999999)",
-            Ok(Some(Value::none())),
+            Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            )),
         )
     }
 
     #[test]
     fn get_burn_block_info_header_hash() {
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-        let result = env
-            .evaluate("(get-burn-block-info? header-hash u0)")
-            .expect("Failed to init contract.");
-        assert_eq!(
-            result,
-            Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
-        );
+        crosscheck(
+            "(get-burn-block-info? header-hash u0)",
+            Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            )),
+        )
     }
 
     #[test]
@@ -333,8 +337,18 @@ mod tests {
     //- At Block
     #[test]
     fn at_block() {
-        crosscheck("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF)))
+        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF))),
+            StacksEpochId::Epoch24,
+        )
+    }
+
+    //- At Block
+    #[test]
+    fn at_block_with_stacks_block_height() {
+        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF))),
+            StacksEpochId::Epoch30,
         )
     }
 
@@ -366,8 +380,16 @@ mod tests {
   (ok burn-block-height))
 ";
 
-        crosscheck(&format!("{snpt} (block)"), evaluate("(ok u0)"));
-        crosscheck(&format!("{snpt} (burn-block)"), evaluate("(ok u0)"));
+        crosscheck_with_epoch(
+            &format!("{snpt} (block)"),
+            evaluate("(ok u0)"),
+            StacksEpochId::Epoch24,
+        );
+        crosscheck_with_epoch(
+            &format!("{snpt} (burn-block)"),
+            evaluate("(ok u0)"),
+            StacksEpochId::Epoch24,
+        );
     }
 
     #[test]

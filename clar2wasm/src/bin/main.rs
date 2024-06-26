@@ -40,7 +40,7 @@ fn main() {
     // Define some settings
     let contract_id = QualifiedContractIdentifier::transient();
     let clarity_version = ClarityVersion::Clarity2;
-    let epoch = StacksEpochId::latest();
+    let epoch = StacksEpochId::Epoch25;
 
     // Setup a datastore and cost tracker
     let mut datastore = MemoryBackingStore::new();
