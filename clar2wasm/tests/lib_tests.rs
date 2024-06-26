@@ -70,7 +70,7 @@ macro_rules! test_multi_contract_init {
                             contract_str.as_str(),
                             &contract_id,
                             LimitedCostTracker::new_free(),
-                            ClarityVersion::latest(),
+                            ClarityVersion::Clarity2,
                             StacksEpochId::latest(),
                             analysis_db,
                         )
@@ -86,7 +86,7 @@ macro_rules! test_multi_contract_init {
                     .expect("Failed to insert contract analysis.");
 
                 let mut contract_context =
-                    ContractContext::new(contract_id.clone(), ClarityVersion::latest());
+                    ContractContext::new(contract_id.clone(), ClarityVersion::Clarity2);
                 // compile_result.module.emit_wasm_file("test.wasm").unwrap();
                 contract_context.set_wasm_module(compile_result.module.emit_wasm());
 
@@ -1148,15 +1148,15 @@ test_contract_call_response!(
 // chain, which is not the case when running the tests. Once the test framework
 // supports this, these tests can be re-enabled.
 
-// test_contract_call_response!(
-//     test_gbi_non_existent,
-//     "get-block-info",
-//     "non-existent",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::none());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_non_existent,
+    "get-block-info",
+    "non-existent",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::none());
+    }
+);
 
 // test_contract_call_response!(
 //     test_gbi_bhh,
@@ -1230,25 +1230,25 @@ test_contract_call_response!(
 //     }
 // );
 
-// test_contract_call_response!(
-//     test_gbi_miner_spend_total,
-//     "get-block-info",
-//     "get-miner-spend-total",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_miner_spend_total,
+    "get-block-info",
+    "get-miner-spend-total",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+    }
+);
 
-// test_contract_call_response!(
-//     test_gbi_miner_spend_winner,
-//     "get-block-info",
-//     "get-miner-spend-winner",
-//     |response: ResponseData| {
-//         assert!(response.committed);
-//         assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
-//     }
-// );
+test_contract_call_response!(
+    test_gbi_miner_spend_winner,
+    "get-block-info",
+    "get-miner-spend-winner",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::some(Value::UInt(0)).unwrap());
+    }
+);
 
 test_multi_contract_call_response!(
     test_contract_call_no_args,
