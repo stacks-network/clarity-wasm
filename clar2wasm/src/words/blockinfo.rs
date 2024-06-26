@@ -291,9 +291,6 @@ mod tests {
 
     #[test]
     fn get_burn_block_info_header_hash() {
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-
         crosscheck(
             "(get-burn-block-info? header-hash u0)",
             Ok(Some(
