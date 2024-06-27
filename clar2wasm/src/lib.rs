@@ -21,6 +21,8 @@ mod words;
 pub mod datastore;
 pub mod tools;
 
+mod error_mapping;
+
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
 pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {

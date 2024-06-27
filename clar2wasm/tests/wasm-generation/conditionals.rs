@@ -124,7 +124,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "ignored until issue #104 is resolved"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn unwrap_optional_none(val in PropValue::any()) {
         let snippet = format!(r#"(unwrap! (if true none (some {val})) {val})"#);
@@ -153,7 +153,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "ignored until issue #104 is resolved"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn unwrap_response_err(val in PropValue::any()) {
         let snippet = format!(r#"(unwrap! (if true (err u1) (ok {val})) {val})"#);
@@ -224,7 +224,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "ignored until issue #104 is resolved"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn crosscheck_asserts_true(bool in bool(), val in PropValue::any()) {
         let expected = match bool.to_string().as_str() {
@@ -243,7 +243,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "ignored until issue #104 is resolved"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn crosscheck_try_optional_inside_function(bool in bool(), val in PropValue::any()) {
         let expected = match bool.to_string().as_str() {
@@ -264,7 +264,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "ignored until issue #104 is resolved"]
+    #[ignore = "see issue: #385"]
     #[test]
     fn crosscheck_try_response_inside_function(
         bool in bool(),

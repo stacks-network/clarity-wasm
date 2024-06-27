@@ -1,7 +1,9 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
+use walrus::ValType;
 
 use super::SimpleWord;
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn simple_typed_one_call(
@@ -74,25 +76,43 @@ impl SimpleWord for Sub {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let type_suffix = match return_type {
-            TypeSignature::IntType => "int",
-            TypeSignature::UIntType => "uint",
+        let func = match return_type {
+            TypeSignature::IntType => {
+                let type_suffix = "int";
+                if arg_types.len() == 1 {
+                    // Locals declaration.
+                    let op_lo = generator.module.locals.add(ValType::I64);
+                    let op_hi = generator.module.locals.add(ValType::I64);
+                    builder.local_set(op_hi).local_set(op_lo);
+                    // unary 'int' subtraction:
+                    // 0 - n.
+                    builder.i64_const(0);
+                    builder.i64_const(0);
+                    builder.local_get(op_lo).local_get(op_hi);
+                }
+
+                generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
+            }
+            TypeSignature::UIntType => {
+                let type_suffix = "uint";
+                if arg_types.len() == 1 {
+                    // unary 'uint' subtraction:
+                    // throws an underflow runtime error.
+                    builder.i32_const(ErrorMap::ArithmeticUnderflow as i32);
+                    generator.func_by_name("stdlib.runtime-error")
+                } else {
+                    generator.func_by_name(&format!("stdlib.sub-{type_suffix}"))
+                }
+            }
             _ => {
                 return Err(GeneratorError::TypeError(
                     "invalid type for arithmetic".to_string(),
                 ));
             }
         };
-        if arg_types.len() == 1 {
-            // unary is eq to mult by -1
-            builder.i64_const(-1);
-            builder.i64_const(-1);
-            let func = generator.func_by_name(&format!("stdlib.mul-{type_suffix}"));
-            builder.call(func);
-        } else {
-            let func = generator.func_by_name(&format!("stdlib.sub-{type_suffix}"));
-            builder.call(func);
-        }
+
+        builder.call(func);
+
         Ok(())
     }
 }
@@ -239,18 +259,31 @@ impl SimpleWord for Sqrti {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, RuntimeErrorType};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     #[test]
     fn test_overflow() {
-        crosscheck("(+ u340282366920938463463374607431768211455 u1)", Err(()));
+        crosscheck(
+            "(+ u340282366920938463463374607431768211455 u1)",
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticOverflow,
+                Some(Vec::new()),
+            )),
+        );
     }
 
     #[test]
     fn test_underflow() {
-        crosscheck("(- u0 u1)", Err(()))
+        crosscheck(
+            "(- u0 u1)",
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticUnderflow,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     #[test]
@@ -272,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_subtraction_nullary() {
-        crosscheck("(-)", Err(()));
+        crosscheck_expect_failure("(-)");
     }
 
     #[test]
@@ -316,13 +349,48 @@ mod tests {
     }
 
     #[test]
+    fn test_log2_runtime_error() {
+        crosscheck(
+            "(log2 -1)",
+            Err(Error::Runtime(
+                RuntimeErrorType::Arithmetic("log2 must be passed a positive integer".to_string()),
+                Some(Vec::new()),
+            )),
+        );
+    }
+
+    #[test]
     fn test_pow() {
         crosscheck("(pow 2 3)", Ok(Some(Value::Int(8))));
     }
 
     #[test]
+    fn test_pow_negative_exponent() {
+        crosscheck(
+            "(pow 2 -3)",
+            Err(Error::Runtime(
+                RuntimeErrorType::Arithmetic(
+                    "Power argument to (pow ...) must be a u32 integer".to_string(),
+                ),
+                Some(Vec::new()),
+            )),
+        );
+    }
+
+    #[test]
     fn test_sqrti() {
         crosscheck("(sqrti 8)", Ok(Some(Value::Int(2))));
+    }
+
+    #[test]
+    fn test_sqrti_runtime_error() {
+        crosscheck(
+            "(sqrti -1)",
+            Err(Error::Runtime(
+                RuntimeErrorType::Arithmetic("sqrti must be passed a positive integer".to_string()),
+                Some(Vec::new()),
+            )),
+        );
     }
 
     #[test]
@@ -384,7 +452,18 @@ mod tests {
 
     #[test]
     fn test_regress_sub_unary_uint() {
-        crosscheck("(- u5)", Err(()));
+        crosscheck(
+            "(- u5)",
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticUnderflow,
+                Some(Vec::new()),
+            )),
+        );
+    }
+
+    #[test]
+    fn test_sub_uint() {
+        crosscheck("(- u10 u5 u3 u1)", Ok(Some(Value::UInt(1))));
     }
 
     #[test]

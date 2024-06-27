@@ -18,6 +18,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
+use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     get_type_in_memory_size, get_type_size, is_in_memory_type, ordered_tuple_signature,
     owned_ordered_tuple_signature,
@@ -182,6 +183,7 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     }
 }
 
+#[derive(Debug)]
 pub enum SequenceElementType {
     /// A byte, from a string-ascii or buffer.
     Byte,
@@ -529,7 +531,7 @@ impl WasmGenerator {
         } else {
             // This must be from a top-leve statement, so it should cause a runtime error
             builder
-                .i32_const(7)
+                .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
                 .call(self.func_by_name("stdlib.runtime-error"));
             builder.unreachable();
         }
@@ -1174,6 +1176,16 @@ impl WasmGenerator {
                 NativeVariables::BlockHeight => {
                     // Call the host interface function, `block_height`
                     builder.call(self.func_by_name("stdlib.block_height"));
+                    Ok(true)
+                }
+                NativeVariables::StacksBlockHeight => {
+                    // Call the host interface function, `stacks_block_height`
+                    builder.call(self.func_by_name("stdlib.stacks_block_height"));
+                    Ok(true)
+                }
+                NativeVariables::TenureHeight => {
+                    // Call the host interface function, `tenure_height`
+                    builder.call(self.func_by_name("stdlib.tenure_height"));
                     Ok(true)
                 }
                 NativeVariables::BurnBlockHeight => {

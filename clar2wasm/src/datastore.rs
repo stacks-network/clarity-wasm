@@ -12,9 +12,10 @@ use clarity::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
     VRFSeed,
 };
-use clarity::types::StacksEpochId;
+use clarity::types::{StacksEpochId, PEER_VERSION_EPOCH_2_1};
 use clarity::util::hash::Sha512Trunc256Sum;
 use clarity::vm::analysis::AnalysisDatabase;
+use clarity::vm::costs::ExecutionCost;
 use clarity::vm::database::{BurnStateDB, ClarityBackingStore, HeadersDB};
 use clarity::vm::errors::{InterpreterError, InterpreterResult as Result};
 use clarity::vm::types::{QualifiedContractIdentifier, TupleData};
@@ -408,6 +409,7 @@ impl HeadersDB for BurnDatastore {
     fn get_stacks_block_header_hash_for_block(
         &self,
         id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
     ) -> Option<BlockHeaderHash> {
         self.store.get(id_bhh).map(|id| id.block_header_hash)
     }
@@ -419,32 +421,63 @@ impl HeadersDB for BurnDatastore {
         self.store.get(id_bhh).map(|id| id.burn_block_header_hash)
     }
 
-    fn get_consensus_hash_for_block(&self, id_bhh: &StacksBlockId) -> Option<ConsensusHash> {
+    fn get_consensus_hash_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<ConsensusHash> {
         self.store.get(id_bhh).map(|id| id.consensus_hash)
     }
-    fn get_vrf_seed_for_block(&self, id_bhh: &StacksBlockId) -> Option<VRFSeed> {
+    fn get_vrf_seed_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<VRFSeed> {
         self.store.get(id_bhh).map(|id| id.vrf_seed)
     }
-    fn get_burn_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64> {
+    fn get_stacks_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64> {
+        self.store.get(id_bhh).map(|id| id.burn_block_time)
+    }
+    fn get_burn_block_time_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: Option<&StacksEpochId>,
+    ) -> Option<u64> {
         self.store.get(id_bhh).map(|id| id.burn_block_time)
     }
     fn get_burn_block_height_for_block(&self, id_bhh: &StacksBlockId) -> Option<u32> {
         self.store.get(id_bhh).map(|id| id.burn_block_height)
     }
-    fn get_miner_address(&self, id_bhh: &StacksBlockId) -> Option<StacksAddress> {
+    fn get_miner_address(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<StacksAddress> {
         self.store.get(id_bhh).map(|id| id.miner)
     }
-    fn get_burnchain_tokens_spent_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_burnchain_tokens_spent_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store
             .get(id_bhh)
             .map(|id| id.burnchain_tokens_spent_for_block)
     }
-    fn get_burnchain_tokens_spent_for_winning_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_burnchain_tokens_spent_for_winning_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store
             .get(id_bhh)
             .map(|id| id.get_burnchain_tokens_spent_for_winning_block)
     }
-    fn get_tokens_earned_for_block(&self, id_bhh: &StacksBlockId) -> Option<u128> {
+    fn get_tokens_earned_for_block(
+        &self,
+        id_bhh: &StacksBlockId,
+        _epoch_id: &StacksEpochId,
+    ) -> Option<u128> {
         self.store.get(id_bhh).map(|id| id.tokens_earned_for_block)
     }
 }
@@ -460,6 +493,16 @@ impl BurnStateDB for BurnDatastore {
 
     fn get_pox_3_activation_height(&self) -> u32 {
         0
+    }
+
+    fn get_tip_burn_block_height(&self) -> Option<u32> {
+        Some(self.chain_height)
+    }
+
+    fn get_tip_sortition_id(&self) -> Option<SortitionId> {
+        let bytes = height_to_hashed_bytes(self.chain_height);
+        let sortition_id = SortitionId(bytes);
+        Some(sortition_id)
     }
 
     /// Returns the *burnchain block height* for the `sortition_id` is associated with.
@@ -522,11 +565,17 @@ impl BurnStateDB for BurnDatastore {
     /// The epoch is defined as by a start and end height. This returns
     /// the epoch enclosing `height`.
     fn get_stacks_epoch(&self, _height: u32) -> Option<StacksEpoch> {
-        None
+        Some(StacksEpoch {
+            epoch_id: StacksEpochId::latest(),
+            start_height: 0,
+            end_height: u64::MAX,
+            block_limit: ExecutionCost::max_value(),
+            network_epoch: PEER_VERSION_EPOCH_2_1,
+        })
     }
 
     fn get_stacks_epoch_by_epoch_id(&self, _epoch_id: &StacksEpochId) -> Option<StacksEpoch> {
-        None
+        self.get_stacks_epoch(0)
     }
 
     /// Get the PoX payout addresses for a given burnchain block

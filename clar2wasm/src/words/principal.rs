@@ -294,7 +294,11 @@ impl ComplexWord for PrincipalOf {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{PrincipalData, ResponseData, StandardPrincipalData, TupleData};
+    use clarity::vm::errors::Error;
+    use clarity::vm::types::{
+        BuffData, BufferLength, PrincipalData, ResponseData, SequenceData, SequenceSubtype,
+        StandardPrincipalData, TupleData, TypeSignature,
+    };
     use clarity::vm::Value;
 
     use crate::tools::crosscheck;
@@ -666,9 +670,20 @@ mod tests {
 
     #[test]
     fn test_principal_of_runtime_err() {
+        let pubkey_32_bytes = "03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861";
+
         crosscheck(
-            "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861)",
-            Err(()),
+            &format!("(principal-of? 0x{})", pubkey_32_bytes),
+            Err(Error::Unchecked(
+                clarity::vm::errors::CheckErrors::TypeValueError(
+                    TypeSignature::SequenceType(SequenceSubtype::BufferType(
+                        BufferLength::try_from(33_u32).unwrap(),
+                    )),
+                    Value::Sequence(SequenceData::Buffer(BuffData {
+                        data: hex::decode(pubkey_32_bytes).unwrap(),
+                    })),
+                ),
+            )),
         );
     }
 

@@ -120,7 +120,9 @@ mod tests {
     use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate, TestEnvironment,
+    };
 
     #[test]
     fn define_trait_eval() {
@@ -248,18 +250,16 @@ mod tests {
             "#,
         )
         .expect("Failed to init contract my-trait.");
-        let val = env
-            .init_contract_with_snippet(
-                "use-trait",
-                r#"
+        let val = env.init_contract_with_snippet(
+            "use-trait",
+            r#"
 (use-trait the-trait .my-trait.my-trait)
 (define-private (foo (adder <the-trait>))
     (print (list adder adder))
 )
 (foo .my-trait)
             "#,
-            )
-            .map_err(|_| ());
+        );
 
         assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
     }
@@ -267,47 +267,31 @@ mod tests {
     #[test]
     fn validate_define_trait() {
         // Reserved keyword
-        crosscheck(
-            "(define-trait map ((func (int) (response int int))))",
-            Err(()),
-        );
+        crosscheck_expect_failure("(define-trait map ((func (int) (response int int))))");
+
         // Custom trait token name
         crosscheck(
             "(define-trait a ((func (int) (response int int))))",
             Ok(None),
         );
+
         // Custom trait name duplicate
-        crosscheck(
-            r#"
-        (define-trait a ((func (int) (response int int))))
-         (define-trait a ((func (int) (response int int))))
-         "#,
-            Err(()),
-        );
+        let snippet = r#"
+          (define-trait a ((func (int) (response int int))))
+          (define-trait a ((func (int) (response int int))))
+        "#;
+        crosscheck_expect_failure(snippet);
     }
 
     #[test]
     fn validate_define_trait_epoch() {
         // Epoch20
         crosscheck_with_epoch(
-            "(define-trait index-of ((func (int) (response int int))))",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
-        crosscheck_with_epoch(
             "(define-trait index-of? ((func (int) (response int int))))",
             Ok(None),
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        crosscheck(
-            "(define-trait index-of ((func (int) (response int int))))",
-            Err(()),
-        );
-        crosscheck(
-            "(define-trait index-of? ((func (int) (response int int))))",
-            Err(()),
-        );
+        crosscheck_expect_failure("(define-trait index-of? ((func (int) (response int int))))");
     }
 }

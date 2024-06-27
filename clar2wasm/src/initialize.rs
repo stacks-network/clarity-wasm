@@ -7,6 +7,7 @@ use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
 use wasmtime::{Engine, Linker, Module, Store};
 
+use crate::error_mapping;
 use crate::linker::link_host_functions;
 use crate::wasm_utils::*;
 
@@ -368,7 +369,7 @@ pub fn initialize_contract(
 
     top_level
         .call(&mut store, &[], results.as_mut_slice())
-        .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
+        .map_err(|e| error_mapping::resolve_error(e, instance, &mut store))?;
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(
