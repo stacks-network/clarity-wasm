@@ -6,6 +6,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
@@ -1153,9 +1154,7 @@ impl ComplexWord for ReplaceAt {
             builder.local_tee(repl_len).unop(UnaryOp::I32Eqz).if_else(
                 None,
                 |then| {
-                    then
-                        // TODO: this is a panic, should be replaced by correct runtime error
-                        .i32_const(6)
+                    then.i32_const(ErrorMap::Panic as i32)
                         .call(generator.func_by_name("stdlib.runtime-error"));
                 },
                 |_| {},
@@ -2022,16 +2021,19 @@ mod tests {
 
     #[test]
     fn replace_element_cannot_be_empty_string_ascii() {
-        crosscheck(r#"(replace-at? "abcd" u0 "")"#, Err(()))
+        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? "abcd" u0 "")"#));
+        assert!(result.is_err());
     }
 
     #[test]
     fn replace_element_cannot_be_empty_string_utf8() {
-        crosscheck(r#"(replace-at? u"abcd" u0 u"")"#, Err(()))
+        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? u"abcd" u0 u"")"#));
+        assert!(result.is_err());
     }
 
     #[test]
     fn replace_element_cannot_be_empty_buff() {
-        crosscheck(r#"(replace-at? 0x12345678 u0 0x)"#, Err(()))
+        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? 0x12345678 u0 0x)"#));
+        assert!(result.is_err());
     }
 }

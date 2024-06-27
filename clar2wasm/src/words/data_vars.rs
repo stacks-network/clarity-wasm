@@ -228,7 +228,7 @@ impl ComplexWord for GetDataVar {
 mod tests {
     use clarity::types::StacksEpochId;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
 
     #[test]
     fn test_var_get() {
@@ -265,31 +265,23 @@ mod tests {
     #[test]
     fn validate_define_data_var() {
         // Reserved keyword
-        crosscheck("(define-data-var map int 0)", Err(()));
+        crosscheck_expect_failure("(define-data-var map int 0)");
+
         // Custom variable name
         crosscheck("(define-data-var a int 0)", Ok(None));
+
         // Custom variable name duplicate
-        crosscheck(
-            "(define-data-var a int 0) (define-data-var a int 0)",
-            Err(()),
-        );
+        crosscheck_expect_failure("(define-data-var a int 0) (define-data-var a int 0)");
     }
 
     #[test]
     fn validate_define_data_var_epoch() {
-        crosscheck_with_epoch(
-            "(define-data-var index-of int 0)",
-            Err(()),
-            StacksEpochId::Epoch20,
-        );
         crosscheck_with_epoch(
             "(define-data-var index-of? int 0)",
             Ok(None),
             StacksEpochId::Epoch20,
         );
 
-        // Latest Epoch and Clarity Version
-        crosscheck("(define-data-var index-of int 0)", Err(()));
-        crosscheck("(define-data-var index-of? int 0)", Err(()));
+        crosscheck_expect_failure("(define-data-var index-of? int 0)");
     }
 }

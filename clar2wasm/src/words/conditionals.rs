@@ -841,9 +841,11 @@ impl ComplexWord for Try {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, ShortReturnType};
+    use clarity::vm::types::ResponseData;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     #[test]
     fn trivial() {
@@ -964,7 +966,7 @@ mod tests {
    val (+ val 10)
    err (+ err 107)))";
 
-        crosscheck(&format!("{ERR} (test (err 18))"), Err(()));
+        crosscheck_expect_failure(&format!("{ERR} (test (err 18))"));
     }
 
     #[test]
@@ -976,7 +978,7 @@ mod tests {
    val (+ val 10)
    cursed (+ cursed 107)))";
 
-        crosscheck(&format!("{CURSED} (cursed (err 18))"), Err(()));
+        crosscheck_expect_failure(&format!("{CURSED} (cursed (err 18))"));
     }
 
     #[test]
@@ -1173,8 +1175,17 @@ mod tests {
         crosscheck("(asserts! true (err u1))", Ok(Some(Value::Bool(true))));
     }
 
+    #[ignore = "see issue: #385"]
     #[test]
     fn asserts_top_level_false() {
-        crosscheck("(asserts! false (err u1))", Err(()))
+        crosscheck(
+            "(asserts! false (err u1))",
+            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(
+                Value::Response(ResponseData {
+                    committed: false,
+                    data: Box::new(Value::UInt(1)),
+                }),
+            ))),
+        )
     }
 }

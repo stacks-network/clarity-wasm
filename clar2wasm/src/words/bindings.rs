@@ -81,7 +81,9 @@ mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_with_epoch};
+    use crate::tools::{
+        crosscheck, crosscheck_compare_only, crosscheck_expect_failure, crosscheck_with_epoch,
+    };
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -91,7 +93,7 @@ mod tests {
  (let ((+ u3))
    +))";
 
-        crosscheck(&format!("{ERR} (test)"), Err(()));
+        crosscheck_expect_failure(&format!("{ERR} (test)"));
     }
 
     #[test]
@@ -102,7 +104,7 @@ mod tests {
  (let ((test u3))
     test))";
 
-        crosscheck(&format!("{ERR} (test)"), Err(()));
+        crosscheck_expect_failure(&format!("{ERR} (test)"));
     }
 
     #[test]
@@ -124,17 +126,18 @@ mod tests {
     #[test]
     fn validate_let() {
         // Reserved keyword
-        crosscheck("(let ((map 2)) (+ map map))", Err(()));
+        crosscheck_expect_failure("(let ((map 2)) (+ map map))");
+
         // Custom variable name
         crosscheck("(let ((a 2)) (+ a a))", Ok(Some(Value::Int(4))));
+
         // Custom variable name duplicate
-        crosscheck("(let ((a 2) (a 3)) (+ a a))", Err(()));
+        crosscheck_expect_failure("(let ((a 2) (a 3)) (+ a a))");
     }
 
     #[test]
     fn validate_let_epoch() {
         // Epoch20
-        crosscheck_with_epoch("(let ((index-of 2)) 2)", Err(()), StacksEpochId::Epoch20);
         crosscheck_with_epoch(
             "(let ((index-of? 2)) (+ index-of? index-of?))",
             Ok(Some(Value::Int(4))),
@@ -142,7 +145,7 @@ mod tests {
         );
 
         // Latest Epoch and Clarity Version
-        crosscheck("(let ((index-of 2)) 2)", Err(()));
-        crosscheck("let ((index-of? 2)) 2)", Err(()));
+        crosscheck_expect_failure("(let ((index-of 2)) 2)");
+        crosscheck_expect_failure("(let ((index-of? 2)) 2)");
     }
 }

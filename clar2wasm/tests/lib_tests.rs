@@ -6,13 +6,14 @@ use clar2wasm::initialize::initialize_contract;
 use clar2wasm::tools::execute;
 use clar2wasm::wasm_utils::call_function;
 use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::types::chainstate::BlockHeaderHash;
 use clarity::types::StacksEpochId;
 use clarity::vm::callables::DefineType;
 use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::errors::{CheckErrors, Error};
+use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType};
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
@@ -469,6 +470,37 @@ macro_rules! test_contract_call_response_events {
             &[],
             $test_response,
             $test_events
+        );
+    };
+}
+
+macro_rules! test_contract_call_error {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
+        test_multi_contract_init!(
+            $func,
+            [$contract_name],
+            |global_context: &mut GlobalContext,
+             contract_contexts: &HashMap<&str, ContractContext>,
+             _return_val: Option<Value>| {
+                // Initialize a call stack
+                let mut call_stack = CallStack::new();
+
+                let result = call_function(
+                    $contract_func,
+                    &[],
+                    global_context,
+                    &contract_contexts.get($contract_name).unwrap(),
+                    &mut call_stack,
+                    Some(StandardPrincipalData::transient().into()),
+                    Some(StandardPrincipalData::transient().into()),
+                    None,
+                );
+
+                match result {
+                    Err(e) => $test(e),
+                    _ => (),
+                }
+            }
         );
     };
 }
@@ -4021,5 +4053,107 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::UInt(12));
+    }
+);
+
+//
+// Runtime error tests
+//
+
+test_contract_call_error!(
+    test_division_by_zero_error,
+    "runtime-errors",
+    "division-by-zero-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(RuntimeErrorType::DivisionByZero, Some(Vec::new()))
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_power_argument_error,
+    "runtime-errors",
+    "power-argument-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::Arithmetic(
+                    "Power argument to (pow ...) must be a u32 integer".to_string()
+                ),
+                Some(Vec::new())
+            )
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_square_root_argument_error,
+    "runtime-errors",
+    "square-root-argument-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::Arithmetic("sqrti must be passed a positive integer".to_string()),
+                Some(Vec::new())
+            )
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_log2_argument_error,
+    "runtime-errors",
+    "log2-argument-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::Arithmetic("log2 must be passed a positive integer".to_string()),
+                Some(Vec::new())
+            )
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_overflow_error,
+    "runtime-errors",
+    "overflow-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(RuntimeErrorType::ArithmeticOverflow, Some(Vec::new()))
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_underflow_error,
+    "runtime-errors",
+    "underflow-error",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(RuntimeErrorType::ArithmeticUnderflow, Some(Vec::new()))
+        );
+    }
+);
+
+test_contract_call_error!(
+    test_root_cause_error_case,
+    "root-cause-error-case",
+    "foo",
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::UnknownBlockHeaderHash(BlockHeaderHash([0xff; 32])),
+                None
+            )
+        );
     }
 );

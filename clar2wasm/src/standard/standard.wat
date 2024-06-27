@@ -233,9 +233,10 @@
     ;; Useful for debugging, just prints the value
     (import "" "log" (func $log (param $value i64)))
 
+    ;;
+    ;; Global definitions
     (global $stack-pointer (mut i32) (i32.const 0))
-    (export "stack-pointer" (global $stack-pointer))
-    (memory (export "memory") 10)
+    (global $runtime-error-code (mut i32) (i32.const -1))
 
     ;; (sha256) initial hash values: first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19
     (data (i32.const 0) "\67\e6\09\6a\85\ae\67\bb\72\f3\6e\3c\3a\f5\4f\a5\7f\52\0e\51\8c\68\05\9b\ab\d9\83\1f\19\cd\e0\5b")
@@ -281,9 +282,10 @@
         ;; 5: buffer to integer expects a buffer length <= 16
         ;; 6: panic
         ;; 7: short return
-    (func $stdlib.runtime-error (param $error-code i32)
-        ;; TODO: Implement runtime error
-        unreachable
+    (func $stdlib.runtime-error (param $error_code i32)
+        (global.set $runtime-error-code (local.get $error_code))
+
+        (unreachable)
     )
 
     ;; This function can be used to add either signed or unsigned integers
@@ -1281,7 +1283,11 @@
                 (i64.gt_u (local.get $b_lo) (i64.const 127))
                 (i64.ne (local.get $b_hi) (i64.const 0))
             )
-            (then (call $stdlib.runtime-error (i32.const 0)))
+            ;; In the interpreter, overflows for the power operation throw a specific error,
+            ;; not a general ArithmeticOverflow error.
+            ;; Therefore, the runtime error code should be 8,
+            ;; which maps to the specific error.
+            (then (call $stdlib.runtime-error (i32.const 8)))
         )
 
         ;; shortcut if a == 2
@@ -1323,7 +1329,7 @@
 
         ;; otherwise, if b < 0 => runtime error
         (if (i64.lt_s (local.get $b_hi) (i64.const 0))
-            (then (call $stdlib.runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 8)))
         )
 
         ;; if b > (a >= 0 ? 126 : 127) -> runtime error: overflow (since the biggest b that doesn't
@@ -1335,7 +1341,11 @@
                 )
                 (i64.ne (local.get $b_hi) (i64.const 0))
             )
-            (then (call $stdlib.runtime-error (i32.const 0)))
+            ;; In the interpreter, overflows for the power operation throw a specific error,
+            ;; not a general ArithmeticOverflow error.
+            ;; Therefore, the runtime error code should be 8,
+            ;; which maps to the specific error.
+            (then (call $stdlib.runtime-error (i32.const 8)))
         )
 
         ;; shortcut if a == 2
@@ -2767,7 +2777,7 @@
     ;;
     (func $stdlib.to-uint (param $lo i64) (param $hi i64) (result i64 i64)
         (if (i64.lt_s (local.get $hi) (i64.const 0))
-            (then (call $stdlib.runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 1)))
         )
         (local.get $lo)
         (local.get $hi)
@@ -2786,7 +2796,7 @@
         ;; Thus, if $hi >= 2^63 the argument is >= 2^127,
         ;; no matter what is present in $lo.
         (if (i64.ge_u (local.get $hi) (i64.const 9223372036854775808))
-            (then (call $stdlib.runtime-error (i32.const 4)))
+            (then (call $stdlib.runtime-error (i32.const 0)))
         )
         (local.get $lo)
         (local.get $hi)
@@ -3407,6 +3417,17 @@
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
+    ;;
+    ;; Export section
+
+    ;; Memory
+    (memory (export "memory") 10)
+
+    ;; Globals
+    (export "stack-pointer" (global $stack-pointer))
+    (export "runtime-error-code" (global $runtime-error-code))
+
+    ;; Functions
     (export "stdlib.add-uint" (func $stdlib.add-uint))
     (export "stdlib.add-int" (func $stdlib.add-int))
     (export "stdlib.sub-uint" (func $stdlib.sub-uint))

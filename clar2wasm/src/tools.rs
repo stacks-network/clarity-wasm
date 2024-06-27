@@ -280,8 +280,8 @@ pub fn evaluate_at_with_amount(
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
 #[allow(clippy::result_unit_err)]
-pub fn evaluate(snippet: &str) -> Result<Option<Value>, ()> {
-    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
+pub fn evaluate(snippet: &str) -> Result<Option<Value>, Error> {
+    evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
 /// Interpret a Clarity snippet at a specific epoch and version.
@@ -311,25 +311,22 @@ pub fn interpret_at_with_amount(
 /// Interprets a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
 #[allow(clippy::result_unit_err)]
-pub fn interpret(snippet: &str) -> Result<Option<Value>, ()> {
-    interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest()).map_err(|_| ())
+pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
+    interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
-pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, ()>) {
+pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
     let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
     let interpreted = interpret(snippet);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
         "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled,
-        &interpreted
+        &compiled, &interpreted
     );
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        expected.as_ref(),
+        compiled, expected,
         "value is not the expected {:?}",
         compiled
     );
@@ -370,12 +367,9 @@ pub fn crosscheck_compare_only(snippet: &str) {
     let interpreted = interpret(snippet);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
         "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet,
-        &compiled,
-        &interpreted
+        snippet, &compiled, &interpreted
     );
 }
 
@@ -391,18 +385,15 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let interpreted = interpreter_env.interpret(snippet).map_err(|_| ());
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
         "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet,
-        &compiled,
-        &interpreted
+        snippet, &compiled, &interpreted
     );
 }
 
 pub fn crosscheck_with_epoch(
     snippet: &str,
-    expected: Result<Option<Value>, ()>,
+    expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
     let clarity_version = ClarityVersion::default_for_epoch(epoch);
@@ -410,16 +401,13 @@ pub fn crosscheck_with_epoch(
     let interpreted = interpret_at(snippet, epoch, clarity_version);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
         "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled,
-        &interpreted
+        &compiled, &interpreted
     );
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        expected.as_ref(),
+        compiled, expected,
         "value is not the expected {:?}",
         compiled
     );
@@ -430,16 +418,32 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     let interpreted = interpret(snippet);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
+        compiled, interpreted,
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet, &compiled, &interpreted
+    );
+
+    let value = compiled.unwrap().unwrap();
+    validator(value)
+}
+
+// TODO: This function is a temporary solution until issue #421 is addressed.
+// Tests that call this function will need to be adjusted.
+//
+// Consider gating tests to epochs whenever possible
+// using the `crosscheck_with_epoch` function.
+pub fn crosscheck_expect_failure(snippet: &str) {
+    let compiled = evaluate(snippet);
+    let interpreted = interpret(snippet);
+
+    assert_eq!(
+        compiled.is_err(),
+        interpreted.is_err(),
         "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
         snippet,
         &compiled,
         &interpreted
     );
-
-    let value = compiled.unwrap().unwrap();
-    validator(value)
 }
 
 #[test]

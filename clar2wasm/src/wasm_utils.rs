@@ -14,6 +14,7 @@ use clarity::vm::{CallStack, ClarityName, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
+use crate::error_mapping;
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
 
@@ -1286,19 +1287,7 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|e| {
-            // TODO: If the root cause is a clarity error, we should be able to return that,
-            //       but it is not cloneable, so we can't return it directly.
-            //       If the root cause is a trap from our Wasm code, then we need to translate
-            //       it into a Clarity error.
-            //       See issue stacks-network/clarity-wasm#104
-            // if let Some(vm_error) = e.root_cause().downcast_ref::<crate::vm::errors::Error>() {
-            //     vm_error.clone()
-            // } else {
-            //     Error::Wasm(WasmError::Runtime(e))
-            // }
-            Error::Wasm(WasmError::Runtime(e))
-        })?;
+        .map_err(|e| error_mapping::resolve_error(e, instance, &mut store))?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)

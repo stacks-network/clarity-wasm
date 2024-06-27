@@ -75,6 +75,7 @@ impl ComplexWord for ContractOf {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, RuntimeErrorType};
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;
 
@@ -82,7 +83,13 @@ mod tests {
 
     #[test]
     fn to_int_out_of_range() {
-        crosscheck("(to-int u170141183460469231731687303715884105728)", Err(()))
+        crosscheck(
+            "(to-int u170141183460469231731687303715884105728)",
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticOverflow,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     #[test]
@@ -105,7 +112,13 @@ mod tests {
 
     #[test]
     fn to_uint_negative() {
-        crosscheck("(to-uint -31)", Err(()))
+        crosscheck(
+            "(to-uint -31)",
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticUnderflow,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     #[test]
@@ -163,7 +176,10 @@ mod tests {
   (ok (to-int u170141183460469231731687303715884105728)))
 (test-to-int-out-of-boundary)
     ",
-            Err(()),
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticOverflow,
+                Some(Vec::new()),
+            )),
         );
     }
 
@@ -175,7 +191,10 @@ mod tests {
     (ok (to-uint -47)))
 (test-to-uint-error)
     ",
-            Err(()),
+            Err(Error::Runtime(
+                RuntimeErrorType::ArithmeticUnderflow,
+                Some(Vec::new()),
+            )),
         );
     }
 

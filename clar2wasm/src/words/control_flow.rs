@@ -3,20 +3,8 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-
-/// `Trap` should match the values used in the standard library and is used to
-/// indicate the reason for a runtime error from the Clarity code.
-#[allow(dead_code)]
-#[repr(i32)]
-enum Trap {
-    Overflow = 0,
-    Underflow = 1,
-    DivideByZero = 2,
-    LogOfNumberLessThanOrEqualToZero = 3,
-    ExpectedANonNegativeNumber = 4,
-    Panic = 5,
-}
 
 #[derive(Debug)]
 pub struct Begin;
@@ -92,7 +80,7 @@ impl ComplexWord for UnwrapPanic {
                 // If the indicator is 0, throw a runtime error
                 let if_id = {
                     let mut if_case = builder.dangling_instr_seq(None);
-                    if_case.i32_const(Trap::Panic as i32).call(
+                    if_case.i32_const(ErrorMap::Panic as i32).call(
                         generator
                             .module
                             .funcs
@@ -146,7 +134,7 @@ impl ComplexWord for UnwrapPanic {
                 // If the indicator is 0, throw a runtime error
                 let if_id = {
                     let mut if_case = builder.dangling_instr_seq(None);
-                    if_case.i32_const(Trap::Panic as i32).call(
+                    if_case.i32_const(ErrorMap::Panic as i32).call(
                         generator
                             .module
                             .funcs
@@ -242,7 +230,7 @@ impl ComplexWord for UnwrapErrPanic {
 
                 let else_id = {
                     let mut else_case = builder.dangling_instr_seq(None);
-                    else_case.i32_const(Trap::Panic as i32).call(
+                    else_case.i32_const(ErrorMap::Panic as i32).call(
                         generator
                             .module
                             .funcs
@@ -275,10 +263,10 @@ impl ComplexWord for UnwrapErrPanic {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::{Error, WasmError};
+    use clarity::vm::errors::Error;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
 
     #[test]
     fn test_unwrap_panic_some() {
@@ -287,18 +275,15 @@ mod tests {
 
     #[test]
     fn test_unwrap_panic_none() {
-        let mut env = TestEnvironment::default();
-        let err = env
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (optional uint)))
     (unwrap-panic x)
 )
 (unwrap-opt none)
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+        "#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -308,18 +293,14 @@ mod tests {
 
     #[test]
     fn test_unwrap_panic_err() {
-        let mut env = TestEnvironment::default();
-        let err = env
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-panic x)
 )
-(unwrap-opt (err u42))
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+(unwrap-opt (err u42))"#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -329,23 +310,20 @@ mod tests {
 
     #[test]
     fn test_unwrap_err_panic_ok() {
-        let err = TestEnvironment::default()
-            .evaluate(
-                r#"
+        let snippet = r#"
 (define-private (unwrap-opt (x (response uint uint)))
     (unwrap-err-panic x)
 )
-(unwrap-opt (ok u42))
-        "#,
-            )
-            .expect_err("should error");
-        matches!(err, Error::Wasm(WasmError::Runtime(_)));
+(unwrap-opt (ok u42))"#;
+
+        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
+        assert!(result.is_err());
     }
 
     /// Verify that the full response type is set correctly for the last
     /// expression in a `begin` block.
     #[test]
-    fn begin_response_type_bug() -> Result<(), ()> {
+    fn begin_response_type_bug() -> Result<(), Error> {
         evaluate(
             r#"
 (define-private (foo)
@@ -364,27 +342,24 @@ mod tests {
 
     #[test]
     fn unwrap_none() {
-        crosscheck(
-            "
-(define-public (unwrap-none)
-  (ok (try-opt none)))
-
-(unwrap-none)
-",
-            Err(()),
-        )
+        crosscheck_expect_failure(
+            r#"
+              (define-public (unwrap-none)
+                (ok (try-opt none)))
+              (unwrap-none)
+            "#,
+        );
     }
 
     #[test]
     fn unwrap_error() {
-        crosscheck(
-            "
-(define-public (unwrap-error)
-  (ok (try-res (err u1))))
-(unwrap-error)
-",
-            Err(()),
-        )
+        crosscheck_expect_failure(
+            r#"
+              (define-public (unwrap-error)
+                (ok (try-res (err u1))))
+              (unwrap-error)
+            "#,
+        );
     }
 
     #[test]

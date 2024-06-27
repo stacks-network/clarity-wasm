@@ -1,4 +1,4 @@
-use clar2wasm::tools::crosscheck;
+use clar2wasm::tools::{crosscheck, crosscheck_expect_failure};
 use clarity::vm::Value;
 use proptest::prelude::prop;
 use proptest::proptest;
@@ -66,10 +66,9 @@ proptest! {
 
     #[test]
     fn unwrap_panic_response_err(val in PropValue::any()) {
-        crosscheck(
-            &format!(r#"(unwrap-panic (err {val}))"#),
-            Err(())
-        );
+        let snippet = format!("(unwrap-panic (err {val}))");
+
+        crosscheck_expect_failure(&snippet);
     }
 }
 
@@ -90,10 +89,9 @@ proptest! {
 
     #[test]
     fn unwrap_err_panic_ok(val in PropValue::any()) {
-        crosscheck(
-            &format!(r#"(unwrap-err-panic (ok {val}))"#),
-            Err(())
-        );
+        let snippet = format!("(unwrap-err-panic (ok {val}))");
+
+        crosscheck_expect_failure(&snippet);
     }
 }
 
@@ -102,16 +100,12 @@ proptest! {
 
     #[test]
     fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
-        let expected_val:Result<Option<Value>, ()> = if is_response_intermediary{
+        let _expected_val: Result<Option<Value>, ()> = if is_response_intermediary {
             Err(())
         } else{
             Ok(Some(expected_val.into()))
         };
 
-        crosscheck(
-            &expr,
-            expected_val
-        );
-
+        crosscheck_expect_failure(&expr);
     }
 }
