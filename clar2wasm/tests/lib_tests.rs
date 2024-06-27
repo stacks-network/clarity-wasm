@@ -283,6 +283,7 @@ macro_rules! test_multi_contract_call_response {
 /// - an optional list of parameters,
 /// - a closure with type `|response: ResponseData|`, and
 ///   that contains all the assertions we want to test.
+#[macro_export]
 macro_rules! test_contract_call_response {
     ($func: ident, $contract_name: literal, $contract_func: literal, $params: expr, $test: expr) => {
         test_multi_contract_call_response!(
