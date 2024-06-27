@@ -552,12 +552,13 @@ impl ComplexWord for Map {
         let mut input_offsets = vec![];
         let mut input_element_types = vec![];
         let mut input_element_sizes = vec![];
+        let mut smallest_sequence_length = u32::MAX;
         let mut input_num_elements = vec![];
 
         for arg in args.iter().skip(1) {
             // get the type of the seq, and the sizes.
 
-            let (element_ty, element_size) = match generator
+            let (element_ty, element_size, element_length) = match generator
                 .get_expr_type(arg)
                 .ok_or_else(|| {
                     GeneratorError::TypeError("sequence expression must be typed".to_owned())
@@ -566,16 +567,21 @@ impl ComplexWord for Map {
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
                     let element_ty = lt.get_list_item_type().clone();
+                    let max_length = lt.get_max_len();
                     let element_size = get_type_size(&element_ty);
-                    (SequenceElementType::Other(element_ty), element_size)
+                    (
+                        SequenceElementType::Other(element_ty),
+                        element_size,
+                        max_length,
+                    )
                 }
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(length))
                 | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                    _,
-                ))) => (SequenceElementType::Byte, 1),
+                    length,
+                ))) => (SequenceElementType::Byte, 1, length.into()),
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
-                    _,
-                ))) => (SequenceElementType::UnicodeScalar, 4),
+                    length,
+                ))) => (SequenceElementType::UnicodeScalar, 4, length.into()),
                 _ => {
                     return Err(GeneratorError::TypeError(
                         "expected sequence type".to_string(),
@@ -584,6 +590,10 @@ impl ComplexWord for Map {
             };
             input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
+
+            if element_length < smallest_sequence_length {
+                smallest_sequence_length = element_length;
+            }
 
             generator.traverse_expr(builder, arg)?;
             // [ offset, length ]
@@ -727,6 +737,14 @@ impl ComplexWord for Map {
             // Call user defined function.
             generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
         }
+
+        smallest_sequence_length = if smallest_sequence_length == u32::MAX {
+            0
+        } else {
+            smallest_sequence_length
+        };
+
+        generator.frame_size += return_element_size as u32 * smallest_sequence_length;
 
         // Write the result to the output sequence.
         generator.write_to_memory(&mut loop_, output_offset, 0, return_element_type)?;
@@ -1532,6 +1550,7 @@ impl ComplexWord for Slice {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::types::{ListData, ListTypeData, SequenceData, TypeSignature};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate};
@@ -1978,6 +1997,18 @@ mod tests {
     #[test]
     fn map_unary() {
         crosscheck("(map - (list 10 20 30))", evaluate("(list -10 -20 -30)"));
+    }
+
+    #[test]
+    fn multiple_maps() {
+        let snippet = "(map + (list 1 2 3) (list 1 2 3 4) (list 1 2 3 4 5))".repeat(700);
+
+        let expected = Value::Sequence(SequenceData::List(ListData {
+            data: vec![Value::Int(3), Value::Int(6), Value::Int(9)],
+            type_signature: ListTypeData::new_list(TypeSignature::IntType, 3).unwrap(),
+        }));
+
+        crosscheck(&snippet, Ok(Some(expected)));
     }
 
     #[test]
