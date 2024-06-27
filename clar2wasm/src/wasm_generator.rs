@@ -55,7 +55,7 @@ pub struct WasmGenerator {
     /// The locals for the current function.
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
-    frame_size: i32,
+    pub(crate) frame_size: u32,
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -261,7 +261,7 @@ impl WasmGenerator {
             .next()
             .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
 
-        let total_memory_bytes = self.literal_memory_end + (self.frame_size as u32);
+        let total_memory_bytes = self.literal_memory_end + self.frame_size;
         let pages_required = total_memory_bytes / (64 * 1024);
         let remainder = total_memory_bytes % (64 * 1024);
 
@@ -773,7 +773,7 @@ impl WasmGenerator {
             // [ new_stack_ptr ]
             .global_set(self.stack_pointer);
         // [  ]
-        self.frame_size += size;
+        self.frame_size += size as u32;
 
         (offset, size)
     }
