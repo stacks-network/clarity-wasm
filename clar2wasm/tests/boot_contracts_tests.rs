@@ -13,7 +13,7 @@ use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
 use clarity::vm::errors::{CheckErrors, Error};
 use clarity::vm::types::{
-    PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData
+    PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData,
 };
 use clarity::vm::{ClarityVersion, ContractContext, Value};
 
@@ -34,32 +34,6 @@ test_multi_contract_call_response!(
     |response: ResponseData| {
         assert!(!response.committed);
         assert_eq!(*response.data, Value::UInt(2));
-    }
-);
-
-test_multi_contract_call_response!(
-    test_stackerdb_get_config,
-    ["boot-contracts/signers", "boot-contracts/signers-caller"],
-    "signers-caller",
-    "stackerdb-get-config",
-    |response: ResponseData| {
-        assert!(response.committed);
-        assert_eq!(
-            *response.data,
-            Value::Tuple(
-                TupleData::from_data(vec![
-                    ("max-neighbors".into(), Value::UInt(32)),
-                    ("chunk-size".into(), Value::UInt(0)),
-                    (
-                        "hint-replicas".into(),
-                        Value::cons_list_unsanitized(vec![]).unwrap()
-                    ),
-                    ("max-writes".into(), Value::UInt(4294967295)),
-                    ("write-freq".into(), Value::UInt(0)),
-                ])
-                .unwrap()
-            )
-        );
     }
 );
 

@@ -9,7 +9,7 @@ mod tests {
     /// Specific test for the fix of [issue 340](https://github.com/stacks-network/clarity-wasm/issues/340)
     fn test_bns_contract_in_epoch2_4() {
         let bns = std::fs::read_to_string(
-            env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/contracts/bns.clar",
+            env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/contracts/boot-contracts/bns.clar",
         )
         .expect("Can't find bns contract");
 
