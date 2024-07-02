@@ -138,6 +138,24 @@ jobs:
           cargo llvm-cov nextest \
             --archive-file nextest-archive.tar.zst
 
+  compile-boot-contracts:
+    name: Compile boot-contracts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./clar2wasm
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Use Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile boot-contracts
+        run: |
+          cargo build
+          bash ./scripts/boot-contracts-compile.sh
+
   codecov:
     name: Code Coverage
     runs-on: ubuntu-latest
