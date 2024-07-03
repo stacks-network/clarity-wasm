@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BOOT_CONTRACTS_PATH="./tests/contracts/boot-contracts"
-CLAR2WASM_PATH="../target/debug/clar2wasm"
+CLAR2WASM_PATH="../target/release/clar2wasm"
 
 declare -a boot_contracts=(
     bns.clar

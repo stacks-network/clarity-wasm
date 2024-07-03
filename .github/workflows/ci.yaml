@@ -153,7 +153,7 @@ jobs:
 
       - name: Compile boot-contracts
         run: |
-          cargo build
+          cargo build --release
           bash ./scripts/boot-contracts-compile.sh
 
   codecov:
