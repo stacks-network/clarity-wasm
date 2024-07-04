@@ -63,6 +63,7 @@ pub struct WasmGenerator {
 pub enum LiteralMemoryEntry {
     Ascii(String),
     Utf8(String),
+    Bytes(Box<[u8]>),
 }
 
 #[derive(Debug)]
@@ -641,6 +642,29 @@ impl WasmGenerator {
         self.literal_memory_end += name.len() as u32;
 
         // Save the offset in the literal memory for this identifier
+        self.literal_memory_offset.insert(entry, offset);
+
+        Ok((offset, len))
+    }
+
+    pub(crate) fn add_bytes_literal(&mut self, bytes: &[u8]) -> Result<(u32, u32), GeneratorError> {
+        let entry = LiteralMemoryEntry::Bytes(bytes.into());
+        if let Some(offset) = self.literal_memory_offset.get(&entry) {
+            return Ok((*offset, bytes.len() as u32));
+        }
+
+        let memory = self.get_memory()?;
+        let offset = self.literal_memory_end;
+        let len = bytes.len() as u32;
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory,
+                location: walrus::ActiveDataLocation::Absolute(offset),
+            }),
+            bytes.to_vec(),
+        );
+        self.literal_memory_end += len;
+
         self.literal_memory_offset.insert(entry, offset);
 
         Ok((offset, len))
