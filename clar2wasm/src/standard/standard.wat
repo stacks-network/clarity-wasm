@@ -3417,6 +3417,33 @@
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
+    (func $compare_clarity_names (param $offset_a i32) (param $len_a i32) (param $offset_b i32) (param $len_b i32) (result i32)
+        ;; compare two clarity names and return -1 if a < b, 0 if a == b or 1 if a > b
+        (local $min_len i32) (local $a i32) (local $b i32)
+
+        (local.set $min_len (select (local.get $len_a) (local.get $len_b) (i32.lt_u (local.get $len_a) (local.get $len_b))))
+
+        (loop
+            (if
+                (i32.eq
+                    (local.tee $a (i32.load8_u (local.get $offset_a)))
+                    (local.tee $b (i32.load8_u (local.get $offset_b)))
+                )
+                (then
+                    (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                    (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                    (br_if 1 (local.tee $min_len (i32.sub (local.get $min_len) (i32.const 1))))
+                )
+            )
+        )
+
+        (select
+            (select (i32.const -1) (i32.ne (local.get $len_a) (local.get $len_b)) (i32.lt_u (local.get $len_a) (local.get $len_b)))
+            (select (i32.const -1) (i32.ne (local.get $a) (local.get $b)) (i32.lt_u (local.get $a) (local.get $b)))
+            (i32.eq (local.get $a) (local.get $b))
+        )
+    )
+
     ;;
     ;; Export section
 
