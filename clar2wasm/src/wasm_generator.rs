@@ -302,11 +302,15 @@ impl WasmGenerator {
             walrus::InitExpr::Value(walrus::ir::Value::I32(self.literal_memory_end as i32)),
         );
 
-        if cfg!(debug_assertions) {
+        #[cfg(not(feature = "wasm-binary-validation"))]
+        {
             Ok(self.module)
-        // Validate Wasm binary in release mode
-        } else {
+        }
+
+        #[cfg(feature = "wasm-binary-validation")]
+        {
             let wasm_buff = self.module.emit_wasm();
+
             // Walrus::Module::from_buffer method is designed
             // to parse and validate a Wasm binary.
             // If the binary is valid, it returns an Ok(Module);

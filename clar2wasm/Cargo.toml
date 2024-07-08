@@ -23,7 +23,9 @@ rusqlite = { version = "0.28.0" }
 wat = "1.0.74"
 
 [features]
+default = ["wasm-binary-validation"]
 flamegraph = []
+wasm-binary-validation = []
 pb = []
 
 [dev-dependencies]
