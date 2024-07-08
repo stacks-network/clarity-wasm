@@ -285,8 +285,8 @@
 
     ;; table that contains the 5 hash160 functions used during compression
     (type $hash160-compress-function (func (param i32 i32 i32 i32) (result i32)))
-    (table 5 funcref) ;; table for hash160 compress function
-    (elem (i32.const 0) $hash160-f1 $hash160-f2 $hash160-f3 $hash160-f4 $hash160-f5)
+    (table $hash160-table 5 funcref) ;; table for hash160 compress function
+    (elem $hash160-table (i32.const 0) $hash160-f1 $hash160-f2 $hash160-f3 $hash160-f4 $hash160-f5)
 
     ;; The error code is one of:
         ;; 0: overflow
@@ -1790,7 +1790,7 @@
             ;; + f(round, b, c, d) + K(i)
             (local.get $b1) (local.get $c1) (local.get $d1)
             (i32.load offset=608 (i32.shl (local.get $round) (i32.const 2)))
-            (call_indirect (type $hash160-compress-function) (local.get $round))
+            (call_indirect $hash160-table (type $hash160-compress-function) (local.get $round))
             i32.add
 
             ;; + word[r[i]]
@@ -1823,7 +1823,7 @@
             ;; + f(round, b', c', d') + K'(i)
             (local.get $b2) (local.get $c2) (local.get $d2)
             (i32.load offset=628 (i32.shl (local.get $round) (i32.const 2)))
-            (call_indirect (type $hash160-compress-function) (i32.sub (i32.const 4) (local.get $round)))
+            (call_indirect $hash160-table (type $hash160-compress-function) (i32.sub (i32.const 4) (local.get $round)))
             i32.add
 
             ;; + word[r'[i]]
