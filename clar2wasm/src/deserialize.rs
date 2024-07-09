@@ -966,31 +966,30 @@ impl WasmGenerator {
         // We need to be able to parse the keys coming in a random order, only one occurence of each key.
         // We should ignore a valid key and value that is not specified in the result type.
         // Here is what is generated in pseudo-code:
-        /*
-            let bitset = Bitset::new();
-            for key in serialized_bytes {
-                let n = find_index(key)
-                switch n {
-                    case 1:
-                        if bitset.contains(key) { return None; }
-                        handle_parsing_of_value_1;
-                        bitset.insert(key);
-                        break;
-                    case 2:
-                        if bitset.contains(key) { return None; }
-                        handle_parsing_of_value_2;
-                        bitset.insert(key);
-                        break;
-                    ...
-                    default:
-                        check_valid_skippable_key();
-                        check_valid_skippable_value();
-                        break;
-                }
-            }
-            if bitset.full() { return Some(result) } else { return None };
-        */
-
+        //
+        //     let bitset = Bitset::new();
+        //     for key in serialized_bytes {
+        //         let n = find_index(key)
+        //         switch n {
+        //             case 1:
+        //                 if bitset.contains(key) { return None; }
+        //                     handle_parsing_of_value_1;
+        //                     bitset.insert(key);
+        //                     break;
+        //             case 2:
+        //                 if bitset.contains(key) { return None; }
+        //                     handle_parsing_of_value_2;
+        //                     bitset.insert(key);
+        //                     break;
+        //             ...
+        //             default:
+        //                 check_valid_skippable_key();
+        //                 check_valid_skippable_value();
+        //                 break;
+        //         }
+        //     }
+        //     if bitset.full() { return Some(result) } else { return None };
+        //
         // We will need to add all the keys to the data to be able to check if
         // they are part of the tuple and find their index. They will be stored as
         // [number of keys as u32 | key 1 offset as u32 | key 2 offset as u32 | key 1 len as u8 | key 2 len as u8 | ... | key 1 | key 2 | ...]
