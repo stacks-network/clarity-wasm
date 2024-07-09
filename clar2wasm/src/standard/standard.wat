@@ -3423,7 +3423,7 @@
 
         (local.set $min_len (select (local.get $len_a) (local.get $len_b) (i32.lt_u (local.get $len_a) (local.get $len_b))))
 
-        (loop
+        (loop $loop
             (if
                 (i32.eq
                     (local.tee $a (i32.load8_u (local.get $offset_a)))
@@ -3432,7 +3432,7 @@
                 (then
                     (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
                     (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
-                    (br_if 1 (local.tee $min_len (i32.sub (local.get $min_len) (i32.const 1))))
+                    (br_if $loop (local.tee $min_len (i32.sub (local.get $min_len) (i32.const 1))))
                 )
             )
         )
