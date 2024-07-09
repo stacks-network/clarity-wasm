@@ -1116,6 +1116,13 @@ impl WasmGenerator {
                         .map(|_| loop_.dangling_instr_seq(None).id())
                         .collect();
 
+                    // `switch_case_blocks` should be at least of length 2 since empty Tuple cannot exist.
+                    if switch_case_blocks.len() < 2 {
+                        return Err(GeneratorError::InternalError(
+                            "Tuple should have a least one field".to_owned(),
+                        ));
+                    }
+
                     // Here is the switch
                     {
                         let mut switch_block = loop_.instr_seq(switch_case_blocks[0]);
