@@ -4250,7 +4250,6 @@ fn bsearch_clarity_name() {
     };
 
     let list_odd = ["Lorem", "amet", "dolor", "ipsum", "sit"];
-    //check(&list_odd, "sit");
     for w in list_odd {
         check(&list_odd, w);
     }
