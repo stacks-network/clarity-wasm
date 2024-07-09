@@ -1168,7 +1168,7 @@ impl WasmGenerator {
                             .i32_const(keys_len as i32)
                             .local_get(offset_local)
                             .local_get(name_size)
-                            .call(self.func_by_name("stdlib.bsearch_clarity_name"));
+                            .call(self.func_by_name("stdlib.bsearch-clarity-name"));
 
                         // update the offset local to point after the field name
                         switch_block

@@ -3417,7 +3417,7 @@
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
-    (func $compare_clarity_names (param $offset_a i32) (param $len_a i32) (param $offset_b i32) (param $len_b i32) (result i32)
+    (func $compare-clarity-names (param $offset_a i32) (param $len_a i32) (param $offset_b i32) (param $len_b i32) (result i32)
         ;; compare two clarity names and return -1 if a < b, 0 if a == b or 1 if a > b
         (local $min_len i32) (local $a i32) (local $b i32)
 
@@ -3444,7 +3444,7 @@
         )
     )
 
-    (func $stdlib.bsearch_clarity_name (param $offset_list i32) (param $len_list i32) (param $offset_elem i32) (param $len_elem i32) (result i32)
+    (func $stdlib.bsearch-clarity-name (param $offset_list i32) (param $len_list i32) (param $offset_elem i32) (param $len_elem i32) (result i32)
         ;; find the index of a clarity name in a list with this format: [number of elem as u32, offset 1 u32, offset 2 u32,... , len 1 u8, len 2 u8, ..., item 1 [u8...], item 2 [u8...], ...]
         (local $size i32) (local $i i32) (local $j i32) (local $mid i32) (local $cmp i32) (local $offset_len i32)
 
@@ -3456,7 +3456,7 @@
             (local.set $mid (i32.add (local.get $i) (i32.shr_u (local.get $size) (i32.const 1))))
 
             (local.set $cmp
-                (call $compare_clarity_names
+                (call $compare-clarity-names
                     (local.get $offset_elem)
                     (local.get $len_elem)
                     (i32.load (i32.add (local.get $offset_list) (i32.shl (local.get $mid) (i32.const 2))))
@@ -3573,5 +3573,5 @@
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
     (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
-    (export "stdlib.bsearch_clarity_name" (func $stdlib.bsearch_clarity_name))
+    (export "stdlib.bsearch-clarity-name" (func $stdlib.bsearch-clarity-name))
 )

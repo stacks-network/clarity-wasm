@@ -4210,7 +4210,7 @@ fn bsearch_clarity_name() {
         .expect("Could not find memory");
 
     let cmp = instance
-        .get_func(&mut store, "stdlib.bsearch_clarity_name")
+        .get_func(&mut store, "stdlib.bsearch-clarity-name")
         .unwrap();
     let mut result = [Val::I32(0)];
 
