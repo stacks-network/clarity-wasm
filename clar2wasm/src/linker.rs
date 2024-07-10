@@ -4064,9 +4064,9 @@ fn link_set_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 let value_ty = caller
                     .data()
                     .contract_analysis
-                    .unwrap()
+                    .ok_or(Error::Wasm(WasmError::DefinesNotFound))?
                     .get_variable_type(const_name.as_str())
-                    .unwrap();
+                    .ok_or(Error::Wasm(WasmError::DefinesNotFound))?;
 
                 let value = read_from_wasm(
                     memory,
@@ -4120,7 +4120,7 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .contract_context()
                     .variables
                     .get(&ClarityName::from(const_name.as_str()))
-                    .unwrap()
+                    .ok_or(Error::Wasm(WasmError::DefinesNotFound))?
                     .clone();
 
                 // Constant value type
