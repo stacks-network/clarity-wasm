@@ -1241,17 +1241,35 @@ impl WasmGenerator {
         name: &str,
         expr: &SymbolicExpression,
     ) -> Result<bool, GeneratorError> {
+        let name_length = name.len() as i32;
+
         if let Some(offset) = self.constants.get(name) {
+            let name_ptr: *const u8 = name.as_ptr();
+            let name_offset = name_ptr as i32;
+
             // Load the offset into a local variable
-            let offset_local = self.module.locals.add(ValType::I32);
-            builder.i32_const(*offset as i32).local_set(offset_local);
+            let value_offset = self.module.locals.add(ValType::I32);
+            builder
+                .i32_const(*offset as i32)
+                .local_set(value_offset);
 
             let ty = self
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
                 .clone();
 
-            self.read_from_memory(builder, offset_local, 0, &ty)?;
+            // Push constant attributes to the stack.
+            builder
+                .i32_const(name_offset)
+                .i32_const(name_length)
+                .local_get(value_offset);
+
+            // Call a host interface function to load
+            // constant attributes from a data structure.
+            builder.call(self.func_by_name("stdlib.get_constant"));
+
+            self.read_from_memory(builder, value_offset, 0, &ty)?;
+
             Ok(true)
         } else {
             Ok(false)
