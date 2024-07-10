@@ -4102,9 +4102,9 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
             "clarity",
             "get_constant",
             |mut caller: Caller<'_, ClarityWasmContext>,
-            name_offset: i32,
-            name_length: i32,
-            value_offset: i32| {
+             name_offset: i32,
+             name_length: i32,
+             value_offset: i32| {
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -4120,7 +4120,8 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .contract_context()
                     .variables
                     .get(&ClarityName::from(const_name.as_str()))
-                    .unwrap().clone();
+                    .unwrap()
+                    .clone();
 
                 // Constant value type
                 let ty = TypeSignature::type_of(&value)?;

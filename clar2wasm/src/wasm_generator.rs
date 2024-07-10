@@ -1249,9 +1249,7 @@ impl WasmGenerator {
 
             // Load the offset into a local variable
             let value_offset = self.module.locals.add(ValType::I32);
-            builder
-                .i32_const(*offset as i32)
-                .local_set(value_offset);
+            builder.i32_const(*offset as i32).local_set(value_offset);
 
             let ty = self
                 .get_expr_type(expr)
