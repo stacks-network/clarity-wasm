@@ -20,7 +20,9 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        // Constant name
         let name = args.get_name(0)?;
+
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
             return Err(GeneratorError::InternalError(format!(
@@ -29,21 +31,21 @@ impl ComplexWord for DefineConstant {
             )));
         }
 
+        // Constant value
         let value = args.get_expr(1)?;
-
-        let ty = generator
+        let value_ty = generator
             .get_expr_type(value)
             .ok_or_else(|| GeneratorError::TypeError("constant value must be typed".to_owned()))?
             .clone();
 
-        // If the initial value is a literal, then we can directly add it to
-        // the literal memory.
+        // If the constant value is a literal value (i.e: 42, u13, ...)
+        // it can be, directly, added to the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
-            let (mut offset, len) = generator.add_literal(value)?;
+            let (mut value_offset, value_length) = generator.add_literal(value)?;
 
             // in-memory literals should write (offset, len) to memory, so that their
             // representation is consistent with in-memory non-literals.
-            if is_in_memory_type(&ty) {
+            if is_in_memory_type(&value_ty) {
                 let ref_offset = generator.literal_memory_end;
                 generator.literal_memory_end += 8; // offset + len bytes
 
@@ -53,34 +55,51 @@ impl ComplexWord for DefineConstant {
                         memory,
                         location: walrus::ActiveDataLocation::Absolute(ref_offset),
                     }),
-                    offset
+                    value_offset
                         .to_le_bytes()
                         .into_iter()
-                        .chain(len.to_le_bytes())
+                        .chain(value_length.to_le_bytes())
                         .collect(),
                 );
 
                 // update offset to point to reference
-                offset = ref_offset;
+                value_offset = ref_offset;
             }
 
-            offset
+            value_offset
         } else {
-            // Traverse the initial value expression.
+            // The constant expression is evaluated,
+            // and the result is stored in a reserved memory location.
+
+            // Prepare space in memory for the expression's result.
+            let offset = generator.literal_memory_end;
+            let value_offset = generator.module.locals.add(ValType::I32);
+            builder.i32_const(offset as i32).local_set(value_offset);
+            let value_ty_len = get_type_size(&value_ty) as u32;
+            generator.literal_memory_end += value_ty_len;
+
+            // Evaluate the expression and push the result onto the stack.
             generator.traverse_expr(builder, value)?;
 
-            // If the initial expression is not a literal, then we need to
-            // reserve the space for it, and then execute the expression and
-            // write the result into the reserved space.
-            let offset = generator.literal_memory_end;
-            let offset_local = generator.module.locals.add(ValType::I32);
-            builder.i32_const(offset as i32).local_set(offset_local);
+            // Write the evaluated expression value, present on top of the stack, to the memory.
+            let value_length = generator.write_to_memory(builder, value_offset, 0, &value_ty)?;
 
-            let len = get_type_size(&ty) as u32;
-            generator.literal_memory_end += len;
+            // Add constant name to the memory.
+            let (name_offset, name_length) = generator.add_string_literal(name)?;
 
-            // Write the initial value to the memory, to be read by the host.
-            generator.write_to_memory(builder, offset_local, 0, &ty)?;
+            // Push constant name attributes to the data stack.
+            builder
+                .i32_const(name_offset as i32)
+                .i32_const(name_length as i32);
+
+            // Push constant expression attributes to the data stack.
+            builder
+                .local_get(value_offset)
+                .i32_const(value_length as i32);
+
+            // Call a host interface function to add the constant name
+            // and evaluated value to a persistent data structure.
+            builder.call(generator.func_by_name("stdlib.set_constant"));
 
             offset
         };

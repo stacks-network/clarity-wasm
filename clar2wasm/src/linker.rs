@@ -77,6 +77,7 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_secp256k1_recover_fn(linker)?;
     link_secp256k1_verify_fn(linker)?;
     link_principal_of_fn(linker)?;
+    link_set_constant_fn(linker)?;
 
     link_log(linker)
 }
@@ -4036,6 +4037,64 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         })
 }
 
+fn link_set_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "set_constant",
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             name_offset: i32,
+             name_length: i32,
+             value_offset: i32,
+             value_length: i32| {
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let epoch = caller.data_mut().global_context.epoch_id;
+
+                // Get constant name from the memory.
+                let const_name =
+                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                let cname = ClarityName::from(const_name.as_str());
+
+                // Get constant value type.
+                let value_ty = caller
+                    .data()
+                    .contract_analysis
+                    .unwrap()
+                    .get_variable_type(const_name.as_str())
+                    .unwrap();
+
+                let value = read_from_wasm(
+                    memory,
+                    &mut caller,
+                    value_ty,
+                    value_offset,
+                    value_length,
+                    epoch,
+                )?;
+
+                // Insert constant name and expression value into a persistent data structure.
+                caller
+                    .data_mut()
+                    .contract_context_mut()?
+                    .variables
+                    .insert(cname, value);
+
+                Ok(())
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "set_constant".to_string(),
+                e,
+            ))
+        })
+}
+
 /// Link host-interface function, `log`, into the Wasm module.
 /// This function is used for debugging the Wasm, and should not be called in
 /// production.
@@ -4531,6 +4590,14 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap("", "log", |param: i64| {
         println!("log: {param}");
     })?;
+
+    linker.func_wrap(
+        "clarity",
+        "set_constant",
+        |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
+            println!("constant set");
+        },
+    )?;
 
     let module = Module::new(&engine, standard_lib)?;
     let instance = linker.instantiate(&mut store, &module)?;
