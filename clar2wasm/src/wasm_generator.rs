@@ -1253,8 +1253,7 @@ impl WasmGenerator {
 
             if let Some(&123) = self.constants.get("abcde") {
                 // Reserve space on the call stack to write the value
-                let (_, value_length) =
-                    self.create_call_stack_local(builder, &ty, true, false);
+                let (_, value_length) = self.create_call_stack_local(builder, &ty, true, false);
 
                 let (name_offset, name_length) = self.add_string_literal(name)?;
 
