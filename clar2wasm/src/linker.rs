@@ -4104,7 +4104,8 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
-             value_offset: i32| {
+             value_offset: i32,
+             _value_length: i32| {
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -4120,7 +4121,8 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .contract_context()
                     .variables
                     .get(&ClarityName::from(const_name.as_str()))
-                    .ok_or(Error::Wasm(WasmError::DefinesNotFound))?
+                    // TODO: create a new WasmError to handle the constant not found issue
+                    .ok_or(Error::Wasm(WasmError::WasmGeneratorError("Constant not found on MARF".to_string())))?
                     .clone();
 
                 // Constant value type
@@ -4655,7 +4657,7 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "get_constant",
-        |_name_offset: i32, _name_length: i32, _value_offset: i32| {
+        |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
             println!("constant get");
         },
     )?;

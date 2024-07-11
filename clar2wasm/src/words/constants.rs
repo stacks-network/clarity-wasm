@@ -38,13 +38,13 @@ impl ComplexWord for DefineConstant {
             .ok_or_else(|| GeneratorError::TypeError("constant value must be typed".to_owned()))?
             .clone();
 
-        // If the constant value is a literal value (i.e: 42, u13, ...)
-        // it can be, directly, added to the literal memory.
         let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
+            // If the constant value is a literal value (i.e: 42, u13, ...)
+            // it can be, directly, added to the literal memory.
             let (mut value_offset, value_length) = generator.add_literal(value)?;
 
-            // in-memory literals should write (offset, len) to memory, so that their
-            // representation is consistent with in-memory non-literals.
+            // Literals of in-memory types should write (offset, len) to memory,
+            // so that their representation is consistent with in-memory non-literals.
             if is_in_memory_type(&value_ty) {
                 let ref_offset = generator.literal_memory_end;
                 generator.literal_memory_end += 8; // offset + len bytes
@@ -71,18 +71,18 @@ impl ComplexWord for DefineConstant {
             // The constant expression is evaluated,
             // and the result is stored in a reserved memory location.
 
-            // Prepare space in memory for the expression's result.
-            let offset = generator.literal_memory_end;
-            let value_offset = generator.module.locals.add(ValType::I32);
-            builder.i32_const(offset as i32).local_set(value_offset);
-            let value_ty_len = get_type_size(&value_ty) as u32;
-            generator.literal_memory_end += value_ty_len;
-
             // Evaluate the expression and push the result onto the stack.
             generator.traverse_expr(builder, value)?;
 
+            // Prepare space in memory for the expression's result.
+            let offset = generator.literal_memory_end;
+            let offset_local = generator.module.locals.add(ValType::I32);
+            builder.i32_const(offset as i32).local_set(offset_local);
+            let value_ty_len = get_type_size(&value_ty) as u32;
+            generator.literal_memory_end += value_ty_len;
+
             // Write the evaluated expression value, present on top of the stack, to the memory.
-            let value_length = generator.write_to_memory(builder, value_offset, 0, &value_ty)?;
+            let value_length = generator.write_to_memory(builder, offset_local, 0, &value_ty)?;
 
             // Add constant name to the memory.
             let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -94,12 +94,14 @@ impl ComplexWord for DefineConstant {
 
             // Push constant expression attributes to the data stack.
             builder
-                .local_get(value_offset)
+                .local_get(offset_local)
                 .i32_const(value_length as i32);
 
             // Call a host interface function to add the constant name
             // and evaluated value to a persistent data structure.
             builder.call(generator.func_by_name("stdlib.set_constant"));
+
+            generator.constants.insert("abcde".to_string(), 123);
 
             offset
         };

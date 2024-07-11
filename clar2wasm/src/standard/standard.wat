@@ -237,7 +237,8 @@
         (func $stdlib.get_constant
             (param $name_offset i32)
             (param $name_length i32)
-            (param $value_offset i32)))
+            (param $value_offset i32)
+            (param $value_length i32)))
 
     ;; TODO: these three funcs below could be hard-coded at compile-time.
     (import "clarity" "is_in_regtest" (func $stdlib.is_in_regtest (result i32)))
