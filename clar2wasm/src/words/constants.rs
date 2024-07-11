@@ -38,7 +38,7 @@ impl ComplexWord for DefineConstant {
             .ok_or_else(|| GeneratorError::TypeError("constant value must be typed".to_owned()))?
             .clone();
 
-        let offset = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
+        let (offset, length) = if let SymbolicExpressionType::LiteralValue(value) = &value.expr {
             // If the constant value is a literal value (i.e: 42, u13, ...)
             // it can be, directly, added to the literal memory.
             let (mut value_offset, value_length) = generator.add_literal(value)?;
@@ -66,7 +66,7 @@ impl ComplexWord for DefineConstant {
                 value_offset = ref_offset;
             }
 
-            value_offset
+            (value_offset, value_length)
         } else {
             // The constant expression is evaluated,
             // and the result is stored in a reserved memory location.
@@ -84,27 +84,23 @@ impl ComplexWord for DefineConstant {
             // Write the evaluated expression value, present on top of the stack, to the memory.
             let value_length = generator.write_to_memory(builder, offset_local, 0, &value_ty)?;
 
-            // Add constant name to the memory.
-            let (name_offset, name_length) = generator.add_string_literal(name)?;
-
-            // Push constant name attributes to the data stack.
-            builder
-                .i32_const(name_offset as i32)
-                .i32_const(name_length as i32);
-
-            // Push constant expression attributes to the data stack.
-            builder
-                .local_get(offset_local)
-                .i32_const(value_length as i32);
-
-            // Call a host interface function to add the constant name
-            // and evaluated value to a persistent data structure.
-            builder.call(generator.func_by_name("stdlib.set_constant"));
-
-            generator.constants.insert("abcde".to_string(), 123);
-
-            offset
+            (offset, value_length)
         };
+
+        // Add constant name to the memory.
+        let (name_offset, name_length) = generator.add_string_literal(name)?;
+
+        // Push constant name attributes to the data stack.
+        builder
+            .i32_const(name_offset as i32)
+            .i32_const(name_length as i32);
+
+        // Push constant value attributes to the data stack.
+        builder.i32_const(offset as i32).i32_const(length as i32);
+
+        // Call a host interface function to add the constant name
+        // and evaluated value to a persistent data structure.
+        builder.call(generator.func_by_name("stdlib.set_constant"));
 
         generator.constants.insert(name.to_string(), offset);
 
