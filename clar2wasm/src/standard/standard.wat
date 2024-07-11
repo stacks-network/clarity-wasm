@@ -226,15 +226,15 @@
     (import "clarity" "burn_block_height" (func $stdlib.burn_block_height (result i64 i64)))
     (import "clarity" "stx_liquid_supply" (func $stdlib.stx_liquid_supply (result i64 i64)))
 
-    (import "clarity" "set_constant"
-        (func $stdlib.set_constant
+    (import "clarity" "save_constant"
+        (func $stdlib.save_constant
             (param $name_offset i32)
             (param $name_length i32)
             (param $value_offset i32)
             (param $value_length i32)))
 
-    (import "clarity" "get_constant"
-        (func $stdlib.get_constant
+    (import "clarity" "load_constant"
+        (func $stdlib.load_constant
             (param $name_offset i32)
             (param $name_length i32)
             (param $value_offset i32)

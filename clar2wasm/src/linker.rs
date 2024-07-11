@@ -77,8 +77,8 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_secp256k1_recover_fn(linker)?;
     link_secp256k1_verify_fn(linker)?;
     link_principal_of_fn(linker)?;
-    link_set_constant_fn(linker)?;
-    link_get_constant_fn(linker)?;
+    link_save_constant_fn(linker)?;
+    link_load_constant_fn(linker)?;
 
     link_log(linker)
 }
@@ -4038,16 +4038,16 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         })
 }
 
-fn link_set_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+fn link_save_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
     linker
         .func_wrap(
             "clarity",
-            "set_constant",
+            "save_constant",
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
              value_offset: i32,
-             value_length: i32| {
+             _value_length: i32| {
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -4068,14 +4068,8 @@ fn link_set_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .get_variable_type(const_name.as_str())
                     .ok_or(Error::Wasm(WasmError::DefinesNotFound))?;
 
-                let value = read_from_wasm(
-                    memory,
-                    &mut caller,
-                    value_ty,
-                    value_offset,
-                    value_length,
-                    epoch,
-                )?;
+                let value =
+                    read_from_wasm_indirect(memory, &mut caller, value_ty, value_offset, epoch)?;
 
                 // Insert constant name and expression value into a persistent data structure.
                 caller
@@ -4090,17 +4084,17 @@ fn link_set_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         .map(|_| ())
         .map_err(|e| {
             Error::Wasm(WasmError::UnableToLinkHostFunction(
-                "set_constant".to_string(),
+                "save_constant".to_string(),
                 e,
             ))
         })
 }
 
-fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
+fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
     linker
         .func_wrap(
             "clarity",
-            "get_constant",
+            "load_constant",
             |mut caller: Caller<'_, ClarityWasmContext>,
              name_offset: i32,
              name_length: i32,
@@ -4146,7 +4140,7 @@ fn link_get_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         .map(|_| ())
         .map_err(|e| {
             Error::Wasm(WasmError::UnableToLinkHostFunction(
-                "get_constant".to_string(),
+                "load_constant".to_string(),
                 e,
             ))
         })
@@ -4650,17 +4644,17 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 
     linker.func_wrap(
         "clarity",
-        "set_constant",
+        "save_constant",
         |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
-            println!("constant set");
+            println!("save constant");
         },
     )?;
 
     linker.func_wrap(
         "clarity",
-        "get_constant",
+        "load_constant",
         |_name_offset: i32, _name_length: i32, _value_offset: i32, _value_length: i32| {
-            println!("constant get");
+            println!("load constant");
         },
     )?;
 

@@ -1263,7 +1263,7 @@ impl WasmGenerator {
 
             // Call a host interface function to load
             // constant attributes from a data structure.
-            builder.call(self.func_by_name("stdlib.get_constant"));
+            builder.call(self.func_by_name("stdlib.load_constant"));
 
             self.read_from_memory(builder, offset_local, 0, &ty)?;
 

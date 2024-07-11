@@ -100,7 +100,7 @@ impl ComplexWord for DefineConstant {
 
         // Call a host interface function to add the constant name
         // and evaluated value to a persistent data structure.
-        builder.call(generator.func_by_name("stdlib.set_constant"));
+        builder.call(generator.func_by_name("stdlib.save_constant"));
 
         generator.constants.insert(name.to_string(), offset);
 
