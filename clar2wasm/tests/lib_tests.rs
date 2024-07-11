@@ -4165,6 +4165,16 @@ test_contract_call_response!(
     "get-foo",
     |response: ResponseData| {
         assert!(response.committed);
-        assert_eq!(*response.data, Value::okay(Value::UInt(9)).unwrap());
+        assert_eq!(*response.data, Value::UInt(4));
+    }
+);
+
+test_contract_call_response!(
+    test_bar,
+    "constant-literal",
+    "get-bar",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
     }
 );
