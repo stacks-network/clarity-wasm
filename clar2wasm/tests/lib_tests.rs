@@ -4158,3 +4158,23 @@ test_contract_call_error!(
         );
     }
 );
+
+test_contract_call_response!(
+    test_foo,
+    "constant-expr",
+    "get-foo",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::UInt(4));
+    }
+);
+
+test_contract_call_response!(
+    test_bar,
+    "constant-literal",
+    "get-bar",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);

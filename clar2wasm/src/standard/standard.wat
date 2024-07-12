@@ -225,6 +225,21 @@
     (import "clarity" "tenure_height" (func $stdlib.tenure_height (result i64 i64)))
     (import "clarity" "burn_block_height" (func $stdlib.burn_block_height (result i64 i64)))
     (import "clarity" "stx_liquid_supply" (func $stdlib.stx_liquid_supply (result i64 i64)))
+
+    (import "clarity" "save_constant"
+        (func $stdlib.save_constant
+            (param $name_offset i32)
+            (param $name_length i32)
+            (param $value_offset i32)
+            (param $value_length i32)))
+
+    (import "clarity" "load_constant"
+        (func $stdlib.load_constant
+            (param $name_offset i32)
+            (param $name_length i32)
+            (param $value_offset i32)
+            (param $value_length i32)))
+
     ;; TODO: these three funcs below could be hard-coded at compile-time.
     (import "clarity" "is_in_regtest" (func $stdlib.is_in_regtest (result i32)))
     (import "clarity" "is_in_mainnet" (func $stdlib.is_in_mainnet (result i32)))

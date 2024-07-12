@@ -1250,8 +1250,23 @@ impl WasmGenerator {
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
                 .clone();
+            let value_length = get_type_size(&ty);
+
+            let (name_offset, name_length) = self.add_string_literal(name)?;
+
+            // Push constant attributes to the stack.
+            builder
+                .i32_const(name_offset as i32)
+                .i32_const(name_length as i32)
+                .local_get(offset_local)
+                .i32_const(value_length);
+
+            // Call a host interface function to load
+            // constant attributes from a data structure.
+            builder.call(self.func_by_name("stdlib.load_constant"));
 
             self.read_from_memory(builder, offset_local, 0, &ty)?;
+
             Ok(true)
         } else {
             Ok(false)
