@@ -8,11 +8,12 @@
 
 use std::collections::HashMap;
 
+use clarity::consts::PEER_VERSION_EPOCH_2_5;
 use clarity::types::chainstate::{
     BlockHeaderHash, BurnchainHeaderHash, ConsensusHash, SortitionId, StacksAddress, StacksBlockId,
     VRFSeed,
 };
-use clarity::types::{StacksEpochId, PEER_VERSION_EPOCH_2_1};
+use clarity::types::StacksEpochId;
 use clarity::util::hash::Sha512Trunc256Sum;
 use clarity::vm::analysis::AnalysisDatabase;
 use clarity::vm::costs::ExecutionCost;
@@ -566,11 +567,11 @@ impl BurnStateDB for BurnDatastore {
     /// the epoch enclosing `height`.
     fn get_stacks_epoch(&self, _height: u32) -> Option<StacksEpoch> {
         Some(StacksEpoch {
-            epoch_id: StacksEpochId::latest(),
+            epoch_id: StacksEpochId::Epoch25,
             start_height: 0,
             end_height: u64::MAX,
             block_limit: ExecutionCost::max_value(),
-            network_epoch: PEER_VERSION_EPOCH_2_1,
+            network_epoch: PEER_VERSION_EPOCH_2_5,
         })
     }
 
