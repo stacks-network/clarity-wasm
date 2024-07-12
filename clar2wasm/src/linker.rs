@@ -4115,10 +4115,7 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .contract_context()
                     .variables
                     .get(&ClarityName::from(const_name.as_str()))
-                    // TODO: create a new WasmError to handle the constant not found issue
-                    .ok_or(Error::Wasm(WasmError::WasmGeneratorError(
-                        "Constant not found on MARF".to_string(),
-                    )))?
+                    .ok_or(CheckErrors::UndefinedVariable(const_name.to_string()))?
                     .clone();
 
                 // Constant value type
