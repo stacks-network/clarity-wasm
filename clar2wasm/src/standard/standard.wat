@@ -3432,6 +3432,78 @@
         (i32.const 1) (local.get $output-offset) (i32.sub (local.get $writeptr) (local.get $output-offset))
     )
 
+    (func $compare-clarity-names (param $offset_a i32) (param $len_a i32) (param $offset_b i32) (param $len_b i32) (result i32)
+        ;; compare two clarity names and return -1 if a < b, 0 if a == b or 1 if a > b
+        (local $min_len i32) (local $a i32) (local $b i32)
+
+        (local.set $min_len (select (local.get $len_a) (local.get $len_b) (i32.lt_u (local.get $len_a) (local.get $len_b))))
+
+        (loop $loop
+            (if
+                (i32.eq
+                    (local.tee $a (i32.load8_u (local.get $offset_a)))
+                    (local.tee $b (i32.load8_u (local.get $offset_b)))
+                )
+                (then
+                    (local.set $offset_a (i32.add (local.get $offset_a) (i32.const 1)))
+                    (local.set $offset_b (i32.add (local.get $offset_b) (i32.const 1)))
+                    (br_if $loop (local.tee $min_len (i32.sub (local.get $min_len) (i32.const 1))))
+                )
+            )
+        )
+
+        (select
+            (select (i32.const -1) (i32.ne (local.get $len_a) (local.get $len_b)) (i32.lt_u (local.get $len_a) (local.get $len_b)))
+            (select (i32.const -1) (i32.ne (local.get $a) (local.get $b)) (i32.lt_u (local.get $a) (local.get $b)))
+            (i32.eq (local.get $a) (local.get $b))
+        )
+    )
+
+    (func $stdlib.bsearch-clarity-name (param $offset_list i32) (param $len_list i32) (param $offset_elem i32) (param $len_elem i32) (result i32)
+        ;; find the index of a clarity name in a list with this format: [number of elem as u32, offset 1 u32, offset 2 u32,... , len 1 u8, len 2 u8, ..., item 1 [u8...], item 2 [u8...], ...]
+        (local $size i32) (local $i i32) (local $j i32) (local $mid i32) (local $cmp i32) (local $offset_len i32)
+
+        (local.set $j (local.tee $size (i32.load (local.get $offset_list))))
+        (local.set $offset_list (i32.add (local.get $offset_list) (i32.const 4)))
+        (local.set $offset_len (i32.add (local.get $offset_list) (i32.shl (local.get $size) (i32.const 2))))
+
+        (loop $loop
+            (local.set $mid (i32.add (local.get $i) (i32.shr_u (local.get $size) (i32.const 1))))
+
+            (local.set $cmp
+                (call $compare-clarity-names
+                    (local.get $offset_elem)
+                    (local.get $len_elem)
+                    (i32.load (i32.add (local.get $offset_list) (i32.shl (local.get $mid) (i32.const 2))))
+                    (i32.load8_u (i32.add (local.get $offset_len) (local.get $mid)))
+                )
+            )
+            (if (i32.eqz (local.get $cmp))
+                (then
+                    (return (local.get $mid))
+                )
+            )
+            (local.set $i
+                (select
+                    (local.get $i)
+                    (i32.add (local.get $mid) (i32.const 1))
+                    (i32.eq (local.get $cmp) (i32.const -1))
+                )
+            )
+            (local.set $j
+                (select
+                    (local.get $j)
+                    (local.get $mid)
+                    (i32.eq (local.get $cmp) (i32.const 1))
+                )
+            )
+
+            (local.set $size (i32.sub (local.get $j) (local.get $i)))
+            (br_if $loop (i32.lt_u (local.get $i) (local.get $j)))
+        )
+        (i32.const -1)
+    )
+
     ;;
     ;; Export section
 
@@ -3516,4 +3588,5 @@
     (export "stdlib.convert-scalars-to-utf8" (func $stdlib.convert-scalars-to-utf8))
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
     (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
+    (export "stdlib.bsearch-clarity-name" (func $stdlib.bsearch-clarity-name))
 )

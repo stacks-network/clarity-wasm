@@ -4,7 +4,8 @@ use clarity::vm::types::{
     ListTypeData, SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
 };
 use walrus::ir::{
-    BinaryOp, Const, ExtendedLoad, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind, UnaryOp,
+    BinaryOp, Block, Const, ExtendedLoad, IfElse, InstrSeqType, LoadKind, Loop, MemArg, StoreKind,
+    UnaryOp,
 };
 use walrus::{InstrSeqBuilder, LocalId, MemoryId, ValType};
 
@@ -962,220 +963,349 @@ impl WasmGenerator {
         end_local: LocalId,
         tuple_ty: &TupleTypeSignature,
     ) -> Result<(), GeneratorError> {
+        // We need to be able to parse the keys coming in a random order, only one occurence of each key.
+        // We should ignore a valid key and value that is not specified in the result type.
+        // Here is what is generated in pseudo-code:
+        //
+        //     let bitset = Bitset::new();
+        //     for key in serialized_bytes {
+        //         let n = find_index(key)
+        //         switch n {
+        //             case 1:
+        //                 if bitset.contains(key) { return None; }
+        //                     handle_parsing_of_value_1;
+        //                     bitset.insert(key);
+        //                     break;
+        //             case 2:
+        //                 if bitset.contains(key) { return None; }
+        //                     handle_parsing_of_value_2;
+        //                     bitset.insert(key);
+        //                     break;
+        //             ...
+        //             default:
+        //                 check_valid_skippable_key();
+        //                 check_valid_skippable_value();
+        //                 break;
+        //         }
+        //     }
+        //     if bitset.full() { return Some(result) } else { return None };
+        //
+        // We will need to add all the keys to the data to be able to check if
+        // they are part of the tuple and find their index. They will be stored as
+        // [number of keys as u32 | key 1 offset as u32 | key 2 offset as u32 | key 1 len as u8 | key 2 len as u8 | ... | key 1 | key 2 | ...]
+        let tm = ordered_tuple_signature(tuple_ty);
+        let (keys_offset, keys_len) = {
+            let mut keys = (tm.len() as u32).to_le_bytes().to_vec();
+            // add relative offsets
+            keys.extend(
+                tm.keys()
+                    .scan(
+                        self.literal_memory_end + 4 + tm.len() as u32 * 5,
+                        |state, name| {
+                            let res = state.to_le_bytes();
+                            *state += name.len() as u32;
+                            Some(res)
+                        },
+                    )
+                    .flatten(),
+            );
+            // add lens
+            keys.extend(tm.keys().map(|name| name.len()));
+            // add keys names
+            keys.extend(tm.keys().flat_map(|name| name.as_bytes()));
+            self.add_bytes_literal(&keys)?
+        };
+
         let ty = TypeSignature::TupleType(tuple_ty.clone());
 
-        // Create a block for the body of this operation, so that we can
+        // bitset which will indicate if a field was defined or not
+        let result_len = tm.len();
+        let bitset: Vec<LocalId> = (0..(result_len + 31) / 32)
+            .map(|_| self.module.locals.add(ValType::I32))
+            .collect();
+
+        // locals that will hold the tuple values, in the same order as the tuple type map
+        let values_locals: Vec<Vec<LocalId>> = tm
+            .values()
+            .map(|ty_| {
+                clar2wasm_ty(ty_)
+                    .into_iter()
+                    .map(|local_ty| self.module.locals.add(local_ty))
+                    .collect()
+            })
+            .collect();
+
+        // This locale will contain the remaining number of fields to deserialize
+        let remaining_fields = self.module.locals.add(ValType::I32);
+
+        // Create a main block for the body of this operation, so that we can
         // early exit as needed.
         let mut wasm_val_ty = vec![ValType::I32];
         wasm_val_ty.extend(clar2wasm_ty(&ty));
-        let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
-        let mut block = builder.dangling_instr_seq(block_ty);
-        let block_id = block.id();
+        let return_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
 
-        // Verify that reading 5 bytes (prefix + number of keys) from the
-        // offset is within the buffer.
-        block
-            .local_get(offset_local)
-            .i32_const(5)
-            .binop(BinaryOp::I32Add)
-            .local_get(end_local)
-            .binop(BinaryOp::I32GtU)
-            .if_else(
-                None,
-                |then| {
-                    // Return none
-                    then.i32_const(0);
-                    add_placeholder_for_clarity_type(then, &ty);
-                    then.br(block_id);
-                },
-                |_| {},
-            );
+        // Main block creation
+        let main_block_id = {
+            let mut main_block = builder.dangling_instr_seq(return_ty);
 
-        // Read the prefix byte
-        block.local_get(offset_local).load(
-            memory,
-            LoadKind::I32_8 {
-                kind: ExtendedLoad::ZeroExtend,
-            },
-            MemArg {
-                align: 1,
-                offset: 0,
-            },
-        );
+            // we initialize the empty bitset
+            for &b in bitset.iter() {
+                main_block.i32_const(0).local_set(b);
+            }
 
-        // Verify the prefix byte
-        block
-            .i32_const(TypePrefix::Tuple as i32)
-            .binop(BinaryOp::I32Ne)
-            .if_else(
-                None,
-                |then| {
-                    // Return none
-                    then.i32_const(0);
-                    add_placeholder_for_clarity_type(then, &ty);
-                    then.br(block_id);
-                },
-                |_| {},
-            );
+            // Create the done_block which will contain the loop and all the blocks for the
+            // switch-case-like construction.
+            let done_block_id = {
+                let mut done_block = main_block.dangling_instr_seq(None);
+                let done_block_id = done_block.id();
 
-        // Read the number of keys
-        block
-            .local_get(offset_local)
-            .i32_const(1)
-            .binop(BinaryOp::I32Add)
-            .call(self.func_by_name("stdlib.load-i32-be"));
-
-        // Verify that the number of keys matches the specified type
-        block
-            .i32_const(tuple_ty.get_type_map().len() as i32)
-            .binop(BinaryOp::I32Ne)
-            .if_else(
-                None,
-                |then| {
-                    // Return none
-                    then.i32_const(0);
-                    add_placeholder_for_clarity_type(then, &ty);
-                    then.br(block_id);
-                },
-                |_| {},
-            );
-
-        // Update the offset to point to the key
-        block
-            .local_get(offset_local)
-            .i32_const(5)
-            .binop(BinaryOp::I32Add)
-            .local_set(offset_local);
-
-        // For each key in the type, verify that the key matches the type,
-        // and deserialize the value.
-        for (key, value_ty) in ordered_tuple_signature(tuple_ty) {
-            // The key is a 1-byte length followed by the string bytes.
-            // First, verify that the key is within the buffer.
-            block
-                .local_get(offset_local)
-                .i32_const(key.len() as i32 + 1)
-                .binop(BinaryOp::I32Add)
-                .local_get(end_local)
-                .binop(BinaryOp::I32GtU)
-                .if_else(
-                    None,
-                    |then| {
-                        // Return none
-                        then.i32_const(0);
-                        add_placeholder_for_clarity_type(then, &ty);
-                        then.br(block_id);
-                    },
-                    |_| {},
-                );
-
-            // Then, grab the length of the key.
-            block.local_get(offset_local).load(
-                memory,
-                LoadKind::I32_8 {
-                    kind: ExtendedLoad::ZeroExtend,
-                },
-                MemArg {
-                    align: 1,
-                    offset: 0,
-                },
-            );
-
-            // Compare the key length to the expected length
-            block
-                .i32_const(key.len() as i32)
-                .binop(BinaryOp::I32Ne)
-                .if_else(
-                    None,
-                    |then| {
-                        // Return none
-                        then.i32_const(0);
-                        add_placeholder_for_clarity_type(then, &ty);
-                        then.br(block_id);
-                    },
-                    |_| {},
-                );
-
-            // Compare the key to the expected key
-            let key_bytes = key.as_bytes();
-            for (i, byte) in key_bytes.iter().enumerate() {
-                block
+                // Verify that reading 5 bytes (prefix + number of keys) from the
+                // offset is within the buffer.
+                done_block
                     .local_get(offset_local)
-                    .load(
-                        memory,
-                        LoadKind::I32_8 {
-                            kind: ExtendedLoad::ZeroExtend,
-                        },
-                        MemArg {
-                            align: 1,
-                            offset: i as u32 + 1,
-                        },
-                    )
-                    .i32_const(*byte as i32)
+                    .i32_const(5)
+                    .binop(BinaryOp::I32Add)
+                    .local_get(end_local)
+                    .binop(BinaryOp::I32GtU)
+                    .br_if(done_block_id);
+
+                // Read the prefix byte
+                done_block.local_get(offset_local).load(
+                    memory,
+                    LoadKind::I32_8 {
+                        kind: ExtendedLoad::ZeroExtend,
+                    },
+                    MemArg {
+                        align: 1,
+                        offset: 0,
+                    },
+                );
+
+                // Verify the prefix byte
+                done_block
+                    .i32_const(TypePrefix::Tuple as i32)
                     .binop(BinaryOp::I32Ne)
-                    .if_else(
-                        None,
-                        |then| {
-                            // Return none
-                            then.i32_const(0);
-                            add_placeholder_for_clarity_type(then, &ty);
-                            then.br(block_id);
-                        },
-                        |_| {},
-                    );
+                    .br_if(done_block_id);
+
+                // Read the number of keys and check that it's >= to the
+                // result tuple number of fields
+                done_block
+                    .local_get(offset_local)
+                    .i32_const(1)
+                    .binop(BinaryOp::I32Add)
+                    .call(self.func_by_name("stdlib.load-i32-be"))
+                    .local_tee(remaining_fields)
+                    .i32_const(tuple_ty.get_type_map().len() as i32)
+                    .binop(BinaryOp::I32LtU)
+                    .br_if(done_block_id);
+
+                // Update the offset to point to the first key
+                done_block
+                    .local_get(offset_local)
+                    .i32_const(5)
+                    .binop(BinaryOp::I32Add)
+                    .local_set(offset_local);
+
+                // This is the loop body, which will contain the switch/case
+                let loop_id = {
+                    let mut loop_ = done_block.dangling_instr_seq(None);
+                    let loop_id = loop_.id();
+
+                    // Here are all the blocks needed for the switch-case
+                    let switch_case_blocks: Vec<_> = (0..=tuple_ty.get_type_map().len())
+                        .map(|_| loop_.dangling_instr_seq(None).id())
+                        .collect();
+
+                    // `switch_case_blocks` should be at least of length 2 since empty Tuple cannot exist.
+                    if switch_case_blocks.len() < 2 {
+                        return Err(GeneratorError::InternalError(
+                            "Tuple should have a least one field".to_owned(),
+                        ));
+                    }
+
+                    // Here is the switch
+                    {
+                        let mut switch_block = loop_.instr_seq(switch_case_blocks[0]);
+
+                        // Check that we have one byte for the field name and fail if not.
+                        switch_block
+                            .local_get(offset_local)
+                            .local_get(end_local)
+                            .binop(BinaryOp::I32GeU)
+                            .br_if(done_block_id);
+
+                        // Load the number of bytes for the field name
+                        let name_size = self.module.locals.add(ValType::I32);
+                        switch_block
+                            .local_get(offset_local)
+                            .load(
+                                memory,
+                                LoadKind::I32_8 {
+                                    kind: ExtendedLoad::ZeroExtend,
+                                },
+                                MemArg {
+                                    align: 1,
+                                    offset: 0,
+                                },
+                            )
+                            .local_tee(name_size);
+
+                        // Check that we have enough bytes left for the parsing the name and fail if not.
+                        switch_block
+                            .local_get(offset_local)
+                            .i32_const(1)
+                            .binop(BinaryOp::I32Add)
+                            .local_tee(offset_local)
+                            .binop(BinaryOp::I32Add)
+                            .local_get(end_local)
+                            .binop(BinaryOp::I32GtU)
+                            .br_if(done_block_id);
+
+                        // Compute the index of the field name to know which branch to take in
+                        // the switch case.
+                        switch_block
+                            .i32_const(keys_offset as i32)
+                            .i32_const(keys_len as i32)
+                            .local_get(offset_local)
+                            .local_get(name_size)
+                            .call(self.func_by_name("stdlib.bsearch-clarity-name"));
+
+                        // update the offset local to point after the field name
+                        switch_block
+                            .local_get(offset_local)
+                            .local_get(name_size)
+                            .binop(BinaryOp::I32Add)
+                            .local_set(offset_local);
+
+                        // branch to the correct case
+                        #[allow(clippy::expect_used)]
+                        let (default, blocks) = switch_case_blocks
+                            .split_last()
+                            .expect("blocks should have at least the default block");
+                        switch_block.br_table(blocks.into(), *default);
+                    }
+
+                    // switch case for valid fields
+                    for (((&case, &field_ty), field_locals), case_idx) in switch_case_blocks[1..]
+                        .iter()
+                        .zip(tm.values())
+                        .zip(values_locals.iter())
+                        .zip(0usize..)
+                    {
+                        let mut case_block = loop_.instr_seq(case);
+
+                        // link the previous block to this one
+                        case_block.instr(Block {
+                            seq: switch_case_blocks[case_idx],
+                        });
+
+                        // check in the bitset if we haven't already dealt with this type
+                        let bitset_idx = case_idx / 32;
+                        let bitset_pos = 1u32 << (case_idx % 32);
+                        case_block
+                            .local_get(bitset[bitset_idx])
+                            .i32_const(bitset_pos as i32)
+                            .binop(BinaryOp::I32And)
+                            .br_if(done_block_id);
+
+                        // try to deserialize the value and add the result to locals
+                        self.deserialize_from_memory(
+                            &mut case_block,
+                            offset_local,
+                            end_local,
+                            field_ty,
+                        )?;
+                        for &l in field_locals.iter().rev() {
+                            case_block.local_set(l);
+                        }
+
+                        // last value after deserialization is for success/failure
+                        case_block.unop(UnaryOp::I32Eqz).br_if(done_block_id);
+
+                        // we set the bit in the bitset
+                        case_block
+                            .local_get(bitset[bitset_idx])
+                            .i32_const(bitset_pos as i32)
+                            .binop(BinaryOp::I32Or)
+                            .local_set(bitset[bitset_idx]);
+
+                        // we loop if we still have fields to deserialize
+                        case_block
+                            .local_get(remaining_fields)
+                            .i32_const(1)
+                            .binop(BinaryOp::I32Sub)
+                            .local_tee(remaining_fields)
+                            .br_if(loop_id);
+
+                        // otherwise it means we are done with the deserialization
+                        case_block.br(done_block_id);
+                    }
+
+                    // default code, which is in the loop after all the cases. It's for an unknown
+                    // field name.
+                    #[allow(clippy::expect_used)]
+                    loop_.instr(Block {
+                        seq: *switch_case_blocks
+                            .last()
+                            .expect("blocks should always have the default block"),
+                    });
+                    // TODO: remove (unreachable) and check for the validity of the field name and the value,
+                    //       then either skip bytes or fail.
+                    loop_.unreachable();
+
+                    loop_id
+                };
+
+                done_block.instr(Loop { seq: loop_id });
+                done_block_id
+            };
+
+            main_block.instr(Block { seq: done_block_id });
+
+            // check if there are no more keys to parse
+            main_block.local_get(remaining_fields).unop(UnaryOp::I32Eqz);
+
+            // check if the bitset is full
+            #[allow(clippy::expect_used)]
+            let (last, inits) = bitset
+                .split_last()
+                .expect("bitset cannot be empty since tuple cannot be 0-tuple");
+            for &b in inits {
+                main_block
+                    .local_get(b)
+                    .i32_const(u32::MAX as i32)
+                    .binop(BinaryOp::I32Eq)
+                    .binop(BinaryOp::I32And);
             }
+            let bits_in_last = if result_len % 32 == 0 {
+                u32::MAX as i32
+            } else {
+                (1u32 << (result_len % 32)).wrapping_sub(1) as i32
+            };
+            main_block
+                .local_get(*last)
+                .i32_const(bits_in_last)
+                .binop(BinaryOp::I32Eq)
+                .binop(BinaryOp::I32And);
 
-            // Increment the offset by the key length and its size
-            block
-                .local_get(offset_local)
-                .i32_const(key.len() as i32 + 1)
-                .binop(BinaryOp::I32Add)
-                .local_set(offset_local);
-
-            // Deserialize the value. Note, this will update the offset to
-            // point to the next key.
-            self.deserialize_from_memory(&mut block, offset_local, end_local, value_ty)?;
-
-            // Check if the deserialization failed:
-            // - Store the value in locals
-            // - Check the inidicator now on top of the stack
-            let inner_locals = self.save_to_locals(&mut block, value_ty, true);
-
-            block.unop(UnaryOp::I32Eqz).if_else(
-                None,
+            main_block.if_else(
+                return_ty,
                 |then| {
-                    // Return none
-                    then.i32_const(0);
-                    add_placeholder_for_clarity_type(then, &ty);
-                    then.br(block_id);
+                    then.i32_const(1);
+                    for l in values_locals.into_iter().flatten() {
+                        then.local_get(l);
+                    }
                 },
-                |_| {},
+                |else_| {
+                    else_.i32_const(0);
+                    add_placeholder_for_clarity_type(else_, &ty);
+                },
             );
 
-            // Deserializing the element was successful, so push the value back
-            // onto the stack.
-            for local in inner_locals {
-                block.local_get(local);
-            }
-        }
+            main_block.id()
+        };
 
-        // If we've reached here, then the tuple is valid, so return it.
-        // But first we need to push the `some` indicator onto the stack.
-
-        // Save the tuple (on the stack) to locals
-        let tuple_locals = self.save_to_locals(&mut block, &ty, true);
-
-        // Push the `some` indicator onto the stack
-        block.i32_const(1);
-
-        // Push the tuple back onto the stack
-        for local in tuple_locals {
-            block.local_get(local);
-        }
-
-        // Add our main block to the builder.
-        builder.instr(walrus::ir::Block { seq: block_id });
-
+        builder.instr(Block { seq: main_block_id });
         Ok(())
     }
 
