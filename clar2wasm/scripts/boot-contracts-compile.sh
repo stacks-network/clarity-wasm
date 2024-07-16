@@ -34,9 +34,19 @@ for contract in ${boot_contracts[@]}; do
     "${CLAR2WASM_PATH}" "${BOOT_CONTRACTS_PATH}/$contract"
 
     if [ $? == 0 ]; then
-        echo "Success"
+        echo "Compilation success"
     else
         echo "Failure while compiling $contract"
+        exit 1
+    fi
+
+    echo "Validating $contract.wasm wasm binary..."
+    wasm-tools validate foo.wasm
+
+    if [ $? == 0 ]; then
+        echo "Binary validation success"
+    else
+        echo "Failure while validating wasm binary $contract.wasm"
         exit 1
     fi
 done
