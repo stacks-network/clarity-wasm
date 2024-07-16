@@ -4201,3 +4201,74 @@ fn utf8_to_string_utf8_invalid() {
         check_invalid_conversion(s.as_bytes(), s.chars().count() as i32 - 1);
     }
 }
+
+#[test]
+fn bsearch_clarity_name() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let cmp = instance
+        .get_func(&mut store, "stdlib.bsearch-clarity-name")
+        .unwrap();
+    let mut result = [Val::I32(0)];
+
+    let mut check = |a: &[&str], b: &str| {
+        let mut list = (a.len() as u32).to_le_bytes().to_vec();
+        list.extend(
+            a.iter()
+                .scan(4 + a.len() as u32 * 5, |state, &name| {
+                    let res = state.to_le_bytes();
+                    *state += name.len() as u32;
+                    Some(res)
+                })
+                .flatten(),
+        );
+        list.extend(a.iter().map(|&a| a.len() as u8));
+        list.extend(a.iter().flat_map(|&name| name.as_bytes()));
+
+        memory.write(&mut store, 0, &list).unwrap();
+        memory.write(&mut store, list.len(), b.as_bytes()).unwrap();
+
+        cmp.call(
+            &mut store,
+            &[
+                Val::I32(0),
+                Val::I32(a.len() as i32),
+                Val::I32(list.len() as i32),
+                Val::I32(b.len() as i32),
+            ],
+            &mut result,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result[0].unwrap_i32(),
+            a.binary_search(&b).map(|i| i as i32).unwrap_or(-1)
+        );
+    };
+
+    let list_odd = ["Lorem", "amet", "dolor", "ipsum", "sit"];
+    for w in list_odd {
+        check(&list_odd, w);
+    }
+    check(&list_odd, "zzzzzzzzzz");
+    check(&list_odd, "AAAAAA");
+    check(&list_odd, "color");
+    check(&list_odd, "concrete");
+    check(&list_odd, "elephant");
+    check(&list_odd, "leopard");
+
+    let list_even = ["Lorem", "amet", "consectetur", "dolor", "ipsum", "sit"];
+    for w in list_even {
+        check(&list_even, w);
+    }
+
+    check(&list_even, "zzzzzzzzzz");
+    check(&list_even, "AAAAAA");
+    check(&list_even, "color");
+    check(&list_even, "concrete");
+    check(&list_even, "elephant");
+    check(&list_even, "leopard");
+}
