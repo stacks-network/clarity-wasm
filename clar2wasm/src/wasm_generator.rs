@@ -303,25 +303,7 @@ impl WasmGenerator {
             walrus::InitExpr::Value(walrus::ir::Value::I32(self.literal_memory_end as i32)),
         );
 
-        #[cfg(not(feature = "wasm-binary-validation"))]
-        {
-            Ok(self.module)
-        }
-
-        #[cfg(feature = "wasm-binary-validation")]
-        {
-            let wasm_buff = self.module.emit_wasm();
-
-            // Walrus::Module::from_buffer method is designed
-            // to parse and validate a Wasm binary.
-            // If the binary is valid, it returns an Ok(Module);
-            // otherwise, it returns an Err.
-            Module::from_buffer(&wasm_buff)
-                .map(|_| self.module)
-                .map_err(|_| {
-                    GeneratorError::InternalError("Wasm binary validation has failed".to_owned())
-                })
-        }
+        Ok(self.module)
     }
 
     pub fn get_memory(&self) -> Result<MemoryId, GeneratorError> {

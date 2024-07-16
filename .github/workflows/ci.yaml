@@ -2,7 +2,7 @@ name: Continuous Integration
 
 on:
   push:
-    branches: [wasm-binary-validation]
+    branches: [main]
     paths-ignore:
       - "**.md"
       - "**.yml"
@@ -151,7 +151,7 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup `wasm-tools`
+      - name: Setup wasm-tools
         uses: bytecodealliance/actions/wasm-tools/setup@v1
 
       - name: Compile boot-contracts

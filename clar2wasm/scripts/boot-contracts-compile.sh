@@ -1,25 +1,25 @@
 #!/bin/bash
 
 BOOT_CONTRACTS_PATH="./tests/contracts/boot-contracts"
-CLAR2WASM_PATH="../target/release/clar2wasm"
+CLAR2WASM_PATH="../target/release"
 
 declare -a boot_contracts=(
-    bns.clar
-    cost-voting.clar
-    costs-2-testnet.clar
-    costs-2.clar
-    costs-3.clar
-    costs.clar
-    genesis.clar
-    lockup.clar
-    pox-mainnet-prepared.clar
-    pox-testnet-prepared.clar
-    pox-2-mainnet-prepared.clar
-    pox-2-testnet-prepared.clar
-    pox-3-mainnet-prepared.clar
-    pox-3-testnet-prepared.clar
-    pox-4.clar
-    signers.clar
+    bns
+    cost-voting
+    costs-2-testnet
+    costs-2
+    costs-3
+    costs
+    genesis
+    lockup
+    pox-mainnet-prepared
+    pox-testnet-prepared
+    pox-2-mainnet-prepared
+    pox-2-testnet-prepared
+    pox-3-mainnet-prepared
+    pox-3-testnet-prepared
+    pox-4
+    signers
 )
 
 cat "${BOOT_CONTRACTS_PATH}/pox-mainnet.clar" "${BOOT_CONTRACTS_PATH}/pox.clar" >> "${BOOT_CONTRACTS_PATH}/pox-mainnet-prepared.clar"
@@ -30,23 +30,23 @@ cat "${BOOT_CONTRACTS_PATH}/pox-mainnet.clar" "${BOOT_CONTRACTS_PATH}/pox-3.clar
 cat "${BOOT_CONTRACTS_PATH}/pox-testnet.clar" "${BOOT_CONTRACTS_PATH}/pox-3.clar" >> "${BOOT_CONTRACTS_PATH}/pox-3-testnet-prepared.clar"
 
 for contract in ${boot_contracts[@]}; do
-    echo "Compiling $contract file..."
-    "${CLAR2WASM_PATH}" "${BOOT_CONTRACTS_PATH}/$contract"
+    echo "Compiling ${contract}.clar file"
+    "${CLAR2WASM_PATH}/clar2wasm" "${BOOT_CONTRACTS_PATH}/${contract}.clar"
 
     if [ $? == 0 ]; then
         echo "Compilation success"
     else
-        echo "Failure while compiling $contract"
+        echo "Failure while compiling ${contract}.clar"
         exit 1
     fi
 
-    echo "Validating $contract.wasm wasm binary..."
-    wasm-tools validate foo.wasm
+    echo "Validating wasm binary ${contract}.wasm"
+    wasm-tools validate "${BOOT_CONTRACTS_PATH}/${contract}.wasm"
 
     if [ $? == 0 ]; then
         echo "Binary validation success"
     else
-        echo "Failure while validating wasm binary $contract.wasm"
+        echo "Failure while validating wasm binary ${contract}.wasm"
         exit 1
     fi
 done
