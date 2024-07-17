@@ -151,6 +151,9 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup wasm-tools
+        uses: bytecodealliance/actions/wasm-tools/setup@v1
+
       - name: Compile boot-contracts
         run: |
           cargo build --release
