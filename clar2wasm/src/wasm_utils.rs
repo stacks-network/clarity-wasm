@@ -308,8 +308,8 @@ pub fn wasm_to_clarity_value(
             let tuple = TupleData::from_data(data_map)?;
             Ok((Some(tuple.into()), index - value_index))
         }
-        TypeSignature::ListUnionType(_lu) => {
-            todo!("Wasm value type not implemented: {:?}", type_sig)
+        TypeSignature::ListUnionType(_subtypes) => {
+            Err(Error::Wasm(WasmError::InvalidListUnionTypeInValue))
         }
     }
 }
@@ -546,8 +546,10 @@ pub fn read_from_wasm(
                 _ => Err(Error::Wasm(WasmError::InvalidIndicator(indicator))),
             }
         }
-        TypeSignature::NoType => todo!("type not yet implemented: {:?}", ty),
-        TypeSignature::ListUnionType(_subtypes) => todo!("type not yet implemented: {:?}", ty),
+        TypeSignature::NoType => Err(Error::Wasm(WasmError::InvalidNoTypeInValue)),
+        TypeSignature::ListUnionType(_subtypes) => {
+            Err(Error::Wasm(WasmError::InvalidListUnionTypeInValue))
+        }
     }
 }
 
@@ -1151,7 +1153,7 @@ pub fn is_in_memory_type(ty: &TypeSignature) -> bool {
 #[allow(clippy::unimplemented)]
 fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
     match ty {
-        TypeSignature::NoType => vec![ValType::I32], // TODO: can this just be empty?
+        TypeSignature::NoType => vec![ValType::I32], // TODO: issue #445. Can this just be empty?
         TypeSignature::IntType => vec![ValType::I64, ValType::I64],
         TypeSignature::UIntType => vec![ValType::I64, ValType::I64],
         TypeSignature::ResponseType(inner_types) => {
