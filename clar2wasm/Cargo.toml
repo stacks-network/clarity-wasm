@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", features = [
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "chore/downgrade-ci-host-for-image-build", features = [
   "testing",
 ] }
 clap = { version = "4.3.17", features = ["derive"] }
@@ -13,7 +13,7 @@ regex = "1.9.1"
 walrus = "0.20.1"
 lazy_static = "1.4.0"
 wasmtime = "15.0.0"
-stacks-common = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop" }
+stacks-common = { git = "https://github.com/stacks-network/stacks-core.git", branch = "chore/downgrade-ci-host-for-image-build" }
 
 sha2 = { version = "0.10.7" }
 chrono = { version = "0.4.20" }
