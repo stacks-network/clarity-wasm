@@ -1,13 +1,11 @@
+use std::fmt::Write;
+
 use clar2wasm::tools::crosscheck_multi_contract;
-use clarity::vm::{
-    types::{ResponseData, TupleData},
-    ClarityName, Value,
-};
+use clarity::vm::types::{ResponseData, TupleData};
+use clarity::vm::{ClarityName, Value};
 use proptest::prelude::*;
 
 use crate::{prop_signature, type_string, PropValue};
-
-use std::fmt::Write;
 
 proptest! {
     #![proptest_config(super::runtime_config())]
