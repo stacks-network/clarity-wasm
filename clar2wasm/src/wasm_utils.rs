@@ -826,9 +826,8 @@ pub fn write_to_wasm(
             // written to the memory at `offset`. The `in_mem_offset` for the
             // list elements should be after their representations.
             let val_offset = in_mem_offset;
-            let val_in_mem_offset = in_mem_offset
-                + list_data.data.len() as i32
-                    * get_type_size(list_data.type_signature.get_list_item_type());
+            let val_in_mem_offset =
+                in_mem_offset + list_data.data.len() as i32 * get_type_size(elem_ty);
             let mut val_written = 0;
             let mut val_in_mem_written = 0;
             for elem in &list_data.data {
@@ -872,6 +871,7 @@ pub fn write_to_wasm(
                 .write(&mut store, (offset) as usize, &indicator_bytes)
                 .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
             written += 4;
+
             if res.committed {
                 let (new_written, new_in_mem_written) = write_to_wasm(
                     store,
