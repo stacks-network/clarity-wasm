@@ -6,6 +6,7 @@ pub mod blockinfo;
 pub mod comparison;
 pub mod conditionals;
 pub mod constants;
+pub mod contracts;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;
