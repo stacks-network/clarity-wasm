@@ -82,13 +82,14 @@ pub const PRINCIPAL_BYTES_MAX: usize = STANDARD_PRINCIPAL_BYTES + CONTRACT_NAME_
 /// - `buffer` is the array of Wasm `Val`s.
 /// - `memory` is the Wasm memory.
 /// - `store` is the Wasm store.
+///
 /// Returns the Clarity `Value` and the number of Wasm `Val`s that were used.
 pub fn wasm_to_clarity_value(
     type_sig: &TypeSignature,
     value_index: usize,
     buffer: &[Val],
     memory: Memory,
-    mut store: &mut impl AsContextMut,
+    store: &mut impl AsContextMut,
     epoch: StacksEpochId,
 ) -> Result<(Option<Value>, usize), Error> {
     match type_sig {
@@ -252,11 +253,15 @@ pub fn wasm_to_clarity_value(
                 .ok_or(Error::Wasm(WasmError::ValueTypeMismatch))?;
             let mut principal_bytes: [u8; 1 + PRINCIPAL_HASH_BYTES] = [0; 1 + PRINCIPAL_HASH_BYTES];
             memory
-                .read(&mut store, offset as usize, &mut principal_bytes)
+                .read(
+                    store.as_context_mut(),
+                    offset as usize,
+                    &mut principal_bytes,
+                )
                 .map_err(|e| Error::Wasm(WasmError::UnableToReadMemory(e.into())))?;
             let mut buffer: [u8; CONTRACT_NAME_LENGTH_BYTES] = [0; CONTRACT_NAME_LENGTH_BYTES];
             memory
-                .read(&mut store, offset as usize + 21, &mut buffer)
+                .read(store.as_context_mut(), offset as usize + 21, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::UnableToReadMemory(e.into())))?;
             let standard = StandardPrincipalData(
                 principal_bytes[0],
@@ -340,7 +345,7 @@ pub fn read_from_wasm_indirect(
 /// provided Clarity `TypeSignature`.
 pub fn read_from_wasm(
     memory: Memory,
-    mut store: &mut impl AsContextMut,
+    store: &mut impl AsContextMut,
     ty: &TypeSignature,
     offset: i32,
     length: i32,
@@ -354,7 +359,7 @@ pub fn read_from_wasm(
             );
             let mut buffer: [u8; 8] = [0; 8];
             memory
-                .read(&mut store, offset as usize, &mut buffer)
+                .read(store.as_context_mut(), offset as usize, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             let low = u64::from_le_bytes(buffer) as u128;
             memory
@@ -370,7 +375,7 @@ pub fn read_from_wasm(
             );
             let mut buffer: [u8; 8] = [0; 8];
             memory
-                .read(&mut store, offset as usize, &mut buffer)
+                .read(store.as_context_mut(), offset as usize, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             let low = u64::from_le_bytes(buffer) as u128;
             memory
@@ -409,18 +414,22 @@ pub fn read_from_wasm(
             let mut version: [u8; PRINCIPAL_VERSION_BYTES] = [0; PRINCIPAL_VERSION_BYTES];
             let mut hash: [u8; PRINCIPAL_HASH_BYTES] = [0; PRINCIPAL_HASH_BYTES];
             memory
-                .read(&mut store, current_offset, &mut version)
+                .read(store.as_context_mut(), current_offset, &mut version)
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             current_offset += PRINCIPAL_VERSION_BYTES;
             memory
-                .read(&mut store, current_offset, &mut hash)
+                .read(store.as_context_mut(), current_offset, &mut hash)
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             current_offset += PRINCIPAL_HASH_BYTES;
             let principal = StandardPrincipalData(version[0], hash);
             let mut contract_length_buf: [u8; CONTRACT_NAME_LENGTH_BYTES] =
                 [0; CONTRACT_NAME_LENGTH_BYTES];
             memory
-                .read(&mut store, current_offset, &mut contract_length_buf)
+                .read(
+                    store.as_context_mut(),
+                    current_offset,
+                    &mut contract_length_buf,
+                )
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             current_offset += CONTRACT_NAME_LENGTH_BYTES;
             let contract_length = contract_length_buf[0];
@@ -468,7 +477,7 @@ pub fn read_from_wasm(
             );
             let mut buffer: [u8; 4] = [0; 4];
             memory
-                .read(&mut store, offset as usize, &mut buffer)
+                .read(store.as_context_mut(), offset as usize, &mut buffer)
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             let bool_val = u32::from_le_bytes(buffer);
             Ok(Value::Bool(bool_val != 0))
@@ -491,7 +500,11 @@ pub fn read_from_wasm(
             // Read the indicator
             let mut indicator_bytes = [0u8; 4];
             memory
-                .read(&mut store, current_offset as usize, &mut indicator_bytes)
+                .read(
+                    store.as_context_mut(),
+                    current_offset as usize,
+                    &mut indicator_bytes,
+                )
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             current_offset += 4;
             let indicator = i32::from_le_bytes(indicator_bytes);
@@ -528,7 +541,11 @@ pub fn read_from_wasm(
             // Read the indicator
             let mut indicator_bytes = [0u8; 4];
             memory
-                .read(&mut store, current_offset as usize, &mut indicator_bytes)
+                .read(
+                    store.as_context_mut(),
+                    current_offset as usize,
+                    &mut indicator_bytes,
+                )
                 .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
             current_offset += 4;
             let indicator = i32::from_le_bytes(indicator_bytes);
@@ -555,16 +572,16 @@ pub fn read_from_wasm(
 
 pub fn read_indirect_offset_and_length(
     memory: Memory,
-    mut store: &mut impl AsContextMut,
+    store: &mut impl AsContextMut,
     offset: i32,
 ) -> Result<(i32, i32), Error> {
     let mut buffer: [u8; 4] = [0; 4];
     memory
-        .read(&mut store, offset as usize, &mut buffer)
+        .read(store.as_context_mut(), offset as usize, &mut buffer)
         .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
     let indirect_offset = i32::from_le_bytes(buffer);
     memory
-        .read(&mut store, (offset + 4) as usize, &mut buffer)
+        .read(store.as_context_mut(), (offset + 4) as usize, &mut buffer)
         .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
     let length = i32::from_le_bytes(buffer);
     Ok((indirect_offset, length))

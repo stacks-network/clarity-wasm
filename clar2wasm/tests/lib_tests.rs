@@ -28,7 +28,7 @@ use hex::FromHex;
 /// - the names of the contracts to initialize (optionally including a
 ///   subdirectory, e.g. `multi-contract/contract-caller`),
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>, return_val: Option<Value>|`
+///   `|global_context: &mut GlobalContext, contract_context: &HashMap<&str, ContractContext>, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_multi_contract_init {
     ($func: ident, $contract_names: expr, $context_test: expr) => {
@@ -166,7 +166,7 @@ macro_rules! test_multi_contract_init {
 /// - the name of the test to create,
 /// - the name of the contracts to initialize,
 /// - a closure with type
-///  `|global_context: &mut GlobalContext, contract_context: &ContractContext, return_val: Option<Value>|`
+///   `|global_context: &mut GlobalContext, contract_context: &ContractContext, return_val: Option<Value>|`
 ///   and that contains all the assertions we want to test.
 macro_rules! test_contract_init {
     ($func: ident, $contract_name: literal, $context_test: expr) => {

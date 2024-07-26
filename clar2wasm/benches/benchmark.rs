@@ -33,7 +33,7 @@ fn add(c: &mut Criterion) {
         b.iter(|| {
             let mut results = [Val::I64(0), Val::I64(0)];
             add.call(
-                &mut store.borrow_mut(),
+                store.as_context_mut(),
                 &[Val::I64(0), Val::I64(42), Val::I64(0), Val::I64(12345)],
                 &mut results,
             )
@@ -179,7 +179,7 @@ fn sha512(c: &mut Criterion) {
             let mut results = [Val::I64(0), Val::I64(0)];
             sha512
                 .call(
-                    &mut store.borrow_mut(),
+                    store.as_context_mut(),
                     &[
                         Val::I32(END_OF_STANDARD_DATA as i32),
                         Val::I32(text.len() as i32),
@@ -332,7 +332,7 @@ fn sha256(c: &mut Criterion) {
             let mut results = [Val::I32(0), Val::I32(0)];
             sha512
                 .call(
-                    &mut store.borrow_mut(),
+                    store.as_context_mut(),
                     &[
                         Val::I32(END_OF_STANDARD_DATA as i32),
                         Val::I32(text.len() as i32),
