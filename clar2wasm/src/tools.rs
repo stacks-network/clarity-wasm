@@ -15,7 +15,7 @@ use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
+use clarity::vm::{eval_all, ClarityVersion, ContractContext, ContractName, Value};
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -425,6 +425,45 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
 
     let value = compiled.unwrap().unwrap();
     validator(value)
+}
+
+pub fn crosscheck_multi_contract(
+    contracts: &[(ContractName, &str)],
+    expected: Result<Option<Value>, Error>,
+) {
+    // compiled version
+    let mut env = TestEnvironment::default();
+    let compiled_results: Vec<_> = contracts
+        .iter()
+        .map(|(name, snippet)| env.init_contract_with_snippet(name, snippet))
+        .collect();
+
+    // TODO: this is the interpreted version and the comparison with the compiled results.
+    //       It need a fix in `interpret_contract_with_snippet` to work.
+    // // interpreted version
+    // let mut env = TestEnvironment::default();
+    // let interpreted_results = contracts
+    //     .iter()
+    //     .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
+
+    // // compare results contract by contract
+    // for ((cmp_res, int_res), (contract_name, _)) in compiled_results
+    //     .iter()
+    //     .zip(interpreted_results)
+    //     .zip(contracts)
+    // {
+    //     assert_eq!(
+    //         cmp_res, &int_res,
+    //         "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
+    //     );
+    // }
+
+    // compare with expected final value
+    let final_value = compiled_results.last().unwrap_or(&Ok(None));
+    assert_eq!(
+        final_value, &expected,
+        "final value is not the expected {final_value:?}"
+    );
 }
 
 // TODO: This function is a temporary solution until issue #421 is addressed.
