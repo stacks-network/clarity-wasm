@@ -55,4 +55,35 @@ proptest! {
             }))),
         );
     }
+
+    #[test]
+    fn contract_call_returns_any_value_from_argument(
+        (ty, value) in prop_signature().prop_ind_flat_map2(|ty| PropValue::from_type(ty.clone())).no_shrink()
+    ) {
+        // first contract
+        let first_contract_name = "foo".into();
+        let first_snippet = format!(
+            r#"
+                (define-public (foofun (a {}))
+                    (ok a)
+                )
+            "#, type_string(&ty)
+        );
+
+        // second contract
+        let second_contract_name = "bar".into();
+        let second_snippet =
+            format!(r#"(contract-call? .{first_contract_name} foofun {value})"#);
+
+        crosscheck_multi_contract(
+            &[
+                (first_contract_name, &first_snippet),
+                (second_contract_name, &second_snippet),
+            ],
+            Ok(Some(Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(value.into()),
+            }))),
+        );
+    }
 }
