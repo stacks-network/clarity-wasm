@@ -23,7 +23,7 @@ fn prop_add_uint() {
 #[test]
 fn prop_add_int() {
     utils::test_export_two_signed_args_checked("stdlib.add-int", |a: i128, b: i128| {
-        a.checked_add(a)
+        a.checked_add(b)
     })
 }
 

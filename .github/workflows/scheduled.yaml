@@ -1,8 +1,9 @@
 name: Property Testings
 
 on:
+  schedule:
+    - cron: '0 */4 * * *'
   workflow_dispatch:
-  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -33,4 +34,5 @@ jobs:
       uses: maxkomarychev/oction-create-issue@v0.7.1
       with:
         token: ${{ secrets.GH_TOKEN }}
-        title: "[Test] Property testing coverage has failed"
+        title: "Property testing coverage has failed"
+        body: "FYI & A: @stacks-network/clarity-wasm"
