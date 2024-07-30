@@ -32,5 +32,4 @@ jobs:
           label-name: "property-testing-failure"
           title-template: "Property testing coverage has failed"
           body-template: |
-            FYI & A: @stacks-network/clarity-wasm
             GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) failed.
