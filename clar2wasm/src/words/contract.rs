@@ -1,5 +1,7 @@
+use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::PrincipalData;
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
+use walrus::ir::BinaryOp;
 use walrus::ValType;
 
 use super::ComplexWord;
@@ -73,6 +75,19 @@ impl ComplexWord for ContractCall {
 
         // shadow args
         let args = if args.len() >= 2 { &args[2..] } else { &[] };
+        let args_ty: Vec<_> = args
+            .iter()
+            .map(|arg| {
+                generator
+                    .get_expr_type(arg)
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError(
+                            "contract-call? argument must be typed".to_owned(),
+                        )
+                    })
+                    .cloned()
+            })
+            .collect::<Result<_, _>>()?;
 
         // Push the function name onto the stack
         let (fn_offset, fn_length) = generator.add_string_literal(function_name)?;
@@ -82,20 +97,18 @@ impl ComplexWord for ContractCall {
 
         // Write the arguments to the call stack, to be read by the host
         let arg_offset = generator.module.locals.add(ValType::I32);
+        let total_args_size = args_ty.iter().map(get_type_size).sum();
         builder
             .global_get(generator.stack_pointer)
-            .local_set(arg_offset);
+            .local_tee(arg_offset)
+            .i32_const(total_args_size)
+            .binop(BinaryOp::I32Add)
+            .global_set(generator.stack_pointer);
+
         let mut arg_length = 0;
-        for arg in args {
+        for (arg, arg_ty) in args.iter().zip(args_ty) {
             // Traverse the argument, pushing it onto the stack
             generator.traverse_expr(builder, arg)?;
-
-            let arg_ty = generator
-                .get_expr_type(arg)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("contract-call? argument must be typed".to_owned())
-                })?
-                .clone();
 
             arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty)?;
         }

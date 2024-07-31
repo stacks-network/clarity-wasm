@@ -6,6 +6,7 @@ pub mod blockinfo;
 pub mod comparison;
 pub mod conditionals;
 pub mod constants;
+pub mod contracts;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;
@@ -501,7 +502,7 @@ pub fn type_string(ty: &TypeSignature) -> String {
             s.push('{');
             for (key, value) in tuple_ty {
                 s.push_str(key);
-                s.push(':');
+                s.push_str(": ");
                 s.push_str(&type_string(value));
                 s.push(',');
             }
@@ -619,7 +620,7 @@ mod tests {
                 .unwrap()
             )
             .type_string(),
-            "{a:int,b:uint,c:bool,}"
+            "{a: int,b: uint,c: bool,}"
         );
         assert_eq!(
             Value::from(
