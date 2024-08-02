@@ -3527,6 +3527,11 @@
         )
     )
 
+    (func $skip-boolean-or-none (param $offset i32) (param $offset_end i32) (result i32)
+        ;; nothing to do here
+        (local.get $offset)
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
