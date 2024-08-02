@@ -3532,6 +3532,24 @@
         (local.get $offset)
     )
 
+    (func $skip-principal (param $offset i32) (param $offset_end i32) (result i32)
+        ;; first byte <= 32, and skip 20 next bytes
+        (if (result i32)
+            (i32.ge_u
+                (local.get $offset_end)
+                (local.tee $offset_end (i32.add (local.get $offset) (i32.const 21)))
+            )
+            (then
+                (select
+                    (local.get $offset_end)
+                    (i32.const 0)
+                    (i32.le_u (i32.load8_u (local.get $offset)) (i32.const 32))
+                )
+            )
+            (else (i32.const 0))
+        )
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
