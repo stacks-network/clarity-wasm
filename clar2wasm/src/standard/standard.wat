@@ -3619,6 +3619,26 @@
         (select (i32.const 0) (local.get $offset) (local.get $tuple_size))
     )
 
+    (func $skip-string-ascii (param $offset i32) (param $offset_end i32) (result i32)
+        (local $size i32)
+        (if (i32.lt_s (i32.sub (local.get $offset_end) (local.get $offset)) (i32.const 4))
+            (then (return (i32.const 0)))
+        )
+        (local.set $size (call $stdlib.load-i32-be (local.get $offset)))
+        (if
+            (i32.lt_s
+                (i32.sub (local.get $offset_end) (local.tee $offset (i32.add (local.get $offset) (i32.const 4))))
+                (local.get $size)
+            )
+            (then (return (i32.const 0)))
+        )
+        (select
+            (i32.add (local.get $offset) (local.get $size))
+            (i32.const 0)
+            (call $stdlib.is-valid-string-ascii (local.get $offset) (local.get $size))
+        )
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
