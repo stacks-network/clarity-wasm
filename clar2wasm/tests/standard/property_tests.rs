@@ -4,6 +4,8 @@ use std::ops::DerefMut;
 use clar2wasm::linker::load_stdlib;
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
 use clarity::util::hash::{Hash160, Sha256Sum, Sha512Sum};
+use clarity::vm::ClarityName;
+use proptest::prelude::any;
 use proptest::{prop_assert_eq, proptest};
 use wasmtime::Val;
 
@@ -665,4 +667,43 @@ fn prop_sha512_int_on_unsigned() {
         64,
         |n| Sha512Sum::from_data(&n.to_le_bytes()).as_bytes().to_vec(),
     )
+}
+
+#[test]
+fn prop_check_clarity_name() {
+    let (instance, store) = load_stdlib().unwrap();
+    let store = RefCell::new(store);
+    let memory = instance
+        .get_memory(store.borrow_mut().deref_mut(), "memory")
+        .expect("Could not find memory");
+
+    let chk = instance
+        .get_func(store.borrow_mut().deref_mut(), "stdlib.check-clarity-name")
+        .unwrap();
+
+    // We cannot use the one from clarity directly because proptest doesn't support boundaries
+    let clarity_name_regex = "[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*]){0,127}|[-+=/*]|[<>]=?";
+
+    proptest!(|(name in clarity_name_regex) | {
+        memory.write(store.borrow_mut().deref_mut(), 3000, name.as_bytes()).unwrap();
+
+        let mut result = [Val::I32(0)];
+        chk.call(store.borrow_mut().deref_mut(), &[Val::I32(3000), Val::I32(name.len() as i32)], &mut result).unwrap();
+
+        let expected = ClarityName::try_from(name).is_ok() as i32;
+        prop_assert_eq!(result[0].unwrap_i32(), expected);
+    });
+
+    proptest!(|(name in proptest::collection::vec(any::<u8>(), 0..200)) | {
+        memory.write(store.borrow_mut().deref_mut(), 3000, &name).unwrap();
+
+        let mut result = [Val::I32(0)];
+        chk.call(store.borrow_mut().deref_mut(), &[Val::I32(3000), Val::I32(name.len() as i32)], &mut result).unwrap();
+
+        let expected = match String::from_utf8(name) {
+            Ok(s) => ClarityName::try_from(s).is_ok() as i32,
+            Err(_) => 0,
+        };
+        prop_assert_eq!(result[0].unwrap_i32(), expected);
+    })
 }
