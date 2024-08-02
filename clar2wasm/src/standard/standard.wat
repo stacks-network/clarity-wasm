@@ -3587,6 +3587,38 @@
         (call $stdlib.skip-unknown-value (local.get $offset) (local.get $offset_end))
     )
 
+    (func $skip-tuple (param $offset i32) (param $offset_end i32) (result i32)
+        ;; get first 4 bytes as size then parse "size" times a clarity name and a value
+        (local $tuple_size i32) (local $name_size i32)
+        (if (i32.gt_u (i32.add (local.get $offset) (i32.const 4)) (local.get $offset_end))
+            (then (return (i32.const 0)))
+        )
+        (local.set $tuple_size (call $stdlib.load-i32-be (local.get $offset)))
+        ;; a tuple cannot be empty
+        (if (i32.eqz (local.get $tuple_size)) (then (return (i32.const 0))))
+
+        (local.set $offset (i32.add (local.get $offset) (i32.const 4)))
+        (block $done
+            (loop $loop
+                ;; check clarity name
+                (br_if $done (i32.ge_u (local.get $offset) (local.get $offset_end)))
+                (local.set $name_size (i32.load8_u (local.get $offset)))
+                (br_if $done
+                    (i32.eqz
+                        (call $stdlib.check-clarity-name
+                            (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
+                            (local.get $name_size)
+                        )
+                    )
+                )
+                (local.tee $offset (call $stdlib.skip-unknown-value (i32.add (local.get $offset) (local.get $name_size)) (local.get $offset_end)))
+                (br_if $done (i32.eqz))
+                (br_if $loop (local.tee $tuple_size (i32.sub (local.get $tuple_size) (i32.const 1))))
+            )
+        )
+        (select (i32.const 0) (local.get $offset) (local.get $tuple_size))
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
