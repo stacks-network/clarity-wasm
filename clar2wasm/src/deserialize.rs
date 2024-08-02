@@ -1111,6 +1111,9 @@ impl WasmGenerator {
                     let mut loop_ = done_block.dangling_instr_seq(None);
                     let loop_id = loop_.id();
 
+                    // variable for the field name size
+                    let name_size = self.module.locals.add(ValType::I32);
+
                     // Here are all the blocks needed for the switch-case
                     let switch_case_blocks: Vec<_> = (0..=tuple_ty.get_type_map().len())
                         .map(|_| loop_.dangling_instr_seq(None).id())
@@ -1135,7 +1138,6 @@ impl WasmGenerator {
                             .br_if(done_block_id);
 
                         // Load the number of bytes for the field name
-                        let name_size = self.module.locals.add(ValType::I32);
                         switch_block
                             .local_get(offset_local)
                             .load(
@@ -1249,9 +1251,33 @@ impl WasmGenerator {
                             .last()
                             .expect("blocks should always have the default block"),
                     });
-                    // TODO: remove (unreachable) and check for the validity of the field name and the value,
-                    //       then either skip bytes or fail.
-                    loop_.unreachable();
+
+                    // check for the validity of the field name
+                    loop_
+                        .local_get(offset_local)
+                        .local_get(name_size)
+                        .binop(BinaryOp::I32Sub)
+                        .local_get(name_size)
+                        .call(self.func_by_name("stdlib.check-clarity-name"))
+                        .unop(UnaryOp::I32Eqz)
+                        .br_if(done_block_id);
+
+                    // we check if the field value is correct and skip it
+                    loop_
+                        .local_get(offset_local)
+                        .local_get(end_local)
+                        .call(self.func_by_name("stdlib.skip-unknown-value"))
+                        .local_tee(offset_local)
+                        .unop(UnaryOp::I32Eqz)
+                        .br_if(done_block_id);
+
+                    // we loop if we still have fields to deserialize
+                    loop_
+                        .local_get(remaining_fields)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Sub)
+                        .local_tee(remaining_fields)
+                        .br_if(loop_id);
 
                     loop_id
                 };
