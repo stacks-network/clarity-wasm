@@ -3504,6 +3504,15 @@
         (i32.const -1)
     )
 
+    (func $skip-int128 (param $offset i32) (param $offset_end i32) (result i32)
+        ;; nothing to check here, we should just make sure that 16 bytes further is <= offset_end
+        (select
+            (local.tee $offset (i32.add (local.get $offset) (i32.const 16)))
+            (i32.const 0)
+            (i32.le_u (local.get $offset) (local.get $offset_end))
+        )
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
