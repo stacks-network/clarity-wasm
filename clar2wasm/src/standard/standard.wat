@@ -3550,6 +3550,38 @@
         )
     )
 
+    (func $skip-contract (param $offset i32) (param $offset_end i32) (result i32)
+        ;; we need to skip a principal, then a clarity name
+        (if
+            (i32.and
+                (i32.ne
+                    (local.tee $offset (call $skip-principal (local.get $offset) (local.get $offset_end)))
+                    (i32.const 0)
+                )
+                (i32.gt_u (local.get $offset_end) (local.get $offset))
+            )
+            (then
+                (if
+                    (i32.ge_u
+                        (local.get $offset_end)
+                        (local.tee $offset_end (i32.load8_u (local.get $offset)))
+                    )
+                    (then
+                        (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+                        (return
+                            (select
+                                (i32.add (local.get $offset) (local.get $offset_end))
+                                (i32.const 0)
+                                (call $stdlib.check-clarity-name (local.get $offset) (local.get $offset_end))
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        (i32.const 0)
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
