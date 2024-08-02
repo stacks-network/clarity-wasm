@@ -3504,6 +3504,102 @@
         (i32.const -1)
     )
 
+    (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
+        ;; check if clarity name is valid
+        (local $char i32)
+
+        ;; check if size is in [1, 128]
+        (if (i32.lt_u (i32.sub (local.get $size) (i32.const 129)) (i32.const -128))
+            (then
+            (return (i32.const 0))
+            )
+        )
+
+        ;; if first char is alpha, we start validating that remainings are in [a-zA-Z0-9-_!?+<>=/*]
+        (if
+            (i32.lt_u
+                (i32.sub
+                    (i32.and (i32.load8_u (local.get $offset)) (i32.const 0x1fffdf))
+                    (i32.const 65)
+                )
+                (i32.const 26)
+            )
+            (then
+                (block $done
+                    (loop $loop
+                        (br_if $done (i32.eqz (local.tee $size (i32.sub (local.get $size) (i32.const 1)))))
+                        (local.set $char
+                            (i32.load8_u
+                                (local.tee $offset (i32.add (local.get $offset) (i32.const 1)))
+                            )
+                        )
+                        ;; check if is_alpha
+                        (br_if $loop
+                            (i32.lt_u
+                                (i32.sub
+                                    (i32.and (local.get $char) (i32.const 0x1fffdf))
+                                    (i32.const 65)
+                                )
+                                (i32.const 26)
+                            )
+                        )
+                        ;; check if is_num
+                        (br_if $loop
+                            (i32.lt_u (i32.sub (local.get $char) (i32.const 48)) (i32.const 10))
+                        )
+                        ;; check if is special char -_!?+<>=/*
+                        (br_if $loop
+                            (i32.and
+                                (i32.lt_u
+                                    (local.tee $char (i32.sub (local.get $char) (i32.const 33)))
+                                    (i32.const 63)
+                                )
+                                (i32.wrap_i64
+                                    (i64.shr_u
+                                        (i64.const 0x4000000078005601)
+                                        (i64.extend_i32_u (local.get $char))
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+                (return (i32.eqz (local.get $size)))
+            )
+        )
+
+        ;; check for size 1 with -+=/*<>
+        (if (i32.eq (local.get $size) (i32.const 1))
+            (then
+                (return
+                    (i32.and
+                        (i32.lt_u
+                            (local.tee $char (i32.load8_u (local.get $offset)))
+                            (i32.const 63)
+                        )
+                        (i32.wrap_i64
+                            (i64.shr_u (i64.const 0x7000ac0000000000) (i64.extend_i32_u (local.get $char)))
+                        )
+                    )
+                )
+            )
+        )
+
+        ;; check for <= and >=, which are [0x3c, 0x3d] and [0x3e, 0x3d]
+        (if (i32.eq (local.get $size) (i32.const 2))
+            (then
+                (return
+                    (i32.eq
+                        (i32.and (i32.load16_u (local.get $offset)) (i32.const -3))
+                        (i32.const 0x3d3c)
+                    )
+                )
+            )
+        )
+
+        (i32.const 0)
+    )
+
     ;;
     ;; Export section
 
@@ -3589,4 +3685,5 @@
     (export "stdlib.is-valid-string-ascii" (func $stdlib.is-valid-string-ascii))
     (export "stdlib.utf8-to-string-utf8" (func $stdlib.utf8-to-string-utf8))
     (export "stdlib.bsearch-clarity-name" (func $stdlib.bsearch-clarity-name))
+    (export "stdlib.check-clarity-name" (func $stdlib.check-clarity-name))
 )
