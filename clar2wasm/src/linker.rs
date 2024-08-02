@@ -79,6 +79,7 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_principal_of_fn(linker)?;
     link_save_constant_fn(linker)?;
     link_load_constant_fn(linker)?;
+    link_skip_list(linker)?;
 
     link_log(linker)
 }
@@ -4143,6 +4144,44 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
         })
 }
 
+fn link_skip_list<T>(linker: &mut Linker<T>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "skip_list",
+            |mut caller: Caller<'_, T>, offset_beg: i32, offset_end: i32| {
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // we will read the remaining serialized buffer here, and start it with the list type prefix
+                let mut serialized_buffer = vec![0u8; (offset_end - offset_beg) as usize + 1];
+                serialized_buffer[0] = clarity::vm::types::serialization::TypePrefix::List as u8;
+                memory
+                    .read(
+                        &mut caller,
+                        offset_beg as usize,
+                        &mut serialized_buffer[1..],
+                    )
+                    .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
+
+                match Value::deserialize_read_count(&mut serialized_buffer.as_slice(), None, false)
+                {
+                    Ok((_, bytes_read)) => Ok(offset_beg + bytes_read as i32 - 1),
+                    Err(_) => Ok(0),
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "skip_list".to_string(),
+                e,
+            ))
+        })
+}
+
 /// Link host-interface function, `log`, into the Wasm module.
 /// This function is used for debugging the Wasm, and should not be called in
 /// production.
@@ -4162,6 +4201,8 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let mut store = Store::new(&engine, ());
 
     let mut linker = Linker::new(&engine);
+
+    link_skip_list(&mut linker)?;
 
     // Link in the host interface functions.
     linker.func_wrap(
