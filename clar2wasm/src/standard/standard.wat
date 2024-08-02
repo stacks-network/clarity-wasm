@@ -3582,6 +3582,11 @@
         (i32.const 0)
     )
 
+    (func $skip-some-ok-err (param $offset i32) (param $offset_end i32) (result i32)
+        ;; we need to skip the following value
+        (call $stdlib.skip-unknown-value (local.get $offset) (local.get $offset_end))
+    )
+
     (func $stdlib.check-clarity-name (param $offset i32) (param $size i32) (result i32)
         ;; check if clarity name is valid
         (local $char i32)
