@@ -1107,4 +1107,12 @@ mod tests {
             Ok(Some(Value::none())),
         )
     }
+
+    #[test]
+    fn from_consensus_buff_tuple_invalid_extra() {
+        crosscheck(
+            r#"(from-consensus-buff? {n: int} 0x0c000000020565787472611100000000000000000000000000000020016e000000000000000000000000000000002a)"#,
+            Ok(Some(Value::none())),
+        )
+    }
 }
