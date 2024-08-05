@@ -200,6 +200,11 @@ impl TestEnvironment {
             .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
         })?;
 
+        self.datastore
+            .as_analysis_db()
+            .execute(|analysis_db| analysis_db.insert_contract(&contract_id, &contract_analysis))
+            .expect("Failed to insert contract analysis");
+
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
         let conn = ClarityDatabase::new(
@@ -217,16 +222,37 @@ impl TestEnvironment {
         );
 
         global_context.begin();
+
         global_context
-            .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
+            .database
+            .insert_contract_hash(&contract_id, snippet)
             .expect("Failed to insert contract hash.");
 
-        eval_all(
+        let result = eval_all(
             &contract_analysis.expressions,
             &mut contract_context,
             &mut global_context,
             None,
-        )
+        )?;
+
+        global_context.database.insert_contract(
+            &contract_id,
+            Contract {
+                contract_context: contract_context.clone(),
+            },
+        )?;
+        global_context
+            .database
+            .set_contract_data_size(&contract_id, contract_context.data_size)
+            .expect("Failed to set contract data size.");
+
+        global_context.commit().unwrap();
+        self.cost_tracker = global_context.cost_track;
+
+        self.contract_contexts
+            .insert(contract_name.to_owned(), contract_context);
+
+        Ok(result)
     }
 
     pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
