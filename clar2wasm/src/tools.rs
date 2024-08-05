@@ -464,25 +464,23 @@ pub fn crosscheck_multi_contract(
         .map(|(name, snippet)| env.init_contract_with_snippet(name, snippet))
         .collect();
 
-    // TODO: this is the interpreted version and the comparison with the compiled results.
-    //       It need a fix in `interpret_contract_with_snippet` to work.
-    // // interpreted version
-    // let mut env = TestEnvironment::default();
-    // let interpreted_results = contracts
-    //     .iter()
-    //     .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
+    // interpreted version
+    let mut env = TestEnvironment::default();
+    let interpreted_results = contracts
+        .iter()
+        .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
 
-    // // compare results contract by contract
-    // for ((cmp_res, int_res), (contract_name, _)) in compiled_results
-    //     .iter()
-    //     .zip(interpreted_results)
-    //     .zip(contracts)
-    // {
-    //     assert_eq!(
-    //         cmp_res, &int_res,
-    //         "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
-    //     );
-    // }
+    // compare results contract by contract
+    for ((cmp_res, int_res), (contract_name, _)) in compiled_results
+        .iter()
+        .zip(interpreted_results)
+        .zip(contracts)
+    {
+        assert_eq!(
+            cmp_res, &int_res,
+            "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
+        );
+    }
 
     // compare with expected final value
     let final_value = compiled_results.last().unwrap_or(&Ok(None));
