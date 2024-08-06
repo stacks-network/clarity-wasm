@@ -200,6 +200,11 @@ impl TestEnvironment {
             .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
         })?;
 
+        self.datastore
+            .as_analysis_db()
+            .execute(|analysis_db| analysis_db.insert_contract(&contract_id, &contract_analysis))
+            .expect("Failed to insert contract analysis");
+
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
         let conn = ClarityDatabase::new(
@@ -217,16 +222,37 @@ impl TestEnvironment {
         );
 
         global_context.begin();
+
         global_context
-            .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
+            .database
+            .insert_contract_hash(&contract_id, snippet)
             .expect("Failed to insert contract hash.");
 
-        eval_all(
+        let result = eval_all(
             &contract_analysis.expressions,
             &mut contract_context,
             &mut global_context,
             None,
-        )
+        )?;
+
+        global_context.database.insert_contract(
+            &contract_id,
+            Contract {
+                contract_context: contract_context.clone(),
+            },
+        )?;
+        global_context
+            .database
+            .set_contract_data_size(&contract_id, contract_context.data_size)
+            .expect("Failed to set contract data size.");
+
+        global_context.commit().unwrap();
+        self.cost_tracker = global_context.cost_track;
+
+        self.contract_contexts
+            .insert(contract_name.to_owned(), contract_context);
+
+        Ok(result)
     }
 
     pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
@@ -438,25 +464,23 @@ pub fn crosscheck_multi_contract(
         .map(|(name, snippet)| env.init_contract_with_snippet(name, snippet))
         .collect();
 
-    // TODO: this is the interpreted version and the comparison with the compiled results.
-    //       It need a fix in `interpret_contract_with_snippet` to work.
-    // // interpreted version
-    // let mut env = TestEnvironment::default();
-    // let interpreted_results = contracts
-    //     .iter()
-    //     .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
+    // interpreted version
+    let mut env = TestEnvironment::default();
+    let interpreted_results = contracts
+        .iter()
+        .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
 
-    // // compare results contract by contract
-    // for ((cmp_res, int_res), (contract_name, _)) in compiled_results
-    //     .iter()
-    //     .zip(interpreted_results)
-    //     .zip(contracts)
-    // {
-    //     assert_eq!(
-    //         cmp_res, &int_res,
-    //         "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
-    //     );
-    // }
+    // compare results contract by contract
+    for ((cmp_res, int_res), (contract_name, _)) in compiled_results
+        .iter()
+        .zip(interpreted_results)
+        .zip(contracts)
+    {
+        assert_eq!(
+            cmp_res, &int_res,
+            "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
+        );
+    }
 
     // compare with expected final value
     let final_value = compiled_results.last().unwrap_or(&Ok(None));
