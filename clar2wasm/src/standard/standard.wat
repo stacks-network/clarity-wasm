@@ -3778,11 +3778,9 @@
         ;; check if clarity name is valid
         (local $char i32)
 
-        ;; check if size is in [1, 128]
+        ;; check if size is null or > 128
         (if (i32.lt_u (i32.sub (local.get $size) (i32.const 129)) (i32.const -128))
-            (then
-            (return (i32.const 0))
-            )
+            (then (return (i32.const 0)))
         )
 
         ;; if first char is alpha, we start validating that remainings are in [a-zA-Z0-9-_!?+<>=/*]
