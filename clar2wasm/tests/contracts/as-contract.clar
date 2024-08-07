@@ -6,7 +6,7 @@
   (ok (as-contract contract-caller))
 )
 
-;; Make sure that `as-contract` doesn't leak outside of it's scope
+;; Make sure that `as-contract` doesn't leak outside of its scope
 (define-public (check-sender-after-as-contract)
   (begin
     (as-contract 42)
@@ -14,7 +14,7 @@
   )
 )
 
-;; Make sure that `as-contract` doesn't leak outside of it's scope
+;; Make sure that `as-contract` doesn't leak outside of its scope
 (define-public (check-caller-after-as-contract)
   (begin
     (as-contract 42)
