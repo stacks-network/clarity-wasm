@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use clar2wasm::tools::crosscheck_multi_contract;
+use clar2wasm::tools::{crosscheck, crosscheck_multi_contract};
 use clarity::vm::types::{ResponseData, TupleData};
 use clarity::vm::{ClarityName, Value};
 use proptest::prelude::*;
@@ -146,5 +146,16 @@ proptest! {
                 data: Box::new(expected),
             }))),
         );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn as_contract_can_return_any_value(
+        value in PropValue::any()
+    ) {
+        crosscheck(&format!("(as-contract {value})"), Ok(Some(value.into())));
     }
 }

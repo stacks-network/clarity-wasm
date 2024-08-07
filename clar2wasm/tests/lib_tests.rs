@@ -591,6 +591,32 @@ test_contract_call_response!(
     }
 );
 
+test_contract_call_response!(
+    test_as_contract_sender_no_leak,
+    "as-contract",
+    "check-sender-after-as-contract",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
+test_contract_call_response!(
+    test_as_contract_caller_no_leak,
+    "as-contract",
+    "check-caller-after-as-contract",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(
+            *response.data,
+            Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient()))
+        );
+    }
+);
+
 test_contract_init!(
     test_define_ft,
     "define-tokens",
