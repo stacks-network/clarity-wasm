@@ -1043,8 +1043,41 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TODO: see #307"]
+    fn from_consensus_buff_tuple_multiple_random_order() {
+        // ENCODED: { a-string: "yup, it is", an-optional: none, my-number: -123 }
+        crosscheck(
+            r#"(from-consensus-buff? {my-number: int, a-string: (string-ascii 16), an-optional: (optional uint)} 0x0c000000030b616e2d6f7074696f6e616c0908612d737472696e670d0000000a7975702c206974206973096d792d6e756d62657200ffffffffffffffffffffffffffffff85)"#,
+            Ok(Some(
+                Value::some(Value::Tuple(
+                    // {my-number: -123, a-string: "yup, it is", an-optional: none}
+                    TupleData::from_data(vec![
+                        ("my-number".into(), Value::Int(-123)),
+                        (
+                            "a-string".into(),
+                            Value::string_ascii_from_bytes("yup, it is".to_string().into_bytes())
+                                .unwrap(),
+                        ),
+                        ("an-optional".into(), Value::none()),
+                    ])
+                    .unwrap(),
+                ))
+                .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
+    fn from_consensus_buff_unallowed_duplicate() {
+        // ENCODED: { a:42, a: 1 }
+        crosscheck(
+            r#"(from-consensus-buff? {a: int} 0x0c000000020161000000000000000000000000000000002a01610000000000000000000000000000000001)"#,
+            Ok(Some(Value::none())),
+        )
+    }
+
+    #[test]
     fn from_consensus_buff_tuple_extra_pair() {
+        // ENCODED: { extra: u32, a: 42 }
         crosscheck(
             r#"(from-consensus-buff? {n: int} 0x0c000000020565787472610100000000000000000000000000000020016e000000000000000000000000000000002a)"#,
             Ok(Some(
@@ -1057,9 +1090,33 @@ mod tests {
     }
 
     #[test]
+    fn from_consensus_buff_allow_duplicate_in_extra() {
+        // ENCODED: { extra: u32, n: 42, extra: u33 }
+        crosscheck(
+            r#"(from-consensus-buff? {n: int} 0x0c000000030565787472610100000000000000000000000000000020016e000000000000000000000000000000002a0565787472610100000000000000000000000000000021)"#,
+            Ok(Some(
+                Value::some(Value::Tuple(
+                    TupleData::from_data(vec![("n".into(), Value::Int(42))]).unwrap(),
+                ))
+                .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
     fn from_consensus_buff_tuple_missing_pair() {
+        // ENCODED: { an-optional: none, my-number: -123 }
         crosscheck(
             r#"(from-consensus-buff? {my-number: int, a-string: (string-ascii 16), an-optional: (optional uint)} 0x0c000000020b616e2d6f7074696f6e616c09096d792d6e756d62657200ffffffffffffffffffffffffffffff85)"#,
+            Ok(Some(Value::none())),
+        )
+    }
+
+    #[test]
+    fn from_consensus_buff_tuple_invalid_extra() {
+        // ENCODED: { extra: *invalid value*, a: 42 }
+        crosscheck(
+            r#"(from-consensus-buff? {n: int} 0x0c000000020565787472611100000000000000000000000000000020016e000000000000000000000000000000002a)"#,
             Ok(Some(Value::none())),
         )
     }
