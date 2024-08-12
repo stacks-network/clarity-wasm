@@ -182,13 +182,16 @@ impl ComplexWord for Filter {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
-        let expr_ty = generator.get_expr_type(_expr).unwrap().clone();
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("filter expression must be typed".to_owned()))?
+            .clone();
         generator.set_expr_type(sequence, expr_ty)?;
 
         generator.traverse_expr(builder, sequence)?;
