@@ -3842,7 +3842,7 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
-                if sig_bytes.len() != 65 {
+                if sig_bytes.len() != 65 || sig_bytes[64] > 3 {
                     let result = Value::err_uint(2);
                     write_to_wasm(
                         caller,
