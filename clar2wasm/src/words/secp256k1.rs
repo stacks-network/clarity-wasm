@@ -109,6 +109,21 @@ mod tests {
     }
 
     #[test]
+    fn test_secp256k1_recover_recid_3() {
+        let mut expected = [0u8; 33];
+        hex::decode_to_slice(
+            "02db06e162a09f325a1150df9a2900431e89ea9cb92a9200d01bc6f6abc90e6dcb",
+            &mut expected,
+        )
+        .unwrap();
+
+        // Recovery id 3
+        crosscheck("(secp256k1-recover? 0x19148567fff5a6177a7acae9ad60ceeff66f07ba00570b7abb64ff1f9d665dd4
+                0x00000000000000000000000000000000604b173b69f8f48ee7a8780e6660b166fd76498d6e1552efce5bf370d0b17ebfd58df8a7fafa10ad9d32a7de305597e803)",
+        Ok(Some(Value::okay(Value::buff_from(expected.to_vec()).unwrap()).unwrap())))
+    }
+
+    #[test]
     fn test_secp256k1_verify() {
         crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
@@ -146,6 +161,30 @@ mod tests {
         crosscheck("(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d1cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a13)",
             Ok(Some(Value::err_uint(2))));
+
+        // Recovery id (b'\x17') > b'\x03'
+        let snippet = "(secp256k1-recover?
+        0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+        0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1317)";
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(2))));
+
+        // Recovery id (b'\x04') > b'\x03'
+        let snippet = "(secp256k1-recover?
+            0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1304)";
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(2))));
+    }
+
+    #[test]
+    fn test_secp256k1_recover_signature_not_matching() {
+        // Recovery id (b'\x03') <= b'\x03'
+        let snippet = "(secp256k1-recover?
+            0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1303)";
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(1))));
     }
 
     #[test]
