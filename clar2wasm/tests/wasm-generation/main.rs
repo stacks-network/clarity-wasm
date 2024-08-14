@@ -16,6 +16,7 @@ pub mod noop;
 pub mod optional;
 pub mod regression;
 pub mod response;
+pub mod secp256k1;
 pub mod sequences;
 pub mod stx;
 pub mod tokens;
