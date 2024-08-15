@@ -166,7 +166,6 @@ pub fn compile(
         }),
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
-            eprintln!("{diagnostics:?}");
             Err(CompileError::Generic {
                 ast,
                 diagnostics,
