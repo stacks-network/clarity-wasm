@@ -409,3 +409,44 @@ proptest! {
         )
     }
 }
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_none_optional(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::OptionalType(Box::new(TypeSignature::NoType)),
+                    5
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty list", |v| !v.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (optional uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
