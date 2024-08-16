@@ -900,6 +900,24 @@ mod tests {
     }
 
     #[test]
+    fn filter_responses() {
+        let snippet = "
+(define-private (is-great (x (response int int)))
+  (match x
+    number (> number 2)
+    number (> number 2)))
+
+(filter is-great
+  (list
+    (ok 2)
+    (ok 3)
+    (err 4)
+    (err 0)
+    (ok -3)))";
+        crosscheck(snippet, evaluate("(list (ok 3) (err 4))"));
+    }
+
+    #[test]
     fn filter_buff() {
         crosscheck(
             "

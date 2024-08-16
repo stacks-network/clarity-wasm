@@ -1,4 +1,5 @@
-use clar2wasm::tools::crosscheck;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::types::{ListTypeData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
@@ -10,10 +11,10 @@ proptest! {
     #[test]
     fn if_true_returns_first_value(
         (v1, v2) in prop_signature()
-            .prop_flat_map(|ty| {
-                (PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|ty| {
+            (PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!(r#"(if true {v1} {v2})"#),
@@ -27,10 +28,10 @@ proptest! {
     #[test]
     fn if_false_returns_second_value(
         (v1, v2) in prop_signature()
-            .prop_flat_map(|ty| {
-                (PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|ty| {
+            (PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!(r#"(if false {v1} {v2})"#),
@@ -44,10 +45,10 @@ proptest! {
     #[test]
     fn match_optional_some(
         (initial, some_val, none_val) in (prop_signature(), prop_signature())
-            .prop_flat_map(|(original_ty, ty)| {
-                (PropValue::from_type(original_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|(original_ty, ty)| {
+            (PropValue::from_type(original_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!("(match (some {initial}) value {some_val} {none_val})"),
@@ -58,10 +59,10 @@ proptest! {
     #[test]
     fn match_optional_none(
         (original_ty, some_val, none_val) in (prop_signature(), prop_signature())
-            .prop_flat_map(|(original_ty, ty)| {
-                (Just(original_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|(original_ty, ty)| {
+            (Just(original_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!(r#"
@@ -75,10 +76,10 @@ proptest! {
     #[test]
     fn match_response_ok(
         (original_ok_ty, original_ok_val, original_err_ty, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
-            .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
-                (Just(original_ok_ty.clone()), PropValue::from_type(original_ok_ty), Just(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
+            (Just(original_ok_ty.clone()), PropValue::from_type(original_ok_ty), Just(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!(r#"
@@ -92,10 +93,10 @@ proptest! {
     #[test]
     fn match_response_err(
         (original_ok_ty, original_err_ty, original_err_val, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
-            .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
-                (Just(original_ok_ty), Just(original_err_ty.clone()), PropValue::from_type(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-            })
-        )
+        .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
+            (Just(original_ok_ty), Just(original_err_ty.clone()), PropValue::from_type(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+        })
+    )
     {
         crosscheck(
             &format!(r#"
@@ -282,6 +283,59 @@ proptest! {
         crosscheck(
             &snippet,
             Ok(Some(expected.into()))
+        );
+    }
+}
+
+const FILTER_PRELUDE: &str = "
+(define-private (is-even? (x int))
+        (is-eq (* (/ x 2) 2) x))
+
+(define-private (grob (x (response int int)))
+  (match x
+    a (is-even? a)
+    b (not (is-even? b))))";
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_filter_responses_short(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        2).unwrap()
+                )
+            )
+        )
+    ) {
+        let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+
+        crosscheck_compare_only(
+            &snippet,
+        );
+    }
+
+    #[test]
+    fn crosscheck_filter_responses_long(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        100).unwrap()
+                )
+            )
+        )
+    ) {
+        let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+
+        crosscheck_compare_only(
+            &snippet,
         );
     }
 }

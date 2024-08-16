@@ -208,6 +208,10 @@ impl PropValue {
         ]
         .prop_map_into()
     }
+
+    pub fn inner(&self) -> &Value {
+        &self.0
+    }
 }
 
 impl TryFrom<Vec<PropValue>> for PropValue {

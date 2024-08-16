@@ -1,5 +1,7 @@
-use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::types::{
+    CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature,
+};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
@@ -318,5 +320,60 @@ fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
         _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
+    }
+}
+
+const FOLD_PRELUDE: &str = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+         b1 (err (+ a1 b1))
+         b2 (ok  (- a1 b2)))
+    a2 (match b
+         b1 (ok  (+ a2 b1))
+         b2 (err (- a2 b2)))))";
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_fold_responses_short(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        2).unwrap()
+                )
+            )
+        )
+    ) {
+        let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+        crosscheck_compare_only(
+            &snippet,
+        );
+    }
+
+    #[test]
+    fn crosscheck_fold_responses_long(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        100).unwrap()
+                )
+            )
+        )
+    ) {
+        let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+        crosscheck_compare_only(
+            &snippet,
+        );
     }
 }
