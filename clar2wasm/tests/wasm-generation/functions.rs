@@ -1,8 +1,6 @@
 use clar2wasm::tools::crosscheck;
-use clarity::vm::{
-    types::{ResponseData, TupleData, TypeSignature},
-    ClarityName, Value,
-};
+use clarity::vm::types::{ResponseData, TupleData, TypeSignature};
+use clarity::vm::{ClarityName, Value};
 use proptest::prelude::*;
 use proptest::proptest;
 use proptest::strategy::Strategy;
