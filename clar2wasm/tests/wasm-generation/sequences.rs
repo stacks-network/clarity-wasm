@@ -3,7 +3,7 @@ use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSig
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{bool, int, prop_signature, type_string, PropValue, TypePrinter};
+use crate::{bool, int, list, prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -318,5 +318,94 @@ fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
         _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_ok_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::UIntType, TypeSignature::NoType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            if let SequenceData::List(data) = extract_sequence(seq.clone()) {
+                let v: Vec<Value> = data
+                    .data
+                    .iter()
+                    .map(|el| el.clone().expect_result_ok().unwrap())
+                    .collect();
+
+                    Value::Sequence(
+                        SequenceData::List(
+                            ListData {
+                                data: v.clone(),
+                                type_signature: ListTypeData::new_list(TypeSignature::UIntType, v.len() as u32).unwrap()
+                            }
+                        )
+                    )
+            } else {
+                panic!("Expected a list sequence");
+            }
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_err_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::NoType, TypeSignature::UIntType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
     }
 }
