@@ -7,7 +7,7 @@ use proptest::strategy::Strategy;
 
 use crate::{prop_signature, response, type_string, PropValue};
 
-fn strategies_for_function_siganture() -> impl Strategy<Value = (Vec<TypeSignature>, Vec<PropValue>)>
+fn strategies_for_function_signature() -> impl Strategy<Value = (Vec<TypeSignature>, Vec<PropValue>)>
 {
     prop::collection::vec(
         prop_signature().prop_ind_flat_map2(|ty| PropValue::from_type(ty.clone())),
@@ -51,7 +51,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_private_accepts_any_args(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         result in PropValue::any().no_shrink()
     ) {
         let (args_signature, _) = format_args_signature(&tys);
@@ -71,7 +71,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_private_returns_any_argument(
-        ((tys, values), return_index) in strategies_for_function_siganture().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
+        ((tys, values), return_index) in strategies_for_function_signature().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
     ) {
         let (args_signature, args_name) = format_args_signature(&tys);
         let call_args = join_stringified(&values);
@@ -89,7 +89,7 @@ proptest! {
     }
 
     #[test]
-    fn crossprop_define_private_can_use_all_arguments((tys, values) in strategies_for_function_siganture()) {
+    fn crossprop_define_private_can_use_all_arguments((tys, values) in strategies_for_function_signature()) {
         let (args_signature, args_name) = format_args_signature(&tys);
         let call_args = join_stringified(&values);
 
@@ -118,7 +118,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_private_side_effects(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         response in strategies_for_response())
     {
         let (args_signature, _) = format_args_signature(&tys);
@@ -150,7 +150,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_public_accepts_any_args(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         response in strategies_for_response())
     {
         let (args_signature, _) = format_args_signature(&tys);
@@ -170,7 +170,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_public_returns_any_argument(
-        ((tys, values), return_index) in strategies_for_function_siganture().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
+        ((tys, values), return_index) in strategies_for_function_signature().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
         response_ok in any::<bool>()
     ) {
         let (args_signature, args_name) = format_args_signature(&tys);
@@ -194,7 +194,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_public_can_use_all_arguments(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         response_ok in any::<bool>()
     ) {
         let (args_signature, args_name) = format_args_signature(&tys);
@@ -227,7 +227,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_public_side_effects(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         response in strategies_for_response())
     {
         let (args_signature, _) = format_args_signature(&tys);
@@ -264,7 +264,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_readonly_accepts_any_args(
-        (tys, values) in strategies_for_function_siganture(),
+        (tys, values) in strategies_for_function_signature(),
         result in PropValue::any().no_shrink()
     ) {
         let (args_signature, _) = format_args_signature(&tys);
@@ -284,7 +284,7 @@ proptest! {
 
     #[test]
     fn crossprop_define_readonly_returns_any_argument(
-        ((tys, values), return_index) in strategies_for_function_siganture().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
+        ((tys, values), return_index) in strategies_for_function_signature().prop_ind_flat_map2(|(tys, _)| 0..tys.len()),
     ) {
         let (args_signature, args_name) = format_args_signature(&tys);
         let call_args = join_stringified(&values);
@@ -302,7 +302,7 @@ proptest! {
     }
 
     #[test]
-    fn crossprop_define_readonly_can_use_all_arguments((tys, values) in strategies_for_function_siganture()) {
+    fn crossprop_define_readonly_can_use_all_arguments((tys, values) in strategies_for_function_signature()) {
         let (args_signature, args_name) = format_args_signature(&tys);
         let call_args = join_stringified(&values);
 
