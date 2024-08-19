@@ -2038,7 +2038,7 @@ mod tests {
     }
 
     #[test]
-    fn unit_fold_repsonses() {
+    fn unit_fold_repsonses_full_type() {
         let snippet = "
 (define-private (knus (a (response int int))
                       (b (response int int)))
@@ -2050,8 +2050,26 @@ mod tests {
       b3 (ok  (+ a2 b3))
       b4 (err (- a2 b4)))))
 
-(fold knus (list (ok 1)) (ok 0))";
+(fold knus (list (ok 1)) (err 0))";
 
-        crosscheck_compare_only(&snippet);
+        crosscheck_compare_only(snippet);
+    }
+
+    #[test]
+    fn unit_fold_repsonses_partial_type() {
+        let snippet = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+      b1 (err (+ a1 b1))
+      b2 (ok  (- a1 b2)))
+    a2 (match b
+      b3 (ok  (+ a2 b3))
+      b4 (err (- a2 b4)))))
+
+(fold knus (list (err 1)) (err 0))";
+
+        crosscheck_compare_only(snippet);
     }
 }
