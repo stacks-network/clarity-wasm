@@ -65,7 +65,15 @@ impl ComplexWord for UseTrait {
     ) -> Result<(), GeneratorError> {
         // We simply add the trait alias to the memory so that contract-call?
         // can retrieve a correct function return type at call.
-        let name = args.get_name(0)?;
+        let name = &args
+            .get_expr(1)?
+            .match_field()
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "use-trait second argument should be the imported trait".to_owned(),
+                )
+            })?
+            .name;
         let _ = generator.add_string_literal(name)?;
 
         Ok(())
