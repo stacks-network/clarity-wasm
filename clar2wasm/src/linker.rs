@@ -4596,7 +4596,9 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "contract_call",
-        |_contract_offset: i32,
+        |_contract_trait_offset: i32,
+         _contract_trait_length: i32,
+         _contract_offset: i32,
          _contract_length: i32,
          _function_offset: i32,
          _function_length: i32,
