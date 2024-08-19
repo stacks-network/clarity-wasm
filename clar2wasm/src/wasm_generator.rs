@@ -670,6 +670,16 @@ impl WasmGenerator {
         Ok((offset, len))
     }
 
+    pub(crate) fn get_string_literal(&self, name: &str) -> Option<(u32, u32)> {
+        if !name.is_ascii() {
+            return None;
+        }
+        let entry = LiteralMemoryEntry::Ascii(name.to_owned());
+        self.literal_memory_offset
+            .get(&entry)
+            .map(|offset| (*offset, name.len() as u32))
+    }
+
     /// Adds a new literal into the memory, and returns the offset and length.
     pub(crate) fn add_literal(
         &mut self,
