@@ -281,4 +281,70 @@ mod tests {
             Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
         )
     }
+
+    #[test]
+    fn test_sha256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "c4145364a3ba46002fb14242872f795535bae6738b1e47ba21eb405cfdf820a5",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha256 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_sha512_large_buff() {
+        let mut expected = [0u8; 64];
+        hex::decode_to_slice(
+            "e3bbbc0cc37e452a5d2674240c77f7d5137b93fb9d4026b40a10a2ffeda543ff303df1220492cb9e8caba96c24aebb2d2ea359a38141b62d31d80996defdf874",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha512 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_sha512256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "7d5b92a003008bb3ef9656e2212b27c47f325ecfba4ed78f1d7e83161bcaab4a",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha512/256 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_hash160_large_buff() {
+        let mut expected = [0u8; 20];
+        hex::decode_to_slice("b7ec553926497b8cb2ae106bf75396359296830e", &mut expected).unwrap();
+        crosscheck(
+            &format!("(hash160 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_keccak256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "b285806915c373a14ab20b503b1fe58a50544363263a1a17f50841ed08da85cb",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(keccak256 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
 }

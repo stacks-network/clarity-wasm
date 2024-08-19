@@ -1522,16 +1522,43 @@
         (local.get $offset-result) (i32.const 32)
     )
 
+    (func $grow-stack-for (param $length i32)
+        ;; Check if the top of the stack (from $stack-pointer) has enough space to store `$length` bytes
+        ;; If not, add the required pages (or throw runtime-error 9 if grow fails).
+        (local $page_size i32) (local $required_mem i32)
+        (local.set $page_size (i32.const 65536)) ;; 64KiB
+        ;; required_mem = (stack-pointer + length) - memory bytes
+        (local.set $required_mem
+            (i32.sub
+                (i32.add (global.get $stack-pointer) (local.get $length))
+                (i32.mul (memory.size) (local.get $page_size))
+            )
+        )
+
+        (if (i32.gt_s (local.get $required_mem) (i32.const 0))
+            (then
+                ;; grow memory by ceil($required_mem / $page_size)
+                (if (i32.eq
+                    (memory.grow
+                        (i32.div_u
+                            (i32.add
+                                (local.get $required_mem)
+                                (i32.sub (local.get $page_size) (i32.const 1))
+                            )
+                            (local.get $page_size)
+                        )
+                    )
+                    (i32.const -1))
+                    (then
+                        (call $stdlib.runtime-error (i32.const 9))
+                    )
+                )
+            )
+        )
+    )
+
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
         (local $res_len i32) (local $len64 i64)
-        ;; TODO: check if enough pages of memory and grow accordingly
-
-        ;; Move data to the working stack, so that it has this relative configuration:
-        ;;   0..32 -> Initial hash vals (will be the result hash in the end)
-        ;;   32..288 -> Space to store W (result of $block64)
-        ;;   288..$length+288 -> shifted data
-        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
-        (memory.copy (i32.add (global.get $stack-pointer) (i32.const 288)) (local.get $offset) (local.get $length))
 
         (local.set $res_len ;; total size of data with expansion
             (i32.add
@@ -1543,6 +1570,15 @@
                 (i32.const 1)
             )
         )
+        ;; check if we need to grow the memory
+        (call $grow-stack-for (i32.add (local.get $res_len) (i32.const 289)))
+
+        ;; Move data to the working stack, so that it has this relative configuration:
+        ;;   0..32 -> Initial hash vals (will be the result hash in the end)
+        ;;   32..288 -> Space to store W (result of $block64)
+        ;;   288..$length+288 -> shifted data
+        (memory.copy (global.get $stack-pointer) (i32.const 0) (i32.const 32))
+        (memory.copy (i32.add (global.get $stack-pointer) (i32.const 288)) (local.get $offset) (local.get $length))
 
         ;; Add "1" at the end of the data
         (i32.store offset=288
@@ -2888,12 +2924,6 @@
         ;; Message length in 8 bytes
         (local $message_length_64 i64)
 
-        ;; Copying initial values (64 bytes) for SHA-512 from 648 index
-        (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
-
-        ;; Copying the data from the offset to isolated environment (i.e. target-index = $stack-pointer+(initial-values+(80 rounds * 8)))
-        (memory.copy (i32.add (global.get $stack-pointer) (i32.const 704)) (local.get $offset) (local.get $length))
-
         (local.set $length_after_padding ;; total size of data with expansion divisible by 128
             (i32.add
                 (i32.or
@@ -2904,6 +2934,14 @@
                 (i32.const 1)
             )
         )
+        ;; check if we need to grow the memory
+        (call $grow-stack-for (i32.add (i32.const 705) (local.get $length_after_padding)))
+
+        ;; Copying initial values (64 bytes) for SHA-512 from 648 index
+        (memory.copy (global.get $stack-pointer) (i32.const 648) (i32.const 64))
+
+        ;; Copying the data from the offset to isolated environment (i.e. target-index = $stack-pointer+(initial-values+(80 rounds * 8)))
+        (memory.copy (i32.add (global.get $stack-pointer) (i32.const 704)) (local.get $offset) (local.get $length))
 
         ;; Add "1" at the end of the data
         (i32.store offset=704

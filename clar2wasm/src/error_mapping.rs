@@ -18,6 +18,7 @@ pub enum ErrorMap {
     Panic = 6,
     ShortReturnAssertionFailure = 7,
     ArithmeticPowError = 8,
+    OutOfMemoryError = 9,
     NotMapped = 99,
 }
 
@@ -34,6 +35,7 @@ impl From<i32> for ErrorMap {
             6 => ErrorMap::Panic,
             7 => ErrorMap::ShortReturnAssertionFailure,
             8 => ErrorMap::ArithmeticPowError,
+            9 => ErrorMap::OutOfMemoryError,
             _ => ErrorMap::NotMapped,
         }
     }
@@ -156,6 +158,7 @@ fn from_runtime_error_code(
             RuntimeErrorType::Arithmetic(POW_ERROR_MESSAGE.into()),
             Some(Vec::new()),
         ),
+        // TODO?: add relevant error in stacks-core for ErrorMap::OutOfMemoryError
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }
 }

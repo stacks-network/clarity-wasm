@@ -9,7 +9,7 @@ fn strategies_for_hashing() -> impl Strategy<Value = PropValue> {
     prop_oneof![
         Just(TypeSignature::IntType),
         Just(TypeSignature::UIntType),
-        (0u32..=300).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        (0u32..=1048576).prop_map(|s| TypeSignature::SequenceType(SequenceSubtype::BufferType(
             s.try_into().unwrap()
         ))),
     ]
