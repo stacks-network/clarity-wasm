@@ -1525,7 +1525,9 @@
     (func $grow-stack-for (param $length i32)
         ;; Check if the top of the stack (from $stack-pointer) has enough space to store `$length` bytes
         ;; If not, add the required pages (or throw runtime-error 9 if grow fails).
-        (local $page_size i32) (local $required_mem i32)
+        (local $page_size i32)
+        (local $required_mem i32)
+
         (local.set $page_size (i32.const 65536)) ;; 64KiB
         ;; required_mem = (stack-pointer + length) - memory bytes
         (local.set $required_mem
@@ -1537,7 +1539,7 @@
 
         (if (i32.gt_s (local.get $required_mem) (i32.const 0))
             (then
-                ;; grow memory by ceil($required_mem / $page_size)
+                ;; grow memory by ceil($required_mem / $page_size) pages
                 (if (i32.eq
                     (memory.grow
                         (i32.div_u
