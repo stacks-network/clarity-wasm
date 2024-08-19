@@ -46,8 +46,8 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
     early_return_block_id: Option<InstrSeqId>,
-    /// The return type of the current function.
-    pub(crate) return_type: Option<TypeSignature>,
+    /// The type of the current function.
+    pub(crate) current_function_type: Option<FixedFunction>,
     /// The types of defined data-vars
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
     /// The types of (key, value) in defined maps
@@ -249,7 +249,7 @@ impl WasmGenerator {
             constants: HashMap::new(),
             bindings: HashMap::new(),
             early_return_block_id: None,
-            return_type: None,
+            current_function_type: None,
             frame_size: 0,
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
@@ -445,7 +445,7 @@ impl WasmGenerator {
             }));
         };
 
-        self.return_type = Some(function_type.returns.clone());
+        self.current_function_type = Some(function_type.clone());
 
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
@@ -520,7 +520,7 @@ impl WasmGenerator {
         self.bindings = top_level_locals;
 
         // Reset the return type and early block to None
-        self.return_type = None;
+        self.current_function_type = None;
         self.early_return_block_id = None;
 
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
@@ -1639,6 +1639,23 @@ impl WasmGenerator {
                 "expected sequence type".to_string(),
             )),
         }
+    }
+
+    pub(crate) fn get_current_function_return_type(&self) -> Option<&TypeSignature> {
+        self.current_function_type.as_ref().map(|f| &f.returns)
+    }
+
+    pub(crate) fn get_current_function_arg_type(
+        &self,
+        arg_name: &ClarityName,
+    ) -> Option<&TypeSignature> {
+        self.current_function_type
+            .as_ref()
+            .map(|f| &f.args)
+            .and_then(|args| {
+                args.iter()
+                    .find_map(|arg| (&arg.name == arg_name).then_some(&arg.signature))
+            })
     }
 }
 
