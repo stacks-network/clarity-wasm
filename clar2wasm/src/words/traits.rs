@@ -58,12 +58,16 @@ impl ComplexWord for UseTrait {
 
     fn traverse(
         &self,
-        _generator: &mut WasmGenerator,
+        generator: &mut WasmGenerator,
         _builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
-        _args: &[SymbolicExpression],
+        args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        // This is just for the type-checker, so it's a no-op at runtime.
+        // We simply add the trait alias to the memory so that contract-call?
+        // can retrieve a correct function return type at call.
+        let name = args.get_name(0)?;
+        let _ = generator.add_string_literal(name)?;
+
         Ok(())
     }
 }
