@@ -96,7 +96,7 @@ fn filter_regression() {
 #[test]
 fn filter_regression_ro() {
     let snippet = r#"
-    (define-read-onlyb (foo
+    (define-read-only (foo
         (el (tuple (NBlr (optional (string-utf8 24))) (PXjxHEkOFOT (string-ascii 21)) (TzZsYKMTEbprp (string-utf8 30)) (j (tuple (DjhalL (string-utf8 8)) (NOEuhh uint) (dBJLekcnsjHwdB uint) (jiZqxSxeVBsYtn principal) (oPLU (string-ascii 71)) (sSddAEMlw (buff 12)))) (nUR uint) (nniRNfmDI (list 31 bool))))) (is-eq el (tuple (NBlr none) (PXjxHEkOFOT "b,rCCv^\"O.EZfvpQ1bO?@") (TzZsYKMTEbprp u"``..\u{9FCD7}\u{108D35}\u{7046F}\u{E7660}\u{FFFD}\u{FFFD}\u{FD}\u{468}\"\u{FE}$\u{5D6DB}\u{D0E1C}\u{EE7AC}\u{1F574}\u{FFFD}?\u{C544}<=\u{85FF5}.\u{D67B8}d\u{202E}'") (j (tuple (DjhalL u"`\u{23A}\\\u{2A5E1}?\u{B}\u{5C142}\u{10F05B}") (NOEuhh u137436105837418320392895712035305059757) (dBJLekcnsjHwdB u86607750441816061623548602539664746924) (jiZqxSxeVBsYtn 'SP2CJH9CK2GJW5E06AA9MMVJMP310RV1APPKXEWVV) (oPLU "iyaO4 Co(Y#Ub&qy-n2i^s^k.E^r7BO}RV18vDhi2kek!)s:nRCq5@I4dE'z]\"9&49JW^P^") (sSddAEMlw 0xd2d89062eb20c15f49939349))) (nUR u156826313668429625148491396170213373157) (nniRNfmDI (list false false true false false false false true true false true false true true false false true false true))))
     )
 

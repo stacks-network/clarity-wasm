@@ -111,7 +111,10 @@ pub fn compile(
                     continue;
                 };
 
-                let entry_type = match contract_analysis.get_private_function(func_name.as_str()) {
+                let entry_type = match contract_analysis
+                    .get_private_function(func_name.as_str())
+                    .or(contract_analysis.get_read_only_function_type(func_name.as_str()))
+                {
                     Some(clarity::vm::types::FunctionType::Fixed(FixedFunction {
                         args, ..
                     })) => args[0].signature.clone(),
@@ -138,8 +141,52 @@ pub fn compile(
                 }
             }
             Some("fold") => {
-                // TODO?
-                continue;
+                // in the case of fold we need to override the type of the argument list
+
+                let Some(func_expr) = expr.match_list().map(|l| &l[1]) else {
+                    continue;
+                };
+
+                let Some(func_name) = func_expr.match_atom() else {
+                    continue;
+                };
+
+                let return_type = match contract_analysis
+                    .get_private_function(func_name.as_str())
+                    .or(contract_analysis.get_read_only_function_type(func_name.as_str()))
+                {
+                    Some(clarity::vm::types::FunctionType::Fixed(FixedFunction {
+                        args, ..
+                    })) => args[0].signature.clone(),
+                    _ => continue,
+                };
+
+                let Some(sequence_expr) = expr.match_list().map(|l| &l[2]) else {
+                    continue;
+                };
+
+                println!("C sequence expr id {}", sequence_expr.id);
+
+                if let Some(tmap) = contract_analysis.type_map.as_mut() {
+                    println!("d typemap {:?}", tmap.get_type(sequence_expr));
+                    let Some(seq_type) = tmap.get_type(sequence_expr) else {
+                        continue;
+                    };
+                    let TypeSignature::SequenceType(SequenceSubtype::ListType(data)) = seq_type
+                    else {
+                        continue;
+                    };
+
+                    let Ok(list_data) = ListTypeData::new_list(return_type, data.get_max_len())
+                    else {
+                        continue;
+                    };
+
+                    tmap.overwrite_type(
+                        sequence_expr,
+                        TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)),
+                    );
+                }
             }
             _ => continue,
         }

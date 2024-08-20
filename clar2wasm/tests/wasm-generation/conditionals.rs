@@ -1,5 +1,5 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
-use clarity::vm::types::{ListTypeData, SequenceSubtype, TypeSignature};
+use clarity::vm::types::{ListTypeData, SequenceData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
@@ -312,11 +312,17 @@ proptest! {
             )
         )
     ) {
-        let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+        match seq.inner() {
+            // Empty sequences fail in interpreter as well
+            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+                let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
 
-        crosscheck_compare_only(
-            &snippet,
-        );
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            },
+            _ => ()
+        }
     }
 
     #[test]
@@ -332,10 +338,16 @@ proptest! {
             )
         )
     ) {
-        let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+        match seq.inner() {
+            // Empty sequences fail in interpreter as well
+            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+                let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
 
-        crosscheck_compare_only(
-            &snippet,
-        );
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            },
+            _ => ()
+        };
     }
 }

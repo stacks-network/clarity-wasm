@@ -328,11 +328,11 @@ const FOLD_PRELUDE: &str = "
                       (b (response int int)))
   (match a
     a1 (match b
-         b1 (err (+ a1 b1))
-         b2 (ok  (- a1 b2)))
+         b1 (err (xor a1 b1))
+         b2 (ok  (xor a1 b2)))
     a2 (match b
-         b1 (ok  (+ a2 b1))
-         b2 (err (- a2 b2)))))";
+         b1 (ok  (xor a2 b1))
+         b2 (err (xor a2 b2)))))";
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -350,11 +350,17 @@ proptest! {
             )
         )
     ) {
-        let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+        match seq.inner() {
+            // Empty sequences fail in interpreter as well
+            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
 
-        crosscheck_compare_only(
-            &snippet,
-        );
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            },
+            _ => ()
+        }
     }
 
     #[test]
@@ -370,10 +376,16 @@ proptest! {
             )
         )
     ) {
-        let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+        match seq.inner() {
+            // Empty sequences fail in interpreter as well
+            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
 
-        crosscheck_compare_only(
-            &snippet,
-        );
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            },
+            _ => ()
+        }
     }
 }

@@ -91,7 +91,7 @@ impl TestEnvironment {
                     self.epoch,
                     analysis_db,
                 )
-                .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
+                .map_err(|e| CheckErrors::Expects(format!("Compilation failure {:?}", e)))
             })
             .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
 
@@ -392,8 +392,10 @@ pub fn crosscheck_compare_only(snippet: &str) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
 
-    let compiled = evaluate(snippet).expect("Compiled snippet failed");
+    // Note that we interpret first, to catch logical errors early
+
     let interpreted = interpret(snippet).expect("Interpreted snippet failed");
+    let compiled = evaluate(snippet).expect("Compiled snippet failed");
 
     assert_eq!(
         compiled, interpreted,
