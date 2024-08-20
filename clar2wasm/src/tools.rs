@@ -406,6 +406,29 @@ pub fn crosscheck_compare_only(snippet: &str) {
     );
 }
 
+pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
+    snippet: &str,
+    expected: E,
+) {
+    let compiled = evaluate(snippet);
+    let interpreted = interpret(snippet);
+
+    // to avoid false positives when both the compiled and interpreted fail,
+    // we don't allow failures in these tests
+
+    if let Err(e) = &compiled {
+        if !expected(e) {
+            panic!("Compiled snippet failed with unexpected error: {:?}", e);
+        }
+    }
+
+    assert_eq!(
+        compiled, interpreted,
+        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        snippet, &compiled, &interpreted
+    );
+}
+
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {

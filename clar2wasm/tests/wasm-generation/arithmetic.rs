@@ -1,4 +1,5 @@
-use clar2wasm::tools::crosscheck_compare_only;
+use clar2wasm::tools::{crosscheck_compare_only, crosscheck_compare_only_with_expected_error};
+use clarity::vm::errors::{Error, RuntimeErrorType};
 use proptest::proptest;
 
 use crate::{int, uint};
@@ -13,8 +14,9 @@ proptest! {
     #[test]
     fn crossprop_one_value_int(v1 in int()) {
         for op in &ONE_VALUE_OPS {
-            crosscheck_compare_only(
-                &format!("({op} {v1})")
+            crosscheck_compare_only_with_expected_error(
+                &format!("({op} {v1})"),
+                |e| matches!(e, Error::Runtime(RuntimeErrorType::Arithmetic(_), _))
             )
         }
     }
@@ -39,9 +41,12 @@ proptest! {
     #[test]
     fn crossprop_two_value_int(v1 in int(), v2 in int()) {
         for op in &TWO_VALUE_OPS {
-            crosscheck_compare_only(
-                &format!("({op} {v1} {v2})")
-            )
+            crosscheck_compare_only_with_expected_error(
+                &format!("({op} {v1} {v2})"),
+                |e| matches!(e,
+                    Error::Runtime(
+                        RuntimeErrorType::ArithmeticOverflow | RuntimeErrorType::Arithmetic(_),
+                        _)))
         }
     }
 }
@@ -52,9 +57,13 @@ proptest! {
     #[test]
     fn crossprop_two_value_uint(v1 in uint(), v2 in uint()) {
         for op in &TWO_VALUE_OPS {
-            crosscheck_compare_only(
-                &format!("({op} {v1} {v2})")
-            )
+            crosscheck_compare_only_with_expected_error(
+                &format!("({op} {v1} {v2})"),
+                |e| matches!(e,
+                    Error::Runtime(
+                        RuntimeErrorType::ArithmeticOverflow |
+                        RuntimeErrorType::Arithmetic(_),
+                        _)))
         }
     }
 }
@@ -66,8 +75,11 @@ proptest! {
     fn crossprop_multi_value_int(values in proptest::collection::vec(int(), 1..=10)) {
         for op in &MULTI_VALUE_OPS {
             let values_str = values.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ");
-            crosscheck_compare_only(
-                &format!("({op} {values_str})")
+            crosscheck_compare_only_with_expected_error(
+                &format!("({op} {values_str})"),
+                |e| matches!(e, Error::Runtime(
+                    RuntimeErrorType::ArithmeticOverflow |
+                    RuntimeErrorType::ArithmeticUnderflow, _))
             )
         }
     }
@@ -79,8 +91,11 @@ proptest! {
     #[test]
     fn crossprop_multi_value_uint(v1 in uint(), v2 in uint()) {
         for op in &MULTI_VALUE_OPS {
-            crosscheck_compare_only(
-                &format!("({op} {v1} {v2})")
+            crosscheck_compare_only_with_expected_error(
+                &format!("({op} {v1} {v2})"),
+                |e| matches!(e, Error::Runtime(
+                    RuntimeErrorType::ArithmeticOverflow |
+                    RuntimeErrorType::ArithmeticUnderflow, _))
             )
         }
     }
