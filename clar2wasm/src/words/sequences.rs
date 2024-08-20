@@ -571,12 +571,13 @@ impl ComplexWord for Map {
                     // Fix for an issue when dealing with responses and optional types.
                     // Set the type of the list to the type of the function argument.
                     let element_ty = match item_ty {
-                        TypeSignature::ResponseType(_) => {
-                            TypeSignature::ResponseType(Box::new((return_element_type.clone(), return_element_type.clone())))
-                        },
+                        TypeSignature::ResponseType(_) => TypeSignature::ResponseType(Box::new((
+                            return_element_type.clone(),
+                            return_element_type.clone(),
+                        ))),
                         TypeSignature::OptionalType(_) => {
                             TypeSignature::OptionalType(Box::new(return_element_type.clone()))
-                        },
+                        }
                         _ => lt.get_list_item_type().clone(),
                     };
 
