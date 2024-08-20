@@ -60,7 +60,7 @@ impl SimpleWord for Hash160 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        // work space from sha256
+        // work_space values from sha256, see `Sha256::visit`
         traverse_hash("hash160", 160, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
@@ -80,6 +80,7 @@ impl SimpleWord for Sha256 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
         traverse_hash("sha256", 256, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
@@ -154,6 +155,7 @@ impl SimpleWord for Sha512 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
         traverse_hash("sha512", 512, generator, builder, arg_types, 128 + 16 + 705)
     }
 }
