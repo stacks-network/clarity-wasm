@@ -392,6 +392,13 @@ pub fn crosscheck_compare_only(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);
 
+    // to avoid false positives when both the compiled and interpreted fail,
+    // we don't allow failures in these tests
+
+    if let Err(e) = compiled {
+        panic!("Compiled snippet failed: {:?}", e);
+    }
+
     assert_eq!(
         compiled, interpreted,
         "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
