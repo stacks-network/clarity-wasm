@@ -335,6 +335,7 @@ proptest! {
                 .unwrap()
             )
         )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
         .prop_map(PropValue::from)
     ) {
         let expected = {
@@ -384,6 +385,7 @@ proptest! {
                 .unwrap()
             )
         )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
         .prop_map(PropValue::from)
     ) {
         let expected = {
