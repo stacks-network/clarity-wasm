@@ -133,7 +133,12 @@ mod tests {
             0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(true))));
         crosscheck("(secp256k1-verify 0x0000000000000000000000000000000000000000000000000000000000000000
             0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(false))))
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(false))));
+
+        // Recovery id (b'\x03') <= b'\x03' (with correct signature[..64])
+        crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1303
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", Ok(Some(Value::Bool(true))));
     }
 
     #[test]
@@ -217,6 +222,12 @@ mod tests {
             0x{}
             0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", short_sig),
             Ok(Some(Value::Bool(false))));
+
+        // Recovery id (b'\x04') > b'\x03' (with correct signature[..64])
+        crosscheck("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1304
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)",
+        Ok(Some(Value::Bool(false))));
 
         // Public key is too short
         let short_pubkey = "03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861";

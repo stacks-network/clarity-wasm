@@ -46,8 +46,8 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
     early_return_block_id: Option<InstrSeqId>,
-    /// The return type of the current function.
-    pub(crate) return_type: Option<TypeSignature>,
+    /// The type of the current function.
+    pub(crate) current_function_type: Option<FixedFunction>,
     /// The types of defined data-vars
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
     /// The types of (key, value) in defined maps
@@ -252,7 +252,7 @@ impl WasmGenerator {
             constants: HashMap::new(),
             bindings: HashMap::new(),
             early_return_block_id: None,
-            return_type: None,
+            current_function_type: None,
             frame_size: 0,
             max_work_space: 0,
             datavars_types: HashMap::new(),
@@ -450,7 +450,7 @@ impl WasmGenerator {
             }));
         };
 
-        self.return_type = Some(function_type.returns.clone());
+        self.current_function_type = Some(function_type.clone());
 
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
@@ -525,7 +525,7 @@ impl WasmGenerator {
         self.bindings = top_level_locals;
 
         // Reset the return type and early block to None
-        self.return_type = None;
+        self.current_function_type = None;
         self.early_return_block_id = None;
 
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
@@ -673,6 +673,16 @@ impl WasmGenerator {
         self.literal_memory_offset.insert(entry, offset);
 
         Ok((offset, len))
+    }
+
+    pub(crate) fn get_string_literal(&self, name: &str) -> Option<(u32, u32)> {
+        if !name.is_ascii() {
+            return None;
+        }
+        let entry = LiteralMemoryEntry::Ascii(name.to_owned());
+        self.literal_memory_offset
+            .get(&entry)
+            .map(|offset| (*offset, name.len() as u32))
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
@@ -1649,6 +1659,23 @@ impl WasmGenerator {
     /// Ensure enough work space is going to be available in memory
     pub(crate) fn ensure_work_space(&mut self, bytes_len: u32) {
         self.max_work_space = self.max_work_space.max(bytes_len);
+    }
+
+    pub(crate) fn get_current_function_return_type(&self) -> Option<&TypeSignature> {
+        self.current_function_type.as_ref().map(|f| &f.returns)
+    }
+
+    pub(crate) fn get_current_function_arg_type(
+        &self,
+        arg_name: &ClarityName,
+    ) -> Option<&TypeSignature> {
+        self.current_function_type
+            .as_ref()
+            .map(|f| &f.args)
+            .and_then(|args| {
+                args.iter()
+                    .find_map(|arg| (&arg.name == arg_name).then_some(&arg.signature))
+            })
     }
 }
 
