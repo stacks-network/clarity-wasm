@@ -1719,7 +1719,7 @@ mod misc_tests {
                 &snippet,
                 &QualifiedContractIdentifier::new(
                     StandardPrincipalData::transient(),
-                    ("asd").into(),
+                    ("tmp").into(),
                 ),
                 LimitedCostTracker::new_free(),
                 ClarityVersion::Clarity2,
