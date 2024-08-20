@@ -1,5 +1,6 @@
 use clarity::vm::clarity_wasm::get_type_size;
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::signatures::CallableSubtype;
+use clarity::vm::types::{PrincipalData, TraitIdentifier, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ir::BinaryOp;
 use walrus::ValType;
@@ -59,6 +60,8 @@ impl ComplexWord for ContractCall {
         ))) = contract_expr.expr
         {
             // This is a static contract call.
+            // Push an empty trait name first
+            builder.i32_const(0).i32_const(0);
             // Push the contract identifier onto the stack
             // TODO(#111): These should be tracked for reuse, similar to the string literals
             let (id_offset, id_length) =
@@ -68,6 +71,31 @@ impl ComplexWord for ContractCall {
                 .i32_const(id_length as i32);
         } else {
             // This is a dynamic contract call (via a trait).
+            // Push the trait name on the stack
+            let dynamic_arg = contract_expr.match_atom().ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "Dynamic contract-call? argument should be a name".to_owned(),
+                )
+            })?;
+            let trait_signature = generator
+                .get_current_function_arg_type(dynamic_arg)
+                .ok_or_else(|| {
+                    GeneratorError::InternalError(
+                        "Trait argument is not in the function arguments".to_owned(),
+                    )
+                })?;
+            let TypeSignature::CallableType(CallableSubtype::Trait(TraitIdentifier {
+                name, ..
+            })) = trait_signature
+            else {
+                return Err(GeneratorError::TypeError(
+                    "Dynamic argument of contract-call? should be a trait".to_owned(),
+                ));
+            };
+            let (offset, len) = generator.get_string_literal(name).ok_or_else(|| {
+                GeneratorError::TypeError(format!("Usage of an unimported trait: {name}"))
+            })?;
+            builder.i32_const(offset as i32).i32_const(len as i32);
             // Traversing the expression should load the contract identifier
             // onto the stack.
             generator.traverse_expr(builder, contract_expr)?;

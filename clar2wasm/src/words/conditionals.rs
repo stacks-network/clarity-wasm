@@ -518,7 +518,7 @@ impl ComplexWord for Unwrap {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
@@ -601,7 +601,7 @@ impl ComplexWord for UnwrapErr {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
@@ -689,7 +689,7 @@ impl ComplexWord for Asserts {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
@@ -741,7 +741,7 @@ impl ComplexWord for Try {
                 // In the case of throw, we need to re-push the discriminant,
                 // then add a placeholder for the some-type of the return type.
                 throw_branch.i32_const(0);
-                let placeholder_ty = match generator.return_type.as_ref() {
+                let placeholder_ty = match generator.get_current_function_return_type() {
                     Some(TypeSignature::OptionalType(inner_type)) => inner_type,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
@@ -790,7 +790,7 @@ impl ComplexWord for Try {
                 // then add a placeholder for the ok-type of the return type
                 // and restore the err value from the locals.
                 throw_branch.i32_const(0);
-                let placeholder_ty = match generator.return_type.as_ref() {
+                let placeholder_ty = match generator.get_current_function_return_type() {
                     Some(TypeSignature::ResponseType(inner_types)) => &inner_types.0,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
