@@ -565,8 +565,21 @@ impl ComplexWord for Map {
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
-                    let element_ty = lt.get_list_item_type().clone();
-                    let element_size = get_type_size(&element_ty);
+                    let item_ty = &lt.get_list_item_type().clone();
+                    let element_size = get_type_size(item_ty);
+
+                    // Fix for an issue when dealing with responses and optional types.
+                    // Set the type of the list to the type of the function argument.
+                    let element_ty = match item_ty {
+                        TypeSignature::ResponseType(_) => {
+                            TypeSignature::ResponseType(Box::new((return_element_type.clone(), return_element_type.clone())))
+                        },
+                        TypeSignature::OptionalType(_) => {
+                            TypeSignature::OptionalType(Box::new(return_element_type.clone()))
+                        },
+                        _ => lt.get_list_item_type().clone(),
+                    };
+
                     (SequenceElementType::Other(element_ty), element_size)
                 }
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
