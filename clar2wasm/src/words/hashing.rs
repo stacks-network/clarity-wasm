@@ -10,14 +10,22 @@ pub fn traverse_hash(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
+    work_space: u32, // constant upper bound
 ) -> Result<(), GeneratorError> {
     let offset_res = generator.literal_memory_end;
 
     generator.literal_memory_end += mem_size as u32; // 5 u32
 
     let hash_type = match arg_types[0] {
-        TypeSignature::IntType | TypeSignature::UIntType => "int",
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
+        TypeSignature::IntType | TypeSignature::UIntType => {
+            generator.ensure_work_space(work_space);
+            "int"
+        }
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => {
+            // Input buff is also copied
+            generator.ensure_work_space(u32::from(len) + work_space);
+            "buf"
+        }
         _ => {
             return Err(GeneratorError::NotImplemented);
         }
@@ -52,7 +60,8 @@ impl SimpleWord for Hash160 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("hash160", 160, generator, builder, arg_types)
+        // work space from sha256
+        traverse_hash("hash160", 160, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -71,7 +80,7 @@ impl SimpleWord for Sha256 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("sha256", 256, generator, builder, arg_types)
+        traverse_hash("sha256", 256, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -145,7 +154,7 @@ impl SimpleWord for Sha512 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("sha512", 512, generator, builder, arg_types)
+        traverse_hash("sha512", 512, generator, builder, arg_types, 128 + 16 + 705)
     }
 }
 
