@@ -105,7 +105,7 @@ impl ComplexWord for Match {
 
                 generator
                     .bindings
-                    .insert(success_binding.clone(), &inner_type, some_locals);
+                    .insert(success_binding.clone(), *inner_type, some_locals);
 
                 let some_block = generator.block_from_expr(builder, success_body)?;
 
@@ -142,7 +142,7 @@ impl ComplexWord for Match {
 
                 generator
                     .bindings
-                    .insert(success_binding.clone(), ok_ty, ok_locals);
+                    .insert(success_binding.clone(), ok_ty.clone(), ok_locals);
                 let ok_block = generator.block_from_expr(builder, success_body)?;
 
                 // restore named locals
@@ -151,7 +151,7 @@ impl ComplexWord for Match {
                 // bind err branch local
                 generator
                     .bindings
-                    .insert(err_binding.clone(), err_ty, err_locals);
+                    .insert(err_binding.clone(), err_ty.clone(), err_locals);
 
                 let err_block = generator.block_from_expr(builder, err_body)?;
 

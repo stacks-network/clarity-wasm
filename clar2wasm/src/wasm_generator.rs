@@ -6,7 +6,7 @@ use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
     CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
-    StringSubtype, TraitIdentifier, TypeSignature,
+    StringSubtype, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -65,7 +65,7 @@ pub(crate) struct Bindings(HashMap<ClarityName, InnerBindings>);
 #[derive(Debug, Clone)]
 struct InnerBindings {
     locals: Vec<LocalId>,
-    trait_id: Option<TraitIdentifier>,
+    ty: TypeSignature,
 }
 
 impl Bindings {
@@ -73,18 +73,8 @@ impl Bindings {
         Self::default()
     }
 
-    pub(crate) fn insert(&mut self, name: ClarityName, ty: &TypeSignature, locals: Vec<LocalId>) {
-        let callable = match ty {
-            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(t.clone()),
-            _ => None,
-        };
-        self.0.insert(
-            name,
-            InnerBindings {
-                locals,
-                trait_id: callable,
-            },
-        );
+    pub(crate) fn insert(&mut self, name: ClarityName, ty: TypeSignature, locals: Vec<LocalId>) {
+        self.0.insert(name, InnerBindings { locals, ty });
     }
 
     pub(crate) fn get_locals(&self, name: &ClarityName) -> Option<&[LocalId]> {
@@ -92,10 +82,10 @@ impl Bindings {
     }
 
     pub(crate) fn get_trait_name(&self, name: &ClarityName) -> Option<&ClarityName> {
-        self.0
-            .get(name)
-            .and_then(|b| b.trait_id.as_ref())
-            .map(|t| &t.name)
+        self.0.get(name).and_then(|b| match &b.ty {
+            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(&t.name),
+            _ => None,
+        })
     }
 }
 
@@ -511,7 +501,7 @@ impl WasmGenerator {
                 plocals.push(local);
                 params_types.push(ty);
             }
-            bindings.insert(param.name.clone(), &param.signature, plocals);
+            bindings.insert(param.name.clone(), param.signature.clone(), plocals);
         }
 
         let results_types = clar2wasm_ty(&function_type.returns);
