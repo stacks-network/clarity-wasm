@@ -321,7 +321,7 @@ proptest! {
             .prop_map(|arg_ty| arg_ty.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
             .no_shrink(),
         result in PropValue::any().no_shrink(),
-        err_type in prop_signature().no_shrink(),
+        (err_type, err_value) in prop_signature().prop_ind_flat_map2(PropValue::from_type).no_shrink(),
     ) {
         // first contract
         let first_contract_name = "foo".into();
@@ -368,7 +368,7 @@ proptest! {
                 (define-private (call-it (tt (optional <foo-trait>)) {function_arguments})
                     (match tt
                         ttt (contract-call? ttt foofun {contract_call_args})
-                        (ok {result})
+                        (err {err_value})
                     )
                 )
                 (call-it (some .foo) {call_arguments})
@@ -397,7 +397,7 @@ proptest! {
             .prop_map(|arg_ty| arg_ty.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
             .no_shrink(),
         result in PropValue::any().no_shrink(),
-        err_type in prop_signature().no_shrink(),
+        (err_type, err_value) in prop_signature().prop_ind_flat_map2(PropValue::from_type).no_shrink(),
     ) {
         // first contract
         let first_contract_name = "foo".into();
@@ -444,7 +444,7 @@ proptest! {
                 (define-private (call-it (tt (response <foo-trait> uint)) {function_arguments})
                     (match tt
                         ttt (contract-call? ttt foofun {contract_call_args})
-                        unused (ok {result})
+                        unused (err {err_value})
                     )
                 )
                 (call-it (ok .foo) {call_arguments})
@@ -473,7 +473,7 @@ proptest! {
             .prop_map(|arg_ty| arg_ty.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
             .no_shrink(),
         result in PropValue::any().no_shrink(),
-        err_type in prop_signature().no_shrink(),
+        (err_type, err_value) in prop_signature().prop_ind_flat_map2(PropValue::from_type).no_shrink(),
     ) {
         // first contract
         let first_contract_name = "foo".into();
@@ -519,7 +519,7 @@ proptest! {
                 (use-trait foo-trait .foo.foo-trait)
                 (define-private (call-it (tt (response uint <foo-trait>)) {function_arguments})
                     (match tt
-                        unused (ok {result})
+                        unused (err {err_value})
                         ttt (contract-call? ttt foofun {contract_call_args})
                     )
                 )
