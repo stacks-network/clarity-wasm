@@ -39,7 +39,9 @@ fn ignore_notype(ty: &TypeSignature) -> Result<TypeSignature, GeneratorError> {
                     .collect::<Result<Vec<_>, _>>()?,
             )
             .map_err(|_| {
-                GeneratorError::TypeError("cannot initialize new tuple for ignore_notype".to_owned())
+                GeneratorError::TypeError(
+                    "cannot initialize new tuple for ignore_notype".to_owned(),
+                )
             })?,
         ),
         NoType => IntType,
