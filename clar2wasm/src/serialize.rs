@@ -934,7 +934,7 @@ impl WasmGenerator {
             }
             NoType => {
                 // This type should not actually be serialized. It is
-                // reporesented as an `i32` value of `0`, so we can leave
+                // represented as an `i32` value of `0`, so we can leave
                 // that on top of the stack indicating 0 bytes written.
                 Ok(())
             }

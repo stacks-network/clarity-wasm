@@ -15,6 +15,7 @@ pub mod hashing;
 pub mod maps;
 pub mod noop;
 pub mod optional;
+pub mod print;
 pub mod regression;
 pub mod response;
 pub mod secp256k1;
