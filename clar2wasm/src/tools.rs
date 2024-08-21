@@ -91,7 +91,10 @@ impl TestEnvironment {
                     self.epoch,
                     analysis_db,
                 )
-                .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
+                .map_err(|er| {
+                    dbg!(er);
+                    CheckErrors::Expects("Compilation failure".to_string())
+                })
             })
             .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
 

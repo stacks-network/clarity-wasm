@@ -528,6 +528,11 @@ impl ComplexWord for Map {
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
+        generator.set_expr_type(
+            args.get_expr(1)?,
+            TypeSignature::SequenceType(SequenceSubtype::ListType(ListTypeData::new_list(TypeSignature::ResponseType(Box::new((TypeSignature::IntType, TypeSignature::IntType))), 3).unwrap()))
+        )?;
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
@@ -565,21 +570,8 @@ impl ComplexWord for Map {
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
-                    let item_ty = &lt.get_list_item_type().clone();
-                    let element_size = get_type_size(item_ty);
-
-                    // Fix for an issue when dealing with responses and optional types.
-                    // Set the type of the list to the type of the function argument.
-                    let element_ty = match item_ty {
-                        TypeSignature::ResponseType(_) => TypeSignature::ResponseType(Box::new((
-                            return_element_type.clone(),
-                            return_element_type.clone(),
-                        ))),
-                        TypeSignature::OptionalType(_) => {
-                            TypeSignature::OptionalType(Box::new(return_element_type.clone()))
-                        }
-                        _ => lt.get_list_item_type().clone(),
-                    };
+                    let element_ty = lt.get_list_item_type().clone();
+                    let element_size = get_type_size(&element_ty);
 
                     (SequenceElementType::Other(element_ty), element_size)
                 }
@@ -596,6 +588,14 @@ impl ComplexWord for Map {
                     ));
                 }
             };
+
+            // if let SequenceElementType::Other(t) = &element_ty {
+            //     generator.set_expr_type(
+            //         args.get_expr(1)?,
+            //         t.clone()
+            //     )?;
+            // }
+
             input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
 
