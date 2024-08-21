@@ -114,7 +114,9 @@ mod tests {
     use clarity::vm::types::{ASCIIData, CharType, ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate, TestEnvironment,
+    };
 
     #[test]
     fn define_constant_const() {
@@ -243,5 +245,74 @@ mod tests {
                 }),
             )))),
         )
+    }
+
+    #[test]
+    fn test_large_buff() {
+        let buff = "aa".repeat(1 << 20);
+        crosscheck(
+            &format!("(define-constant cst 0x{}) cst", buff),
+            Ok(Some(Value::buff_from(hex::decode(buff).unwrap()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_large_complex() {
+        let a = "aa".repeat(1 << 18);
+        let b = "bb".repeat(1 << 18);
+        crosscheck(
+            &format!("(define-constant cst (list 0x{a} 0x{b})) cst"),
+            Ok(Some(
+                Value::cons_list(
+                    vec![
+                        Value::buff_from(hex::decode(a).unwrap()).unwrap(),
+                        Value::buff_from(hex::decode(b).unwrap()).unwrap(),
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
+    fn test_large_complex_via_contract_call() {
+        let a = "aa".repeat(1 << 18);
+        let b = "bb".repeat(1 << 18);
+
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            &format!(
+                r#"
+                (define-constant cst (list 0x{a} 0x{b}))
+                (define-public (return-cst)
+                    (ok cst)
+                )
+            "#
+            ),
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"(contract-call? .contract-callee return-cst)"#,
+            )
+            .expect("Failed to init contract.");
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(
+                Value::cons_list(
+                    vec![
+                        Value::buff_from(hex::decode(a).unwrap()).unwrap(),
+                        Value::buff_from(hex::decode(b).unwrap()).unwrap(),
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap()
+            )
+            .unwrap()
+        );
     }
 }
