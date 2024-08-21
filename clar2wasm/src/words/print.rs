@@ -9,20 +9,25 @@ use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 pub struct Print;
 
 /// Replace `NoType`s in `ty` with a `IntType` proxy
-fn ignore_notype(ty: &TypeSignature) -> TypeSignature {
+fn ignore_notype(ty: &TypeSignature) -> Result<TypeSignature, GeneratorError> {
     use clarity::vm::types::signatures::TypeSignature::*;
-    match ty {
-        ResponseType(types) => {
-            ResponseType(Box::new((ignore_notype(&types.0), ignore_notype(&types.1))))
-        }
-        OptionalType(value_ty) => OptionalType(Box::new(ignore_notype(value_ty))),
+    Ok(match ty {
+        ResponseType(types) => ResponseType(Box::new((
+            ignore_notype(&types.0)?,
+            ignore_notype(&types.1)?,
+        ))),
+        OptionalType(value_ty) => OptionalType(Box::new(ignore_notype(value_ty)?)),
         SequenceType(SequenceSubtype::ListType(list_ty)) => {
             SequenceType(SequenceSubtype::ListType(
                 ListTypeData::new_list(
-                    ignore_notype(list_ty.get_list_item_type()),
+                    ignore_notype(list_ty.get_list_item_type())?,
                     list_ty.get_max_len(),
                 )
-                .unwrap(),
+                .map_err(|_| {
+                    GeneratorError::TypeError(
+                        "cannot initialize new list for ignore_notype".to_owned(),
+                    )
+                })?,
             ))
         }
         TupleType(tuple_ty) => TupleType(
@@ -30,14 +35,16 @@ fn ignore_notype(ty: &TypeSignature) -> TypeSignature {
                 tuple_ty
                     .get_type_map()
                     .iter()
-                    .map(|(k, v)| (k.clone(), ignore_notype(v)))
-                    .collect::<Vec<_>>(),
+                    .map(|(k, v)| ignore_notype(v).map(|v| (k.clone(), v)))
+                    .collect::<Result<Vec<_>, _>>()?,
             )
-            .unwrap(),
+            .map_err(|_| {
+                GeneratorError::TypeError("cannot initialize new tuple for ignore_notype".to_owned())
+            })?,
         ),
         NoType => IntType,
         t => t.clone(),
-    }
+    })
 }
 
 impl ComplexWord for Print {
@@ -79,7 +86,7 @@ impl ComplexWord for Print {
             builder.local_get(*val_local);
         }
 
-        generator.ensure_work_space(ignore_notype(&ty).max_serialized_size().map_err(|_| {
+        generator.ensure_work_space(ignore_notype(&ty)?.max_serialized_size().map_err(|_| {
             GeneratorError::TypeError(
                 "cannot determine serialized expression max size to print value".to_owned(),
             )
