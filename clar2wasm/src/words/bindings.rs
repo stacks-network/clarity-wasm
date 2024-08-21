@@ -49,7 +49,7 @@ impl ComplexWord for Let {
             let locals = generator.save_to_locals(builder, &ty, true);
 
             // Add these named locals to the map
-            generator.bindings.insert(name.to_string(), locals);
+            generator.bindings.insert(name.clone(), ty, locals);
         }
 
         // WORKAROUND: need to set the last statement type to the type of the let expression

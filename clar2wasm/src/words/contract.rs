@@ -77,23 +77,28 @@ impl ComplexWord for ContractCall {
                     "Dynamic contract-call? argument should be a name".to_owned(),
                 )
             })?;
-            let trait_signature = generator
-                .get_current_function_arg_type(dynamic_arg)
+            // Check if the name is in local bindings first, then in current function arguments.
+            let trait_name = generator
+                .bindings
+                .get_trait_name(dynamic_arg)
+                .or_else(|| {
+                    generator
+                        .get_current_function_arg_type(dynamic_arg)
+                        .and_then(|ty| match ty {
+                            TypeSignature::CallableType(CallableSubtype::Trait(
+                                TraitIdentifier { name, .. },
+                            )) => Some(name),
+                            _ => None,
+                        })
+                })
                 .ok_or_else(|| {
-                    GeneratorError::InternalError(
-                        "Trait argument is not in the function arguments".to_owned(),
+                    GeneratorError::TypeError(
+                        "Dynamic argument of contract-call? should be a trait".to_owned(),
                     )
                 })?;
-            let TypeSignature::CallableType(CallableSubtype::Trait(TraitIdentifier {
-                name, ..
-            })) = trait_signature
-            else {
-                return Err(GeneratorError::TypeError(
-                    "Dynamic argument of contract-call? should be a trait".to_owned(),
-                ));
-            };
-            let (offset, len) = generator.get_string_literal(name).ok_or_else(|| {
-                GeneratorError::TypeError(format!("Usage of an unimported trait: {name}"))
+
+            let (offset, len) = generator.get_string_literal(trait_name).ok_or_else(|| {
+                GeneratorError::TypeError(format!("Usage of an unimported trait: {trait_name}"))
             })?;
             builder.i32_const(offset as i32).i32_const(len as i32);
             // Traversing the expression should load the contract identifier

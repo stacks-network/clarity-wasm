@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
+use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
     CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
     StringSubtype, TypeSignature,
@@ -54,12 +54,42 @@ pub struct WasmGenerator {
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
 
     /// The locals for the current function.
-    pub(crate) bindings: HashMap<String, Vec<LocalId>>,
+    pub(crate) bindings: Bindings,
     /// Size of the current function's stack frame.
     frame_size: i32,
     /// Size of the maximum extra work space required by the stdlib functions
     /// to be available on the stack.
     max_work_space: u32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Bindings(HashMap<ClarityName, InnerBindings>);
+
+#[derive(Debug, Clone)]
+struct InnerBindings {
+    locals: Vec<LocalId>,
+    ty: TypeSignature,
+}
+
+impl Bindings {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn insert(&mut self, name: ClarityName, ty: TypeSignature, locals: Vec<LocalId>) {
+        self.0.insert(name, InnerBindings { locals, ty });
+    }
+
+    pub(crate) fn get_locals(&self, name: &ClarityName) -> Option<&[LocalId]> {
+        self.0.get(name).map(|b| b.locals.as_slice())
+    }
+
+    pub(crate) fn get_trait_name(&self, name: &ClarityName) -> Option<&ClarityName> {
+        self.0.get(name).and_then(|b| match &b.ty {
+            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(&t.name),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -250,7 +280,7 @@ impl WasmGenerator {
             stack_pointer: global_id,
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
-            bindings: HashMap::new(),
+            bindings: Bindings::new(),
             early_return_block_id: None,
             current_function_type: None,
             frame_size: 0,
@@ -462,7 +492,7 @@ impl WasmGenerator {
         // Call the host interface function, `define_function`
         builder.call(self.func_by_name("stdlib.define_function"));
 
-        let mut bindings = HashMap::new();
+        let mut bindings = Bindings::new();
 
         // Setup the parameters
         let mut param_locals = Vec::new();
@@ -476,7 +506,7 @@ impl WasmGenerator {
                 plocals.push(local);
                 params_types.push(ty);
             }
-            bindings.insert(param.name.to_string(), plocals.clone());
+            bindings.insert(param.name.clone(), param.signature.clone(), plocals);
         }
 
         let results_types = clar2wasm_ty(&function_type.returns);
@@ -1413,7 +1443,7 @@ impl WasmGenerator {
         }
 
         // Handle parameters and local bindings
-        let values = self.bindings.get(atom.as_str()).ok_or_else(|| {
+        let values = self.bindings.get_locals(atom).ok_or_else(|| {
             GeneratorError::InternalError(format!("unable to find local for {}", atom.as_str()))
         })?;
 
