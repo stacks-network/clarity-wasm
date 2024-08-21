@@ -169,7 +169,9 @@
                                                                        (param $height_hi i64)
                                                                        (param $return_offset i32)
                                                                        (param $return_length i32)))
-    (import "clarity" "contract_call" (func $stdlib.contract_call (param $contract_id_offset i32)
+    (import "clarity" "contract_call" (func $stdlib.contract_call (param $trait_name_offset i32)
+                                                           (param $trait_name_len i32)
+                                                           (param $contract_id_offset i32)
                                                            (param $contract_id_length i32)
                                                            (param $function_name_offset i32)
                                                            (param $function_name_length i32)
@@ -1524,7 +1526,6 @@
 
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
         (local $res_len i32) (local $len64 i64)
-        ;; TODO: check if enough pages of memory and grow accordingly
 
         ;; Move data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)

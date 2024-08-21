@@ -10,14 +10,22 @@ pub fn traverse_hash(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
+    work_space: u32, // constant upper bound
 ) -> Result<(), GeneratorError> {
     let offset_res = generator.literal_memory_end;
 
     generator.literal_memory_end += mem_size as u32; // 5 u32
 
     let hash_type = match arg_types[0] {
-        TypeSignature::IntType | TypeSignature::UIntType => "int",
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => "buf",
+        TypeSignature::IntType | TypeSignature::UIntType => {
+            generator.ensure_work_space(work_space);
+            "int"
+        }
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => {
+            // Input buff is also copied
+            generator.ensure_work_space(u32::from(len) + work_space);
+            "buf"
+        }
         _ => {
             return Err(GeneratorError::NotImplemented);
         }
@@ -52,7 +60,8 @@ impl SimpleWord for Hash160 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("hash160", 160, generator, builder, arg_types)
+        // work_space values from sha256, see `Sha256::visit`
+        traverse_hash("hash160", 160, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -71,7 +80,8 @@ impl SimpleWord for Sha256 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("sha256", 256, generator, builder, arg_types)
+        // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
+        traverse_hash("sha256", 256, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -145,7 +155,8 @@ impl SimpleWord for Sha512 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_hash("sha512", 512, generator, builder, arg_types)
+        // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
+        traverse_hash("sha512", 512, generator, builder, arg_types, 128 + 16 + 705)
     }
 }
 
@@ -278,6 +289,72 @@ mod tests {
         .unwrap();
         crosscheck(
             "(sha512/256 1)",
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_sha256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "c4145364a3ba46002fb14242872f795535bae6738b1e47ba21eb405cfdf820a5",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha256 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_sha512_large_buff() {
+        let mut expected = [0u8; 64];
+        hex::decode_to_slice(
+            "e3bbbc0cc37e452a5d2674240c77f7d5137b93fb9d4026b40a10a2ffeda543ff303df1220492cb9e8caba96c24aebb2d2ea359a38141b62d31d80996defdf874",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha512 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_sha512256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "7d5b92a003008bb3ef9656e2212b27c47f325ecfba4ed78f1d7e83161bcaab4a",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(sha512/256 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_hash160_large_buff() {
+        let mut expected = [0u8; 20];
+        hex::decode_to_slice("b7ec553926497b8cb2ae106bf75396359296830e", &mut expected).unwrap();
+        crosscheck(
+            &format!("(hash160 0x{})", "aa".repeat(1048576)),
+            Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_keccak256_large_buff() {
+        let mut expected = [0u8; 32];
+        hex::decode_to_slice(
+            "b285806915c373a14ab20b503b1fe58a50544363263a1a17f50841ed08da85cb",
+            &mut expected,
+        )
+        .unwrap();
+        crosscheck(
+            &format!("(keccak256 0x{})", "aa".repeat(1048576)),
             Ok(Some(Value::buff_from(expected.to_vec()).unwrap())),
         )
     }

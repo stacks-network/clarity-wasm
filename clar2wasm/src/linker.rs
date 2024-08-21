@@ -3321,6 +3321,8 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
             "clarity",
             "contract_call",
             |mut caller: Caller<'_, ClarityWasmContext>,
+             trait_name_offset: i32,
+             trait_name_length: i32,
              contract_offset: i32,
              contract_length: i32,
              function_offset: i32,
@@ -3436,10 +3438,26 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 }?;
 
                 // Write the result to the return buffer
-                let return_ty = function
-                    .get_return_type()
-                    .as_ref()
-                    .ok_or(CheckErrors::DefineFunctionBadSignature)?;
+                let return_ty = if trait_name_length == 0 {
+                    // This is a direct call
+                    function.get_return_type().as_ref()
+                } else {
+                    // This is a dynamic call
+                    let trait_name = read_identifier_from_wasm(
+                        memory,
+                        &mut caller,
+                        trait_name_offset,
+                        trait_name_length,
+                    )?;
+                    contract
+                        .contract_context
+                        .defined_traits
+                        .get(trait_name.as_str())
+                        .and_then(|trait_functions| trait_functions.get(function_name.as_str()))
+                        .map(|f_ty| &f_ty.returns)
+                }
+                .ok_or(CheckErrors::DefineFunctionBadSignature)?;
+
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -4581,7 +4599,9 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "contract_call",
-        |_contract_offset: i32,
+        |_contract_trait_offset: i32,
+         _contract_trait_length: i32,
+         _contract_offset: i32,
          _contract_length: i32,
          _function_offset: i32,
          _function_length: i32,
