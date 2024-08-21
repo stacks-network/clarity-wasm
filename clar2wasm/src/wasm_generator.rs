@@ -1280,16 +1280,15 @@ impl WasmGenerator {
         name: &str,
         expr: &SymbolicExpression,
     ) -> Result<bool, GeneratorError> {
-        if let Some(offset) = self.constants.get(name) {
-            // Load the offset into a local variable
-            let offset_local = self.module.locals.add(ValType::I32);
-            builder.i32_const(*offset as i32).local_set(offset_local);
-
+        if self.constants.contains_key(name) {
             let ty = self
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
                 .clone();
-            let value_length = get_type_size(&ty);
+
+            // Reserve stack space for the constant copy
+            let (result_local, result_size) =
+                self.create_call_stack_local(builder, &ty, true, true);
 
             let (name_offset, name_length) = self.add_string_literal(name)?;
 
@@ -1297,14 +1296,14 @@ impl WasmGenerator {
             builder
                 .i32_const(name_offset as i32)
                 .i32_const(name_length as i32)
-                .local_get(offset_local)
-                .i32_const(value_length);
+                .local_get(result_local)
+                .i32_const(result_size);
 
             // Call a host interface function to load
             // constant attributes from a data structure.
             builder.call(self.func_by_name("stdlib.load_constant"));
 
-            self.read_from_memory(builder, offset_local, 0, &ty)?;
+            self.read_from_memory(builder, result_local, 0, &ty)?;
 
             Ok(true)
         } else {

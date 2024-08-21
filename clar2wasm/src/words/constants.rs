@@ -244,4 +244,13 @@ mod tests {
             )))),
         )
     }
+
+    #[test]
+    fn test_large_buff() {
+        let buff = "aa".repeat(1 << 20);
+        crosscheck(
+            &format!("(define-constant cst 0x{}) cst", buff),
+            Ok(Some(Value::buff_from(hex::decode(buff).unwrap()).unwrap())),
+        )
+    }
 }
