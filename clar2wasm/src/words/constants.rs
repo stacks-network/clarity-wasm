@@ -253,4 +253,23 @@ mod tests {
             Ok(Some(Value::buff_from(hex::decode(buff).unwrap()).unwrap())),
         )
     }
+
+    #[test]
+    fn test_large_complex() {
+        let a = "aa".repeat(1 << 18);
+        let b = "bb".repeat(1 << 18);
+        crosscheck(
+            &format!("(define-constant cst (list 0x{a} 0x{b})) cst"),
+            Ok(Some(
+                Value::cons_list(
+                    vec![
+                        Value::buff_from(hex::decode(a).unwrap()).unwrap(),
+                        Value::buff_from(hex::decode(b).unwrap()).unwrap(),
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap(),
+            )),
+        )
+    }
 }
