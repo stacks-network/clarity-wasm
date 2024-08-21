@@ -1526,7 +1526,6 @@
 
     (func $extend-data (param $offset i32) (param $length i32) (result i32)
         (local $res_len i32) (local $len64 i64)
-        ;; TODO: check if enough pages of memory and grow accordingly
 
         ;; Move data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)

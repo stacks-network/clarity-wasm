@@ -57,6 +57,9 @@ pub struct WasmGenerator {
     pub(crate) bindings: HashMap<String, Vec<LocalId>>,
     /// Size of the current function's stack frame.
     frame_size: i32,
+    /// Size of the maximum extra work space required by the stdlib functions
+    /// to be available on the stack.
+    max_work_space: u32,
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -251,6 +254,7 @@ impl WasmGenerator {
             early_return_block_id: None,
             current_function_type: None,
             frame_size: 0,
+            max_work_space: 0,
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
         })
@@ -264,7 +268,8 @@ impl WasmGenerator {
             .next()
             .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
 
-        let total_memory_bytes = self.literal_memory_end + (self.frame_size as u32);
+        let total_memory_bytes =
+            self.literal_memory_end + (self.frame_size as u32) + self.max_work_space;
         let pages_required = total_memory_bytes / (64 * 1024);
         let remainder = total_memory_bytes % (64 * 1024);
 
@@ -1651,6 +1656,11 @@ impl WasmGenerator {
         }
     }
 
+    /// Ensure enough work space is going to be available in memory
+    pub(crate) fn ensure_work_space(&mut self, bytes_len: u32) {
+        self.max_work_space = self.max_work_space.max(bytes_len);
+    }
+
     pub(crate) fn get_current_function_return_type(&self) -> Option<&TypeSignature> {
         self.current_function_type.as_ref().map(|f| &f.returns)
     }
@@ -1673,10 +1683,17 @@ impl WasmGenerator {
 mod misc_tests {
     use std::env;
 
+    use clarity::types::StacksEpochId;
+    use clarity::vm::analysis::AnalysisDatabase;
+    use clarity::vm::costs::LimitedCostTracker;
+    use clarity::vm::database::MemoryBackingStore;
+    use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+    use clarity::vm::ClarityVersion;
     use walrus::Module;
 
     // Tests that don't relate to specific words
     use crate::{
+        compile,
         tools::{crosscheck, evaluate},
         wasm_generator::END_OF_STANDARD_DATA,
     };
@@ -1717,6 +1734,41 @@ mod misc_tests {
 
         let snippet = format!("(is-eq u\"{}\" u\"{}\" u\"{}\" u\"{}\")", a, b, c, d);
         crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_work_space() {
+        let buff_len = 1048576;
+        let buff = "aa".repeat(buff_len);
+
+        let get_initial_memory = |snippet: String| {
+            let module = compile(
+                &snippet,
+                &QualifiedContractIdentifier::new(
+                    StandardPrincipalData::transient(),
+                    ("tmp").into(),
+                ),
+                LimitedCostTracker::new_free(),
+                ClarityVersion::Clarity2,
+                StacksEpochId::Epoch25,
+                &mut AnalysisDatabase::new(&mut MemoryBackingStore::new()),
+            )
+            .unwrap()
+            .module;
+            let mem = module.memories.iter().next().unwrap().initial;
+            mem
+        };
+        let prologue = format!("(let ((foo 0x{buff})) ");
+        // sha256 requires some extra work space, thus extra pages
+        assert!(
+            get_initial_memory(format!("{prologue} (len foo))"))
+                < get_initial_memory(format!("{prologue} (sha256 foo))"))
+        );
+        // but multiple calls do not cause more pages
+        assert_eq!(
+            get_initial_memory(format!("{prologue} (sha256 foo))")),
+            get_initial_memory(format!("{prologue} (sha256 foo) (sha256 foo))"))
+        );
     }
 
     #[test]
