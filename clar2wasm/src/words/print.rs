@@ -1,4 +1,7 @@
-use clarity::vm::types::{ListTypeData, SequenceSubtype, TupleTypeSignature, TypeSignature};
+use clarity::vm::types::{
+    ListTypeData, SequenceSubtype, TupleTypeSignature, TypeSignature,
+    BOUND_VALUE_SERIALIZATION_BYTES,
+};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
@@ -8,26 +11,22 @@ use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 #[derive(Debug)]
 pub struct Print;
 
-/// Replace `NoType`s in `ty` with a `IntType` proxy
-fn ignore_notype(ty: &TypeSignature) -> Result<TypeSignature, GeneratorError> {
+/// Try to replace `NoType`s in `ty` with a `BoolType` proxy (or clones ty if cannot)
+fn try_ignore_notype(ty: &TypeSignature) -> TypeSignature {
     use clarity::vm::types::signatures::TypeSignature::*;
-    Ok(match ty {
+    match ty {
         ResponseType(types) => ResponseType(Box::new((
-            ignore_notype(&types.0)?,
-            ignore_notype(&types.1)?,
+            try_ignore_notype(&types.0),
+            try_ignore_notype(&types.1),
         ))),
-        OptionalType(value_ty) => OptionalType(Box::new(ignore_notype(value_ty)?)),
+        OptionalType(value_ty) => OptionalType(Box::new(try_ignore_notype(value_ty))),
         SequenceType(SequenceSubtype::ListType(list_ty)) => {
             SequenceType(SequenceSubtype::ListType(
                 ListTypeData::new_list(
-                    ignore_notype(list_ty.get_list_item_type())?,
+                    try_ignore_notype(list_ty.get_list_item_type()),
                     list_ty.get_max_len(),
                 )
-                .map_err(|_| {
-                    GeneratorError::TypeError(
-                        "cannot initialize new list for ignore_notype".to_owned(),
-                    )
-                })?,
+                .unwrap_or_else(|_| list_ty.clone()),
             ))
         }
         TupleType(tuple_ty) => TupleType(
@@ -35,18 +34,14 @@ fn ignore_notype(ty: &TypeSignature) -> Result<TypeSignature, GeneratorError> {
                 tuple_ty
                     .get_type_map()
                     .iter()
-                    .map(|(k, v)| ignore_notype(v).map(|v| (k.clone(), v)))
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .map(|(k, v)| (k.clone(), try_ignore_notype(v)))
+                    .collect::<Vec<_>>(),
             )
-            .map_err(|_| {
-                GeneratorError::TypeError(
-                    "cannot initialize new tuple for ignore_notype".to_owned(),
-                )
-            })?,
+            .unwrap_or_else(|_| tuple_ty.clone()),
         ),
-        NoType => IntType,
+        NoType => BoolType,
         t => t.clone(),
-    })
+    }
 }
 
 impl ComplexWord for Print {
@@ -88,11 +83,11 @@ impl ComplexWord for Print {
             builder.local_get(*val_local);
         }
 
-        generator.ensure_work_space(ignore_notype(&ty)?.max_serialized_size().map_err(|_| {
-            GeneratorError::TypeError(
-                "cannot determine serialized expression max size to print value".to_owned(),
-            )
-        })?);
+        generator.ensure_work_space(
+            try_ignore_notype(&ty)
+                .max_serialized_size()
+                .unwrap_or(BOUND_VALUE_SERIALIZATION_BYTES),
+        );
 
         // Write the serialized value to the top of the call stack
         generator.serialize_to_memory(builder, offset, 0, &ty)?;
@@ -118,6 +113,7 @@ impl ComplexWord for Print {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_compare_only};
@@ -139,6 +135,31 @@ mod tests {
             &format!(r#"(print "{msg}")"#),
             Ok(Some(
                 Value::string_ascii_from_bytes(msg.into_bytes()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    #[ignore = "see issue #411"]
+    fn test_large_serialization() {
+        // `(list 162141 (string-ascii 0))` results in >1MB serialization (1_310_710)
+        let n = 262141;
+        crosscheck(
+            &format!(
+                r#"
+(define-private (foo (a (string-ascii 1))) "")
+(print (map foo "{}"))
+"#,
+                "a".repeat(n)
+            ),
+            Ok(Some(
+                Value::cons_list(
+                    (0..n)
+                        .map(|_| Value::string_ascii_from_bytes(vec![]).unwrap())
+                        .collect(),
+                    &StacksEpochId::latest(),
+                )
+                .unwrap(),
             )),
         );
     }
