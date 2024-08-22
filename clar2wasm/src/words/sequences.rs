@@ -1534,7 +1534,7 @@ impl ComplexWord for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
     #[test]
     fn test_fold_sub() {
@@ -2035,5 +2035,41 @@ mod tests {
     fn replace_element_cannot_be_empty_buff() {
         let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? 0x12345678 u0 0x)"#));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn unit_fold_repsonses_full_type() {
+        let snippet = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+      b1 (err (+ a1 b1))
+      b2 (ok  (- a1 b2)))
+    a2 (match b
+      b3 (ok  (+ a2 b3))
+      b4 (err (- a2 b4)))))
+
+(fold knus (list (ok 1)) (err 0))";
+
+        crosscheck_compare_only(snippet);
+    }
+
+    #[test]
+    fn unit_fold_repsonses_partial_type() {
+        let snippet = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+      b1 (err (+ a1 b1))
+      b2 (ok  (- a1 b2)))
+    a2 (match b
+      b3 (ok  (+ a2 b3))
+      b4 (err (- a2 b4)))))
+
+(fold knus (list (err 1)) (err 0))";
+
+        crosscheck_compare_only(snippet);
     }
 }

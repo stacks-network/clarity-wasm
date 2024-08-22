@@ -182,11 +182,17 @@ impl ComplexWord for Filter {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
+
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("filter expression must be typed".to_owned()))?
+            .clone();
+        generator.set_expr_type(sequence, expr_ty)?;
 
         generator.traverse_expr(builder, sequence)?;
 
@@ -891,6 +897,44 @@ mod tests {
             "(filter not (list false false true false true true false))",
             evaluate("(list false false false false)"),
         );
+    }
+
+    #[test]
+    fn filter_responses() {
+        let snippet = "
+(define-private (is-great (x (response int int)))
+  (match x
+    number (> number 2)
+    number (> number 2)))
+
+(filter is-great
+  (list
+    (ok 2)
+    (ok 3)
+    (err 4)
+    (err 0)
+    (ok -3)))";
+        crosscheck(snippet, evaluate("(list (ok 3) (err 4))"));
+    }
+
+    #[test]
+    #[ignore = "See issue #488"]
+    fn filter_result_read_only_double_workaround() {
+        let snippet = "
+(define-read-only (is-even? (x int))
+        (is-eq (* (/ x 2) 2) x))
+
+(define-private (grob (x (response int int)))
+  (match x
+    a (is-even? a)
+    b (not (is-even? b))))
+
+(default-to
+    (list)
+    (some (filter grob (list (err 1) (err 1))))
+)";
+
+        crosscheck(snippet, evaluate("(list (err 1) (err 1))"));
     }
 
     #[test]

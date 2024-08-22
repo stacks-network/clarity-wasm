@@ -5,7 +5,9 @@ use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::ast::{build_ast_with_diagnostics, ContractAST};
 use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
 use clarity::vm::diagnostic::Diagnostic;
-use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::types::{
+    FixedFunction, ListTypeData, QualifiedContractIdentifier, SequenceSubtype, TypeSignature,
+};
 use clarity::vm::ClarityVersion;
 pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
@@ -97,6 +99,8 @@ pub fn compile(
         }
     };
 
+    typechecker_workaround(&ast, &mut contract_analysis);
+
     // Now that the typechecker pass is done, we can concretize the expressions types which
     // might contain `ListUnionType` or `CallableType`
     #[allow(clippy::expect_used)]
@@ -134,6 +138,99 @@ pub fn compile(
                         .expect("Failed to take cost tracker from contract analysis"),
                 ),
             })
+        }
+    }
+}
+
+// Workarounds to make filter/fold work in cases where it would not otherwise. see issue #488
+fn typechecker_workaround(ast: &ContractAST, contract_analysis: &mut ContractAnalysis) {
+    for expr in ast.expressions.iter() {
+        match expr
+            .match_list()
+            .and_then(|l| l.first())
+            .and_then(|first| first.match_atom())
+            .map(|atom| atom.as_str())
+        {
+            Some("filter") => {
+                let Some(func_name) = expr.match_list().and_then(|l| l[1].match_atom()) else {
+                    continue;
+                };
+
+                let entry_type = match contract_analysis
+                    .get_private_function(func_name.as_str())
+                    .or(contract_analysis.get_read_only_function_type(func_name.as_str()))
+                {
+                    Some(clarity::vm::types::FunctionType::Fixed(FixedFunction {
+                        args, ..
+                    })) => args[0].signature.clone(),
+                    _ => continue,
+                };
+                let max_len = match contract_analysis
+                    .type_map
+                    .as_ref()
+                    .and_then(|ty| ty.get_type(expr))
+                {
+                    Some(TypeSignature::SequenceType(SequenceSubtype::ListType(l))) => {
+                        l.get_max_len()
+                    }
+                    _ => continue,
+                };
+                match (
+                    ListTypeData::new_list(entry_type, max_len),
+                    contract_analysis.type_map.as_mut(),
+                ) {
+                    (Ok(list_type), Some(tmap)) => {
+                        tmap.overwrite_type(expr, TypeSignature::from(list_type))
+                    }
+                    _ => continue,
+                }
+            }
+            Some("fold") => {
+                // in the case of fold we need to override the type of the argument list
+
+                let Some(func_expr) = expr.match_list().map(|l| &l[1]) else {
+                    continue;
+                };
+
+                let Some(func_name) = func_expr.match_atom() else {
+                    continue;
+                };
+
+                let return_type = match contract_analysis
+                    .get_private_function(func_name.as_str())
+                    .or(contract_analysis.get_read_only_function_type(func_name.as_str()))
+                {
+                    Some(clarity::vm::types::FunctionType::Fixed(FixedFunction {
+                        args, ..
+                    })) => args[0].signature.clone(),
+                    _ => continue,
+                };
+
+                let Some(sequence_expr) = expr.match_list().map(|l| &l[2]) else {
+                    continue;
+                };
+
+                if let Some(tmap) = contract_analysis.type_map.as_mut() {
+                    let Some(seq_type) = tmap.get_type(sequence_expr) else {
+                        continue;
+                    };
+                    let TypeSignature::SequenceType(SequenceSubtype::ListType(data)) = seq_type
+                    else {
+                        continue;
+                    };
+
+                    let Ok(list_data) = ListTypeData::new_list(return_type, data.get_max_len())
+                    else {
+                        continue;
+                    };
+
+                    tmap.overwrite_type(
+                        sequence_expr,
+                        TypeSignature::SequenceType(SequenceSubtype::ListType(list_data)),
+                    );
+                }
+            }
+            _ => continue,
         }
     }
 }

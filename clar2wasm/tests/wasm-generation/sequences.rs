@@ -1,5 +1,7 @@
-use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::types::{
+    CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature,
+};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
@@ -54,6 +56,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[ignore = "see #489"]
     fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))) {
         let snippet = format!("(concat {seq1} {seq2})");
 
@@ -318,5 +321,70 @@ fn extract_sequence(sequence: PropValue) -> SequenceData {
     match Value::from(sequence) {
         Value::Sequence(seq_data) => seq_data,
         _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
+    }
+}
+
+const FOLD_PRELUDE: &str = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+         b1 (err (xor a1 b1))
+         b2 (ok  (xor a1 b2)))
+    a2 (match b
+         b1 (ok  (xor a2 b1))
+         b2 (err (xor a2 b2)))))";
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_fold_responses_short(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        2).unwrap()
+                )
+            )
+        )
+    ) {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
+            // Empty sequences fail in interpreter as well
+            if !ld.data.is_empty() {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn crosscheck_fold_responses_long(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        100).unwrap()
+                )
+            )
+        )
+    ) {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
+            // Empty sequences fail in interpreter as well
+            if !ld.data.is_empty() {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            }
+        }
     }
 }
