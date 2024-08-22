@@ -451,6 +451,10 @@ proptest! {
             Ok(Some(expected))
         )
     }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
 
     #[test]
     fn crosscheck_map_ok_buff(buf in buffer(50)) {
