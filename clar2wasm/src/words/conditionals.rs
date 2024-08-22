@@ -918,6 +918,26 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "See issue #488"]
+    fn filter_result_read_only_double_workaround() {
+        let snippet = "
+(define-read-only (is-even? (x int))
+        (is-eq (* (/ x 2) 2) x))
+
+(define-private (grob (x (response int int)))
+  (match x
+    a (is-even? a)
+    b (not (is-even? b))))
+
+(default-to
+    (list)
+    (some (filter grob (list (err 1) (err 1))))
+)";
+
+        crosscheck(snippet, evaluate("(list (err 1) (err 1))"));
+    }
+
+    #[test]
     fn filter_buff() {
         crosscheck(
             "
