@@ -350,16 +350,15 @@ proptest! {
             )
         )
     ) {
-        match seq.inner() {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
-            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+            if !ld.data.is_empty() {
                 let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
 
                 crosscheck_compare_only(
                     &snippet,
                 );
-            },
-            _ => ()
+            }
         }
     }
 
@@ -376,16 +375,15 @@ proptest! {
             )
         )
     ) {
-        match seq.inner() {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
-            Value::Sequence(SequenceData::List(ld)) => if ld.data.len() > 0 {
+            if !ld.data.is_empty() {
                 let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
 
                 crosscheck_compare_only(
                     &snippet,
                 );
-            },
-            _ => ()
+            }
         }
     }
 }
