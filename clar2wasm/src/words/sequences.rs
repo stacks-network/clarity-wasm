@@ -538,7 +538,8 @@ impl ComplexWord for Map {
         // This is a workaround for the typechecker not being able to infer
         // the complete type of initial value.
         if let TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) = &seq_ty {
-            let size = get_type_size(lt.get_list_item_type());
+            let size = get_type_size(lt.get_list_item_type()) as u32;
+
             if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(fname) {
                 let function_ty = fixed
                     .args
@@ -549,12 +550,19 @@ impl ComplexWord for Map {
                     .signature
                     .clone();
 
-                generator.set_expr_type(
-                    args.get_expr(1)?,
-                    TypeSignature::SequenceType(SequenceSubtype::ListType(
-                        ListTypeData::new_list(function_ty, size.try_into().unwrap()).unwrap(),
-                    )),
-                )?;
+                match ListTypeData::new_list(function_ty, size) {
+                    Ok(list_type_data) => {
+                        generator.set_expr_type(
+                            args.get_expr(1)?,
+                            TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)),
+                        )?;
+                    }
+                    Err(_) => {
+                        return Err(GeneratorError::TypeError(
+                            "Failed to workaround and create a list type".into(),
+                        ));
+                    }
+                }
             }
         }
 
