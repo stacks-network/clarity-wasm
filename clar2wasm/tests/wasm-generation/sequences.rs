@@ -525,10 +525,23 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crosscheck_map_ok_buff(buf in buffer(50)) {
+    fn crosscheck_map_response_buff(buf in buffer(50)) {
         let snippet = format!(r#"
         (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
         (map foo (list (ok {buf})))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
+        )
+    }
+
+    #[test]
+    fn crosscheck_map_response_buff_nested(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (begin (map foo (list (ok {buf}))))
         "#);
 
         crosscheck(
