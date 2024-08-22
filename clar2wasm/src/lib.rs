@@ -99,6 +99,51 @@ pub fn compile(
         }
     };
 
+    typechecker_workaround(&ast, &mut contract_analysis);
+
+    // Now that the typechecker pass is done, we can concretize the expressions types which
+    // might contain `ListUnionType` or `CallableType`
+    #[allow(clippy::expect_used)]
+    if let Err(e) = utils::concretize(&mut contract_analysis) {
+        diagnostics.push(e.diagnostic);
+        return Err(CompileError::Generic {
+            ast: ast.clone(),
+            diagnostics: diagnostics.clone(),
+            cost_tracker: Box::new(
+                contract_analysis
+                    .cost_track
+                    .take()
+                    .expect("Failed to take cost tracker from contract analysis"),
+            ),
+        });
+    }
+
+    #[allow(clippy::expect_used)]
+    match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
+        Ok(module) => Ok(CompileResult {
+            ast,
+            diagnostics,
+            module,
+            contract_analysis,
+        }),
+        Err(e) => {
+            diagnostics.push(Diagnostic::err(&e));
+            Err(CompileError::Generic {
+                ast,
+                diagnostics,
+                cost_tracker: Box::new(
+                    contract_analysis
+                        .cost_track
+                        .take()
+                        .expect("Failed to take cost tracker from contract analysis"),
+                ),
+            })
+        }
+    }
+}
+
+// Workarounds to make filter/fold work in cases where it would not otherwise. see issue #488
+fn typechecker_workaround(ast: &ContractAST, contract_analysis: &mut ContractAnalysis) {
     for expr in ast.expressions.iter() {
         match expr
             .match_list()
@@ -186,46 +231,6 @@ pub fn compile(
                 }
             }
             _ => continue,
-        }
-    }
-
-    // Now that the typechecker pass is done, we can concretize the expressions types which
-    // might contain `ListUnionType` or `CallableType`
-    #[allow(clippy::expect_used)]
-    if let Err(e) = utils::concretize(&mut contract_analysis) {
-        diagnostics.push(e.diagnostic);
-        return Err(CompileError::Generic {
-            ast: ast.clone(),
-            diagnostics: diagnostics.clone(),
-            cost_tracker: Box::new(
-                contract_analysis
-                    .cost_track
-                    .take()
-                    .expect("Failed to take cost tracker from contract analysis"),
-            ),
-        });
-    }
-
-    #[allow(clippy::expect_used)]
-    match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
-        Ok(module) => Ok(CompileResult {
-            ast,
-            diagnostics,
-            module,
-            contract_analysis,
-        }),
-        Err(e) => {
-            diagnostics.push(Diagnostic::err(&e));
-            Err(CompileError::Generic {
-                ast,
-                diagnostics,
-                cost_tracker: Box::new(
-                    contract_analysis
-                        .cost_track
-                        .take()
-                        .expect("Failed to take cost tracker from contract analysis"),
-                ),
-            })
         }
     }
 }
