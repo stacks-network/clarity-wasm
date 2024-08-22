@@ -528,6 +528,36 @@ impl ComplexWord for Map {
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
+        let seq_ty = generator
+            .get_expr_type(args.get_expr(1)?)
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
+            .clone();
+
+        // WORKAROUND: Get the type of the function being called, and set the
+        // type of the sequence value to match the functions parameter type.
+        // This is a workaround for the typechecker not being able to infer
+        // the complete type of initial value.
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) = &seq_ty {
+            let size = get_type_size(lt.get_list_item_type());
+            if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(fname) {
+                let function_ty = fixed
+                    .args
+                    .first()
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("expected function with 2 arguments".into())
+                    })?
+                    .signature
+                    .clone();
+
+                generator.set_expr_type(
+                    args.get_expr(1)?,
+                    TypeSignature::SequenceType(SequenceSubtype::ListType(
+                        ListTypeData::new_list(function_ty, size.try_into().unwrap()).unwrap(),
+                    )),
+                )?;
+            }
+        }
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
@@ -565,21 +595,8 @@ impl ComplexWord for Map {
                 .clone()
             {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
-                    let item_ty = &lt.get_list_item_type().clone();
-                    let element_size = get_type_size(item_ty);
-
-                    // Fix for an issue when dealing with responses and optional types.
-                    // Set the type of the list to the type of the function argument.
-                    let element_ty = match item_ty {
-                        TypeSignature::ResponseType(_) => TypeSignature::ResponseType(Box::new((
-                            return_element_type.clone(),
-                            return_element_type.clone(),
-                        ))),
-                        TypeSignature::OptionalType(_) => {
-                            TypeSignature::OptionalType(Box::new(return_element_type.clone()))
-                        }
-                        _ => lt.get_list_item_type().clone(),
-                    };
+                    let element_ty = lt.get_list_item_type().clone();
+                    let element_size = get_type_size(&element_ty);
 
                     (SequenceElementType::Other(element_ty), element_size)
                 }
@@ -596,6 +613,7 @@ impl ComplexWord for Map {
                     ));
                 }
             };
+
             input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
 
