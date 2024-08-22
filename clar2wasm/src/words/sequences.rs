@@ -2038,7 +2038,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue X"]
     fn unit_fold_repsonses_full_type() {
         let snippet = "
 (define-private (knus (a (response int int))
@@ -2057,7 +2056,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue X"]
     fn unit_fold_repsonses_partial_type() {
         let snippet = "
 (define-private (knus (a (response int int))

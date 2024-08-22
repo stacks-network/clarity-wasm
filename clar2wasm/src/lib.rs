@@ -165,10 +165,7 @@ pub fn compile(
                     continue;
                 };
 
-                println!("C sequence expr id {}", sequence_expr.id);
-
                 if let Some(tmap) = contract_analysis.type_map.as_mut() {
-                    println!("d typemap {:?}", tmap.get_type(sequence_expr));
                     let Some(seq_type) = tmap.get_type(sequence_expr) else {
                         continue;
                     };
