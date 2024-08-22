@@ -3,7 +3,7 @@ use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSig
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{bool, int, list, prop_signature, type_string, PropValue, TypePrinter};
+use crate::{bool, buffer, int, list, prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -449,6 +449,19 @@ proptest! {
         crosscheck(
             &snippet,
             Ok(Some(expected))
+        )
+    }
+
+    #[test]
+    fn crosscheck_map_ok_buff(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (map foo (list (ok {buf})))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
         )
     }
 }
