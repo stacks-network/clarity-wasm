@@ -3,6 +3,7 @@ name: Property Testings
 on:
   schedule:
     - cron: '0 */4 * * *'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,3 +23,13 @@ jobs:
 
       - name: Run
         run: cargo test --test wasm-generation --test standard
+
+      - name: Add link to the failure issue
+        uses: jayqi/failed-build-issue-action@v1
+        if: ${{ failure() }}
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          label-name: "property-testing-failure"
+          title-template: "Property testing coverage has failed"
+          body-template: |
+            GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) failed.
