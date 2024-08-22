@@ -185,7 +185,7 @@ fn typechecker_workaround(ast: &ContractAST, contract_analysis: &mut ContractAna
                     _ => continue,
                 }
             }
-            Some("fold") | Some("map") => {
+            Some("fold") => {
                 // in the case of fold we need to override the type of the argument list
 
                 let Some(func_expr) = expr.match_list().map(|l| &l[1]) else {
