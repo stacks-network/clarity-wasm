@@ -528,6 +528,44 @@ impl ComplexWord for Map {
     ) -> Result<(), GeneratorError> {
         let fname = args.get_name(0)?;
 
+        let seq_ty = generator
+            .get_expr_type(args.get_expr(1)?)
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
+            .clone();
+
+        // WORKAROUND: Get the type of the function being called, and set the
+        // type of the sequence value to match the functions parameter type.
+        // This is a workaround for the typechecker not being able to infer
+        // the complete type of initial value.
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) = &seq_ty {
+            let size = get_type_size(lt.get_list_item_type()) as u32;
+
+            if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(fname) {
+                let function_ty = fixed
+                    .args
+                    .first()
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("expected function with 2 arguments".into())
+                    })?
+                    .signature
+                    .clone();
+
+                match ListTypeData::new_list(function_ty, size) {
+                    Ok(list_type_data) => {
+                        generator.set_expr_type(
+                            args.get_expr(1)?,
+                            TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)),
+                        )?;
+                    }
+                    Err(_) => {
+                        return Err(GeneratorError::TypeError(
+                            "Failed to workaround and create a list type".into(),
+                        ));
+                    }
+                }
+            }
+        }
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
@@ -567,6 +605,7 @@ impl ComplexWord for Map {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
                     let element_ty = lt.get_list_item_type().clone();
                     let element_size = get_type_size(&element_ty);
+
                     (SequenceElementType::Other(element_ty), element_size)
                 }
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
@@ -582,6 +621,7 @@ impl ComplexWord for Map {
                     ));
                 }
             };
+
             input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
 

@@ -5,7 +5,7 @@ use clarity::vm::types::{
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{bool, int, prop_signature, type_string, PropValue, TypePrinter};
+use crate::{bool, buffer, int, list, prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -386,5 +386,167 @@ proptest! {
                 );
             }
         }
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_ok_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::UIntType, TypeSignature::NoType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            if let SequenceData::List(data) = extract_sequence(seq.clone()) {
+                let v: Vec<Value> = data
+                    .data
+                    .iter()
+                    .map(|el| el.clone().expect_result_ok().unwrap())
+                    .collect();
+
+                    Value::Sequence(
+                        SequenceData::List(
+                            ListData {
+                                data: v.clone(),
+                                type_signature: ListTypeData::new_list(TypeSignature::UIntType, v.len() as u32).unwrap()
+                            }
+                        )
+                    )
+            } else {
+                panic!("Expected a list sequence");
+            }
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_err_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::NoType, TypeSignature::UIntType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_none_optional(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::OptionalType(Box::new(TypeSignature::NoType)),
+                    5
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty list", |v| !v.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (optional uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_response_buff(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (map foo (list (ok {buf})))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
+        )
+    }
+
+    #[test]
+    fn crosscheck_map_response_buff_nested(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (begin (map foo (list (ok {buf}))))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
+        )
     }
 }
