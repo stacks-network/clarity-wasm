@@ -1,6 +1,6 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
 use clarity::vm::types::{
-    CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature,
+    CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature, MAX_VALUE_SIZE,
 };
 use clarity::vm::Value;
 use proptest::prelude::*;
@@ -56,8 +56,12 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    #[ignore = "see #489"]
-    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))) {
+    fn concat_crosscheck(
+        (seq1, seq2) in (0usize..=16)
+            .prop_flat_map(PropValue::any_sequence)
+            .prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))
+            .prop_filter("skip large values", |(seq1, seq2)| seq1.inner().size().unwrap() + seq2.inner().size().unwrap() <= MAX_VALUE_SIZE)
+    ) {
         let snippet = format!("(concat {seq1} {seq2})");
 
         let expected = {
