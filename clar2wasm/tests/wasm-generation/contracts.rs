@@ -569,18 +569,26 @@ proptest! {
             .unwrap(),
         )
         .into();
+        let expected_res_ty = ('a'..).zip(tys.iter()).fold('{'.to_string(), |mut acc, (c, ty)| {
+            write!(acc, "{c}: {}, ", type_string(ty)).unwrap();
+            acc
+        }) + "}";
+
+        let foofun_res = ('a'..).take(values.len()).fold("{".to_owned(), |mut acc, n| {
+            write!(acc, "{n}: {n}, ").unwrap();
+            acc
+        }) + "}";
 
         let first_snippet = format!(
             r#"
                     (define-trait foo-trait (
-                        (foofun ({function_types}) (response {} {}))
+                        (foofun ({function_types}) (response {expected_res_ty} {}))
                     ))
 
                     (define-public (foofun {function_arguments})
-                        (ok {expected_res})
+                        (ok {foofun_res})
                     )
                 "#,
-            expected_res.type_string(),
             type_string(&err_type),
         );
 
