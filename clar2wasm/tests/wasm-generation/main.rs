@@ -22,6 +22,7 @@ pub mod secp256k1;
 pub mod sequences;
 pub mod stx;
 pub mod tokens;
+pub mod traits;
 pub mod tuple;
 pub mod values;
 

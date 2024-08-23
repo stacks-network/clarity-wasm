@@ -538,4 +538,95 @@ proptest! {
             }))),
         );
     }
+
+    #[test]
+    fn contract_dynamic_call_use_all_args(
+        (tys, values)
+            in prop::collection::vec(
+                prop_signature().prop_ind_flat_map2(|ty| PropValue::from_type(ty.clone())),
+                1..=20
+            )
+            .prop_map(|arg_ty| arg_ty.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
+            .no_shrink(),
+        err_type in prop_signature(),
+    ) {
+        // first contract
+        let first_contract_name = "foo".into();
+        let mut function_types = String::new();
+        let mut function_arguments = String::new();
+        for (name, ty) in ('a'..).zip(tys.iter()) {
+            let ty = type_string(ty);
+            write!(function_arguments, "({name} {ty}) ").unwrap();
+            function_types += &(ty + " ");
+        }
+        let expected_res: PropValue = Value::from(
+            TupleData::from_data(
+                ('a'..)
+                    .map(|c| ClarityName::try_from(c.to_string()).unwrap())
+                    .zip(values.iter().cloned().map(Value::from))
+                    .collect(),
+            )
+            .unwrap(),
+        )
+        .into();
+        let expected_res_ty = ('a'..).zip(tys.iter()).fold('{'.to_string(), |mut acc, (c, ty)| {
+            write!(acc, "{c}: {}, ", type_string(ty)).unwrap();
+            acc
+        }) + "}";
+
+        let foofun_res = ('a'..).take(values.len()).fold("{".to_owned(), |mut acc, n| {
+            write!(acc, "{n}: {n}, ").unwrap();
+            acc
+        }) + "}";
+
+        let first_snippet = format!(
+            r#"
+                    (define-trait foo-trait (
+                        (foofun ({function_types}) (response {expected_res_ty} {}))
+                    ))
+
+                    (define-public (foofun {function_arguments})
+                        (ok {foofun_res})
+                    )
+                "#,
+            type_string(&err_type),
+        );
+
+        // second contract
+        let second_contract_name = "bar".into();
+
+        let contract_call_args: String =
+            ('a'..)
+                .take(values.len())
+                .fold(String::new(), |mut acc, name| {
+                    write!(acc, "{name} ").unwrap();
+                    acc
+                });
+
+        let mut call_arguments = String::new();
+        for value in values {
+            write!(call_arguments, "{value} ").unwrap();
+        }
+
+        let second_snippet = format!(
+            r#"
+                    (use-trait foo-trait .foo.foo-trait)
+                    (define-private (call-it (tt <foo-trait>) {function_arguments})
+                        (contract-call? tt foofun {contract_call_args})
+                    )
+                    (call-it .foo {call_arguments})
+                "#
+        );
+
+        crosscheck_multi_contract(
+            &[
+                (first_contract_name, &first_snippet),
+                (second_contract_name, &second_snippet),
+            ],
+            Ok(Some(Value::Response(ResponseData {
+                committed: true,
+                data: Box::new(expected_res.into()),
+            }))),
+        );
+    }
 }
