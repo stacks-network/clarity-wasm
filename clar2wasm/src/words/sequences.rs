@@ -661,25 +661,12 @@ impl ComplexWord for Map {
             input_offsets.push(offset);
         }
 
+        // Allocate worst case size to ensure enough stack space is reserved at compile time
+        let (output_base, _) = generator.create_call_stack_local(builder, &ty, false, true);
+
         // Allocate space on the call stack for the output list.
-        let output_base = generator.module.locals.add(ValType::I32);
         let output_offset = generator.module.locals.add(ValType::I32);
-        builder.global_get(generator.stack_pointer);
-        // [ stack_pointer ]
-        builder.local_tee(output_base);
-        // [ stack_pointer ]
-        builder.local_tee(output_offset);
-        // [ stack_pointer ]
-        builder.local_get(min_num_elements);
-        // [ stack_pointer, min_num_elements ]
-        builder.i32_const(return_element_size);
-        // [ stack_pointer, min_num_elements, return_element_size ]
-        builder.binop(ir::BinaryOp::I32Mul);
-        // [ stack_pointer, output_size ]
-        builder.binop(ir::BinaryOp::I32Add);
-        // [ end_offset ]
-        builder.global_set(generator.stack_pointer);
-        // [ ]
+        builder.local_get(output_base).local_set(output_offset);
 
         // Create an index to count the number of elements to loop over.
         let index = generator.module.locals.add(ValType::I32);
@@ -2018,6 +2005,29 @@ mod tests {
     #[test]
     fn map_unary() {
         crosscheck("(map - (list 10 20 30))", evaluate("(list -10 -20 -30)"));
+    }
+
+    #[test]
+    fn map_large_result() {
+        let n = 65535; // max legal `(list <size> uint)` size
+        let buf = (0..n)
+            .map(|i| format!("{:02x}", i % 256))
+            .collect::<Vec<_>>()
+            .join("");
+        let snippet = format!(
+            r#"
+        (define-private (foo (a (buff 1))) (buff-to-uint-be a))
+        (map foo 0x{buf})
+        "#
+        );
+
+        crosscheck(
+            &snippet,
+            Ok(Some(
+                Value::cons_list_unsanitized((0..n).map(|c| Value::UInt(c % 256)).collect())
+                    .unwrap(),
+            )),
+        );
     }
 
     #[test]

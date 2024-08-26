@@ -140,7 +140,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "see issue #411"]
     fn test_large_serialization() {
         // `(list 162141 (string-ascii 0))` results in >1MB serialization (1_310_710)
         let n = 262141;
