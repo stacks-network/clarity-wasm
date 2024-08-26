@@ -950,6 +950,16 @@ mod tests {
     }
 
     #[test]
+    fn nested_logical() {
+        crosscheck(
+            r#"
+ (begin (not (or (and true true true) (or true true false false))))
+                "#,
+            Ok(Some(Value::Bool(false))),
+        );
+    }
+
+    #[test]
     fn and() {
         crosscheck(
             r#"
