@@ -1,5 +1,4 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
-
 #[allow(unused_imports)]
 use clarity::vm::types::{
     CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature, MAX_VALUE_SIZE,
