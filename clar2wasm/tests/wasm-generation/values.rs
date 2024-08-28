@@ -1,7 +1,10 @@
+#[allow(unused_imports)]
 use clar2wasm::tools::{crosscheck, TestEnvironment};
+#[allow(unused_imports)]
 use clarity::vm::Value;
 use proptest::prelude::*;
 
+#[allow(unused_imports)]
 use crate::{prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
@@ -15,6 +18,7 @@ proptest! {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
         let mut env = TestEnvironment::default();
         env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
@@ -28,7 +32,10 @@ proptest! {
 
 proptest! {
     #![proptest_config(super::runtime_config())]
+
+    // TODO: see issue #497. The test below should pass when running it in ClarityV1
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn data_var_define_and_get(val in PropValue::any()) {
         crosscheck(
             &format!(r##"(define-data-var v {} {val}) (var-get v)"##, val.type_string()),
@@ -50,7 +57,10 @@ proptest! {
 
 proptest! {
     #![proptest_config(super::runtime_config())]
+
+    // TODO: see issue #497. The test below should pass when running it in ClarityV1
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn data_var_define_set_and_get(
         (ty, v1, v2) in prop_signature()
             .prop_flat_map(|ty| {

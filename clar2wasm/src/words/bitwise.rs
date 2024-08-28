@@ -173,6 +173,7 @@ impl SimpleWord for Xor {
     }
 }
 
+#[cfg(not(feature = "test-clarity-v1"))]
 #[cfg(test)]
 mod test {
     use crate::tools::{crosscheck, evaluate};

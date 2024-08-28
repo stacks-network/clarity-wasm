@@ -354,6 +354,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn merge_real_example() {
         // issue #372
         let snippet = r#"

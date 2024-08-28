@@ -293,6 +293,7 @@ impl ComplexWord for PrincipalOf {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use clarity::vm::errors::Error;
     use clarity::vm::types::{
@@ -306,6 +307,7 @@ mod tests {
     //- is-standard
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard() {
         crosscheck(
             "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
@@ -314,6 +316,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_contract() {
         crosscheck(
             "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
@@ -322,6 +325,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_multisig() {
         crosscheck(
             "(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)",
@@ -330,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_mainnet() {
         crosscheck(
             "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
@@ -338,6 +343,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_mainnet_contract() {
         crosscheck(
             "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
@@ -346,6 +352,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_mainnet_multisig() {
         crosscheck(
             "(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)",
@@ -354,6 +361,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_is_standard_other() {
         crosscheck(
             "(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)",
@@ -364,6 +372,7 @@ mod tests {
     //- principal-construct?
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_standard() {
         crosscheck(
             "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)",
@@ -379,6 +388,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_contract() {
         crosscheck(
             r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
@@ -394,6 +404,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_mainnet() {
         crosscheck(
             "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)",
@@ -420,6 +431,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_mainnet_contract() {
         crosscheck(
             r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
@@ -448,6 +460,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_empty_version() {
         crosscheck(
             "(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)",
@@ -466,6 +479,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_short_hash() {
         crosscheck(
             "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)",
@@ -484,6 +498,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_high_version() {
         crosscheck(
             "(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)",
@@ -502,6 +517,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_empty_contract() {
         crosscheck(
             r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#,
@@ -520,6 +536,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_construct_illegal_contract() {
         crosscheck(
             r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#,
@@ -540,6 +557,7 @@ mod tests {
     //- principal-destruct?
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_destruct_standard() {
         crosscheck(
             "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
@@ -565,6 +583,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_destruct_contract() {
         crosscheck(
             "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
@@ -596,6 +615,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_destruct_standard_err() {
         crosscheck(
             "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
@@ -621,6 +641,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_destruct_contract_err() {
         crosscheck(
             "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
@@ -696,6 +717,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn builtins_principals() {
         let snpt = "
 (define-public (get-tx-sender)

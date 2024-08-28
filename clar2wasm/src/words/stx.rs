@@ -213,6 +213,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn stx_transfer_memo_ok() {
         //
         crosscheck(

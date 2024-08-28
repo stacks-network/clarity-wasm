@@ -1783,6 +1783,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_map_mixed() {
         crosscheck(
             r#"
@@ -1817,6 +1818,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn test_builtin_string() {
         let a = r#"
 (map >
@@ -2019,6 +2021,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn map_large_result() {
         let n = 65535; // max legal `(list <size> uint)` size
         let buf = (0..n)
@@ -2042,22 +2045,26 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_right_lt_left() {
         crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
         crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_overflow() {
         crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice() {
         crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_null() {
         crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
         crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
@@ -2065,6 +2072,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_full() {
         crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
     }

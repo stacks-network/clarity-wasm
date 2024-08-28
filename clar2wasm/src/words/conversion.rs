@@ -142,6 +142,7 @@ impl SimpleWord for IntToUtf8 {
     }
 }
 
+#[cfg(not(feature = "test-clarity-v1"))]
 #[cfg(test)]
 mod tests {
     use clarity::vm::types::{ASCIIData, CharType, SequenceData, UTF8Data};

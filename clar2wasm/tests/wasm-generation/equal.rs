@@ -59,7 +59,7 @@ proptest! {
             None => (Value::none(), Value::none()),
         };
 
-        let snippet = format!("(index-of? {} {})", seq, PropValue(item));
+        let snippet = format!("(index-of {} {})", seq, PropValue(item));
 
         crosscheck(
             &snippet,

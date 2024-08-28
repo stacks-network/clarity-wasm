@@ -73,7 +73,9 @@ proptest! {
         )
     }
 
+    // TODO: see issue #497. The test below should pass when running it in ClarityV1
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn match_response_ok(
         (original_ok_ty, original_ok_val, original_err_ty, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
         .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
@@ -90,7 +92,9 @@ proptest! {
         )
     }
 
+    // TODO: see issue #497. The test below should pass when running it in ClarityV1
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn match_response_err(
         (original_ok_ty, original_err_ty, original_err_val, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
         .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {

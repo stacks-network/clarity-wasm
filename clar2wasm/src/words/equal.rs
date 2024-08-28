@@ -1000,16 +1000,13 @@ mod tests {
 
     #[test]
     fn index_of_list_not_present() {
-        crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 9)",
-            Ok(Some(Value::none())),
-        );
+        crosscheck("(index-of (list 1 2 3 4 5 6 7) 9)", Ok(Some(Value::none())));
     }
 
     #[test]
     fn index_of_list_first() {
         crosscheck(
-            "(index-of? (list 1 2 3 4) 1)",
+            "(index-of (list 1 2 3 4) 1)",
             Ok(Some(Value::some(Value::UInt(0)).unwrap())),
         );
     }
@@ -1017,7 +1014,7 @@ mod tests {
     #[test]
     fn index_of_list() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 3)",
+            "(index-of (list 1 2 3 4 5 6 7) 3)",
             Ok(Some(Value::some(Value::UInt(2)).unwrap())),
         );
     }
@@ -1025,7 +1022,7 @@ mod tests {
     #[test]
     fn index_of_list_last() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 7)",
+            "(index-of (list 1 2 3 4 5 6 7) 7)",
             Ok(Some(Value::some(Value::UInt(6)).unwrap())),
         );
     }
@@ -1215,6 +1212,8 @@ mod tests {
     }
 
     #[test]
+    // TODO: see issue #496. The test below should pass when running it in ClarityV1.
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn index_of_complex_type() {
         crosscheck(
             "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",

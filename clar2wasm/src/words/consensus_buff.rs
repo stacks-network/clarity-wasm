@@ -152,6 +152,7 @@ impl ComplexWord for FromConsensusBuff {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "test-clarity-v1"))]
 mod tests {
     use std::collections::BTreeSet;
     use std::fmt::Write as _;

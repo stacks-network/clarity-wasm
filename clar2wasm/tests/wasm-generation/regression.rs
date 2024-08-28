@@ -4,7 +4,6 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only, evaluate};
 use clarity::vm::types::{ListData, ListTypeData, ResponseData, SequenceData, TypeSignature};
 use clarity::vm::Value;
-use hex::FromHex as _;
 
 use crate::PropValue;
 
@@ -38,7 +37,10 @@ fn list_some_response() {
 }
 
 #[test]
+#[cfg(not(feature = "test-clarity-v1"))]
 fn to_consensus_buff_1() {
+    use hex::FromHex as _;
+
     crosscheck(
         "(to-consensus-buff? (err {a: 1}))",
         Ok(Some(

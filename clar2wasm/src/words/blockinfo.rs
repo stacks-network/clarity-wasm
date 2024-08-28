@@ -144,6 +144,7 @@ impl ComplexWord for AtBlock {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
@@ -279,6 +280,8 @@ mod tests {
     }
 
     //- Burn Block Info
+
+    #[cfg(not(feature = "test-clarity-v1"))]
     #[test]
     fn get_burn_block_info_non_existent() {
         crosscheck(
@@ -289,6 +292,7 @@ mod tests {
         )
     }
 
+    #[cfg(not(feature = "test-clarity-v1"))]
     #[test]
     fn get_burn_block_info_header_hash() {
         crosscheck(
@@ -393,6 +397,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "test-clarity-v1"))]
     #[test]
     fn test_chain_id() {
         crosscheck(

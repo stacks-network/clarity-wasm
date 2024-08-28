@@ -1,10 +1,13 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+
+#[allow(unused_imports)]
 use clarity::vm::types::{
     CharType, ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature, MAX_VALUE_SIZE,
 };
 use clarity::vm::Value;
 use proptest::prelude::*;
 
+#[allow(unused_imports)]
 use crate::{bool, buffer, int, list, prop_signature, type_string, PropValue, TypePrinter};
 
 proptest! {
@@ -79,6 +82,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn element_at_crosscheck((seq, idx) in (1usize..=16).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
         let snippet = format!("(element-at? {seq} u{idx})");
 
@@ -111,6 +115,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_crosscheck_valid_range(
         (seq, lo, hi) in (1usize..=16)
         .prop_flat_map(PropValue::any_sequence)
@@ -132,6 +137,7 @@ proptest! {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn slice_crosscheck_invalid_range(
         (seq, lo, hi) in (1usize..=16)
         .prop_flat_map(PropValue::any_sequence)
@@ -273,6 +279,7 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn crosscheck_replace_at(
         (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
             (PropValue::any_sequence(seq_size),

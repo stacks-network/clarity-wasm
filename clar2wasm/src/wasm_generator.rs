@@ -1728,6 +1728,7 @@ mod misc_tests {
     };
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn is_in_mainnet() {
         crosscheck(
             "
