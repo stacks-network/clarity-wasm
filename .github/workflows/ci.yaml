@@ -72,7 +72,6 @@ jobs:
       - name: Build and archive tests
         run: |
           cargo llvm-cov nextest-archive \
-            --all-features \
             --workspace \
             --archive-file nextest-archive.tar.zst
 
