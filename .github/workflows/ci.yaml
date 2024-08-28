@@ -53,7 +53,7 @@ jobs:
 
       - run: cargo clippy --no-deps --all-features --all-targets -- -D warnings -D clippy::expect_used -D clippy::unwrap_used -D clippy::unimplemented
 
-  # Create archives of the test binaries and code coverage data for ClarityLatest.
+  # Create test and code coverage archives using llvm-cov.
   build-test-artifacts:
     name: Test Artifacts
     runs-on: ubuntu-latest
@@ -185,7 +185,25 @@ jobs:
             --codecov \
             --output-path codecov.json
 
-      - name: Upload coverage to Codecov
+      - name: Upload codecov.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: codecov.json
+          if-no-files-found: error
+
+  # Code coverage
+  codecov:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: run-tests-clarity-latest
+    steps:
+      - name: Download codecov.json
+        uses: actions/download-artifact@v4
+        with:
+          name: code-coverage-report
+
+      - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: codecov.json
