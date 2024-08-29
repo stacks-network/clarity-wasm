@@ -341,14 +341,37 @@ pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
+struct TestConfig;
+
+impl TestConfig {
+    /// Select a Clarity version based on enabled features.
+    pub fn clarity_version() -> ClarityVersion {
+        match () {
+            _ if cfg!(feature = "test-clarity-v1") => ClarityVersion::Clarity1,
+            _ if cfg!(feature = "test-clarity-v2") => ClarityVersion::Clarity2,
+            _ if cfg!(feature = "test-clarity-v3") || cfg!(feature = "test-clarity-latest") => {
+                ClarityVersion::Clarity3
+            }
+            _ => ClarityVersion::latest(),
+        }
+    }
+
+    /// Latest epoch for the enabled Clarity version.
+    pub fn latest_epoch_for_clarity_version() -> StacksEpochId {
+        match TestConfig::clarity_version() {
+            ClarityVersion::Clarity1 => StacksEpochId::Epoch2_05,
+            ClarityVersion::Clarity2 => StacksEpochId::Epoch25,
+            _ => StacksEpochId::latest(),
+        }
+    }
+}
+
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    // Determine the Clarity version to use based on enabled test features
-    let clarity_version = test_enabled_clarity_version();
-
-    // Get the latest epoch compatible with the selected Clarity version
-    let epoch = latest_epoch_for_clarity_version(clarity_version);
-
-    let compiled = evaluate_at(snippet, epoch, clarity_version);
+    let compiled = evaluate_at(
+        snippet,
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
+    );
     let interpreted = interpret(snippet);
 
     assert_eq!(
@@ -538,26 +561,6 @@ pub fn crosscheck_expect_failure(snippet: &str) {
         &compiled,
         &interpreted
     );
-}
-
-/// Select a Clarity Version based on an enabled feature
-fn test_enabled_clarity_version() -> ClarityVersion {
-    match () {
-        _ if cfg!(feature = "test-clarity-v1") => ClarityVersion::Clarity1,
-        _ if cfg!(feature = "test-clarity-v2") => ClarityVersion::Clarity2,
-        _ if cfg!(feature = "test-clarity-v3") || cfg!(feature = "test-clarity-latest") => {
-            ClarityVersion::Clarity3
-        }
-        _ => ClarityVersion::latest(),
-    }
-}
-
-fn latest_epoch_for_clarity_version(version: ClarityVersion) -> StacksEpochId {
-    match version {
-        ClarityVersion::Clarity1 => StacksEpochId::Epoch2_05,
-        ClarityVersion::Clarity2 => StacksEpochId::Epoch25,
-        _ => StacksEpochId::latest(),
-    }
 }
 
 #[test]
