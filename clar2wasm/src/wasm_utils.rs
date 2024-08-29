@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use clarity::vm::analysis::CheckErrors;
+use clarity::vm::ast::parse;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::signatures::CallableSubtype;
@@ -12,7 +13,7 @@ use clarity::vm::types::{
     SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TupleTypeSignature,
     TypeSignature,
 };
-use clarity::vm::{CallStack, ClarityName, ContractContext, ContractName, Value};
+use clarity::vm::{CallStack, ClarityName, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
@@ -1627,4 +1628,23 @@ pub(crate) fn owned_ordered_tuple_signature(
         .iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
+}
+
+pub fn signature_from_string(
+    val: &str,
+    version: ClarityVersion,
+    epoch: StacksEpochId,
+) -> Result<TypeSignature, Error> {
+    let expr = parse(
+        &QualifiedContractIdentifier::transient(),
+        val,
+        version,
+        epoch,
+    )?;
+    let expr = expr.first().ok_or(CheckErrors::InvalidTypeDescription)?;
+    Ok(TypeSignature::parse_type_repr(
+        StacksEpochId::latest(),
+        expr,
+        &mut (),
+    )?)
 }

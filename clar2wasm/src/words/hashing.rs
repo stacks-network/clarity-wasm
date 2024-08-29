@@ -108,7 +108,7 @@ impl SimpleWord for Keccak256 {
                     generator.create_call_stack_local(builder, ty, false, true);
                 generator.write_to_memory(builder, buffer_local, 0, ty)?;
 
-                // The load the offset and length onto the stack
+                // Then load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);
             }
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => {}
@@ -183,7 +183,7 @@ impl SimpleWord for Sha512_256 {
                     generator.create_call_stack_local(builder, ty, false, true);
                 generator.write_to_memory(builder, buffer_local, 0, ty)?;
 
-                // The load the offset and length onto the stack
+                // Then load the offset and length onto the stack
                 builder.local_get(buffer_local).i32_const(size);
             }
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_)) => {}
