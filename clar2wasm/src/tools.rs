@@ -391,14 +391,15 @@ pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Opti
     let compiled = evaluate_at_with_amount(
         snippet,
         amount,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
     );
+
     let interpreted = interpret_at_with_amount(
         snippet,
         amount,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
     );
 
     assert_eq!(
@@ -456,7 +457,10 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
+    let mut compiler_env = TestEnvironment::new(
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
+    );
     compiler_env.advance_chain_tip(count);
 
     let mut interpreter_env = compiler_env.clone();
@@ -494,7 +498,11 @@ pub fn crosscheck_with_epoch(
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
+    let compiled = evaluate_at(
+        snippet,
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
+    );
     let interpreted = interpret(snippet);
 
     assert_eq!(
