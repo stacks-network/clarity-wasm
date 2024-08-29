@@ -129,8 +129,10 @@ impl SimpleWord for StxGetAccount {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use clarity::vm::Value;
 
+    #[allow(unused_imports)]
     use crate::tools::{crosscheck, crosscheck_validate, evaluate};
 
     #[test]
@@ -147,6 +149,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "test-clarity-v1"))]
     fn stx_account() {
         crosscheck_validate(
             "(stx-account 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)",
