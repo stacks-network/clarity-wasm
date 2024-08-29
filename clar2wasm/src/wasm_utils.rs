@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::errors::{Error, WasmError};
+use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{
     ASCIIData, BuffData, BufferLength, CallableData, CharType, ListData, OptionalData,
     PrincipalData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
@@ -284,17 +285,27 @@ pub fn wasm_to_clarity_value(
                         &mut contract_name,
                     )
                     .map_err(|e| Error::Wasm(WasmError::UnableToReadMemory(e.into())))?;
+                let qualified_id = QualifiedContractIdentifier {
+                    issuer: standard,
+                    name: ContractName::try_from(
+                        String::from_utf8(contract_name)
+                            .map_err(|e| Error::Wasm(WasmError::UnableToReadIdentifier(e)))?,
+                    )?,
+                };
                 Ok((
-                    Some(Value::Principal(PrincipalData::Contract(
-                        QualifiedContractIdentifier {
-                            issuer: standard,
-                            name: ContractName::try_from(
-                                String::from_utf8(contract_name).map_err(|e| {
-                                    Error::Wasm(WasmError::UnableToReadIdentifier(e))
-                                })?,
-                            )?,
+                    Some(
+                        if let TypeSignature::CallableType(CallableSubtype::Trait(
+                            trait_identifier,
+                        )) = type_sig
+                        {
+                            Value::CallableContract(CallableData {
+                                contract_identifier: qualified_id,
+                                trait_identifier: Some(trait_identifier.clone()),
+                            })
+                        } else {
+                            Value::Principal(PrincipalData::Contract(qualified_id))
                         },
-                    ))),
+                    ),
                     2,
                 ))
             }
@@ -443,12 +454,22 @@ pub fn read_from_wasm(
                     .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
                 let contract_name = String::from_utf8(contract_name)
                     .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
-                Ok(Value::Principal(PrincipalData::Contract(
-                    QualifiedContractIdentifier {
-                        issuer: principal,
-                        name: ContractName::try_from(contract_name)?,
+                let qualified_id = QualifiedContractIdentifier {
+                    issuer: principal,
+                    name: ContractName::try_from(contract_name)?,
+                };
+                Ok(
+                    if let TypeSignature::CallableType(CallableSubtype::Trait(trait_identifier)) =
+                        ty
+                    {
+                        Value::CallableContract(CallableData {
+                            contract_identifier: qualified_id,
+                            trait_identifier: Some(trait_identifier.clone()),
+                        })
+                    } else {
+                        Value::Principal(PrincipalData::Contract(qualified_id))
                     },
-                )))
+                )
             }
         }
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_b)) => {
