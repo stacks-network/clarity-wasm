@@ -8,9 +8,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  property-testing-v1:
-    name: Clarity::V1 Property Tests
+  property-testing:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Property Tests
     env:
       PROPTEST_CASES: 100
     steps:
@@ -23,44 +26,6 @@ jobs:
       - name: Run Tests
         run: |
             cargo nextest run \
-            --features test-clarity-v1 \
-            --test wasm-generation \
-            --test standard
-
-  property-testing-v2:
-    name: Clarity::V2 Property Tests
-    runs-on: ubuntu-latest
-    env:
-      PROPTEST_CASES: 100
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@v4
-
-      - name: Use Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run Tests
-        run: |
-            cargo nextest run \
-            --features test-clarity-v2 \
-            --test wasm-generation \
-            --test standard
-
-  property-testing-latest:
-    name: Clarity::V3 (latest) Property Tests
-    runs-on: ubuntu-latest
-    env:
-      PROPTEST_CASES: 100
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@v4
-
-      - name: Use Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run Tests
-        run: |
-            cargo nextest run \
-            --features test-clarity-latest \
+            --features test-clarity-v${{ matrix.clarity_version }} \
             --test wasm-generation \
             --test standard
