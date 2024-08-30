@@ -1268,7 +1268,6 @@ mod tests {
         // TODO: see issue #496.
         // The test below should pass when running it in ClarityV1.
         // It should be removed from this module when the issue is fixed.
-        #[cfg(not(feature = "test-clarity-v1"))]
         fn index_of_complex_type() {
             crosscheck(
                 "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
