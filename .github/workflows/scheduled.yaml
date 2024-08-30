@@ -10,6 +10,7 @@ env:
 jobs:
   property-testing:
     runs-on: ubuntu-latest
+    if: ${{ always() }}
     strategy:
       matrix:
         clarity_version: [1, 2, 3]
