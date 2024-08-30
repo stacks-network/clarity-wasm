@@ -469,10 +469,8 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env = TestEnvironment::new(
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
-    );
+    let mut compiler_env =
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
     compiler_env.advance_chain_tip(count);
 
     let mut interpreter_env = compiler_env.clone();
