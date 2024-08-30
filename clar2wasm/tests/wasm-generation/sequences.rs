@@ -455,7 +455,7 @@ mod clarity_v2_v3 {
     use clarity::vm::types::CharType;
 
     use super::*;
-    use crate::{type_string, TypePrinter};
+    use crate::{runtime_config, type_string, TypePrinter};
 
     proptest! {
         #![proptest_config(runtime_config())]

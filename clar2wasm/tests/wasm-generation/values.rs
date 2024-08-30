@@ -35,7 +35,7 @@ mod clarity_v2_v3 {
     use clarity::vm::Value;
 
     use super::*;
-    use crate::{prop_signature, type_string, TypePrinter};
+    use crate::{prop_signature, runtime_config, type_string, TypePrinter};
 
     proptest! {
         #![proptest_config(runtime_config())]

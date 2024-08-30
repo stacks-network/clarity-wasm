@@ -349,9 +349,7 @@ impl TestConfig {
         match () {
             _ if cfg!(feature = "test-clarity-v1") => ClarityVersion::Clarity1,
             _ if cfg!(feature = "test-clarity-v2") => ClarityVersion::Clarity2,
-            _ if cfg!(feature = "test-clarity-v3") || cfg!(feature = "test-clarity-latest") => {
-                ClarityVersion::Clarity3
-            }
+            _ if cfg!(feature = "test-clarity-v3") => ClarityVersion::Clarity3,
             _ => ClarityVersion::latest(),
         }
     }
