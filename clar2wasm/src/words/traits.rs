@@ -129,11 +129,14 @@ impl ComplexWord for ImplTrait {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
+    use clarity::vm::types::{
+        CallableData, QualifiedContractIdentifier, StandardPrincipalData, TraitIdentifier,
+    };
     use clarity::vm::Value;
 
     use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate, TestEnvironment,
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, crosscheck_with_epoch,
+        TestEnvironment,
     };
 
     #[test]
@@ -250,30 +253,51 @@ mod tests {
 
     #[test]
     fn trait_list() {
-        let mut env = TestEnvironment::default();
-        env.init_contract_with_snippet(
-            "my-trait",
-            r#"
+        let first_contract_name = "my-trait-contract".into();
+        let first_snippet = r#"
 (define-trait my-trait
   ((add (int int) (response int int))))
 (define-public (add (a int) (b int))
   (ok (+ a b))
 )
-            "#,
-        )
-        .expect("Failed to init contract my-trait.");
-        let val = env.init_contract_with_snippet(
-            "use-trait",
-            r#"
-(use-trait the-trait .my-trait.my-trait)
+            "#;
+
+        let second_contract_name = "use-trait".into();
+        let second_snippet = r#"
+(use-trait the-trait .my-trait-contract.my-trait)
 (define-private (foo (adder <the-trait>))
     (print (list adder adder))
 )
-(foo .my-trait)
-            "#,
-        );
+(foo .my-trait-contract)
+            "#;
 
-        assert_eq!(val, evaluate("(list .my-trait .my-trait)"));
+        let contract_id = QualifiedContractIdentifier {
+            issuer: StandardPrincipalData::transient(),
+            name: "my-trait-contract".into(),
+        };
+        crosscheck_multi_contract(
+            &[
+                (first_contract_name, first_snippet),
+                (second_contract_name, second_snippet),
+            ],
+            Ok(Some(
+                Value::cons_list(
+                    (0..2)
+                        .map(|_| {
+                            Value::CallableContract(CallableData {
+                                contract_identifier: contract_id.clone(),
+                                trait_identifier: Some(TraitIdentifier {
+                                    name: "my-trait".into(),
+                                    contract_identifier: contract_id.clone(),
+                                }),
+                            })
+                        })
+                        .collect(),
+                    &StacksEpochId::latest(),
+                )
+                .unwrap(),
+            )),
+        );
     }
 
     #[test]

@@ -114,24 +114,58 @@ impl ComplexWord for Print {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
+    use clarity::vm::types::{ListTypeData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only};
+    use crate::tools::crosscheck_with_events;
+
+    #[test]
+    fn test_simple() {
+        crosscheck_with_events("(print 42)", Ok(Some(Value::Int(42))));
+    }
 
     #[test]
     fn test_empty_list() {
-        crosscheck_compare_only("(print (list))");
+        crosscheck_with_events(
+            "(print (list))",
+            Ok(Some(
+                Value::list_with_type(
+                    &StacksEpochId::latest(),
+                    vec![],
+                    ListTypeData::new_list(clarity::vm::types::TypeSignature::NoType, 0).unwrap(),
+                )
+                .unwrap(),
+            )),
+        );
     }
 
     #[test]
     fn test_complex_notype() {
-        crosscheck_compare_only("(print { a: (list), b: (list none), c: (err 1) })");
+        let notype_list = Value::list_with_type(
+            &StacksEpochId::latest(),
+            vec![],
+            ListTypeData::new_list(clarity::vm::types::TypeSignature::NoType, 0).unwrap(),
+        )
+        .unwrap();
+        let none_list = Value::cons_list(vec![Value::none()], &StacksEpochId::latest()).unwrap();
+        let err = Value::err_uint(1);
+        crosscheck_with_events(
+            "(print { a: (list), b: (list none), c: (err u1) })",
+            Ok(Some(Value::Tuple(
+                TupleData::from_data(vec![
+                    ("a".into(), notype_list),
+                    ("b".into(), none_list),
+                    ("c".into(), err),
+                ])
+                .unwrap(),
+            ))),
+        );
     }
 
     #[test]
     fn test_large_buff() {
         let msg = "a".repeat(1 << 20);
-        crosscheck(
+        crosscheck_with_events(
             &format!(r#"(print "{msg}")"#),
             Ok(Some(
                 Value::string_ascii_from_bytes(msg.into_bytes()).unwrap(),
@@ -143,7 +177,7 @@ mod tests {
     fn test_large_serialization() {
         // `(list 162141 (string-ascii 0))` results in >1MB serialization (1_310_710)
         let n = 262141;
-        crosscheck(
+        crosscheck_with_events(
             &format!(
                 r#"
 (define-private (foo (a (string-ascii 1))) "")
