@@ -9,11 +9,12 @@ use clarity::consts::CHAIN_ID_TESTNET;
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
-use clarity::vm::contexts::GlobalContext;
+use clarity::vm::contexts::{EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{CheckErrors, Error, WasmError};
+use clarity::vm::events::{SmartContractEventData, StacksTransactionEvent};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{eval_all, ClarityVersion, ContractContext, ContractName, Value};
 
@@ -29,6 +30,7 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
+    events: Vec<EventBatch>,
 }
 
 impl TestEnvironment {
@@ -62,6 +64,7 @@ impl TestEnvironment {
             datastore,
             burn_datastore,
             cost_tracker,
+            events: vec![],
         }
     }
 
@@ -140,7 +143,10 @@ impl TestEnvironment {
             .set_contract_data_size(&contract_id, data_size)
             .expect("Failed to set contract data size.");
 
-        global_context.commit().unwrap();
+        let (_, events) = global_context.commit().unwrap();
+        if let Some(events) = events {
+            self.events.push(events);
+        }
         self.cost_tracker = global_context.cost_track;
 
         self.contract_contexts
@@ -155,6 +161,10 @@ impl TestEnvironment {
 
     pub fn get_contract_context(&self, contract_name: &str) -> Option<&ContractContext> {
         self.contract_contexts.get(contract_name)
+    }
+
+    pub fn get_events(&self) -> &Vec<EventBatch> {
+        &self.events
     }
 
     pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
@@ -246,7 +256,10 @@ impl TestEnvironment {
             .set_contract_data_size(&contract_id, contract_context.data_size)
             .expect("Failed to set contract data size.");
 
-        global_context.commit().unwrap();
+        let (_, events) = global_context.commit().unwrap();
+        if let Some(events) = events {
+            self.events.push(events);
+        }
         self.cost_tracker = global_context.cost_track;
 
         self.contract_contexts
@@ -483,17 +496,18 @@ pub fn crosscheck_multi_contract(
     expected: Result<Option<Value>, Error>,
 ) {
     // compiled version
-    let mut env = TestEnvironment::default();
+    let mut compiled_env = TestEnvironment::default();
     let compiled_results: Vec<_> = contracts
         .iter()
-        .map(|(name, snippet)| env.init_contract_with_snippet(name, snippet))
+        .map(|(name, snippet)| compiled_env.init_contract_with_snippet(name, snippet))
         .collect();
 
     // interpreted version
-    let mut env = TestEnvironment::default();
-    let interpreted_results = contracts
+    let mut interpreted_env = TestEnvironment::default();
+    let interpreted_results: Vec<_> = contracts
         .iter()
-        .map(|(name, snippet)| env.interpret_contract_with_snippet(name, snippet));
+        .map(|(name, snippet)| interpreted_env.interpret_contract_with_snippet(name, snippet))
+        .collect();
 
     // compare results contract by contract
     for ((cmp_res, int_res), (contract_name, _)) in compiled_results
@@ -513,6 +527,8 @@ pub fn crosscheck_multi_contract(
         final_value, &expected,
         "final value is not the expected {final_value:?}"
     );
+
+    compare_events(interpreted_env.get_events(), compiled_env.get_events());
 }
 
 // TODO: This function is a temporary solution until issue #421 is addressed.
@@ -532,6 +548,74 @@ pub fn crosscheck_expect_failure(snippet: &str) {
         &compiled,
         &interpreted
     );
+}
+
+// TODO: add compare_events to regular crosscheck instead of having this separate function
+pub fn crosscheck_with_events(snippet: &str, expected: Result<Option<Value>, Error>) {
+    let epoch = StacksEpochId::latest();
+    let version = ClarityVersion::latest();
+
+    let mut env_interpreted = TestEnvironment::new(epoch, version);
+    let interpreted = env_interpreted.interpret(snippet);
+
+    let mut env_compiled = TestEnvironment::new(epoch, version);
+    let compiled = env_compiled.evaluate(snippet);
+
+    assert_eq!(
+        compiled, interpreted,
+        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
+        &compiled, &interpreted
+    );
+
+    if compiled.is_ok() {
+        compare_events(env_interpreted.get_events(), env_compiled.get_events());
+    }
+
+    assert_eq!(
+        compiled, expected,
+        "value is not the expected {:?}",
+        compiled
+    );
+}
+
+fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
+    // `SmartContractEvent` `value` could differ but resulting in the same serialized
+    // data (eg, serializing a `CallableContract` results in a contract principal)
+    assert_eq!(
+        events_a.len(),
+        events_b.len(),
+        "events batches size mismatch"
+    );
+    for (EventBatch { events: batch_a }, EventBatch { events: batch_b }) in
+        events_a.iter().zip(events_b.iter())
+    {
+        assert_eq!(batch_a.len(), batch_b.len(), "events batch size mismatch");
+        for (a, b) in batch_a.iter().zip(batch_b.iter()) {
+            if let (
+                StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+                    key: key_a,
+                    value: value_a,
+                }),
+                StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+                    key: key_b,
+                    value: value_b,
+                }),
+            ) = (a, b)
+            {
+                assert_eq!(key_a, key_b, "events key mismatch");
+
+                let mut value_a_ser = vec![];
+                value_a.serialize_write(&mut value_a_ser).unwrap();
+
+                let mut value_b_ser = vec![];
+                value_b.serialize_write(&mut value_b_ser).unwrap();
+
+                assert_eq!(value_a_ser, value_b_ser, "events serialized value mismatch");
+            } else {
+                assert_eq!(a, b, "events mismatch")
+            }
+        }
+    }
 }
 
 #[test]
