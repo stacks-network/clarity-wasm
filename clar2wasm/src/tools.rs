@@ -370,7 +370,12 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
         TestConfig::latest_epoch_for_clarity_version(),
         TestConfig::clarity_version(),
     );
-    let interpreted = interpret(snippet);
+
+    let interpreted = interpret_at(
+        snippet,
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version(),
+    );
 
     assert_eq!(
         compiled, interpreted,
@@ -501,7 +506,12 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
         TestConfig::latest_epoch_for_clarity_version(),
         TestConfig::clarity_version(),
     );
-    let interpreted = interpret(snippet);
+
+    let interpreted = interpret_at(
+        snippet,
+        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::clarity_version()
+    );
 
     assert_eq!(
         compiled, interpreted,
