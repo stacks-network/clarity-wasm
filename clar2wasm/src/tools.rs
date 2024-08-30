@@ -367,26 +367,22 @@ impl TestConfig {
         }
     }
 
-    /// Latest epoch for the enabled Clarity version.
-    pub fn latest_epoch_for_clarity_version() -> StacksEpochId {
-        match TestConfig::clarity_version() {
-            ClarityVersion::Clarity1 => StacksEpochId::Epoch2_05,
-            ClarityVersion::Clarity2 => StacksEpochId::Epoch25,
-            _ => StacksEpochId::latest(),
-        }
+    /// Latest Stacks epoch.
+    pub fn latest_epoch() -> StacksEpochId {
+        StacksEpochId::latest()
     }
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
     let compiled = evaluate_at(
         snippet,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
     let interpreted = interpret_at(
         snippet,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
@@ -407,14 +403,14 @@ pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Opti
     let compiled = evaluate_at_with_amount(
         snippet,
         amount,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
     let interpreted = interpret_at_with_amount(
         snippet,
         amount,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
@@ -474,7 +470,7 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut compiler_env = TestEnvironment::new(
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
     compiler_env.advance_chain_tip(count);
@@ -516,13 +512,13 @@ pub fn crosscheck_with_epoch(
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     let compiled = evaluate_at(
         snippet,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
     let interpreted = interpret_at(
         snippet,
-        TestConfig::latest_epoch_for_clarity_version(),
+        TestConfig::latest_epoch(),
         TestConfig::clarity_version(),
     );
 
