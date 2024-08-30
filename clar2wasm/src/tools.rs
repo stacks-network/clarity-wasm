@@ -510,7 +510,7 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     let interpreted = interpret_at(
         snippet,
         TestConfig::latest_epoch_for_clarity_version(),
-        TestConfig::clarity_version()
+        TestConfig::clarity_version(),
     );
 
     assert_eq!(
