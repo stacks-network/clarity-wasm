@@ -144,13 +144,12 @@ impl ComplexWord for AtBlock {
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck_with_epoch, evaluate, TestEnvironment};
 
     //- Block Info
 
@@ -279,30 +278,6 @@ mod tests {
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
 
-    //- Burn Block Info
-
-    #[cfg(not(feature = "test-clarity-v1"))]
-    #[test]
-    fn get_burn_block_info_non_existent() {
-        crosscheck(
-            "(get-burn-block-info? header-hash u9999999)",
-            Ok(Some(
-                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
-            )),
-        )
-    }
-
-    #[cfg(not(feature = "test-clarity-v1"))]
-    #[test]
-    fn get_burn_block_info_header_hash() {
-        crosscheck(
-            "(get-burn-block-info? header-hash u0)",
-            Ok(Some(
-                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
-            )),
-        )
-    }
-
     #[test]
     fn get_burn_block_info_pox_addrs() {
         let mut env = TestEnvironment::default();
@@ -397,17 +372,48 @@ mod tests {
         );
     }
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
     #[cfg(not(feature = "test-clarity-v1"))]
-    #[test]
-    fn test_chain_id() {
-        crosscheck(
-            "
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        use crate::tools::crosscheck;
+
+        #[test]
+        fn get_burn_block_info_non_existent() {
+            crosscheck(
+                "(get-burn-block-info? header-hash u9999999)",
+                Ok(Some(
+                    Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn get_burn_block_info_header_hash() {
+            crosscheck(
+                "(get-burn-block-info? header-hash u0)",
+                Ok(Some(
+                    Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_chain_id() {
+            crosscheck(
+                "
 (define-public (get-chain-id)
   (ok chain-id))
 
 (get-chain-id)
 ",
-            evaluate("(ok u2147483648)"),
-        );
+                evaluate("(ok u2147483648)"),
+            );
+        }
     }
 }

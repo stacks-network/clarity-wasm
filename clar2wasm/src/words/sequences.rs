@@ -1783,52 +1783,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn test_map_mixed() {
-        crosscheck(
-            r#"
-(define-private (add-everything
-    (a int)
-    (b uint)
-    (c (string-ascii 1))
-    (d (string-utf8 1))
-    (e (buff 1))
-    )
-    (+
-        a
-        (to-int b)
-        (unwrap-panic (string-to-int? c))
-        (unwrap-panic (string-to-int? d))
-        (buff-to-int-be e)
-    )
-)
-(map add-everything
-    (list 1 2 3)
-    (list u1 u2 u3)
-    "123"
-    u"123"
-    0x010203
-)
-        "#,
-            Ok(Some(
-                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15)])
-                    .unwrap(),
-            )),
-        )
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn test_builtin_string() {
-        let a = r#"
-(map >
-  "ab"
-  "ba"
-)"#;
-        crosscheck(a, evaluate("(list false true)"));
-    }
-
-    #[test]
     fn test_map() {
         const MAP_FNS: &str = "
 (define-private (addify-1 (a int))
@@ -2021,63 +1975,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn map_large_result() {
-        let n = 65535; // max legal `(list <size> uint)` size
-        let buf = (0..n)
-            .map(|i| format!("{:02x}", i % 256))
-            .collect::<Vec<_>>()
-            .join("");
-        let snippet = format!(
-            r#"
-        (define-private (foo (a (buff 1))) (buff-to-uint-be a))
-        (map foo 0x{buf})
-        "#
-        );
-
-        crosscheck(
-            &snippet,
-            Ok(Some(
-                Value::cons_list_unsanitized((0..n).map(|c| Value::UInt(c % 256)).collect())
-                    .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn slice_right_lt_left() {
-        crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
-        crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn slice_overflow() {
-        crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn slice() {
-        crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn slice_null() {
-        crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
-        crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
-        crosscheck("(slice? \"abc\" u2 u2)", evaluate("(some \"\")"));
-    }
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn slice_full() {
-        crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
-    }
-
-    #[test]
     fn double_append() {
         let snippet = "(append (append (list 1) 2) 3)";
 
@@ -2140,5 +2037,114 @@ mod tests {
 (fold knus (list (err 1)) (err 0))";
 
         crosscheck_compare_only(snippet);
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        #[test]
+        fn test_map_mixed() {
+            crosscheck(
+                r#"
+    (define-private (add-everything
+        (a int)
+        (b uint)
+        (c (string-ascii 1))
+        (d (string-utf8 1))
+        (e (buff 1))
+        )
+        (+
+            a
+            (to-int b)
+            (unwrap-panic (string-to-int? c))
+            (unwrap-panic (string-to-int? d))
+            (buff-to-int-be e)
+        )
+    )
+    (map add-everything
+        (list 1 2 3)
+        (list u1 u2 u3)
+        "123"
+        u"123"
+        0x010203
+    )
+            "#,
+                Ok(Some(
+                    Value::cons_list_unsanitized(vec![
+                        Value::Int(5),
+                        Value::Int(10),
+                        Value::Int(15),
+                    ])
+                    .unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_builtin_string() {
+            let a = r#"
+    (map >
+      "ab"
+      "ba"
+    )"#;
+            crosscheck(a, evaluate("(list false true)"));
+        }
+
+        #[test]
+        fn map_large_result() {
+            let n = 65535; // max legal `(list <size> uint)` size
+            let buf = (0..n)
+                .map(|i| format!("{:02x}", i % 256))
+                .collect::<Vec<_>>()
+                .join("");
+            let snippet = format!(
+                r#"
+            (define-private (foo (a (buff 1))) (buff-to-uint-be a))
+            (map foo 0x{buf})
+            "#
+            );
+
+            crosscheck(
+                &snippet,
+                Ok(Some(
+                    Value::cons_list_unsanitized((0..n).map(|c| Value::UInt(c % 256)).collect())
+                        .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn slice_right_lt_left() {
+            crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
+            crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
+        }
+
+        #[test]
+        fn slice_overflow() {
+            crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
+        }
+
+        #[test]
+        fn slice() {
+            crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
+        }
+
+        #[test]
+        fn slice_null() {
+            crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
+            crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
+            crosscheck("(slice? \"abc\" u2 u2)", evaluate("(some \"\")"));
+        }
+
+        #[test]
+        fn slice_full() {
+            crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
+        }
     }
 }

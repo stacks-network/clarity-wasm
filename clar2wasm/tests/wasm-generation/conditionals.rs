@@ -72,44 +72,6 @@ proptest! {
             Ok(Some(none_val.into()))
         )
     }
-
-    // TODO: see issue #497. The test below should pass when running it in ClarityV1
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn match_response_ok(
-        (original_ok_ty, original_ok_val, original_err_ty, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
-        .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
-            (Just(original_ok_ty.clone()), PropValue::from_type(original_ok_ty), Just(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-        })
-    )
-    {
-        crosscheck(
-            &format!(r#"
-                (define-data-var okval (response {} {}) (ok {original_ok_val}))
-                (match (var-get okval) value {ok_val} err-value {err_val})
-            "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
-            Ok(Some(ok_val.into()))
-        )
-    }
-
-    // TODO: see issue #497. The test below should pass when running it in ClarityV1
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn match_response_err(
-        (original_ok_ty, original_err_ty, original_err_val, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
-        .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
-            (Just(original_ok_ty), Just(original_err_ty.clone()), PropValue::from_type(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
-        })
-    )
-    {
-        crosscheck(
-            &format!(r#"
-                (define-data-var errval (response {} {}) (err {original_err_val}))
-                (match (var-get errval) value {ok_val} err-value {err_val})
-            "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
-            Ok(Some(err_val.into()))
-        )
-    }
 }
 
 proptest! {
@@ -350,6 +312,61 @@ proptest! {
                     &snippet,
                 );
             }
+        }
+    }
+}
+
+//
+// Proptests that should only be executed
+// when running Clarity::V2 or Clarity::v3.
+//
+#[cfg(not(feature = "test-clarity-v1"))]
+mod clarity_v2_v3 {
+    use super::*;
+
+    use crate::runtime_config;
+
+    proptest! {
+        #![proptest_config(runtime_config())]
+
+        // TODO: see issue #497.
+        // The test below should pass when running it in ClarityV1.
+        // When issue is fixed this test should be removed from this clarity_v2_v3 module.
+        #[test]
+        fn match_response_ok(
+            (original_ok_ty, original_ok_val, original_err_ty, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
+            .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
+                (Just(original_ok_ty.clone()), PropValue::from_type(original_ok_ty), Just(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+            })
+        )
+        {
+            crosscheck(
+                &format!(r#"
+                    (define-data-var okval (response {} {}) (ok {original_ok_val}))
+                    (match (var-get okval) value {ok_val} err-value {err_val})
+                "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
+                Ok(Some(ok_val.into()))
+            )
+        }
+
+        // TODO: see issue #497.
+        // The test below should pass when running it in ClarityV1.
+        // When issue is fixed this test should be removed from this clarity_v2_v3 module.
+        #[test]
+        fn match_response_err(
+            (original_ok_ty, original_err_ty, original_err_val, ok_val, err_val) in (prop_signature(), prop_signature(), prop_signature())
+            .prop_flat_map(|(original_ok_ty, original_err_ty, ty)| {
+                (Just(original_ok_ty), Just(original_err_ty.clone()), PropValue::from_type(original_err_ty), PropValue::from_type(ty.clone()), PropValue::from_type(ty))
+            })
+        )
+        {
+            crosscheck(
+                &format!(r#"
+                    (define-data-var errval (response {} {}) (err {original_err_val}))
+                    (match (var-get errval) value {ok_val} err-value {err_val})
+                "#, type_string(&original_ok_ty), type_string(&original_err_ty)),
+                Ok(Some(err_val.into()))
+            )
         }
     }
 }

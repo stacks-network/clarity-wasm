@@ -1709,7 +1709,7 @@ impl WasmGenerator {
 }
 
 #[cfg(test)]
-mod misc_tests {
+mod tests {
     use std::env;
 
     use clarity::types::StacksEpochId;
@@ -1726,20 +1726,6 @@ mod misc_tests {
         tools::{crosscheck, evaluate},
         wasm_generator::END_OF_STANDARD_DATA,
     };
-
-    #[test]
-    #[cfg(not(feature = "test-clarity-v1"))]
-    fn is_in_mainnet() {
-        crosscheck(
-            "
-(define-public (mainnet)
-  (ok is-in-mainnet))
-
-(mainnet)
-",
-            evaluate("(ok false)"),
-        );
-    }
 
     #[test]
     fn is_in_regtest() {
@@ -1871,5 +1857,28 @@ mod misc_tests {
 ",
             evaluate("(ok true)"),
         );
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        #[test]
+        fn is_in_mainnet() {
+            crosscheck(
+                "
+    (define-public (mainnet)
+      (ok is-in-mainnet))
+
+    (mainnet)
+    ",
+                evaluate("(ok false)"),
+            );
+        }
     }
 }
