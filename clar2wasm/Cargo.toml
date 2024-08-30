@@ -21,9 +21,9 @@ stacks-common = { git="https://github.com/stacks-network/stacks-core", branch="f
 wat = "1.0.74"
 
 [features]
+default = ["test-clarity-latest"]
 flamegraph = []
 pb = []
-
 # Test-specific features
 test-clarity-v1 = []
 test-clarity-v2 = []
