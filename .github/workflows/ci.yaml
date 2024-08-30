@@ -53,11 +53,14 @@ jobs:
 
       - run: cargo clippy --no-deps --all-features --all-targets -- -D warnings -D clippy::expect_used -D clippy::unwrap_used -D clippy::unimplemented
 
-  # Create test and code coverage archives using llvm-cov.
+  # Create tests and code coverage archives using llvm-cov.
   build-test-artifacts:
-    name: Test Artifacts
     runs-on: ubuntu-latest
     needs: [fmt, clippy]
+    strategy:
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Artifacts
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
@@ -71,88 +74,37 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Create archive of test binaries for ClarityLatest
+      - name: Create archive of test binaries
         run: |
           cargo llvm-cov nextest-archive \
-            --features test-clarity-latest \
+            --features test-clarity-v${{ matrix.clarity_version }} \
             --workspace \
-            --archive-file nextest-archive-latest.tar.zst
+            --archive-file nextest-archive-v${{ matrix.clarity_version }}.tar.zst
 
-      - name: Upload test binaries for ClarityLatest
+      - name: Upload test binaries
         uses: actions/upload-artifact@v4
         with:
-          name: nextest-archive-latest
-          path: nextest-archive-latest.tar.zst
+          name: nextest-archive-v${{ matrix.clarity_version }}
+          path: nextest-archive-v${{ matrix.clarity_version }}.tar.zst
           if-no-files-found: error
 
       - name: Upload standard.wasm file
         uses: actions/upload-artifact@v4
         with:
-          name: standard.wasm
+          name: standard-v${{ matrix.clarity_version }}.wasm
           path: ${{github.workspace}}/clar2wasm/src/standard/standard.wasm
           if-no-files-found: error
 
-  # Clarity::V1 tests.
-  run-tests-clarity-v1:
-    name: Clarity::V1 Tests
-    runs-on: ubuntu-latest
-    needs: [build-test-artifacts]
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@v4
-
-      - name: Use Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Download standard.wasm file
-        uses: actions/download-artifact@v4
-        with:
-          name: standard.wasm
-          path: ${{github.workspace}}/clar2wasm/src/standard/
-
-      - name: Run tests
-        shell: bash
-        run: |
-          cargo nextest run \
-            --features test-clarity-v1
-
-  # Clarity::V2 tests.
-  run-tests-clarity-v2:
-    name: Clarity::V2 Tests
-    runs-on: ubuntu-latest
-    needs: [build-test-artifacts]
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@v4
-
-      - name: Use Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Download standard.wasm file
-        uses: actions/download-artifact@v4
-        with:
-          name: standard.wasm
-          path: ${{github.workspace}}/clar2wasm/src/standard/
-
-      - name: Run tests
-        shell: bash
-        run: |
-          cargo nextest run \
-            --features test-clarity-v2
-
-  # Clarity::V3 (latest) tests.
   # Run the tests and generates coverage reports
   # using the precompiled data from the build-test-artifacts job.
-  run-tests-clarity-latest:
-    name: Clarity::V3 (latest) Tests
+  run-tests:
     runs-on: ubuntu-latest
-    needs: [build-test-artifacts]
+    needs: build-test-artifacts
+    strategy:
+      fail-fast: false
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Tests
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
@@ -169,44 +121,49 @@ jobs:
       - name: Download standard.wasm file
         uses: actions/download-artifact@v4
         with:
-          name: standard.wasm
+          name: standard-v${{ matrix.clarity_version }}.wasm
           path: ${{github.workspace}}/clar2wasm/src/standard/
 
       - name: Download archive
         uses: actions/download-artifact@v4
         with:
-          name: nextest-archive-latest
+          name: nextest-archive-v${{ matrix.clarity_version }}
 
       - name: Run tests and output coverage
         shell: bash
         run: |
           cargo llvm-cov nextest \
-            --archive-file nextest-archive-latest.tar.zst \
+            --archive-file nextest-archive-v${{ matrix.clarity_version }}.tar.zst \
             --codecov \
-            --output-path codecov.json
+            --output-path codecov-v${{ matrix.clarity_version }}.json
 
       - name: Upload codecov.json
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage-report
-          path: codecov.json
+          name: code-coverage-v${{ matrix.clarity_version }}
+          path: codecov-v${{ matrix.clarity_version }}.json
           if-no-files-found: error
 
   # Code coverage
   codecov:
-    name: Code Coverage
     runs-on: ubuntu-latest
-    needs: run-tests-clarity-latest
+    if: ${{ always() }}
+    needs: run-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Code Coverage
     steps:
       - name: Download codecov.json
         uses: actions/download-artifact@v4
         with:
-          name: code-coverage-report
+          name: code-coverage-v${{ matrix.clarity_version }}
 
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: codecov.json
+          files: codecov-v${{ matrix.clarity_version }}.json
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
