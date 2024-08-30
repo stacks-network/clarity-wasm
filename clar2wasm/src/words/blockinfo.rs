@@ -380,7 +380,6 @@ mod tests {
     #[cfg(test)]
     mod clarity_v2_v3 {
         use super::*;
-
         use crate::tools::crosscheck;
 
         #[test]

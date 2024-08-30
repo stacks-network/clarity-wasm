@@ -351,9 +351,9 @@ mod tests {
     #[cfg(not(feature = "test-clarity-v1"))]
     #[cfg(test)]
     mod clarity_v2_v3 {
-        use super::*;
-
         use clarity::vm::types::{ResponseData, StandardPrincipalData, TupleData};
+
+        use super::*;
 
         #[test]
         fn test_is_standard() {

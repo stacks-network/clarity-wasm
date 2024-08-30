@@ -31,14 +31,10 @@ proptest! {
 //
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
-    use super::*;
-
-    use crate::runtime_config;
-
     use clar2wasm::tools::TestEnvironment;
-
     use clarity::vm::Value;
 
+    use super::*;
     use crate::{prop_signature, type_string, TypePrinter};
 
     proptest! {

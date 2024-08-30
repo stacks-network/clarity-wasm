@@ -323,7 +323,6 @@ proptest! {
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use super::*;
-
     use crate::runtime_config;
 
     proptest! {

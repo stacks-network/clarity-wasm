@@ -228,10 +228,9 @@ mod tests {
     #[cfg(not(feature = "test-clarity-v1"))]
     #[cfg(test)]
     mod clarity_v2_v3 {
-        use super::*;
-
         use clarity::vm::Value;
 
+        use super::*;
         use crate::tools::crosscheck_validate;
 
         #[test]

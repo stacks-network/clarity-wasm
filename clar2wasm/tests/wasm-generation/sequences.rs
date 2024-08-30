@@ -1,5 +1,4 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
-
 use clarity::vm::types::{
     ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature, MAX_VALUE_SIZE,
 };
@@ -453,12 +452,9 @@ proptest! {
 //
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
-    use super::*;
-
-    use crate::runtime_config;
-
     use clarity::vm::types::CharType;
 
+    use super::*;
     use crate::{type_string, TypePrinter};
 
     proptest! {
