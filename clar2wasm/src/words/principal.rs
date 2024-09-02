@@ -296,362 +296,11 @@ impl ComplexWord for PrincipalOf {
 mod tests {
     use clarity::vm::errors::Error;
     use clarity::vm::types::{
-        BuffData, BufferLength, PrincipalData, ResponseData, SequenceData, SequenceSubtype,
-        StandardPrincipalData, TupleData, TypeSignature,
+        BuffData, BufferLength, PrincipalData, SequenceData, SequenceSubtype, TypeSignature,
     };
     use clarity::vm::Value;
 
     use crate::tools::crosscheck;
-
-    //- is-standard
-
-    #[test]
-    fn test_is_standard() {
-        crosscheck(
-            "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
-            Ok(Some(Value::Bool(true))),
-        );
-    }
-
-    #[test]
-    fn test_is_standard_contract() {
-        crosscheck(
-            "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
-            Ok(Some(Value::Bool(true))),
-        );
-    }
-
-    #[test]
-    fn test_is_standard_multisig() {
-        crosscheck(
-            "(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)",
-            Ok(Some(Value::Bool(true))),
-        )
-    }
-
-    #[test]
-    fn test_is_standard_mainnet() {
-        crosscheck(
-            "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
-            Ok(Some(Value::Bool(false))),
-        );
-    }
-
-    #[test]
-    fn test_is_standard_mainnet_contract() {
-        crosscheck(
-            "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
-            Ok(Some(Value::Bool(false))),
-        );
-    }
-
-    #[test]
-    fn test_is_standard_mainnet_multisig() {
-        crosscheck(
-            "(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)",
-            Ok(Some(Value::Bool(false))),
-        );
-    }
-
-    #[test]
-    fn test_is_standard_other() {
-        crosscheck(
-            "(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)",
-            Ok(Some(Value::Bool(false))),
-        );
-    }
-
-    //- principal-construct?
-
-    #[test]
-    fn test_construct_standard() {
-        crosscheck(
-            "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)",
-            Ok(Some(
-                Value::okay(
-                    PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK")
-                        .unwrap()
-                        .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_contract() {
-        crosscheck(
-            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
-            Ok(Some(
-                Value::okay(
-                    PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK.foo")
-                        .unwrap()
-                        .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_mainnet() {
-        crosscheck(
-            "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(0)),
-                        (
-                            "value".into(),
-                            Value::some(
-                                PrincipalData::parse("SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY")
-                                    .unwrap()
-                                    .into(),
-                            )
-                            .unwrap(),
-                        ),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_mainnet_contract() {
-        crosscheck(
-            r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(0)),
-                        (
-                            "value".into(),
-                            Value::some(
-                                PrincipalData::parse(
-                                    "SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo",
-                                )
-                                .unwrap()
-                                .into(),
-                            )
-                            .unwrap(),
-                        ),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_empty_version() {
-        crosscheck(
-            "(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none()),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_short_hash() {
-        crosscheck(
-            "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none()),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_high_version() {
-        crosscheck(
-            "(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(1)),
-                        ("value".into(), Value::none()),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_construct_empty_contract() {
-        crosscheck(
-            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#,
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(2)),
-                        ("value".into(), Value::none()),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        )
-    }
-
-    #[test]
-    fn test_construct_illegal_contract() {
-        crosscheck(
-            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#,
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        ("error_code".into(), Value::UInt(2)),
-                        ("value".into(), Value::none()),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        )
-    }
-
-    //- principal-destruct?
-
-    #[test]
-    fn test_destruct_standard() {
-        crosscheck(
-            "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
-            Ok(Some(
-                Value::okay(
-                    TupleData::from_data(vec![
-                        (
-                            "hash-bytes".into(),
-                            Value::buff_from(
-                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        ("name".into(), Value::none()),
-                        ("version".into(), Value::buff_from_byte(0x1a)),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_destruct_contract() {
-        crosscheck(
-            "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
-            Ok(Some(
-                Value::okay(
-                    TupleData::from_data(vec![
-                        (
-                            "hash-bytes".into(),
-                            Value::buff_from(
-                                hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0").unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        (
-                            "name".into(),
-                            Value::some(
-                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        ("version".into(), Value::buff_from_byte(0x1a)),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_destruct_standard_err() {
-        crosscheck(
-            "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        (
-                            "hash-bytes".into(),
-                            Value::buff_from(
-                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        ("name".into(), Value::none()),
-                        ("version".into(), Value::buff_from_byte(0x16)),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_destruct_contract_err() {
-        crosscheck(
-            "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
-            Ok(Some(
-                Value::error(
-                    TupleData::from_data(vec![
-                        (
-                            "hash-bytes".into(),
-                            Value::buff_from(
-                                hex::decode("fa6bf38ed557fe417333710d6033e9419391a320").unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        (
-                            "name".into(),
-                            Value::some(
-                                Value::string_ascii_from_bytes("foo".as_bytes().to_vec()).unwrap(),
-                            )
-                            .unwrap(),
-                        ),
-                        ("version".into(), Value::buff_from_byte(0x16)),
-                    ])
-                    .unwrap()
-                    .into(),
-                )
-                .unwrap(),
-            )),
-        );
-    }
-
-    //- principal-of?
 
     #[test]
     fn test_principal_of() {
@@ -695,45 +344,407 @@ mod tests {
         );
     }
 
-    #[test]
-    fn builtins_principals() {
-        let snpt = "
-(define-public (get-tx-sender)
-  (ok tx-sender))
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use clarity::vm::types::{ResponseData, StandardPrincipalData, TupleData};
 
-(define-public (get-contract-caller)
-  (ok contract-caller))
+        use super::*;
 
-(define-public (get-tx-sponsor)
-  (ok tx-sponsor?))
-        ";
+        #[test]
+        fn test_is_standard() {
+            crosscheck(
+                "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
+                Ok(Some(Value::Bool(true))),
+            );
+        }
 
-        crosscheck(
-            &format!("{snpt} (get-tx-sender)"),
-            Ok(Some(Value::Response(ResponseData {
-                committed: true,
-                data: Box::new(Value::Principal(PrincipalData::Standard(
-                    StandardPrincipalData::transient(),
-                ))),
-            }))),
-        );
+        #[test]
+        fn test_is_standard_contract() {
+            crosscheck(
+                "(is-standard 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
+                Ok(Some(Value::Bool(true))),
+            );
+        }
 
-        crosscheck(
-            &format!("{snpt} (get-contract-caller)"),
-            Ok(Some(Value::Response(ResponseData {
-                committed: true,
-                data: Box::new(Value::Principal(PrincipalData::Standard(
-                    StandardPrincipalData::transient(),
-                ))),
-            }))),
-        );
+        #[test]
+        fn test_is_standard_multisig() {
+            crosscheck(
+                "(is-standard 'SN3X6QWWETNBZWGBK6DRGTR1KX50S74D340JWTSC7)",
+                Ok(Some(Value::Bool(true))),
+            )
+        }
 
-        crosscheck(
-            &format!("{snpt} (get-tx-sponsor)"),
-            Ok(Some(Value::Response(ResponseData {
-                committed: true,
-                data: Box::new(Value::none()),
-            }))),
-        );
+        #[test]
+        fn test_is_standard_mainnet() {
+            crosscheck(
+                "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
+                Ok(Some(Value::Bool(false))),
+            );
+        }
+
+        #[test]
+        fn test_is_standard_mainnet_contract() {
+            crosscheck(
+                "(is-standard 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
+                Ok(Some(Value::Bool(false))),
+            );
+        }
+
+        #[test]
+        fn test_is_standard_mainnet_multisig() {
+            crosscheck(
+                "(is-standard 'SM3X6QWWETNBZWGBK6DRGTR1KX50S74D341M9C5X7)",
+                Ok(Some(Value::Bool(false))),
+            );
+        }
+
+        #[test]
+        fn test_is_standard_other() {
+            crosscheck(
+                "(is-standard 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)",
+                Ok(Some(Value::Bool(false))),
+            );
+        }
+
+        #[test]
+        fn test_construct_standard() {
+            crosscheck(
+                "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+                Ok(Some(
+                    Value::okay(
+                        PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK")
+                            .unwrap()
+                            .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_contract() {
+            crosscheck(
+                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
+                Ok(Some(
+                    Value::okay(
+                        PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK.foo")
+                            .unwrap()
+                            .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_mainnet() {
+            crosscheck(
+                "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(0)),
+                            (
+                                "value".into(),
+                                Value::some(
+                                    PrincipalData::parse(
+                                        "SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY",
+                                    )
+                                    .unwrap()
+                                    .into(),
+                                )
+                                .unwrap(),
+                            ),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_mainnet_contract() {
+            crosscheck(
+                r#"(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo")"#,
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(0)),
+                            (
+                                "value".into(),
+                                Value::some(
+                                    PrincipalData::parse(
+                                        "SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo",
+                                    )
+                                    .unwrap()
+                                    .into(),
+                                )
+                                .unwrap(),
+                            ),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_empty_version() {
+            crosscheck(
+                "(principal-construct? 0x 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(1)),
+                            ("value".into(), Value::none()),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_short_hash() {
+            crosscheck(
+                "(principal-construct? 0x16 0xfa6bf38ed557fe417333710d6033e9419391a3)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(1)),
+                            ("value".into(), Value::none()),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_high_version() {
+            crosscheck(
+                "(principal-construct? 0x20 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(1)),
+                            ("value".into(), Value::none()),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_construct_empty_contract() {
+            crosscheck(
+                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "")"#,
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(2)),
+                            ("value".into(), Value::none()),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_construct_illegal_contract() {
+            crosscheck(
+                r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo[")"#,
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            ("error_code".into(), Value::UInt(2)),
+                            ("value".into(), Value::none()),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_destruct_standard() {
+            crosscheck(
+                "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)",
+                Ok(Some(
+                    Value::okay(
+                        TupleData::from_data(vec![
+                            (
+                                "hash-bytes".into(),
+                                Value::buff_from(
+                                    hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0")
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            ("name".into(), Value::none()),
+                            ("version".into(), Value::buff_from_byte(0x1a)),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_destruct_contract() {
+            crosscheck(
+                "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foo)",
+                Ok(Some(
+                    Value::okay(
+                        TupleData::from_data(vec![
+                            (
+                                "hash-bytes".into(),
+                                Value::buff_from(
+                                    hex::decode("164247d6f2b425ac5771423ae6c80c754f7172b0")
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            (
+                                "name".into(),
+                                Value::some(
+                                    Value::string_ascii_from_bytes("foo".as_bytes().to_vec())
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            ("version".into(), Value::buff_from_byte(0x1a)),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_destruct_standard_err() {
+            crosscheck(
+                "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            (
+                                "hash-bytes".into(),
+                                Value::buff_from(
+                                    hex::decode("fa6bf38ed557fe417333710d6033e9419391a320")
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            ("name".into(), Value::none()),
+                            ("version".into(), Value::buff_from_byte(0x16)),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn test_destruct_contract_err() {
+            crosscheck(
+                "(principal-destruct? 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY.foo)",
+                Ok(Some(
+                    Value::error(
+                        TupleData::from_data(vec![
+                            (
+                                "hash-bytes".into(),
+                                Value::buff_from(
+                                    hex::decode("fa6bf38ed557fe417333710d6033e9419391a320")
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            (
+                                "name".into(),
+                                Value::some(
+                                    Value::string_ascii_from_bytes("foo".as_bytes().to_vec())
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            ),
+                            ("version".into(), Value::buff_from_byte(0x16)),
+                        ])
+                        .unwrap()
+                        .into(),
+                    )
+                    .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn builtins_principals() {
+            let snpt = "
+    (define-public (get-tx-sender)
+      (ok tx-sender))
+
+    (define-public (get-contract-caller)
+      (ok contract-caller))
+
+    (define-public (get-tx-sponsor)
+      (ok tx-sponsor?))
+            ";
+
+            crosscheck(
+                &format!("{snpt} (get-tx-sender)"),
+                Ok(Some(Value::Response(ResponseData {
+                    committed: true,
+                    data: Box::new(Value::Principal(PrincipalData::Standard(
+                        StandardPrincipalData::transient(),
+                    ))),
+                }))),
+            );
+
+            crosscheck(
+                &format!("{snpt} (get-contract-caller)"),
+                Ok(Some(Value::Response(ResponseData {
+                    committed: true,
+                    data: Box::new(Value::Principal(PrincipalData::Standard(
+                        StandardPrincipalData::transient(),
+                    ))),
+                }))),
+            );
+
+            crosscheck(
+                &format!("{snpt} (get-tx-sponsor)"),
+                Ok(Some(Value::Response(ResponseData {
+                    committed: true,
+                    data: Box::new(Value::none()),
+                }))),
+            );
+        }
     }
 }

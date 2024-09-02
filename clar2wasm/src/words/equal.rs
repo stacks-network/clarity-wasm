@@ -1000,16 +1000,13 @@ mod tests {
 
     #[test]
     fn index_of_list_not_present() {
-        crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 9)",
-            Ok(Some(Value::none())),
-        );
+        crosscheck("(index-of (list 1 2 3 4 5 6 7) 9)", Ok(Some(Value::none())));
     }
 
     #[test]
     fn index_of_list_first() {
         crosscheck(
-            "(index-of? (list 1 2 3 4) 1)",
+            "(index-of (list 1 2 3 4) 1)",
             Ok(Some(Value::some(Value::UInt(0)).unwrap())),
         );
     }
@@ -1017,7 +1014,7 @@ mod tests {
     #[test]
     fn index_of_list() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 3)",
+            "(index-of (list 1 2 3 4 5 6 7) 3)",
             Ok(Some(Value::some(Value::UInt(2)).unwrap())),
         );
     }
@@ -1025,7 +1022,7 @@ mod tests {
     #[test]
     fn index_of_list_last() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 7)",
+            "(index-of (list 1 2 3 4 5 6 7) 7)",
             Ok(Some(Value::some(Value::UInt(6)).unwrap())),
         );
     }
@@ -1052,7 +1049,7 @@ mod tests {
             "index_of",
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
-  (index-of? haystack needle))
+  (index-of haystack needle))
 (find-it? 6 (list))
 "#,
         );
@@ -1066,7 +1063,7 @@ mod tests {
         let val = env.evaluate(
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
-  (is-eq (index-of? haystack needle) none))
+  (is-eq (index-of haystack needle) none))
 (asserts! (find-it? 6 (list 1 2 3)) (err u1))
 (list 4 5 6)
 "#,
@@ -1215,14 +1212,6 @@ mod tests {
     }
 
     #[test]
-    fn index_of_complex_type() {
-        crosscheck(
-            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
-            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
-        );
-    }
-
-    #[test]
     fn index_of_tuple_complex_type() {
         crosscheck("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))",
             Ok(Some(Value::none()))
@@ -1263,5 +1252,50 @@ mod tests {
         (define-data-var b (list 4 int) (list 1 2 3))
         (is-eq (var-get a) (var-get b))";
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+        use crate::tools::crosscheck;
+
+        #[test]
+        // TODO: see issue #496.
+        // The test below should pass when running it in ClarityV1.
+        // It should be removed from this module when the issue is fixed.
+        fn index_of_complex_type() {
+            crosscheck(
+                "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
+                Ok(Some(Value::some(Value::UInt(2)).unwrap())),
+            );
+        }
+
+        #[test]
+        fn index_of_alias_list_zero_len() {
+            let mut env = TestEnvironment::default();
+            let val = env.init_contract_with_snippet(
+                "index_of",
+                r#"
+    (define-private (find-it? (needle int) (haystack (list 10 int)))
+      (index-of? haystack needle))
+    (find-it? 6 (list))
+    "#,
+            );
+
+            assert_eq!(val.unwrap(), Some(Value::none()));
+        }
+
+        #[test]
+        fn index_of_alias_first_optional_complex_type() {
+            crosscheck(
+                "(index-of? (list (some 42) none none none (some 15)) (some 42))",
+                Ok(Some(Value::some(Value::UInt(0)).unwrap())),
+            );
+        }
     }
 }
