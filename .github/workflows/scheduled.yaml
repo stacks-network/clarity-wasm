@@ -9,8 +9,12 @@ env:
 
 jobs:
   property-testing:
-    name: Property Testing
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Property Tests
     env:
       PROPTEST_CASES: 100
     steps:
@@ -20,5 +24,9 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run
-        run: cargo test --test wasm-generation --test standard
+      - name: Run Tests
+        run: |
+            cargo nextest run \
+            --features test-clarity-v${{ matrix.clarity_version }} \
+            --test wasm-generation \
+            --test standard

@@ -129,9 +129,7 @@ impl SimpleWord for StxGetAccount {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::Value;
-
-    use crate::tools::{crosscheck, crosscheck_validate, evaluate};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn stx_get_balance() {
@@ -143,28 +141,6 @@ mod tests {
 (test-stx-get-balance)
 ",
             evaluate("(ok u0)"),
-        )
-    }
-
-    #[test]
-    fn stx_account() {
-        crosscheck_validate(
-            "(stx-account 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)",
-            |val| match val {
-                Value::Tuple(tuple_data) => {
-                    assert_eq!(tuple_data.data_map.len(), 3);
-                    assert_eq!(tuple_data.data_map.get("locked").unwrap(), &Value::UInt(0));
-                    assert_eq!(
-                        tuple_data.data_map.get("unlocked").unwrap(),
-                        &Value::UInt(0)
-                    );
-                    assert_eq!(
-                        tuple_data.data_map.get("unlock-height").unwrap(),
-                        &Value::UInt(0)
-                    );
-                }
-                _ => panic!("Unexpected result received from Wasm function call."),
-            },
         )
     }
 
@@ -213,15 +189,6 @@ mod tests {
     }
 
     #[test]
-    fn stx_transfer_memo_ok() {
-        //
-        crosscheck(
-            "(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678)",
-            evaluate("(ok true)"),
-        )
-    }
-
-    #[test]
     fn stx_transfer_err_1() {
         // not enough balance
         crosscheck("(stx-transfer? u5000000000 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)", evaluate("(err u1)"))
@@ -252,5 +219,49 @@ mod tests {
             "(stx-transfer? u100 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM tx-sender)",
             evaluate("(err u4)"),
         )
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use clarity::vm::Value;
+
+        use super::*;
+        use crate::tools::crosscheck_validate;
+
+        #[test]
+        fn stx_account() {
+            crosscheck_validate(
+                "(stx-account 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)",
+                |val| match val {
+                    Value::Tuple(tuple_data) => {
+                        assert_eq!(tuple_data.data_map.len(), 3);
+                        assert_eq!(tuple_data.data_map.get("locked").unwrap(), &Value::UInt(0));
+                        assert_eq!(
+                            tuple_data.data_map.get("unlocked").unwrap(),
+                            &Value::UInt(0)
+                        );
+                        assert_eq!(
+                            tuple_data.data_map.get("unlock-height").unwrap(),
+                            &Value::UInt(0)
+                        );
+                    }
+                    _ => panic!("Unexpected result received from Wasm function call."),
+                },
+            )
+        }
+
+        #[test]
+        fn stx_transfer_memo_ok() {
+            //
+            crosscheck(
+                "(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678)",
+                evaluate("(ok true)"),
+            )
+        }
     }
 }

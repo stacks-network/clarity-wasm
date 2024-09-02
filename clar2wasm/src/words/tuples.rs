@@ -279,7 +279,7 @@ impl ComplexWord for TupleMerge {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
@@ -354,24 +354,6 @@ mod test {
     }
 
     #[test]
-    fn merge_real_example() {
-        // issue #372
-        let snippet = r#"
-(define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
-    (ok {
-        value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
-        next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
-    }))
-
-(define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
-    (let ((cursor-bytes (try! (read-buff-1 cursor))))
-        (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
-            "#;
-
-        crosscheck(snippet, Ok(None));
-    }
-
-    #[test]
     fn tuple_check_evaluation_order() {
         let snippet = r#"
         (define-data-var foo int 1)
@@ -390,5 +372,32 @@ mod test {
         );
 
         crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        #[test]
+        fn merge_real_example() {
+            let snippet = r#"
+    (define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
+        (ok {
+            value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
+            next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
+        }))
+
+    (define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
+        (let ((cursor-bytes (try! (read-buff-1 cursor))))
+            (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
+                "#;
+
+            crosscheck(snippet, Ok(None));
+        }
     }
 }
