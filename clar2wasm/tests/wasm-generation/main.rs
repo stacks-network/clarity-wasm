@@ -15,6 +15,7 @@ pub mod hashing;
 pub mod maps;
 pub mod noop;
 pub mod optional;
+pub mod principal;
 pub mod print;
 pub mod regression;
 pub mod response;
