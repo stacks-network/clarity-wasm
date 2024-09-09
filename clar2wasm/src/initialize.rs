@@ -93,9 +93,8 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         self.sender
             .take()
             .ok_or(RuntimeErrorType::NoSenderInContext.into())
-            .map(|sender| {
+            .inspect(|_| {
                 self.sender = self.sender_stack.pop();
-                sender
             })
     }
 
@@ -110,9 +109,8 @@ impl<'a, 'b> ClarityWasmContext<'a, 'b> {
         self.caller
             .take()
             .ok_or(RuntimeErrorType::NoCallerInContext.into())
-            .map(|caller| {
+            .inspect(|_| {
                 self.caller = self.caller_stack.pop();
-                caller
             })
     }
 
