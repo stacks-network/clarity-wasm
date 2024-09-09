@@ -32,8 +32,8 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v4
 
-      - name: Use Rust nightly with rustfmt
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Use Rust stable with rustfmt
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
@@ -46,7 +46,7 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v4
 
-      - name: Use Rust nightly with clippy
+      - name: Use Rust stable with clippy
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
