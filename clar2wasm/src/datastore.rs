@@ -1,5 +1,6 @@
 //! The `datastore` module contains simple in-memory imnplementations of the
 //! various data storage traits used during program execution.
+//!
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production. The `datastore` module is only available when the
 //! `developer-mode` feature is enabled. Many of these methods are just
