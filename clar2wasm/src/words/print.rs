@@ -136,6 +136,27 @@ mod tests {
     }
 
     #[test]
+    fn test_contract_call() {
+        let first_contract_name = "callee".into();
+        let first_snippet = r#"
+(define-public (foo (a int))
+  (ok (print a))
+)
+            "#;
+
+        let second_contract_name = "caller".into();
+        let second_snippet = "(unwrap-panic (contract-call? .callee foo 42))";
+
+        crate::tools::crosscheck_multi_contract(
+            &[
+                (first_contract_name, first_snippet),
+                (second_contract_name, second_snippet),
+            ],
+            Ok(Some(Value::Int(42))),
+        );
+    }
+
+    #[test]
     fn test_empty_list() {
         crosscheck_with_events(
             "(print (list))",
