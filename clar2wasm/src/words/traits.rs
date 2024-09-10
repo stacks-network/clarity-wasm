@@ -253,6 +253,7 @@ mod tests {
 
     #[test]
     fn trait_list() {
+        // NOTE: this also tests `print` of `Callable`
         let first_contract_name = "my-trait-contract".into();
         let first_snippet = r#"
 (define-trait my-trait

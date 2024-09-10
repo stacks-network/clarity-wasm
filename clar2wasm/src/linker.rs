@@ -3579,7 +3579,11 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
         .func_wrap(
             "clarity",
             "print",
-            |mut caller: Caller<'_, ClarityWasmContext>, value_offset: i32, value_length: i32| {
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             value_offset: i32,
+             _value_length: i32,
+             serialized_ty_offset: i32,
+             serialized_ty_length: i32| {
                 // runtime_cost(ClarityCostFunction::Print, env, input.size())?;
 
                 // Get the memory from the caller
@@ -3588,10 +3592,19 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                // Read in the bytes from the Wasm memory
-                let bytes = read_bytes_from_wasm(memory, &mut caller, value_offset, value_length)?;
+                let serialized_ty = String::from_utf8(read_bytes_from_wasm(
+                    memory,
+                    &mut caller,
+                    serialized_ty_offset,
+                    serialized_ty_length,
+                )?)?;
 
-                let clarity_val = Value::deserialize_read(&mut bytes.as_slice(), None, false)?;
+                let epoch = caller.data().global_context.epoch_id;
+                let version = caller.data().contract_context().get_clarity_version();
+
+                let value_ty = signature_from_string(&serialized_ty, *version, epoch)?;
+                let clarity_val =
+                    read_from_wasm_indirect(memory, &mut caller, &value_ty, value_offset, epoch)?;
 
                 caller.data_mut().register_print_event(clarity_val)?;
 
@@ -4305,7 +4318,10 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "print",
-        |_value_offset: i32, _value_length: i32| {
+        |_value_offset: i32,
+         _value_length: i32,
+         _serialized_ty_offset: i32,
+         _serialized_ty_length: i32| {
             println!("print");
         },
     )?;
