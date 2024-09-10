@@ -1,5 +1,7 @@
-use clar2wasm::tools::crosscheck_compare_only_advancing_tip;
-use proptest::proptest;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip};
+use proptest::{prelude::Strategy, proptest};
+
+use crate::{uint, PropValue};
 
 const BLOCK_INFO_V1: [&str; 5] = [
     "burnchain-header-hash",
@@ -83,5 +85,37 @@ mod clarity_v2_v3 {
                 )
             }
         }
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    # [test]
+    fn crosscheck_at_block(
+        block_height in uint().prop_map(PropValue::from)
+    ) {
+        let expected = block_height.clone();
+
+        crosscheck(
+            &format!("(at-block (sha256 {block_height}) (+ u0 {block_height}))"),
+            Ok(Some(expected.into()))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    # [test]
+    fn crosscheck_as_contract(
+        block_height in uint().prop_map(PropValue::from)
+    ) {
+        let expected = block_height.clone();
+
+        crosscheck(
+            &format!("(as-contract (+ u0 {block_height}))"),
+            Ok(Some(expected.into()))
+        )
     }
 }
