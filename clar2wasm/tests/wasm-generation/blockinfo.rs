@@ -1,7 +1,10 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip};
-use proptest::{prelude::Strategy, proptest};
+use clarity::vm::types::SequenceData;
+use clarity::vm::Value;
+use proptest::prelude::Strategy;
+use proptest::proptest;
 
-use crate::{uint, PropValue};
+use crate::{buffer, uint, PropValue};
 
 const BLOCK_INFO_V1: [&str; 5] = [
     "burnchain-header-hash",
@@ -93,13 +96,27 @@ proptest! {
 
     # [test]
     fn crosscheck_at_block(
-        block_height in uint().prop_map(PropValue::from)
+        operand in uint().prop_map(PropValue::from),
+        buf in buffer(32)
     ) {
-        let expected = block_height.clone();
+        let expected = operand.clone();
 
         crosscheck(
-            &format!("(at-block (sha256 {block_height}) (+ u0 {block_height}))"),
+            &format!("(at-block {buf} (+ u0 {operand}))"),
             Ok(Some(expected.into()))
+        )
+    }
+
+    # [test]
+    fn crosscheck_at_block_inner(
+        seq in (1u8..=20).prop_flat_map(|size| PropValue::any_sequence(size as usize)),
+        buf in buffer(32)
+    ) {
+        let expected: u128 = extract_sequence(seq.clone()).len().try_into().unwrap();
+
+        crosscheck(
+            &format!("(begin (at-block {buf} (len {seq})))"),
+            Ok(Some(Value::UInt(expected)))
         )
     }
 }
@@ -109,13 +126,32 @@ proptest! {
 
     # [test]
     fn crosscheck_as_contract(
-        block_height in uint().prop_map(PropValue::from)
+        operand in uint().prop_map(PropValue::from)
     ) {
-        let expected = block_height.clone();
+        let expected = operand.clone();
 
         crosscheck(
-            &format!("(as-contract (+ u0 {block_height}))"),
+            &format!("(as-contract (+ u0 {operand}))"),
             Ok(Some(expected.into()))
         )
+    }
+
+    # [test]
+    fn crosscheck_as_contract_inner(
+        seq in (1u8..=20).prop_flat_map(|size| PropValue::any_sequence(size as usize))
+    ) {
+        let expected: u128 = extract_sequence(seq.clone()).len().try_into().unwrap();
+
+        crosscheck(
+            &format!("(begin (as-contract (len {seq})))"),
+            Ok(Some(Value::UInt(expected)))
+        )
+    }
+}
+
+fn extract_sequence(sequence: PropValue) -> SequenceData {
+    match Value::from(sequence) {
+        Value::Sequence(seq_data) => seq_data,
+        _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
     }
 }
