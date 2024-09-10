@@ -52,7 +52,6 @@ pub enum CompileError {
     },
 }
 
-#[allow(clippy::result_large_err)]
 pub fn compile(
     source: &str,
     contract_id: &QualifiedContractIdentifier,

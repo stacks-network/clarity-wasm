@@ -5,7 +5,6 @@
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use clar2wasm::tools::crosscheck;
-    use clarity::util::hash::hex_bytes;
     use clarity::vm::types::{
         BuffData, OptionalData, PrincipalData, QualifiedContractIdentifier, SequenceData,
         StandardPrincipalData, TupleData,
@@ -16,27 +15,27 @@ mod clarity_v2_v3 {
 
     use crate::{buffer, runtime_config, PropValue};
 
-    fn create_principal_from_strings(
-        version_string: &str,
-        principal_string: &str,
-        name: Option<&str>,
-    ) -> Value {
-        let mut version_array = [0u8; 1];
-        version_array.copy_from_slice(&hex_bytes(version_string).expect("hex_bytes failed"));
-        let mut principal_array = [0u8; 20];
-        principal_array.copy_from_slice(&hex_bytes(principal_string).expect("hex_bytes failed"));
-
-        if let Some(name) = name {
+    fn create_principal(version: u8, principal: &Vec<u8>, contract_name: Option<&str>) -> Value {
+        if let Some(contract_name) = contract_name {
             // contract principal requested
             Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier::new(
-                StandardPrincipalData(version_array[0], principal_array),
-                name.into(),
+                StandardPrincipalData(
+                    version,
+                    principal
+                        .as_slice()
+                        .try_into()
+                        .expect("slice bigger than 20 bytes"),
+                ),
+                contract_name.into(),
             )))
         } else {
             // standard principal requested
             Value::Principal(PrincipalData::Standard(StandardPrincipalData(
-                version_array[0],
-                principal_array,
+                version,
+                principal
+                    .as_slice()
+                    .try_into()
+                    .expect("slice bigger than 20 bytes"),
             )))
         }
     }
@@ -58,7 +57,7 @@ mod clarity_v2_v3 {
         .unwrap()
     }
 
-    fn create_error_destruct(hash_bytes: Value, version_byte: i32) -> Value {
+    fn create_error_destruct(hash_bytes: Value, version_byte: u8) -> Value {
         Value::error(
             TupleData::from_data(vec![
                 ("hash-bytes".into(), hash_bytes),
@@ -66,7 +65,7 @@ mod clarity_v2_v3 {
                 (
                     "version".into(),
                     Value::Sequence(SequenceData::Buffer(BuffData {
-                        data: vec![version_byte as u8],
+                        data: vec![version_byte],
                     })),
                 ),
             ])
@@ -81,12 +80,12 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_construct(
-            version_byte in 0x00..=0xff,
+            version_byte in 0x00..=0x1f,
             hash_bytes in buffer(20)
         ) {
-            let expected_principal = create_principal_from_strings(
-                &format!("{:02X}", version_byte),
-                &hash_bytes.to_string()[2..],
+            let expected_principal = create_principal(
+                version_byte as u8,
+                &hash_bytes.clone().expect_buff(20).unwrap(),
                 None
             );
 
@@ -116,48 +115,46 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_destruct(
-            version_byte in 0x00..=0xff,
+            version_byte in 0x00..=0x1f,
             hash_bytes in buffer(20)
         ) {
-            let expected_principal = create_principal_from_strings(
-                &format!("{:02X}", version_byte),
-                &hash_bytes.to_string()[2..],
+            let expected_principal = create_principal(
+                version_byte as u8,
+                &hash_bytes.clone().expect_buff(20).unwrap(),
                 None
             );
 
-            if !(PropValue::from(expected_principal.clone()).to_string().contains("'INVALID_C32_ADD")) {
-                let expected = match version_byte {
-                    // Valid range for version_bytes
-                    0x00..=0x1f => {
-                        match version_byte {
-                            // Since tests runs on a Testnet version,
-                            // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
-                            // will return an Ok value.
-                            0x1A | 0x15 => Value::okay(
-                                TupleData::from_data(vec![
-                                    ("hash-bytes".into(), hash_bytes),
-                                    ("name".into(), Value::Optional(OptionalData { data: None })),
-                                    (
-                                        "version".into(),
-                                        Value::Sequence(SequenceData::Buffer(BuffData {
-                                            data: vec![version_byte as u8],
-                                        })),
-                                    ),
-                                ])
-                                .unwrap()
-                                .into()
-                            ),
-                            _ => Ok(create_error_destruct(hash_bytes, version_byte)),
-                        }
-                    },
-                    _ => Ok(create_error_destruct(hash_bytes, version_byte)),
-                }.unwrap();
+            let expected = match version_byte {
+                // Valid range for version_bytes
+                0x00..=0x1f => {
+                    match version_byte {
+                        // Since tests runs on a Testnet version,
+                        // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
+                        // will return an Ok value.
+                        0x1A | 0x15 => Value::okay(
+                            TupleData::from_data(vec![
+                                ("hash-bytes".into(), hash_bytes),
+                                ("name".into(), Value::Optional(OptionalData { data: None })),
+                                (
+                                    "version".into(),
+                                    Value::Sequence(SequenceData::Buffer(BuffData {
+                                        data: vec![version_byte as u8],
+                                    })),
+                                ),
+                            ])
+                            .unwrap()
+                            .into()
+                        ),
+                        _ => Ok(create_error_destruct(hash_bytes, version_byte as u8)),
+                    }
+                },
+                _ => Ok(create_error_destruct(hash_bytes, version_byte as u8)),
+            }.unwrap();
 
-                crosscheck(
-                    &format!("(principal-destruct? {})", PropValue::from(expected_principal.clone())),
-                    Ok(Some(expected)),
-                );
-            }
+            crosscheck(
+                &format!("(principal-destruct? {})", PropValue::from(expected_principal.clone())),
+                Ok(Some(expected)),
+            );
         }
     }
 
@@ -166,27 +163,25 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_is_standard(
-            version_byte in 0x00..=0xff,
+            version_byte in 0x00..=0x1f,
             hash_bytes in buffer(20),
             contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
                 prop_oneof![Just(Some(name)), Just(None)]
             })
         ) {
-            let expected_principal = create_principal_from_strings(
-                &format!("{:02X}", version_byte),
-                &hash_bytes.to_string()[2..],
+            let expected_principal = create_principal(
+                version_byte as u8,
+                &hash_bytes.expect_buff(20).unwrap(),
                 contract.as_deref()
             );
 
-            if !(PropValue::from(expected_principal.clone()).to_string().contains("'INVALID_C32_ADD")) {
-                let principal_str = PropValue::from(expected_principal.clone()).to_string();
-                let expected = matches!(principal_str.get(0..3), Some("'ST") | Some("'SN"));
+            let principal_str = PropValue::from(expected_principal.clone()).to_string();
+            let expected = matches!(principal_str.get(0..3), Some("'ST") | Some("'SN"));
 
-                crosscheck(
-                    &format!("(is-standard {})", PropValue::from(expected_principal.clone())),
-                    Ok(Some(Value::Bool(expected))),
-                );
-            }
+            crosscheck(
+                &format!("(is-standard {})", PropValue::from(expected_principal.clone())),
+                Ok(Some(Value::Bool(expected))),
+            );
         }
     }
 }
