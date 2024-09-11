@@ -146,6 +146,7 @@ impl ComplexWord for AtBlock {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
@@ -331,23 +332,19 @@ mod tests {
         )
     }
 
-    #[ignore = "see issue: #381"]
     #[test]
     fn at_block_var() {
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-        // Should error, since the data var is not yet defined in block 0
-        let e = env
-            .evaluate(
-                r#"
+        let e = evaluate(
+                "
 (define-data-var data int 1)
-(at-block (unwrap-panic (get-block-info? id-header-hash u0))
-    (var-get data)
-)
-"#,
+(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e (var-get data)) ;; block 0
+",
             )
             .unwrap_err();
-        println!("{:?}", e);
+        assert_eq!(
+            e,
+            Error::Unchecked(CheckErrors::NoSuchDataVariable("data".into()))
+        );
     }
 
     #[test]

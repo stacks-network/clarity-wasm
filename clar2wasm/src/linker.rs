@@ -1,7 +1,7 @@
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::callables::{DefineType, DefinedFunction};
 use clarity::vm::costs::{constants as cost_constants, CostTracker};
-use clarity::vm::database::STXBalance;
+use clarity::vm::database::{ClarityDatabase, STXBalance, StoreType};
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
 use clarity::vm::types::{
@@ -618,21 +618,32 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .ok_or(CheckErrors::NoSuchDataVariable(var_name.to_string()))?
                     .clone();
 
-                let result = caller
-                    .data_mut()
-                    .global_context
-                    .database
-                    .lookup_variable_with_size(&contract, var_name.as_str(), &data_types, &epoch);
-
-                let _result_size = match &result {
-                    Ok(data) => data.serialized_byte_len,
-                    Err(_e) => data_types.value_type.size()? as u64,
-                };
+                // We would like to call `lookup_variable_with_size`, but since it
+                // returns `Ok(none)` even if the variable is missing, we have no way
+                // to distinguish between a valid `none` and a missing variable.
+                // So here we replicate `lookup_variable_with_size` impl.
+                let key = ClarityDatabase::make_key_for_trip(
+                    &contract,
+                    StoreType::Variable,
+                    var_name.as_str(),
+                );
+                let fetch_result = caller.data_mut().global_context.database.get_value(
+                    &key,
+                    &data_types.value_type,
+                    &epoch,
+                )?;
 
                 // TODO: Include this cost
+                // let _result_size = match &fetch_result {
+                //     Ok(data) => data.serialized_byte_len,
+                //     Err(_e) => data_types.value_type.size()? as u64,
+                // };
                 // runtime_cost(ClarityCostFunction::FetchVar, env, result_size)?;
 
-                let value = result.map(|data| data.value)?;
+                let value = fetch_result.map(|data| data.value).ok_or(Error::Unchecked(
+                    CheckErrors::NoSuchDataVariable(var_name.to_string()),
+                ))?;
+
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
