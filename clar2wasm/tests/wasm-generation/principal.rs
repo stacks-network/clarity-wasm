@@ -5,6 +5,7 @@
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use clar2wasm::tools::crosscheck;
+    use clarity::util::secp256k1::Secp256k1PublicKey;
     use clarity::vm::types::{
         ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
         SequenceData, StandardPrincipalData, TupleData,
@@ -65,7 +66,7 @@ mod clarity_v2_v3 {
         Value::error(
             TupleData::from_data(vec![
                 ("hash-bytes".into(), hash_bytes),
-                ("name".into(), Value::Optional(OptionalData { data: data })),
+                ("name".into(), Value::Optional(OptionalData { data })),
                 (
                     "version".into(),
                     Value::Sequence(SequenceData::Buffer(BuffData {
@@ -139,16 +140,11 @@ mod clarity_v2_v3 {
                 contract.as_deref()
             );
 
-            let data = match contract {
-                Some(ctc) => Some(
-                    Box::new(
-                        Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
-                            data: ctc.into_bytes()
-                        })))
-                    )
-                ),
-                None => None
-            };
+            let data = contract.map(|ctc| Box::new(
+                Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
+                    data: ctc.into_bytes()
+                })))
+            ));
 
             let expected = match version_byte {
                 // Valid range for version_bytes
@@ -160,7 +156,7 @@ mod clarity_v2_v3 {
                         0x1A | 0x15 => Value::okay(
                             TupleData::from_data(vec![
                                 ("hash-bytes".into(), hash_bytes),
-                                ("name".into(), Value::Optional(OptionalData { data: data })),
+                                ("name".into(), Value::Optional(OptionalData { data })),
                                 (
                                     "version".into(),
                                     Value::Sequence(SequenceData::Buffer(BuffData {
@@ -207,6 +203,28 @@ mod clarity_v2_v3 {
             crosscheck(
                 &format!("(is-standard {})", PropValue::from(expected_principal.clone())),
                 Ok(Some(Value::Bool(expected))),
+            );
+        }
+    }
+
+    proptest! {
+        #![proptest_config(runtime_config())]
+
+        #[test]
+        fn crosscheck_principal_of(
+            key in buffer(33)
+        ) {
+            let hex_string = &format!("{}", key)[2..];
+            let pubkey = Secp256k1PublicKey::from_hex(hex_string);
+
+            let (snippet, expected) = match pubkey.is_ok() {
+                true => (&format!("(is-standard (try! (principal-of? {key})))"),  Value::Bool(true)),
+                false => (&format!("(principal-of? {key})"), Value::err_uint(1))
+            };
+
+            crosscheck(
+                snippet,
+                Ok(Some(expected))
             );
         }
     }
