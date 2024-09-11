@@ -24,6 +24,9 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Run Tests
         run: |
             cargo nextest run \
