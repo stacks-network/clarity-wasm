@@ -6,8 +6,8 @@
 mod clarity_v2_v3 {
     use clar2wasm::tools::crosscheck;
     use clarity::vm::types::{
-        BuffData, OptionalData, PrincipalData, QualifiedContractIdentifier, SequenceData,
-        StandardPrincipalData, TupleData,
+        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+        SequenceData, StandardPrincipalData, TupleData,
     };
     use clarity::vm::Value;
     use proptest::prelude::{Just, Strategy};
@@ -57,11 +57,15 @@ mod clarity_v2_v3 {
         .unwrap()
     }
 
-    fn create_error_destruct(hash_bytes: Value, version_byte: u8) -> Value {
+    fn create_error_destruct(
+        hash_bytes: Value,
+        version_byte: u8,
+        data: Option<Box<Value>>,
+    ) -> Value {
         Value::error(
             TupleData::from_data(vec![
                 ("hash-bytes".into(), hash_bytes),
-                ("name".into(), Value::Optional(OptionalData { data: None })),
+                ("name".into(), Value::Optional(OptionalData { data: data })),
                 (
                     "version".into(),
                     Value::Sequence(SequenceData::Buffer(BuffData {
@@ -81,12 +85,15 @@ mod clarity_v2_v3 {
         #[test]
         fn crosscheck_principal_construct(
             version_byte in 0x00..=0x1f,
-            hash_bytes in buffer(20)
+            hash_bytes in buffer(20),
+            contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
+                prop_oneof![Just(Some(name)), Just(None)]
+            })
         ) {
             let expected_principal = create_principal(
                 version_byte as u8,
                 &hash_bytes.clone().expect_buff(20).unwrap(),
-                None
+                contract.as_deref()
             );
 
             let expected = match version_byte {
@@ -103,8 +110,13 @@ mod clarity_v2_v3 {
                 _ => Ok(create_error_construct(1, None)),
             }.unwrap();
 
+            let snippet = match contract {
+                Some(ctc) => &format!("(principal-construct? 0x{:02X} {hash_bytes} \"{}\")", version_byte, ctc),
+                None => &format!("(principal-construct? 0x{:02X} {hash_bytes})", version_byte)
+            };
+
             crosscheck(
-                &format!("(principal-construct? 0x{:02X} {hash_bytes})", version_byte),
+                snippet,
                 Ok(Some(expected)),
             );
         }
@@ -116,13 +128,27 @@ mod clarity_v2_v3 {
         #[test]
         fn crosscheck_principal_destruct(
             version_byte in 0x00..=0x1f,
-            hash_bytes in buffer(20)
+            hash_bytes in buffer(20),
+            contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
+                prop_oneof![Just(Some(name)), Just(None)]
+            })
         ) {
             let expected_principal = create_principal(
                 version_byte as u8,
                 &hash_bytes.clone().expect_buff(20).unwrap(),
-                None
+                contract.as_deref()
             );
+
+            let data = match contract {
+                Some(ctc) => Some(
+                    Box::new(
+                        Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
+                            data: ctc.into_bytes()
+                        })))
+                    )
+                ),
+                None => None
+            };
 
             let expected = match version_byte {
                 // Valid range for version_bytes
@@ -134,7 +160,7 @@ mod clarity_v2_v3 {
                         0x1A | 0x15 => Value::okay(
                             TupleData::from_data(vec![
                                 ("hash-bytes".into(), hash_bytes),
-                                ("name".into(), Value::Optional(OptionalData { data: None })),
+                                ("name".into(), Value::Optional(OptionalData { data: data })),
                                 (
                                     "version".into(),
                                     Value::Sequence(SequenceData::Buffer(BuffData {
@@ -145,10 +171,10 @@ mod clarity_v2_v3 {
                             .unwrap()
                             .into()
                         ),
-                        _ => Ok(create_error_destruct(hash_bytes, version_byte as u8)),
+                        _ => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
                     }
                 },
-                _ => Ok(create_error_destruct(hash_bytes, version_byte as u8)),
+                _ => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
             }.unwrap();
 
             crosscheck(
