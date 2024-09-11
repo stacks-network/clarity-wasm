@@ -32,8 +32,8 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v4
 
-      - name: Use Rust stable with rustfmt
-        uses: dtolnay/rust-toolchain@stable
+      - name: Use Rust nightly with rustfmt
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
 

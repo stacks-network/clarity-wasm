@@ -1,11 +1,11 @@
 //! The `tools` module contains tools for evaluating Clarity snippets.
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production.
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(clippy::expect_used, clippy::unwrap_used, static_mut_refs)]
 
 use std::collections::HashMap;
 
-use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
@@ -117,8 +117,15 @@ impl TestEnvironment {
             &self.burn_datastore,
             &self.burn_datastore,
         );
-        let mut global_context =
-            GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
+
+        let context_config = unsafe { &CONTEXT_CONFIG };
+        let mut global_context = GlobalContext::new(
+            context_config.mainnet,
+            context_config.chain_id,
+            conn,
+            cost_tracker,
+            self.epoch,
+        );
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -223,14 +230,14 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
+        let context_config = unsafe { &CONTEXT_CONFIG };
         let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
+            context_config.mainnet,
+            context_config.chain_id,
             conn,
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
         );
-
         global_context.begin();
 
         global_context
@@ -616,6 +623,43 @@ fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
             }
         }
     }
+}
+
+pub enum Network {
+    Mainnet,
+    Testnet,
+}
+
+#[derive(Debug)]
+struct ContextConfig {
+    mainnet: bool,
+    chain_id: u32,
+}
+
+static mut CONTEXT_CONFIG: ContextConfig = ContextConfig {
+    mainnet: false,
+    chain_id: CHAIN_ID_TESTNET,
+};
+
+pub fn crosscheck_with_network(
+    network: &Network,
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+) {
+    let context_config = match network {
+        Network::Mainnet => ContextConfig {
+            mainnet: true,
+            chain_id: CHAIN_ID_MAINNET,
+        },
+        Network::Testnet => ContextConfig {
+            mainnet: false,
+            chain_id: CHAIN_ID_TESTNET,
+        },
+    };
+
+    unsafe { CONTEXT_CONFIG = context_config };
+
+    crosscheck(snippet, expected)
 }
 
 #[test]

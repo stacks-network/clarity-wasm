@@ -4,17 +4,25 @@
 //
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
-    use clar2wasm::tools::crosscheck;
-    use clarity::util::secp256k1::Secp256k1PublicKey;
+    use clar2wasm::tools::{crosscheck, crosscheck_with_network, Network};
+    use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
     use clarity::vm::types::{
         ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
         SequenceData, StandardPrincipalData, TupleData,
     };
     use clarity::vm::Value;
-    use proptest::prelude::{Just, Strategy};
+    use proptest::prelude::{any, Just, Strategy};
     use proptest::{prop_oneof, proptest};
 
-    use crate::{buffer, runtime_config, PropValue};
+    use crate::{buffer, runtime_config, standard_principal, PropValue};
+
+    fn strategies_for_version_byte() -> impl Strategy<Value = i32> {
+        prop_oneof![
+            25 => Just(0x1A),
+            25 => Just(0x15),
+            50 => 0x00..=0x1F
+        ]
+    }
 
     fn create_principal(version: u8, principal: &Vec<u8>, contract_name: Option<&str>) -> Value {
         if let Some(contract_name) = contract_name {
@@ -85,7 +93,7 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_construct(
-            version_byte in 0x00..=0x1f,
+            version_byte in strategies_for_version_byte(),
             hash_bytes in buffer(20),
             contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
                 prop_oneof![Just(Some(name)), Just(None)]
@@ -98,17 +106,12 @@ mod clarity_v2_v3 {
             );
 
             let expected = match version_byte {
-                // Valid range for version_bytes
-                0x00..=0x1f => {
-                    match version_byte {
-                        // Since tests runs on a Testnet version,
-                        // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
-                        // will return an Ok value.
-                        0x1A | 0x15 => Value::okay(expected_principal),
-                        _ => Ok(create_error_construct(0, Some(expected_principal))),
-                    }
-                },
-                _ => Ok(create_error_construct(1, None)),
+                 // Since tests runs on a Testnet version,
+                 // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
+                 // will return an Ok value.
+                0x1A | 0x15 => Value::okay(expected_principal),
+                0x00..=0x1F => Ok(create_error_construct(0, Some(expected_principal))),
+                _ => Ok(create_error_construct(1, None))
             }.unwrap();
 
             let snippet = match contract {
@@ -128,12 +131,13 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_destruct(
-            version_byte in 0x00..=0x1f,
+            version_byte in strategies_for_version_byte(),
             hash_bytes in buffer(20),
             contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
                 prop_oneof![Just(Some(name)), Just(None)]
             })
         ) {
+
             let expected_principal = create_principal(
                 version_byte as u8,
                 &hash_bytes.clone().expect_buff(20).unwrap(),
@@ -147,29 +151,24 @@ mod clarity_v2_v3 {
             ));
 
             let expected = match version_byte {
-                // Valid range for version_bytes
-                0x00..=0x1f => {
-                    match version_byte {
-                        // Since tests runs on a Testnet version,
-                        // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
-                        // will return an Ok value.
-                        0x1A | 0x15 => Value::okay(
-                            TupleData::from_data(vec![
-                                ("hash-bytes".into(), hash_bytes),
-                                ("name".into(), Value::Optional(OptionalData { data })),
-                                (
-                                    "version".into(),
-                                    Value::Sequence(SequenceData::Buffer(BuffData {
-                                        data: vec![version_byte as u8],
-                                    })),
-                                ),
-                            ])
-                            .unwrap()
-                            .into()
+                // Since tests runs on a Testnet version,
+                // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
+                // will return an Ok value.
+                0x1A | 0x15 => Value::okay(
+                    TupleData::from_data(vec![
+                        ("hash-bytes".into(), hash_bytes),
+                        ("name".into(), Value::Optional(OptionalData { data })),
+                        (
+                            "version".into(),
+                            Value::Sequence(SequenceData::Buffer(BuffData {
+                                data: vec![version_byte as u8],
+                            })),
                         ),
-                        _ => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
-                    }
-                },
+                    ])
+                    .unwrap()
+                    .into()
+                ),
+                0x00..=0x1F => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
                 _ => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
             }.unwrap();
 
@@ -185,25 +184,22 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_is_standard(
-            version_byte in 0x00..=0x1f,
-            hash_bytes in buffer(20),
-            contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
-                prop_oneof![Just(Some(name)), Just(None)]
-            })
+            principal in standard_principal().prop_map(PropValue::from)
         ) {
-            let expected_principal = create_principal(
-                version_byte as u8,
-                &hash_bytes.expect_buff(20).unwrap(),
-                contract.as_deref()
-            );
+            let principal_str = principal.to_string();
+            let expected_in_testnet = matches!(principal_str.get(0..3), Some("'ST") | Some("'SN"));
+            let expected_in_mainnet = matches!(principal_str.get(0..3), Some("'SP") | Some("'SM"));
 
-            let principal_str = PropValue::from(expected_principal.clone()).to_string();
-            let expected = matches!(principal_str.get(0..3), Some("'ST") | Some("'SN"));
+            let crosscheck_for = |network: &Network, expected: bool| {
+                crosscheck_with_network(
+                    network,
+                    &format!("(is-standard {})", principal),
+                    Ok(Some(Value::Bool(expected))),
+                );
+            };
 
-            crosscheck(
-                &format!("(is-standard {})", PropValue::from(expected_principal.clone())),
-                Ok(Some(Value::Bool(expected))),
-            );
+            crosscheck_for(&Network::Mainnet, expected_in_mainnet);
+            crosscheck_for(&Network::Testnet, expected_in_testnet);
         }
     }
 
@@ -212,20 +208,24 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_of(
-            key in buffer(33)
+            seed in proptest::collection::vec(any::<u8>(), 20)
         ) {
-            let hex_string = &format!("{}", key)[2..];
-            let pubkey = Secp256k1PublicKey::from_hex(hex_string);
 
-            let (snippet, expected) = match pubkey.is_ok() {
-                true => (&format!("(is-standard (try! (principal-of? {key})))"),  Value::Bool(true)),
-                false => (&format!("(principal-of? {key})"), Value::err_uint(1))
+            let private_key = Secp256k1PrivateKey::from_seed(&seed);
+            let public_key = Secp256k1PublicKey::from_private(&private_key);
+
+            let snippet = &format!("(is-standard (try! (principal-of? 0x{})))", public_key.to_hex());
+
+            let crosscheck_for = |network: &Network, expected: bool| {
+                crosscheck_with_network(
+                    network,
+                    snippet,
+                    Ok(Some(Value::Bool(expected))),
+                );
             };
 
-            crosscheck(
-                snippet,
-                Ok(Some(expected))
-            );
+            crosscheck_for(&Network::Mainnet, true);
+            crosscheck_for(&Network::Testnet, true);
         }
     }
 }
