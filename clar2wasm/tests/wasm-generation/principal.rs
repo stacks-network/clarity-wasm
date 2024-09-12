@@ -12,7 +12,8 @@ mod clarity_v2_v3 {
     };
     use clarity::vm::Value;
     use proptest::prelude::{any, Just, Strategy};
-    use proptest::{prop_oneof, proptest};
+    use proptest::string::string_regex;
+    use proptest::{option, prop_oneof, proptest};
 
     use crate::{buffer, runtime_config, standard_principal, PropValue};
 
@@ -95,9 +96,7 @@ mod clarity_v2_v3 {
         fn crosscheck_principal_construct(
             version_byte in strategies_for_version_byte(),
             hash_bytes in buffer(20),
-            contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
-                prop_oneof![Just(Some(name)), Just(None)]
-            })
+            contract in option::of(string_regex("([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})").unwrap())
         ) {
             let expected_principal = create_principal(
                 version_byte as u8,
