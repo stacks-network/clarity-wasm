@@ -576,13 +576,17 @@ pub fn crosscheck_expect_failure(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);
 
-    assert_eq!(
-        compiled.is_err(),
+    assert!(
         interpreted.is_err(),
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        "Interpreted didn't err: {}\ninterpreted: {:?}",
+        snippet,
+        &interpreted,
+    );
+    assert!(
+        compiled.is_err(),
+        "Compiled didn't err: {}\ncompiled: {:?}",
         snippet,
         &compiled,
-        &interpreted
     );
 }
 
