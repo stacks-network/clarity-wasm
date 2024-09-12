@@ -340,4 +340,14 @@ mod tests {
         crosscheck_expect_failure("(define-read-only (element-at?) (ok u0))");
         crosscheck_expect_failure("(define-read-only (element-at) (ok u0))");
     }
+
+    #[test]
+    fn reuse_arg_name() {
+        crosscheck_expect_failure("(define-private (foo (a int) (a int)) a)");
+        crosscheck_expect_failure(
+            "
+(define-trait test-trait ((no-args () (response uint uint))))
+(define-private (foo (a int) (a <test-trait>)) a)",
+        )
+    }
 }
