@@ -3,6 +3,8 @@ use clarity::vm::types::ResponseData;
 use clarity::vm::Value;
 use wasmtime::{AsContextMut, Instance, Trap};
 
+use crate::wasm_utils::read_bytes_from_wasm;
+
 const LOG2_ERROR_MESSAGE: &str = "log2 must be passed a positive integer";
 const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
 const POW_ERROR_MESSAGE: &str = "Power argument to (pow ...) must be a u32 integer";
@@ -18,6 +20,7 @@ pub enum ErrorMap {
     Panic = 6,
     ShortReturnAssertionFailure = 7,
     ArithmeticPowError = 8,
+    NameAlreadyUsed = 9,
     NotMapped = 99,
 }
 
@@ -34,6 +37,7 @@ impl From<i32> for ErrorMap {
             6 => ErrorMap::Panic,
             7 => ErrorMap::ShortReturnAssertionFailure,
             8 => ErrorMap::ArithmeticPowError,
+            9 => ErrorMap::NameAlreadyUsed,
             _ => ErrorMap::NotMapped,
         }
     }
@@ -156,6 +160,36 @@ fn from_runtime_error_code(
             RuntimeErrorType::Arithmetic(POW_ERROR_MESSAGE.into()),
             Some(Vec::new()),
         ),
+        ErrorMap::NameAlreadyUsed => {
+            let runtime_error_arg_offset = instance
+                .get_global(&mut store, "runtime-error-arg-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-arg-offset global with i32 value")
+                });
+
+            let runtime_error_arg_len = instance
+                .get_global(&mut store, "runtime-error-arg-len")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-arg-len global with i32 value")
+                });
+
+            let arg_name = String::from_utf8(
+                read_bytes_from_wasm(
+                    instance
+                        .get_memory(&mut store, "memory")
+                        .unwrap_or_else(|| panic!("Could not find wasm instance memory")),
+                    &mut store,
+                    runtime_error_arg_offset,
+                    runtime_error_arg_len,
+                )
+                .unwrap_or_else(|e| panic!("Could not read from wasm memory: {e}")),
+            )
+            .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
+
+            Error::Unchecked(CheckErrors::NameAlreadyUsed(arg_name))
+        }
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }
 }

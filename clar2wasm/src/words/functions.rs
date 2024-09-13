@@ -112,6 +112,7 @@ impl ComplexWord for DefinePublicFunction {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
@@ -343,11 +344,21 @@ mod tests {
 
     #[test]
     fn reuse_arg_name() {
-        crosscheck_expect_failure("(define-private (foo (a int) (a int)) a)");
-        crosscheck_expect_failure(
-            "
-(define-trait test-trait ((no-args () (response uint uint))))
-(define-private (foo (a int) (a <test-trait>)) a)",
-        )
+        let snippet = "
+(define-private (foo (a int) (a int) (b int) (b int)) 1)
+(define-private (bar (c int) (d int) (e int) (d int)) 1)
+";
+        crosscheck(
+            &format!("{snippet} (foo 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "a".to_string(),
+            ))),
+        );
+        crosscheck(
+            &format!("{snippet} (bar 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "d".to_string(),
+            ))),
+        );
     }
 }
