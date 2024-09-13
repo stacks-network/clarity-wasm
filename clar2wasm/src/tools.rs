@@ -22,6 +22,12 @@ use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 use crate::initialize::initialize_contract;
 
+#[derive(Debug, Clone)]
+struct ContextConfig {
+    mainnet: bool,
+    chain_id: u32,
+}
+
 #[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
@@ -31,6 +37,7 @@ pub struct TestEnvironment {
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
     events: Vec<EventBatch>,
+    context_config: ContextConfig,
 }
 
 impl TestEnvironment {
@@ -65,11 +72,33 @@ impl TestEnvironment {
             burn_datastore,
             cost_tracker,
             events: vec![],
+            context_config: ContextConfig {
+                mainnet: false,
+                chain_id: CHAIN_ID_TESTNET,
+            },
         }
     }
 
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
         Self::new_with_amount(1_000_000_000, epoch, version)
+    }
+
+    pub fn new_with_network(
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: &Network,
+    ) -> Self {
+        let context_config = ContextConfig {
+            mainnet: matches!(network, Network::Mainnet),
+            chain_id: match network {
+                Network::Mainnet => CHAIN_ID_MAINNET,
+                Network::Testnet => CHAIN_ID_TESTNET,
+            },
+        };
+
+        let mut env = Self::new(epoch, version);
+        env.context_config = context_config;
+        env
     }
 
     pub fn init_contract_with_snippet(
@@ -118,10 +147,9 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
-        let context_config = unsafe { &CONTEXT_CONFIG };
         let mut global_context = GlobalContext::new(
-            context_config.mainnet,
-            context_config.chain_id,
+            self.context_config.mainnet,
+            self.context_config.chain_id,
             conn,
             cost_tracker,
             self.epoch,
@@ -230,10 +258,9 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
-        let context_config = unsafe { &CONTEXT_CONFIG };
         let mut global_context = GlobalContext::new(
-            context_config.mainnet,
-            context_config.chain_id,
+            self.context_config.mainnet,
+            self.context_config.chain_id,
             conn,
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
@@ -320,6 +347,18 @@ pub fn evaluate_at_with_amount(
     env.evaluate(snippet)
 }
 
+/// Evaluate a Clarity snippet at a specific network, epoch and version.
+/// Returns an optional value -- the result of the evaluation.
+pub fn evaluate_at_with_network(
+    snippet: &str,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+    network: &Network,
+) -> Result<Option<Value>, Error> {
+    let mut env = TestEnvironment::new_with_network(epoch, version, network);
+    env.evaluate(snippet)
+}
+
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
 pub fn evaluate(snippet: &str) -> Result<Option<Value>, Error> {
@@ -347,6 +386,18 @@ pub fn interpret_at_with_amount(
     version: ClarityVersion,
 ) -> Result<Option<Value>, Error> {
     let mut env = TestEnvironment::new_with_amount(amount, epoch, version);
+    env.interpret(snippet)
+}
+
+/// Interpret a Clarity snippet at a specific network, epoch and version.
+/// Returns an optional value -- the result of the evaluation.
+pub fn interpret_at_with_network(
+    snippet: &str,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+    network: &Network,
+) -> Result<Option<Value>, Error> {
+    let mut env = TestEnvironment::new_with_network(epoch, version, network);
     env.interpret(snippet)
 }
 
@@ -630,38 +681,32 @@ pub enum Network {
     Testnet,
 }
 
-#[derive(Debug)]
-struct ContextConfig {
-    mainnet: bool,
-    chain_id: u32,
-}
-
-static mut CONTEXT_CONFIG: ContextConfig = ContextConfig {
-    mainnet: false,
-    chain_id: CHAIN_ID_TESTNET,
-};
-
 pub fn crosscheck_with_network(
     network: &Network,
     snippet: &str,
     expected: Result<Option<Value>, Error>,
 ) {
-    let context_config = match network {
-        Network::Mainnet => ContextConfig {
-            mainnet: true,
-            chain_id: CHAIN_ID_MAINNET,
-        },
-        Network::Testnet => ContextConfig {
-            mainnet: false,
-            chain_id: CHAIN_ID_TESTNET,
-        },
-    };
+    let epoch = TestConfig::latest_epoch();
+    let version = TestConfig::clarity_version();
 
-    unsafe { CONTEXT_CONFIG = context_config };
+    // Evaluate and interpret with the same parameters
+    let compiled = evaluate_at_with_network(snippet, epoch, version, network);
+    let interpreted = interpret_at_with_network(snippet, epoch, version, network);
 
-    crosscheck(snippet, expected)
+    // Assert that compiled and interpreted results are the same
+    assert_eq!(
+        compiled, interpreted,
+        "Compiled and interpreted results diverge for snippet: {}\nCompiled: {:?}\nInterpreted: {:?}",
+        snippet, compiled, interpreted
+    );
+
+    // Assert that compiled matches the expected result
+    assert_eq!(
+        compiled, expected,
+        "Expected result mismatch for snippet: {}\nExpected: {:?}\nGot: {:?}",
+        snippet, expected, compiled
+    );
 }
-
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));

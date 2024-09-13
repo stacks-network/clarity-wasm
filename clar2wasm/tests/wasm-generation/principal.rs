@@ -5,12 +5,15 @@
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use clar2wasm::tools::{crosscheck, crosscheck_with_network, Network};
+    use clarity::address::AddressHashMode;
+    use clarity::types::chainstate::{StacksAddress, StacksPrivateKey, StacksPublicKey};
     use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
     use clarity::vm::types::{
         ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
         SequenceData, StandardPrincipalData, TupleData,
     };
     use clarity::vm::Value;
+    use clarity::{C32_ADDRESS_VERSION_MAINNET_SINGLESIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG};
     use proptest::prelude::{any, Just, Strategy};
     use proptest::string::string_regex;
     use proptest::{option, prop_oneof, proptest};
@@ -19,34 +22,30 @@ mod clarity_v2_v3 {
 
     fn strategies_for_version_byte() -> impl Strategy<Value = i32> {
         prop_oneof![
-            25 => Just(0x1A),
-            25 => Just(0x15),
+            13 => Just(0x1A),
+            13 => Just(0x14),
+            12 => Just(0x15),
+            12 => Just(0x16),
             50 => 0x00..=0x1F
         ]
     }
 
-    fn create_principal(version: u8, principal: &Vec<u8>, contract_name: Option<&str>) -> Value {
-        if let Some(contract_name) = contract_name {
-            // contract principal requested
-            Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier::new(
-                StandardPrincipalData(
-                    version,
-                    principal
-                        .as_slice()
-                        .try_into()
-                        .expect("slice bigger than 20 bytes"),
-                ),
-                contract_name.into(),
-            )))
-        } else {
-            // standard principal requested
-            Value::Principal(PrincipalData::Standard(StandardPrincipalData(
+    fn create_principal(version: u8, principal: &[u8], contract_name: Option<&str>) -> Value {
+        let principal_data: [u8; 20] = principal
+            .try_into()
+            .expect("slice must be exactly 20 bytes");
+
+        match contract_name {
+            Some(contract_name) => {
+                Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier::new(
+                    StandardPrincipalData(version, principal_data),
+                    contract_name.into(),
+                )))
+            }
+            None => Value::Principal(PrincipalData::Standard(StandardPrincipalData(
                 version,
-                principal
-                    .as_slice()
-                    .try_into()
-                    .expect("slice bigger than 20 bytes"),
-            )))
+                principal_data,
+            ))),
         }
     }
 
@@ -85,6 +84,16 @@ mod clarity_v2_v3 {
             ])
             .unwrap()
             .into(),
+        )
+        .unwrap()
+    }
+
+    fn key_to_stacks_addr(address_version: u8, key: &StacksPrivateKey) -> StacksAddress {
+        StacksAddress::from_public_keys(
+            address_version,
+            &AddressHashMode::SerializeP2PKH,
+            1,
+            &vec![StacksPublicKey::from_private(key)],
         )
         .unwrap()
     }
@@ -207,24 +216,39 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_principal_of(
-            seed in proptest::collection::vec(any::<u8>(), 20)
+            (private_key, public_key) in proptest::collection::vec(any::<u8>(), 20).prop_map(|seed| {
+                let private_key = Secp256k1PrivateKey::from_seed(&seed);
+                let public_key = Secp256k1PublicKey::from_private(&private_key);
+                (private_key, public_key)
+            })
         ) {
+            let snippet = format!("(principal-of? 0x{})", public_key.to_hex());
 
-            let private_key = Secp256k1PrivateKey::from_seed(&seed);
-            let public_key = Secp256k1PublicKey::from_private(&private_key);
-
-            let snippet = &format!("(is-standard (try! (principal-of? 0x{})))", public_key.to_hex());
-
-            let crosscheck_for = |network: &Network, expected: bool| {
+            let crosscheck_for = |network: &Network, snippet: &str, private_key: &Secp256k1PrivateKey, address_version: u8| {
+                let expected_principal = StandardPrincipalData::from(key_to_stacks_addr(address_version, private_key));
                 crosscheck_with_network(
                     network,
                     snippet,
-                    Ok(Some(Value::Bool(expected))),
+                    Ok(Some(Value::okay(expected_principal.into()).expect("Valid principal expected"))),
                 );
             };
 
-            crosscheck_for(&Network::Mainnet, true);
-            crosscheck_for(&Network::Testnet, true);
+            // Crosscheck for Testnet
+            crosscheck_for(
+                &Network::Testnet,
+                &snippet,
+                &private_key,
+                C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
+
+            );
+
+            // Crosscheck for Mainnet
+            crosscheck_for(
+                &Network::Mainnet,
+                &snippet,
+                &private_key,
+                C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
+            );
         }
     }
 }
