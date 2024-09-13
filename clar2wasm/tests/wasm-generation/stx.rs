@@ -115,8 +115,6 @@ proptest! {
             .unwrap(),
         );
 
-        // TODO: check for the correct memo in the events (issue #398)
-
         crosscheck_with_amount(&snippet, amount, Ok(Some(expected)));
     }
 }

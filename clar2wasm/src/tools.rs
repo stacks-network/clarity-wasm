@@ -618,3 +618,42 @@ fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
 }
+
+#[test]
+fn test_compare_events() {
+    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    CrossEvalResult {
+        env_interpreted,
+        env_compiled,
+        interpreted,
+        compiled,
+    }
+    .compare("");
+}
+
+#[test]
+#[should_panic(expected = "events mismatch")]
+fn test_compare_events_mismatch() {
+    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x0102FF)"); // different memo
+
+    CrossEvalResult {
+        env_interpreted,
+        env_compiled,
+        interpreted,
+        compiled,
+    }
+    .compare("");
+}
