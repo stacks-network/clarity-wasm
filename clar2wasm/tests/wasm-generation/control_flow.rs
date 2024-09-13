@@ -102,8 +102,8 @@ proptest! {
     fn begin((expr, expected_val, is_response_intermediary) in begin_strategy()) {
         if is_response_intermediary {
             crosscheck_expect_failure(&expr);
-        } else{
-            crosscheck(&expr,  Ok(Some(expected_val.into())));
+        } else {
+            crosscheck(&expr, Ok(Some(expected_val.into())));
         };
     }
 }
