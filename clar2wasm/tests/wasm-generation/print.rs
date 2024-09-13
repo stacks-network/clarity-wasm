@@ -1,4 +1,4 @@
-use clar2wasm::tools::crosscheck_with_events;
+use clar2wasm::tools::crosscheck;
 use proptest::proptest;
 
 use crate::PropValue;
@@ -8,7 +8,7 @@ proptest! {
 
     #[test]
     fn print_any(val in PropValue::any()) {
-        crosscheck_with_events(
+        crosscheck(
             &format!("(print {val})"),
             Ok(Some(val.into()))
         );

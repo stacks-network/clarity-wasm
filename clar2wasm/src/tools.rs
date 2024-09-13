@@ -315,7 +315,6 @@ pub fn evaluate_at_with_amount(
 
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
 pub fn evaluate(snippet: &str) -> Result<Option<Value>, Error> {
     evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
@@ -346,7 +345,6 @@ pub fn interpret_at_with_amount(
 
 /// Interprets a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
 pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
@@ -370,60 +368,74 @@ impl TestConfig {
     }
 }
 
+struct CrossEvalResult {
+    env_interpreted: TestEnvironment,
+    interpreted: Result<Option<Value>, Error>,
+
+    env_compiled: TestEnvironment,
+    compiled: Result<Option<Value>, Error>,
+}
+
+impl CrossEvalResult {
+    fn compare(&self, snippet: &str) {
+        assert_eq!(
+            self.compiled, self.interpreted,
+            "Compiled and interpreted results diverge! {snippet}\ncompiled: {:?}\ninterpreted: {:?}",
+            self.compiled, self.interpreted
+        );
+        compare_events(
+            self.env_interpreted.get_events(),
+            self.env_compiled.get_events(),
+        );
+    }
+}
+
+fn crosseval(snippet: &str, env: TestEnvironment) -> CrossEvalResult {
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret(snippet);
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate(snippet);
+
+    CrossEvalResult {
+        env_interpreted,
+        env_compiled,
+        interpreted,
+        compiled,
+    }
+}
+
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let compiled = evaluate_at(
+    let eval = crosseval(
         snippet,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     );
 
-    let interpreted = interpret_at(
-        snippet,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
-    );
+    eval.compare(snippet);
 
     assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled, &interpreted
-    );
-
-    assert_eq!(
-        compiled, expected,
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
     );
 }
 
-pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, ()>) {
-    let compiled = evaluate_at_with_amount(
+pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, Error>) {
+    let eval = crosseval(
         snippet,
-        amount,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
+        TestEnvironment::new_with_amount(
+            amount,
+            TestConfig::latest_epoch(),
+            TestConfig::clarity_version(),
+        ),
     );
 
-    let interpreted = interpret_at_with_amount(
-        snippet,
-        amount,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
-    );
+    eval.compare(snippet);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled,
-        &interpreted
-    );
-
-    assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        expected.as_ref(),
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
     );
 }
 
@@ -431,55 +443,45 @@ pub fn crosscheck_compare_only(snippet: &str) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
 
-    // Note that we interpret first, to catch logical errors early
-
-    let interpreted = interpret(snippet).expect("Interpreted snippet failed");
-    let compiled = evaluate(snippet).expect("Compiled snippet failed");
-
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
+    let eval = crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     );
+
+    // Note that we interpret first, to catch logical errors early
+    assert!(eval.interpreted.is_ok(), "Interpreted snippet failed");
+    assert!(eval.compiled.is_ok(), "Compiled snippet failed");
+
+    eval.compare(snippet);
 }
 
 pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
     snippet: &str,
     expected: E,
 ) {
-    let compiled = evaluate(snippet);
-    let interpreted = interpret(snippet);
+    let eval = crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+    );
 
-    if let Err(e) = &compiled {
+    if let Err(e) = &eval.compiled {
         if !expected(e) {
             panic!("Compiled snippet failed with unexpected error: {:?}", e);
         }
     }
 
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
-    );
+    eval.compare(snippet);
 }
 
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env =
-        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
-    compiler_env.advance_chain_tip(count);
+    let mut env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+    env.advance_chain_tip(count);
 
-    let mut interpreter_env = compiler_env.clone();
+    let eval = crosseval(snippet, env);
 
-    let compiled = compiler_env.evaluate(snippet).map_err(|_| ());
-    let interpreted = interpreter_env.interpret(snippet).map_err(|_| ());
-
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
-    );
+    eval.compare(snippet);
 }
 
 pub fn crosscheck_with_epoch(
@@ -487,43 +489,29 @@ pub fn crosscheck_with_epoch(
     expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
-    let clarity_version = ClarityVersion::default_for_epoch(epoch);
-    let compiled = evaluate_at(snippet, epoch, clarity_version);
-    let interpreted = interpret_at(snippet, epoch, clarity_version);
-
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled, &interpreted
+    let eval = crosseval(
+        snippet,
+        TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch)),
     );
 
+    eval.compare(snippet);
+
     assert_eq!(
-        compiled, expected,
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
     );
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let compiled = evaluate_at(
+    let eval = crosseval(
         snippet,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     );
 
-    let interpreted = interpret_at(
-        snippet,
-        TestConfig::latest_epoch(),
-        TestConfig::clarity_version(),
-    );
+    eval.compare(snippet);
 
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
-    );
-
-    let value = compiled.unwrap().unwrap();
+    let value = eval.compiled.unwrap().unwrap();
     validator(value)
 }
 
@@ -590,34 +578,6 @@ pub fn crosscheck_expect_failure(snippet: &str) {
     );
 }
 
-// TODO: add compare_events to regular crosscheck instead of having this separate function
-pub fn crosscheck_with_events(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let epoch = StacksEpochId::latest();
-    let version = ClarityVersion::latest();
-
-    let mut env_interpreted = TestEnvironment::new(epoch, version);
-    let interpreted = env_interpreted.interpret(snippet);
-
-    let mut env_compiled = TestEnvironment::new(epoch, version);
-    let compiled = env_compiled.evaluate(snippet);
-
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled, &interpreted
-    );
-
-    if compiled.is_ok() {
-        compare_events(env_interpreted.get_events(), env_compiled.get_events());
-    }
-
-    assert_eq!(
-        compiled, expected,
-        "value is not the expected {:?}",
-        compiled
-    );
-}
-
 fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
     // `SmartContractEvent` `value` could differ but resulting in the same serialized
     // data (eg, serializing a `CallableContract` results in a contract principal)
@@ -661,4 +621,43 @@ fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+}
+
+#[test]
+fn test_compare_events() {
+    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    CrossEvalResult {
+        env_interpreted,
+        env_compiled,
+        interpreted,
+        compiled,
+    }
+    .compare("");
+}
+
+#[test]
+#[should_panic(expected = "events mismatch")]
+fn test_compare_events_mismatch() {
+    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x0102FF)"); // different memo
+
+    CrossEvalResult {
+        env_interpreted,
+        env_compiled,
+        interpreted,
+        compiled,
+    }
+    .compare("");
 }

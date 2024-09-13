@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use clarity::vm::analysis::CheckErrors;
-use clarity::vm::ast::parse;
+use clarity::vm::ast::{build_ast_with_rules, ASTRules};
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::signatures::CallableSubtype;
@@ -1635,12 +1635,15 @@ pub fn signature_from_string(
     version: ClarityVersion,
     epoch: StacksEpochId,
 ) -> Result<TypeSignature, Error> {
-    let expr = parse(
+    let expr = build_ast_with_rules(
         &QualifiedContractIdentifier::transient(),
         val,
+        &mut (),
         version,
         epoch,
-    )?;
+        ASTRules::Typical,
+    )?
+    .expressions;
     let expr = expr.first().ok_or(CheckErrors::InvalidTypeDescription)?;
     Ok(TypeSignature::parse_type_repr(
         StacksEpochId::latest(),
