@@ -44,7 +44,6 @@ proptest! {
         let second_snippet =
             format!(r#"(contract-call? .{first_contract_name} foofun {call_arguments})"#);
 
-
         crosscheck_multi_contract(
             &[
                 (first_contract_name, &first_snippet),
@@ -157,6 +156,16 @@ proptest! {
         value in PropValue::any()
     ) {
         crosscheck(&format!("(as-contract {value})"), Ok(Some(value.into())));
+    }
+
+    #[test]
+    fn as_contract_can_return_any_value_inner(
+        value in PropValue::any()
+    ) {
+        crosscheck(
+            &format!("(begin (as-contract {value}))"),
+            Ok(Some(value.into()))
+        );
     }
 }
 
