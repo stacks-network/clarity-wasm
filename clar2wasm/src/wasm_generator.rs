@@ -549,6 +549,10 @@ impl WasmGenerator {
 
         self.early_return_block_id = Some(block_id);
 
+        // Traverse the body of the function
+        self.set_expr_type(body, function_type.returns.clone())?;
+        self.traverse_expr(&mut block, body)?;
+
         // If the same arg name is used multiple times, the interpreter throws an
         // `Unchecked` error at runtime, so we do the same here
         if let Some(arg_name) = reused_arg {
@@ -556,6 +560,9 @@ impl WasmGenerator {
                 self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
                     data: arg_name.as_bytes().to_vec(),
                 }))?;
+
+            // Clear function body
+            block.instrs_mut().clear();
 
             block
                 .i32_const(arg_name_offset as i32)
@@ -566,10 +573,6 @@ impl WasmGenerator {
                 .call(self.func_by_name("stdlib.runtime-error"))
                 // To avoid having to generate correct return values
                 .unreachable();
-        } else {
-            // Traverse the body of the function
-            self.set_expr_type(body, function_type.returns.clone())?;
-            self.traverse_expr(&mut block, body)?;
         }
 
         // Insert the function body block into the function
