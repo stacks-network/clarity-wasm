@@ -4,7 +4,7 @@
 //
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
-    use clar2wasm::tools::{crosscheck, crosscheck_with_network, Network};
+    use clar2wasm::tools::{crosscheck_with_network, Network};
     use clarity::address::AddressHashMode;
     use clarity::types::chainstate::{StacksAddress, StacksPrivateKey, StacksPublicKey};
     use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
@@ -18,7 +18,7 @@ mod clarity_v2_v3 {
     use proptest::string::string_regex;
     use proptest::{option, prop_oneof, proptest};
 
-    use crate::{buffer, runtime_config, standard_principal, PropValue};
+    use crate::{buffer, qualified_principal, runtime_config, standard_principal, PropValue};
 
     fn strategies_for_version_byte() -> impl Strategy<Value = i32> {
         prop_oneof![
@@ -26,7 +26,7 @@ mod clarity_v2_v3 {
             13 => Just(0x14),
             12 => Just(0x15),
             12 => Just(0x16),
-            50 => 0x00..=0x1F
+            50 => 0x00..=0x1F,
         ]
     }
 
@@ -105,32 +105,41 @@ mod clarity_v2_v3 {
         fn crosscheck_principal_construct(
             version_byte in strategies_for_version_byte(),
             hash_bytes in buffer(20),
-            contract in option::of(string_regex("([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})").unwrap())
+            contract in option::of(string_regex("([a-zA-Z](([a-zA-Z0-9]|[-])){0,30})").unwrap())
         ) {
             let expected_principal = create_principal(
                 version_byte as u8,
                 &hash_bytes.clone().expect_buff(20).unwrap(),
-                contract.as_deref()
+                contract.as_deref(),
             );
 
             let expected = match version_byte {
-                 // Since tests runs on a Testnet version,
-                 // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
-                 // will return an Ok value.
-                0x1A | 0x15 => Value::okay(expected_principal),
+                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16).
+                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15).
+                0x1A | 0x14 | 0x15 | 0x16 => Value::okay(expected_principal),
+                // Special cases for invalid or out-of-range version_bytes
                 0x00..=0x1F => Ok(create_error_construct(0, Some(expected_principal))),
-                _ => Ok(create_error_construct(1, None))
+                _ => panic!("Test case not handled for principal-construct?"),
             }.unwrap();
 
-            let snippet = match contract {
-                Some(ctc) => &format!("(principal-construct? 0x{:02X} {hash_bytes} \"{}\")", version_byte, ctc),
-                None => &format!("(principal-construct? 0x{:02X} {hash_bytes})", version_byte)
+            let snippet = if let Some(contract) = &contract {
+                format!("(principal-construct? 0x{:02X} {hash_bytes} \"{}\")", version_byte, contract)
+            } else {
+                format!("(principal-construct? 0x{:02X} {hash_bytes})", version_byte)
             };
 
-            crosscheck(
-                snippet,
-                Ok(Some(expected)),
-            );
+            let crosscheck_for = |network: Network, expected: Value| {
+                crosscheck_with_network(
+                    network,
+                    &snippet,
+                    Ok(Some(expected)),
+                );
+            };
+
+            match version_byte {
+                0x14 | 0x16 => crosscheck_for(Network::Mainnet, expected.clone()),
+                _ => crosscheck_for(Network::Testnet, expected.clone()),
+            }
         }
     }
 
@@ -141,11 +150,8 @@ mod clarity_v2_v3 {
         fn crosscheck_principal_destruct(
             version_byte in strategies_for_version_byte(),
             hash_bytes in buffer(20),
-            contract in "([a-zA-Z](([a-zA-Z0-9]|[-])){0, 30})".prop_flat_map(|name| {
-                prop_oneof![Just(Some(name)), Just(None)]
-            })
+            contract in option::of(string_regex("([a-zA-Z](([a-zA-Z0-9]|[-])){0,30})").unwrap())
         ) {
-
             let expected_principal = create_principal(
                 version_byte as u8,
                 &hash_bytes.clone().expect_buff(20).unwrap(),
@@ -159,10 +165,9 @@ mod clarity_v2_v3 {
             ));
 
             let expected = match version_byte {
-                // Since tests runs on a Testnet version,
-                // version_bytes single_sig (0x1A) || multi_sig (0x15), for Testnet,
-                // will return an Ok value.
-                0x1A | 0x15 => Value::okay(
+                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16).
+                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15).
+                0x1A | 0x14 | 0x15 | 0x16 => Value::okay(
                     TupleData::from_data(vec![
                         ("hash-bytes".into(), hash_bytes),
                         ("name".into(), Value::Optional(OptionalData { data })),
@@ -176,14 +181,23 @@ mod clarity_v2_v3 {
                     .unwrap()
                     .into()
                 ),
+                // Special cases for invalid or out-of-range version_bytes
                 0x00..=0x1F => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
-                _ => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
+                _ => panic!("Test case not handled for principal-destruct?"),
             }.unwrap();
 
-            crosscheck(
-                &format!("(principal-destruct? {})", PropValue::from(expected_principal.clone())),
-                Ok(Some(expected)),
-            );
+            let crosscheck_for = |network: Network, expected_principal: Value| {
+                crosscheck_with_network(
+                    network,
+                    &format!("(principal-destruct? {})", PropValue::from(expected_principal)),
+                    Ok(Some(expected)),
+                );
+            };
+
+            match version_byte {
+                0x14 | 0x16 => crosscheck_for(Network::Mainnet, expected_principal.clone()),
+                _ => crosscheck_for(Network::Testnet, expected_principal.clone()),
+            }
         }
     }
 
@@ -192,13 +206,13 @@ mod clarity_v2_v3 {
 
         #[test]
         fn crosscheck_is_standard(
-            principal in standard_principal().prop_map(PropValue::from)
+            principal in prop_oneof![standard_principal(), qualified_principal()].prop_map(PropValue)
         ) {
             let principal_str = principal.to_string();
             let expected_in_testnet = matches!(principal_str.get(0..3), Some("'ST") | Some("'SN"));
             let expected_in_mainnet = matches!(principal_str.get(0..3), Some("'SP") | Some("'SM"));
 
-            let crosscheck_for = |network: &Network, expected: bool| {
+            let crosscheck_for = |network: Network, expected: bool| {
                 crosscheck_with_network(
                     network,
                     &format!("(is-standard {})", principal),
@@ -206,8 +220,8 @@ mod clarity_v2_v3 {
                 );
             };
 
-            crosscheck_for(&Network::Mainnet, expected_in_mainnet);
-            crosscheck_for(&Network::Testnet, expected_in_testnet);
+            crosscheck_for(Network::Mainnet, expected_in_mainnet);
+            crosscheck_for(Network::Testnet, expected_in_testnet);
         }
     }
 
@@ -224,7 +238,7 @@ mod clarity_v2_v3 {
         ) {
             let snippet = format!("(principal-of? 0x{})", public_key.to_hex());
 
-            let crosscheck_for = |network: &Network, snippet: &str, private_key: &Secp256k1PrivateKey, address_version: u8| {
+            let crosscheck_for = |network: Network, snippet: &str, private_key: &Secp256k1PrivateKey, address_version: u8| {
                 let expected_principal = StandardPrincipalData::from(key_to_stacks_addr(address_version, private_key));
                 crosscheck_with_network(
                     network,
@@ -233,18 +247,16 @@ mod clarity_v2_v3 {
                 );
             };
 
-            // Crosscheck for Testnet
             crosscheck_for(
-                &Network::Testnet,
+                Network::Testnet,
                 &snippet,
                 &private_key,
                 C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 
             );
 
-            // Crosscheck for Mainnet
             crosscheck_for(
-                &Network::Mainnet,
+                Network::Mainnet,
                 &snippet,
                 &private_key,
                 C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
