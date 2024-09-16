@@ -5,7 +5,7 @@ use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
-    CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
+    ASCIIData, CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
     StringSubtype, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
@@ -78,6 +78,10 @@ impl Bindings {
 
     pub(crate) fn insert(&mut self, name: ClarityName, ty: TypeSignature, locals: Vec<LocalId>) {
         self.0.insert(name, InnerBindings { locals, ty });
+    }
+
+    pub(crate) fn contains(&mut self, name: &ClarityName) -> bool {
+        self.0.contains_key(name)
     }
 
     pub(crate) fn get_locals(&self, name: &ClarityName) -> Option<&[LocalId]> {
@@ -248,6 +252,22 @@ pub fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
     }
 }
 
+fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
+
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -256,22 +276,7 @@ impl WasmGenerator {
             GeneratorError::InternalError("failed to load standard library".to_owned())
         })?;
         // Get the stack-pointer global ID
-        let stack_pointer_name = "stack-pointer";
-        let global_id = module
-            .globals
-            .iter()
-            .find(|global| {
-                global
-                    .name
-                    .as_ref()
-                    .map_or(false, |name| name == stack_pointer_name)
-            })
-            .map(|global| global.id())
-            .ok_or_else(|| {
-                GeneratorError::InternalError(
-                    "Expected to find a global named $stack-pointer".to_owned(),
-                )
-            })?;
+        let global_id = get_global(&module, "stack-pointer")?;
 
         Ok(WasmGenerator {
             contract_analysis,
@@ -497,7 +502,13 @@ impl WasmGenerator {
         // Setup the parameters
         let mut param_locals = Vec::new();
         let mut params_types = Vec::new();
+        let mut reused_arg = None;
         for param in function_type.args.iter() {
+            // Interpreter returns the first reused arg as NameAlreadyUsed argument
+            if reused_arg.is_none() && bindings.contains(&param.name) {
+                reused_arg = Some(param.name.clone());
+            }
+
             let param_types = clar2wasm_ty(&param.signature);
             let mut plocals = Vec::with_capacity(param_types.len());
             for ty in param_types {
@@ -541,6 +552,28 @@ impl WasmGenerator {
         // Traverse the body of the function
         self.set_expr_type(body, function_type.returns.clone())?;
         self.traverse_expr(&mut block, body)?;
+
+        // If the same arg name is used multiple times, the interpreter throws an
+        // `Unchecked` error at runtime, so we do the same here
+        if let Some(arg_name) = reused_arg {
+            let (arg_name_offset, arg_name_len) =
+                self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                    data: arg_name.as_bytes().to_vec(),
+                }))?;
+
+            // Clear function body
+            block.instrs_mut().clear();
+
+            block
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&self.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&self.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::NameAlreadyUsed as i32)
+                .call(self.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
+        }
 
         // Insert the function body block into the function
         func_body.instr(walrus::ir::Block { seq: block_id });

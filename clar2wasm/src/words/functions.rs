@@ -112,9 +112,13 @@ impl ComplexWord for DefinePublicFunction {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, crosscheck_with_epoch,
+        evaluate,
+    };
 
     #[test]
     fn top_level_define_first() {
@@ -339,5 +343,46 @@ mod tests {
 
         crosscheck_expect_failure("(define-read-only (element-at?) (ok u0))");
         crosscheck_expect_failure("(define-read-only (element-at) (ok u0))");
+    }
+
+    #[test]
+    fn reuse_arg_name() {
+        let snippet = "
+(define-private (foo (a int) (a int) (b int) (b int)) 1)
+(define-private (bar (c int) (d int) (e int) (d int)) 1)
+";
+        crosscheck(
+            &format!("{snippet} (foo 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "a".to_string(),
+            ))),
+        );
+        crosscheck(
+            &format!("{snippet} (bar 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "d".to_string(),
+            ))),
+        );
+    }
+
+    #[test]
+    fn reuse_arg_name_contrac_call() {
+        let first_contract_name = "callee".into();
+        let first_snippet = "
+(define-public (foo (a int) (a int) (b int) (b int)) (ok 1))
+";
+
+        let second_contract_name = "caller".into();
+        let second_snippet = format!(r#"(contract-call? .{first_contract_name} foo 1 2 3 4)"#);
+
+        crosscheck_multi_contract(
+            &[
+                (first_contract_name, first_snippet),
+                (second_contract_name, &second_snippet),
+            ],
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "a".to_string(),
+            ))),
+        );
     }
 }
