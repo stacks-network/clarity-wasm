@@ -3,7 +3,7 @@ use clarity::vm::types::ResponseData;
 use clarity::vm::Value;
 use wasmtime::{AsContextMut, Instance, Trap};
 
-use crate::wasm_utils::read_bytes_from_wasm;
+use crate::wasm_utils::read_identifier_from_wasm;
 
 const LOG2_ERROR_MESSAGE: &str = "log2 must be passed a positive integer";
 const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
@@ -175,16 +175,14 @@ fn from_runtime_error_code(
                     panic!("Could not find $runtime-error-arg-len global with i32 value")
                 });
 
-            let arg_name = String::from_utf8(
-                read_bytes_from_wasm(
-                    instance
-                        .get_memory(&mut store, "memory")
-                        .unwrap_or_else(|| panic!("Could not find wasm instance memory")),
-                    &mut store,
-                    runtime_error_arg_offset,
-                    runtime_error_arg_len,
-                )
-                .unwrap_or_else(|e| panic!("Could not read from wasm memory: {e}")),
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+            let arg_name = read_identifier_from_wasm(
+                memory,
+                &mut store,
+                runtime_error_arg_offset,
+                runtime_error_arg_len,
             )
             .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
 
