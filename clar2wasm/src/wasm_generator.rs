@@ -563,12 +563,14 @@ impl WasmGenerator {
                 .i32_const(arg_name_len as i32)
                 .global_set(get_global(&self.module, "runtime-error-arg-len")?)
                 .i32_const(ErrorMap::NameAlreadyUsed as i32)
-                .call(self.func_by_name("stdlib.runtime-error"));
+                .call(self.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
+        } else {
+            // Traverse the body of the function
+            self.set_expr_type(body, function_type.returns.clone())?;
+            self.traverse_expr(&mut block, body)?;
         }
-
-        // Traverse the body of the function
-        self.set_expr_type(body, function_type.returns.clone())?;
-        self.traverse_expr(&mut block, body)?;
 
         // Insert the function body block into the function
         func_body.instr(walrus::ir::Block { seq: block_id });
