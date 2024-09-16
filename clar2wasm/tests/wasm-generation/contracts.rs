@@ -155,15 +155,8 @@ proptest! {
     fn as_contract_can_return_any_value(
         value in PropValue::any()
     ) {
-        crosscheck(&format!("(as-contract {value})"), Ok(Some(value.into())));
-    }
-
-    #[test]
-    fn as_contract_can_return_any_value_inner(
-        value in PropValue::any()
-    ) {
         crosscheck(
-            &format!("(begin (as-contract {value}))"),
+            &format!("(as-contract {value})"),
             Ok(Some(value.into()))
         );
     }
