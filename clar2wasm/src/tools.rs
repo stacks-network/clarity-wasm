@@ -623,6 +623,7 @@ fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
 }
 
+#[cfg(not(feature = "test-clarity-v1"))]
 #[test]
 fn test_compare_events() {
     let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
@@ -642,6 +643,7 @@ fn test_compare_events() {
     .compare("");
 }
 
+#[cfg(not(feature = "test-clarity-v1"))]
 #[test]
 #[should_panic(expected = "events mismatch")]
 fn test_compare_events_mismatch() {
