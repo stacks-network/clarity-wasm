@@ -111,7 +111,9 @@ impl ComplexWord for DefineConstant {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{ASCIIData, CharType, ListData, ListTypeData, SequenceData};
+    use clarity::vm::types::{
+        ASCIIData, CharType, ListData, ListTypeData, PrincipalData, SequenceData,
+    };
     use clarity::vm::Value;
 
     use crate::tools::{
@@ -313,6 +315,30 @@ mod tests {
                 .unwrap()
             )
             .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_concretize() {
+        crosscheck(
+            "(define-constant cst (list 'S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A 'SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a)) cst",
+            Ok(Some(
+                Value::cons_list(
+                    vec![Value::Principal(
+                            PrincipalData::parse_qualified_contract_principal(
+                                "S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A",
+                            )
+                        .unwrap()),
+                        Value::Principal(
+                            PrincipalData::parse_qualified_contract_principal(
+                                "SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a",
+                            )
+                        .unwrap())
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap()
+            )),
         );
     }
 }
