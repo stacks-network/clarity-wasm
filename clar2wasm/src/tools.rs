@@ -4,6 +4,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
@@ -17,6 +18,7 @@ use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::events::{SmartContractEventData, StacksTransactionEvent};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{eval_all, ClarityVersion, ContractContext, ContractName, Value};
+use regex::Regex;
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -396,6 +398,46 @@ struct CrossEvalResult {
 
     env_compiled: TestEnvironment,
     compiled: Result<Option<Value>, Error>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum KnownBug {
+    /// [https://github.com/stacks-network/stacks-core/issues/4622]
+    ListOfQualifiedPrincipal,
+}
+
+impl KnownBug {
+    fn check_for_knonw_bugs(
+        compiled: &Result<Option<Value>, Error>,
+        interpreted: &Result<Option<Value>, Error>,
+    ) -> Option<Self> {
+        let check_predicate = |pred: &dyn Fn(&Error) -> bool| {
+            interpreted.as_ref().is_err_and(pred) && compiled.as_ref().is_err_and(pred)
+        };
+
+        if check_predicate(&Self::has_list_of_qualified_principal_issue) {
+            Some(KnownBug::ListOfQualifiedPrincipal)
+        } else {
+            None
+        }
+    }
+
+    /// Allows to detect if an error suffers from this issue:
+    /// [https://github.com/stacks-network/stacks-core/issues/4622].
+    fn has_list_of_qualified_principal_issue(err: &Error) -> bool {
+        static RGX: LazyLock<Regex> = LazyLock::new(|| {
+            let regex = r#"expecting expression of type '\(principal ([^\)]+)\)', found '\(principal ([^\)]+)\)'"#;
+            Regex::new(regex).unwrap()
+        });
+
+        if let Error::Wasm(WasmError::WasmGeneratorError(message)) = err {
+            if let Some(caps) = RGX.captures(message) {
+                return caps.get(1).unwrap().as_str() == caps.get(2).unwrap().as_str();
+            }
+        }
+
+        false
+    }
 }
 
 impl CrossEvalResult {
