@@ -113,14 +113,8 @@ mod clarity_v2_v3 {
                 contract.as_deref(),
             );
 
-            let expected = match version_byte {
-                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16).
-                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15).
-                0x1A | 0x14 | 0x15 | 0x16 => Value::okay(expected_principal),
-                // Special cases for invalid or out-of-range version_bytes
-                0x00..=0x1F => Ok(create_error_construct(0, Some(expected_principal))),
-                _ => panic!("Test case not handled for principal-construct?"),
-            }.unwrap();
+            let expected_valid = expected_principal.clone();
+            let expected_invalid = create_error_construct(0, Some(expected_principal));
 
             let snippet = if let Some(contract) = &contract {
                 format!("(principal-construct? 0x{:02X} {hash_bytes} \"{}\")", version_byte, contract)
@@ -137,8 +131,24 @@ mod clarity_v2_v3 {
             };
 
             match version_byte {
-                0x14 | 0x16 => crosscheck_for(Network::Mainnet, expected.clone()),
-                _ => crosscheck_for(Network::Testnet, expected.clone()),
+                // Valid for Mainnet: crosscheck Mainnet as valid, Testnet as invalid
+                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16)
+                0x14 | 0x16 => {
+                    crosscheck_for(Network::Mainnet, Value::okay(expected_valid.clone()).unwrap());
+                    crosscheck_for(Network::Testnet, expected_invalid.clone());
+                },
+                // Valid for Testnet: crosscheck Testnet as valid, Mainnet as invalid
+                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15)
+                0x1A | 0x15 => {
+                    crosscheck_for(Network::Testnet, Value::okay(expected_valid.clone()).unwrap());
+                    crosscheck_for(Network::Mainnet, expected_invalid.clone());
+                },
+                // Invalid or out-of-range: crosscheck as invalid for both networks
+                0x00..=0x1F => {
+                    crosscheck_for(Network::Mainnet, expected_invalid.clone());
+                    crosscheck_for(Network::Testnet, expected_invalid.clone());
+                },
+                _ => panic!("Unexpected version_byte for crosschecking"),
             }
         }
     }
@@ -164,29 +174,23 @@ mod clarity_v2_v3 {
                 })))
             ));
 
-            let expected = match version_byte {
-                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16).
-                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15).
-                0x1A | 0x14 | 0x15 | 0x16 => Value::okay(
-                    TupleData::from_data(vec![
-                        ("hash-bytes".into(), hash_bytes),
-                        ("name".into(), Value::Optional(OptionalData { data })),
-                        (
-                            "version".into(),
-                            Value::Sequence(SequenceData::Buffer(BuffData {
-                                data: vec![version_byte as u8],
-                            })),
-                        ),
-                    ])
-                    .unwrap()
-                    .into()
-                ),
-                // Special cases for invalid or out-of-range version_bytes
-                0x00..=0x1F => Ok(create_error_destruct(hash_bytes, version_byte as u8, data)),
-                _ => panic!("Test case not handled for principal-destruct?"),
-            }.unwrap();
+            let expected_valid = Value::okay(
+                TupleData::from_data(vec![
+                    ("hash-bytes".into(), hash_bytes.clone()),
+                    ("name".into(), Value::Optional(OptionalData { data: data.clone() })),
+                    (
+                        "version".into(),
+                        Value::Sequence(SequenceData::Buffer(BuffData {
+                            data: vec![version_byte as u8],
+                        })),
+                    ),
+                ])
+                .unwrap()
+                .into()
+            ).unwrap();
+            let expected_invalid = create_error_destruct(hash_bytes, version_byte as u8, data);
 
-            let crosscheck_for = |network: Network, expected_principal: Value| {
+            let crosscheck_for = |network: Network, expected_principal: Value, expected: Value| {
                 crosscheck_with_network(
                     network,
                     &format!("(principal-destruct? {})", PropValue::from(expected_principal)),
@@ -195,8 +199,24 @@ mod clarity_v2_v3 {
             };
 
             match version_byte {
-                0x14 | 0x16 => crosscheck_for(Network::Mainnet, expected_principal.clone()),
-                _ => crosscheck_for(Network::Testnet, expected_principal.clone()),
+                // Valid for Mainnet: crosscheck Mainnet as valid, Testnet as invalid
+                // version_bytes for Mainnet: single_sig (0x14) and multi_sig (0x16)
+                0x14 | 0x16 => {
+                    crosscheck_for(Network::Mainnet, expected_principal.clone(), expected_valid);
+                    crosscheck_for(Network::Testnet, expected_principal.clone(), expected_invalid.clone());
+                },
+                // Valid for Testnet: crosscheck Testnet as valid, Mainnet as invalid
+                // version_bytes for Testnet: single_sig (0x1A) and multi_sig (0x15)
+                0x1A | 0x15 => {
+                    crosscheck_for(Network::Testnet, expected_principal.clone(), expected_valid);
+                    crosscheck_for(Network::Mainnet, expected_principal.clone(), expected_invalid.clone());
+                },
+                // Invalid or out-of-range: crosscheck as invalid for both networks
+                0x00..=0x1F => {
+                    crosscheck_for(Network::Mainnet, expected_principal.clone(), expected_invalid.clone());
+                    crosscheck_for(Network::Testnet, expected_principal.clone(), expected_invalid.clone());
+                },
+                _ => panic!("Unexpected version_byte for crosschecking"),
             }
         }
     }
