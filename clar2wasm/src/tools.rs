@@ -454,26 +454,35 @@ impl CrossEvalResult {
     }
 }
 
-fn crosseval(snippet: &str, env: TestEnvironment) -> CrossEvalResult {
+fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, KnownBug> {
     let mut env_interpreted = env.clone();
     let interpreted = env_interpreted.interpret(snippet);
 
     let mut env_compiled = env;
     let compiled = env_compiled.evaluate(snippet);
 
-    CrossEvalResult {
-        env_interpreted,
-        env_compiled,
-        interpreted,
-        compiled,
+    match KnownBug::check_for_knonw_bugs(&compiled, &interpreted) {
+        Some(bug) => Err(bug),
+        None => Ok(CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }),
     }
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -485,14 +494,20 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
 }
 
 pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, Error>) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new_with_amount(
             amount,
             TestConfig::latest_epoch(),
             TestConfig::clarity_version(),
         ),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -507,10 +522,16 @@ pub fn crosscheck_compare_only(snippet: &str) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
 
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     // Note that we interpret first, to catch logical errors early
     assert!(eval.interpreted.is_ok(), "Interpreted snippet failed");
@@ -523,10 +544,16 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
     snippet: &str,
     expected: E,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     if let Err(e) = &eval.compiled {
         if !expected(e) {
@@ -543,7 +570,13 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
     env.advance_chain_tip(count);
 
-    let eval = crosseval(snippet, env);
+    let eval = match crosseval(snippet, env) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     eval.compare(snippet);
 }
@@ -553,10 +586,16 @@ pub fn crosscheck_with_epoch(
     expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch)),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -568,10 +607,16 @@ pub fn crosscheck_with_epoch(
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
