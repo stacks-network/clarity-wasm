@@ -1,5 +1,7 @@
 use clar2wasm::tools::crosscheck_compare_only;
-use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
+use clarity::vm::types::TypeSignature;
+#[cfg(not(feature = "test-clarity-v1"))]
+use clarity::vm::types::{SequenceSubtype, StringSubtype};
 use proptest::strategy::{Just, Strategy};
 use proptest::{prop_oneof, proptest};
 
@@ -7,6 +9,12 @@ use crate::PropValue;
 
 const COMPARISONS_FUNC: [&str; 4] = ["<", "<=", ">", ">="];
 
+#[cfg(feature = "test-clarity-v1")]
+fn strategies_for_comparison() -> impl Strategy<Value = TypeSignature> {
+    prop_oneof![Just(TypeSignature::IntType), Just(TypeSignature::UIntType),]
+}
+
+#[cfg(not(feature = "test-clarity-v1"))]
 fn strategies_for_comparison() -> impl Strategy<Value = TypeSignature> {
     prop_oneof![
         Just(TypeSignature::IntType),
