@@ -333,7 +333,9 @@ pub fn wasm_to_clarity_value(
 }
 
 /// Read a value from the Wasm memory at `offset` with `length` given the
-/// provided Clarity `TypeSignature`. In-memory values require one extra level
+/// provided Clarity `TypeSignature`.
+///
+/// In-memory values require one extra level
 /// of indirection, so this function will read the offset and length from the
 /// memory, then read the actual value.
 pub fn read_from_wasm_indirect(
@@ -611,7 +613,9 @@ pub fn read_indirect_offset_and_length(
 }
 
 /// Return the number of bytes required to representation of a value of the
-/// type `ty`. For in-memory types, this is just the size of the offset and
+/// type `ty`.
+///
+/// For in-memory types, this is just the size of the offset and
 /// length. For non-in-memory types, this is the size of the value itself.
 pub fn get_type_size(ty: &TypeSignature) -> i32 {
     match ty {
@@ -719,7 +723,9 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
 }
 
 /// Write a value to the Wasm memory at `offset` given the provided Clarity
-/// `TypeSignature`. If the value is an in-memory type, then it will be written
+/// `TypeSignature`.
+///
+/// If the value is an in-memory type, then it will be written
 /// to the memory at `in_mem_offset`, and if `include_repr` is true, the offset
 /// and length of the value will be written to the memory at `offset`.
 /// Returns the number of bytes written at `offset` and at `in_mem_offset`.

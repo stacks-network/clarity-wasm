@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
@@ -31,6 +31,7 @@ pub struct TestEnvironment {
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
     events: Vec<EventBatch>,
+    network: Network,
 }
 
 impl TestEnvironment {
@@ -65,11 +66,22 @@ impl TestEnvironment {
             burn_datastore,
             cost_tracker,
             events: vec![],
+            network: Network::Testnet,
         }
     }
 
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
         Self::new_with_amount(1_000_000_000, epoch, version)
+    }
+
+    pub fn new_with_network(
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: Network,
+    ) -> Self {
+        let mut env = Self::new(epoch, version);
+        env.network = network;
+        env
     }
 
     pub fn init_contract_with_snippet(
@@ -117,8 +129,14 @@ impl TestEnvironment {
             &self.burn_datastore,
             &self.burn_datastore,
         );
+
+        let (is_mainnet, chain_id) = match self.network {
+            Network::Mainnet => (true, CHAIN_ID_MAINNET),
+            Network::Testnet => (false, CHAIN_ID_TESTNET),
+        };
+
         let mut global_context =
-            GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
+            GlobalContext::new(is_mainnet, chain_id, conn, cost_tracker, self.epoch);
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -223,14 +241,18 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
+        let (is_mainnet, chain_id) = match self.network {
+            Network::Mainnet => (true, CHAIN_ID_MAINNET),
+            Network::Testnet => (false, CHAIN_ID_TESTNET),
+        };
+
         let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
+            is_mainnet,
+            chain_id,
             conn,
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
         );
-
         global_context.begin();
 
         global_context
@@ -618,6 +640,34 @@ fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Network {
+    Mainnet,
+    Testnet,
+}
+
+pub fn crosscheck_with_network(
+    network: Network,
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+) {
+    let eval = crosseval(
+        snippet,
+        TestEnvironment::new_with_network(
+            TestConfig::latest_epoch(),
+            TestConfig::clarity_version(),
+            network,
+        ),
+    );
+
+    eval.compare(snippet);
+
+    assert_eq!(
+        eval.compiled, expected,
+        "value is not the expected {:?}",
+        eval.compiled
+    );
+}
 #[test]
 fn test_evaluate_snippet() {
     assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
