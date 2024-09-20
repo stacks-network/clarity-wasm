@@ -253,6 +253,11 @@ mod utils {
             contract_analysis.type_map = Some(typemap);
         }
 
+        // concretize constants
+        for var_ty in contract_analysis.variable_types.values_mut() {
+            *var_ty = var_ty.clone().concretize_deep()?;
+        }
+
         // concretize private functions return types
         for fun_ty in contract_analysis.private_function_types.values_mut() {
             *fun_ty = concretize_function_return_type(fun_ty.clone())?;
