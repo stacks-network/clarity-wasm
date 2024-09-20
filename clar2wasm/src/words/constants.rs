@@ -212,6 +212,14 @@ mod tests {
     }
 
     #[test]
+    fn test_list_of_principal_constant() {
+        crosscheck(
+            "(define-constant cst (list 'S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A 'SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a)) cst",
+            evaluate("(list 'S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A 'SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a)")
+        );
+    }
+
+    #[test]
     fn validate_define_const() {
         // Reserved keyword
         crosscheck_expect_failure("(define-constant map (+ 2 2))");
