@@ -1,5 +1,9 @@
-use clar2wasm::tools::crosscheck_compare_only_advancing_tip;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip, crosscheck_with_epoch};
+use clarity::types::StacksEpochId;
+use clarity::vm::Value;
 use proptest::proptest;
+
+use crate::{buffer, PropValue};
 
 const BLOCK_INFO_V1: [&str; 5] = [
     "burnchain-header-hash",
@@ -83,5 +87,39 @@ mod clarity_v2_v3 {
                 )
             }
         }
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_at_block(
+        value in PropValue::any(),
+        buf in buffer(32)
+    ) {
+        crosscheck(
+            &format!("(at-block {buf} {value})"),
+            Ok(Some(value.into()))
+        )
+    }
+
+    #[test]
+    fn crosscheck_at_block_no_leak(
+        value in PropValue::any(),
+        buf in buffer(32)
+    ) {
+        let expected_block = Value::UInt(0);
+
+        let crosscheck_for = |epoch: StacksEpochId, expected: Value, keyword: &str| {
+            crosscheck_with_epoch(
+                &format!("(at-block {buf} {value}) (ok {keyword})"),
+                Ok(Some(Value::okay(expected).unwrap())),
+                epoch,
+            );
+        };
+
+        crosscheck_for(StacksEpochId::Epoch30, expected_block.clone(), "stacks-block-height");
+        crosscheck_for(StacksEpochId::Epoch24, expected_block, "block-height");
     }
 }
