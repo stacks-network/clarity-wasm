@@ -463,7 +463,10 @@ fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, Kno
     let compiled = env_compiled.evaluate(snippet);
 
     match KnownBug::check_for_known_bugs(&compiled, &interpreted) {
-        Some(bug) => Err(bug),
+        Some(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            Err(bug)
+        }
         None => Ok(CrossEvalResult {
             env_interpreted,
             env_compiled,
