@@ -407,7 +407,7 @@ enum KnownBug {
 }
 
 impl KnownBug {
-    fn check_for_knonw_bugs(
+    fn check_for_known_bugs(
         compiled: &Result<Option<Value>, Error>,
         interpreted: &Result<Option<Value>, Error>,
     ) -> Option<Self> {
@@ -461,7 +461,7 @@ fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, Kno
     let mut env_compiled = env;
     let compiled = env_compiled.evaluate(snippet);
 
-    match KnownBug::check_for_knonw_bugs(&compiled, &interpreted) {
+    match KnownBug::check_for_known_bugs(&compiled, &interpreted) {
         Some(bug) => Err(bug),
         None => Ok(CrossEvalResult {
             env_interpreted,
