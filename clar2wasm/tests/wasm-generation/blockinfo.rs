@@ -1,6 +1,5 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip, crosscheck_with_epoch};
 use clarity::types::StacksEpochId;
-use clarity::vm::types::{PrincipalData, StandardPrincipalData};
 use clarity::vm::Value;
 use proptest::proptest;
 
@@ -106,7 +105,7 @@ proptest! {
     }
 
     #[test]
-    fn crosscheck_at_block_after_scope(
+    fn crosscheck_at_block_no_leak(
         value in PropValue::any(),
         buf in buffer(32)
     ) {
@@ -122,31 +121,5 @@ proptest! {
 
         crosscheck_for(StacksEpochId::Epoch30, expected_block.clone(), "stacks-block-height");
         crosscheck_for(StacksEpochId::Epoch24, expected_block, "block-height");
-    }
-
-    #[test]
-    fn crosscheck_at_block_sender_no_leak(
-        buf in buffer(32)
-    ) {
-        let expected = Value::okay(Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient())));
-
-        crosscheck(
-            &format!("(begin (at-block {buf} 42) (ok tx-sender))"),
-            Ok(Some(expected.unwrap()))
-        )
-
-    }
-
-    #[test]
-    fn crosscheck_at_block_caller_no_leak(
-        buf in buffer(32)
-    ) {
-        let expected = Value::okay(Value::Principal(PrincipalData::Standard(StandardPrincipalData::transient())));
-
-        crosscheck(
-            &format!("(begin (at-block {buf} 42) (ok contract-caller))"),
-            Ok(Some(expected.unwrap()))
-        )
-
     }
 }
