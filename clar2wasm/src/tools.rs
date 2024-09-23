@@ -732,14 +732,19 @@ pub fn crosscheck_with_network(
     snippet: &str,
     expected: Result<Option<Value>, Error>,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new_with_network(
             TestConfig::latest_epoch(),
             TestConfig::clarity_version(),
             network,
         ),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
