@@ -4,6 +4,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
@@ -17,6 +18,7 @@ use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::events::{SmartContractEventData, StacksTransactionEvent};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{eval_all, ClarityVersion, ContractContext, ContractName, Value};
+use regex::Regex;
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -398,6 +400,47 @@ struct CrossEvalResult {
     compiled: Result<Option<Value>, Error>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum KnownBug {
+    /// [https://github.com/stacks-network/stacks-core/issues/4622]
+    ListOfQualifiedPrincipal,
+}
+
+impl KnownBug {
+    fn check_for_known_bugs(
+        compiled: &Result<Option<Value>, Error>,
+        interpreted: &Result<Option<Value>, Error>,
+    ) -> Option<Self> {
+        let check_predicate = |pred: &dyn Fn(&Error) -> bool| {
+            interpreted.as_ref().is_err_and(pred) && compiled.as_ref().is_err_and(pred)
+        };
+
+        if check_predicate(&Self::has_list_of_qualified_principal_issue) {
+            Some(KnownBug::ListOfQualifiedPrincipal)
+        } else {
+            None
+        }
+    }
+
+    /// Allows to detect if an error suffers from this issue:
+    /// [https://github.com/stacks-network/stacks-core/issues/4622].
+    fn has_list_of_qualified_principal_issue(err: &Error) -> bool {
+        static RGX: LazyLock<Regex> = LazyLock::new(|| {
+            let regex = r#"expecting expression of type '(?:\(principal ([^\)]+)\)|principal)', found '\(principal ([^\)]+)\)'"#;
+            Regex::new(regex).unwrap()
+        });
+
+        if let Error::Wasm(WasmError::WasmGeneratorError(message)) = err {
+            RGX.captures(message).map_or(false, |caps| {
+                caps.get(1)
+                    .map_or(true, |cap1| cap1.as_str() == caps.get(2).unwrap().as_str())
+            })
+        } else {
+            false
+        }
+    }
+}
+
 impl CrossEvalResult {
     fn compare(&self, snippet: &str) {
         assert_eq!(
@@ -412,26 +455,37 @@ impl CrossEvalResult {
     }
 }
 
-fn crosseval(snippet: &str, env: TestEnvironment) -> CrossEvalResult {
+fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, KnownBug> {
     let mut env_interpreted = env.clone();
     let interpreted = env_interpreted.interpret(snippet);
 
     let mut env_compiled = env;
     let compiled = env_compiled.evaluate(snippet);
 
-    CrossEvalResult {
-        env_interpreted,
-        env_compiled,
-        interpreted,
-        compiled,
+    match KnownBug::check_for_known_bugs(&compiled, &interpreted) {
+        Some(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            Err(bug)
+        }
+        None => Ok(CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }),
     }
 }
 
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -443,14 +497,19 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
 }
 
 pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, Error>) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new_with_amount(
             amount,
             TestConfig::latest_epoch(),
             TestConfig::clarity_version(),
         ),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -465,10 +524,15 @@ pub fn crosscheck_compare_only(snippet: &str) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
 
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     // Note that we interpret first, to catch logical errors early
     assert!(eval.interpreted.is_ok(), "Interpreted snippet failed");
@@ -481,10 +545,15 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
     snippet: &str,
     expected: E,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     if let Err(e) = &eval.compiled {
         if !expected(e) {
@@ -501,7 +570,12 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
     env.advance_chain_tip(count);
 
-    let eval = crosseval(snippet, env);
+    let eval = match crosseval(snippet, env) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 }
@@ -511,10 +585,15 @@ pub fn crosscheck_with_epoch(
     expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch)),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -526,10 +605,15 @@ pub fn crosscheck_with_epoch(
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -651,14 +735,19 @@ pub fn crosscheck_with_network(
     snippet: &str,
     expected: Result<Option<Value>, Error>,
 ) {
-    let eval = crosseval(
+    let eval = match crosseval(
         snippet,
         TestEnvironment::new_with_network(
             TestConfig::latest_epoch(),
             TestConfig::clarity_version(),
             network,
         ),
-    );
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
     eval.compare(snippet);
 
@@ -668,48 +757,105 @@ pub fn crosscheck_with_network(
         eval.compiled
     );
 }
-#[test]
-fn test_evaluate_snippet() {
-    assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
-}
 
-#[cfg(not(feature = "test-clarity-v1"))]
-#[test]
-fn test_compare_events() {
-    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+#[cfg(test)]
+mod tests {
 
-    let mut env_interpreted = env.clone();
-    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+    use super::*;
 
-    let mut env_compiled = env;
-    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
-
-    CrossEvalResult {
-        env_interpreted,
-        env_compiled,
-        interpreted,
-        compiled,
+    #[test]
+    fn test_evaluate_snippet() {
+        assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
     }
-    .compare("");
-}
 
-#[cfg(not(feature = "test-clarity-v1"))]
-#[test]
-#[should_panic(expected = "events mismatch")]
-fn test_compare_events_mismatch() {
-    let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[test]
+    fn test_compare_events() {
+        let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
 
-    let mut env_interpreted = env.clone();
-    let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+        let mut env_interpreted = env.clone();
+        let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
 
-    let mut env_compiled = env;
-    let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x0102FF)"); // different memo
+        let mut env_compiled = env;
+        let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
 
-    CrossEvalResult {
-        env_interpreted,
-        env_compiled,
-        interpreted,
-        compiled,
+        CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }
+        .compare("");
     }
-    .compare("");
+
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[test]
+    #[should_panic(expected = "events mismatch")]
+    fn test_compare_events_mismatch() {
+        let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+        let mut env_interpreted = env.clone();
+        let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+        let mut env_compiled = env;
+        let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x0102FF)"); // different memo
+
+        CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }
+        .compare("");
+    }
+
+    #[test]
+    fn detect_list_of_qualified_principal_issue() {
+        let snippet_simple = r#"(index-of (list (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)) (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb))"#;
+
+        let e = interpret(snippet_simple).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        let snippet_no_rgx_2nd_match = r#"(index-of (list (ok 'S932CK89GTZ50W6ZHYT9FR8A625KMXTBN4FDHXFNW.a) (ok 'SH3MZSPN84M1NC77YFD2EV36NAS4EW9RNBXF4TGY3.A) (ok 'SME80C5G10ZJGHJA8Q1R4WH99ZV794GPH050DG87.A) (err u1409580484) (err u78298087165342409770641973297847909482) (ok 'ST1305A3CKDY8C2M3K9E7D8ZESND3W9RV4G7TSEAH.sSzXanZZmDqBadhzkhYweAFAdHVzWrlqToalG) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw) (ok 'S939MQP0630GPK1S5RRKWDEXT5X8DEBW5T5PHXBTA.pBvEuNMOoLNHAkBpAyWkOgMQRXsuqs) (err u130787449693949619415771523117179796343) (ok 'SZ1NX5BPB8JTT5FZ86FD4R2H2A4FRSZYYYADEZPVM.GNlVpg)) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw))"#;
+
+        let e = interpret(snippet_no_rgx_2nd_match).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        let snippet_wrapped = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        )"#;
+
+        let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
+
+        let working_snippet = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN)
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        )"#;
+        assert!(interpret(working_snippet).is_ok());
+
+        let snippet_different_err = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        "#;
+        let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
+        assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+    }
 }
