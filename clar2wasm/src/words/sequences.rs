@@ -2039,13 +2039,11 @@ mod tests {
         crosscheck_compare_only(snippet);
     }
 
-	#[test]
-	fn test_large_list() {
-		let n = 50000 / 2 + 1;
-		crosscheck_compare_only(
-			&format!("(list {})", "9922 ".repeat(n)),
-		);
-	}
+    #[test]
+    fn test_large_list() {
+        let n = 50000 / 2 + 1;
+        crosscheck_compare_only(&format!("(list {})", "9922 ".repeat(n)));
+    }
 
     //
     // Module with tests that should only be executed
