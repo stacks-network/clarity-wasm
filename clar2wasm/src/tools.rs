@@ -478,8 +478,7 @@ pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -503,8 +502,7 @@ pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Opti
         ),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -527,8 +525,7 @@ pub fn crosscheck_compare_only(snippet: &str) {
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -549,8 +546,7 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -572,8 +568,7 @@ pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
 
     let eval = match crosseval(snippet, env) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -591,8 +586,7 @@ pub fn crosscheck_with_epoch(
         TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch)),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
@@ -612,8 +606,7 @@ pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     ) {
         Ok(result) => result,
-        Err(bug) => {
-            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+        Err(_bug) => {
             return;
         }
     };
