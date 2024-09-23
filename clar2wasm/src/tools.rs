@@ -426,17 +426,18 @@ impl KnownBug {
     /// [https://github.com/stacks-network/stacks-core/issues/4622].
     fn has_list_of_qualified_principal_issue(err: &Error) -> bool {
         static RGX: LazyLock<Regex> = LazyLock::new(|| {
-            let regex = r#"expecting expression of type '\(principal ([^\)]+)\)', found '\(principal ([^\)]+)\)'"#;
+            let regex = r#"expecting expression of type '(?:\(principal ([^\)]+)\)|principal)', found '\(principal ([^\)]+)\)'"#;
             Regex::new(regex).unwrap()
         });
 
         if let Error::Wasm(WasmError::WasmGeneratorError(message)) = err {
-            if let Some(caps) = RGX.captures(message) {
-                return caps.get(1).unwrap().as_str() == caps.get(2).unwrap().as_str();
-            }
+            RGX.captures(message).map_or(false, |caps| {
+                caps.get(1)
+                    .map_or(true, |cap1| cap1.as_str() == caps.get(2).unwrap().as_str())
+            })
+        } else {
+            false
         }
-
-        false
     }
 }
 
@@ -805,6 +806,13 @@ mod tests {
         let snippet_simple = r#"(index-of (list (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)) (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb))"#;
 
         if let Err(e) = interpret(snippet_simple) {
+            assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+            crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+        }
+
+        let snippet_no_rgx_2nd_match = r#"(index-of (list (ok 'S932CK89GTZ50W6ZHYT9FR8A625KMXTBN4FDHXFNW.a) (ok 'SH3MZSPN84M1NC77YFD2EV36NAS4EW9RNBXF4TGY3.A) (ok 'SME80C5G10ZJGHJA8Q1R4WH99ZV794GPH050DG87.A) (err u1409580484) (err u78298087165342409770641973297847909482) (ok 'ST1305A3CKDY8C2M3K9E7D8ZESND3W9RV4G7TSEAH.sSzXanZZmDqBadhzkhYweAFAdHVzWrlqToalG) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw) (ok 'S939MQP0630GPK1S5RRKWDEXT5X8DEBW5T5PHXBTA.pBvEuNMOoLNHAkBpAyWkOgMQRXsuqs) (err u130787449693949619415771523117179796343) (ok 'SZ1NX5BPB8JTT5FZ86FD4R2H2A4FRSZYYYADEZPVM.GNlVpg)) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw))"#;
+
+        if let Err(e) = interpret(snippet_no_rgx_2nd_match) {
             assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
             crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
         }
