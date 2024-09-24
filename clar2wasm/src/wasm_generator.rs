@@ -1,5 +1,9 @@
 use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
@@ -60,6 +64,7 @@ pub struct WasmGenerator {
     /// Size of the maximum extra work space required by the stdlib functions
     /// to be available on the stack.
     max_work_space: u32,
+    local_pool: Rc<RefCell<HashMap<ValType, Vec<LocalId>>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -268,6 +273,30 @@ fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
         })
 }
 
+pub(crate) struct BorrowedLocal {
+    id: LocalId,
+    ty: ValType,
+    pool: Rc<RefCell<HashMap<ValType, Vec<LocalId>>>>,
+}
+
+impl Drop for BorrowedLocal {
+    fn drop(&mut self) {
+        match (*self.pool).borrow_mut().entry(self.ty) {
+            Entry::Occupied(mut list) => list.get_mut().push(self.id),
+            Entry::Vacant(e) => {
+                e.insert(vec![self.id]);
+            }
+        }
+    }
+}
+
+impl Deref for BorrowedLocal {
+    type Target = LocalId;
+    fn deref(&self) -> &Self::Target {
+        &self.id
+    }
+}
+
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -292,6 +321,7 @@ impl WasmGenerator {
             max_work_space: 0,
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
+            local_pool: Rc::new(RefCell::new(HashMap::new())),
         })
     }
 
@@ -882,6 +912,18 @@ impl WasmGenerator {
         (offset, size)
     }
 
+    pub(crate) fn borrow_local(&mut self, ty: ValType) -> BorrowedLocal {
+        let reuse = (*self.local_pool)
+            .borrow_mut()
+            .get_mut(&ty)
+            .and_then(Vec::pop);
+        BorrowedLocal {
+            id: reuse.unwrap_or_else(|| self.module.locals.add(ty)),
+            ty,
+            pool: self.local_pool.clone(),
+        }
+    }
+
     /// Write the value that is on the top of the data stack, which has type
     /// `ty`, to the memory, at offset stored in local variable,
     /// `offset_local`, plus constant offset `offset`. Returns the number of
@@ -898,17 +940,17 @@ impl WasmGenerator {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Data stack: TOP | High | Low | ...
                 // Save the high/low to locals.
-                let high = self.module.locals.add(ValType::I64);
-                let low = self.module.locals.add(ValType::I64);
-                builder.local_set(high).local_set(low);
+                let high = self.borrow_local(ValType::I64);
+                let low = self.borrow_local(ValType::I64);
+                builder.local_set(*high).local_set(*low);
 
                 // Store the high/low to memory.
-                builder.local_get(offset_local).local_get(low).store(
+                builder.local_get(offset_local).local_get(*low).store(
                     memory,
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
-                builder.local_get(offset_local).local_get(high).store(
+                builder.local_get(offset_local).local_get(*high).store(
                     memory,
                     StoreKind::I64 { atomic: false },
                     MemArg {
