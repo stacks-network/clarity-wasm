@@ -54,19 +54,16 @@ proptest! {
         let deserializable = tuple1.0.clone().expect_tuple().unwrap();
         let skippable = tuple2.0.expect_tuple().unwrap();
 
-        let merged_tuple = match TupleData::shallow_merge(deserializable, skippable) {
-            Ok(merged) => PropValue::from(Value::from(merged)),
-            Err(_) => {
-            // Skip for the rare cases where we generate a tuple too big
-            return Ok(());
-            }
-        };
+        let merged_tuple = TupleData::shallow_merge(deserializable, skippable);
+        prop_assume!(merged_tuple.is_ok(), "Cannot create a correct merged tuple");
+        let merged_tuple = PropValue::from(Value::from(merged_tuple.unwrap()));
+
 
         let mut data = Vec::new();
-        if merged_tuple.0.serialize_write(&mut data).is_err() {
-            // Skip for the rare cases where we generate a tuple too big
-            return Ok(());
-        }
+        prop_assume!(
+            merged_tuple.0.serialize_write(&mut data).is_ok(),
+            "Cannot successfully serialize merged tuple",
+        );
 
         crosscheck(
             &format!(
