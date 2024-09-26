@@ -5,6 +5,7 @@ pub mod bitwise;
 pub mod blockinfo;
 pub mod comparison;
 pub mod conditionals;
+pub mod consensus_buff;
 pub mod constants;
 pub mod contracts;
 pub mod control_flow;
