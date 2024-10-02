@@ -1,9 +1,11 @@
+use clarity::types::StacksEpochId;
 use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType, ShortReturnType, WasmError};
-use clarity::vm::types::ResponseData;
-use clarity::vm::Value;
+use clarity::vm::ClarityVersion;
 use wasmtime::{AsContextMut, Instance, Trap};
 
-use crate::wasm_utils::read_identifier_from_wasm;
+use crate::wasm_utils::{
+    read_from_wasm_indirect, read_identifier_from_wasm, signature_from_string,
+};
 
 const LOG2_ERROR_MESSAGE: &str = "log2 must be passed a positive integer";
 const SQRTI_ERROR_MESSAGE: &str = "sqrti must be passed a positive integer";
@@ -82,6 +84,8 @@ pub(crate) fn resolve_error(
     e: wasmtime::Error,
     instance: Instance,
     mut store: impl AsContextMut,
+    epoch_id: &StacksEpochId,
+    clarity_version: &ClarityVersion,
 ) -> Error {
     if let Some(vm_error) = e.root_cause().downcast_ref::<Error>() {
         // SAFETY:
@@ -139,7 +143,7 @@ pub(crate) fn resolve_error(
     // In this case, runtime errors are handled
     // by being mapped to the corresponding ClarityWasm Errors.
     if let Some(Trap::UnreachableCodeReached) = e.root_cause().downcast_ref::<Trap>() {
-        return from_runtime_error_code(instance, &mut store, e);
+        return from_runtime_error_code(instance, &mut store, e, epoch_id, clarity_version);
     }
 
     // All other errors are treated as general runtime errors.
@@ -150,6 +154,8 @@ fn from_runtime_error_code(
     instance: Instance,
     mut store: impl AsContextMut,
     e: wasmtime::Error,
+    epoch_id: &StacksEpochId,
+    clarity_version: &ClarityVersion,
 ) -> Error {
     let global = "runtime-error-code";
     let runtime_error_code = instance
@@ -184,15 +190,45 @@ fn from_runtime_error_code(
             // This RuntimeErrorType::UnwrapFailure need to have a proper context.
             Error::Runtime(RuntimeErrorType::UnwrapFailure, Some(Vec::new()))
         }
-        // TODO: UInt(42) value below is just a placeholder.
-        // It should be replaced by the current "thrown-value" when issue #385 is resolved.
-        // Tests that reach this code are currently ignored.
-        ErrorMap::ShortReturnAssertionFailure => Error::ShortReturn(
-            ShortReturnType::AssertionFailed(Value::Response(ResponseData {
-                committed: false,
-                data: Box::new(Value::UInt(42)),
-            })),
-        ),
+        ErrorMap::ShortReturnAssertionFailure => {
+            let val_offset = instance
+                .get_global(&mut store, "runtime-error-value-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-value-offset global with i32 value")
+                });
+
+            let type_ser_offset = instance
+                .get_global(&mut store, "runtime-error-type-ser-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-offset global with i32 value")
+                });
+
+            let type_ser_len = instance
+                .get_global(&mut store, "runtime-error-type-ser-len")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-len global with i32 value")
+                });
+
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+
+            let type_ser_str =
+                read_identifier_from_wasm(memory, &mut store, type_ser_offset, type_ser_len)
+                    .unwrap_or_else(|e| panic!("Could not recover stringified type: {e}"));
+
+            let value_ty = signature_from_string(&type_ser_str, *clarity_version, *epoch_id)
+                .unwrap_or_else(|e| panic!("Could not recover thrown value: {e}"));
+
+            let clarity_val =
+                read_from_wasm_indirect(memory, &mut store, &value_ty, val_offset, *epoch_id)
+                    .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {e}"));
+
+            Error::ShortReturn(ShortReturnType::AssertionFailed(clarity_val))
+        }
         ErrorMap::ArithmeticPowError => Error::Runtime(
             RuntimeErrorType::Arithmetic(POW_ERROR_MESSAGE.into()),
             Some(Vec::new()),

@@ -699,8 +699,9 @@ impl ComplexWord for Asserts {
         if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
+
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.asserts_return_early(&mut throw_branch, throw)?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -1230,7 +1231,6 @@ mod tests {
         crosscheck("(asserts! true (err u1))", Ok(Some(Value::Bool(true))));
     }
 
-    #[ignore = "see issue: #385"]
     #[test]
     fn asserts_top_level_false() {
         crosscheck(

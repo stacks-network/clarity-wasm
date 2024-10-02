@@ -325,6 +325,7 @@ pub fn initialize_contract(
 
     let mut call_stack = CallStack::new();
     let epoch = global_context.epoch_id;
+    let clarity_version = *contract_context.get_clarity_version();
     let init_context = ClarityWasmContext::new_init(
         global_context,
         contract_context,
@@ -367,7 +368,9 @@ pub fn initialize_contract(
 
     top_level
         .call(&mut store, &[], results.as_mut_slice())
-        .map_err(|e| error_mapping::resolve_error(e, instance, &mut store))?;
+        .map_err(|e| {
+            error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
+        })?;
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(

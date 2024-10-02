@@ -1244,6 +1244,7 @@ pub fn call_function<'a>(
     sponsor: Option<PrincipalData>,
 ) -> Result<Value, Error> {
     let epoch = global_context.epoch_id;
+    let clarity_version = *contract_context.get_clarity_version();
     let context = ClarityWasmContext::new_run(
         global_context,
         contract_context,
@@ -1328,7 +1329,9 @@ pub fn call_function<'a>(
 
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
-        .map_err(|e| error_mapping::resolve_error(e, instance, &mut store))?;
+        .map_err(|e| {
+            error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
+        })?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)

@@ -1,6 +1,8 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::errors::{Error, ShortReturnType};
 use clarity::vm::types::{ListTypeData, SequenceData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
+use proptest::prelude::any;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
 
@@ -191,18 +193,17 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #385"]
     #[test]
-    fn crosscheck_asserts_true(bool in bool(), val in PropValue::any()) {
-        let expected = match bool.to_string().as_str() {
-            "true" => PropValue::from(bool.clone()),
-            "false" => val.clone(),
-            _ => panic!("Invalid boolean string"),
+    fn crosscheck_asserts_boolean(bool in any::<bool>(), val in PropValue::any()) {
+        let expected = if bool {
+            Ok(Some(Value::Bool(bool)))
+        } else {
+            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(Value::from(val.clone()))))
         };
 
         crosscheck(
             &format!("(asserts! {bool} {val})"),
-            Ok(Some(expected.into()))
+            expected
         );
     }
 }

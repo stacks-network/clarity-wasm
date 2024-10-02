@@ -9,8 +9,8 @@ use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
-    ASCIIData, CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
-    StringSubtype, TypeSignature,
+    ASCIIData, CharType, FixedFunction, FunctionType, ListTypeData, PrincipalData, SequenceData,
+    SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -23,7 +23,10 @@ use walrus::{
 };
 
 use crate::error_mapping::ErrorMap;
-use crate::wasm_utils::{get_type_in_memory_size, get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    get_type_in_memory_size, get_type_size, is_in_memory_type, ordered_tuple_signature,
+    owned_ordered_tuple_signature, signature_from_string,
+};
 use crate::{debug_msg, words};
 
 // First free position after data directly defined in standard.wat
@@ -628,14 +631,103 @@ impl WasmGenerator {
         if let Some(block_id) = self.early_return_block_id {
             builder.instr(walrus::ir::Br { block: block_id });
         } else {
-            // This must be from a top-leve statement, so it should cause a runtime error
+            // This must be from a top-level statement, so it should cause a runtime error
             builder
                 .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
                 .call(self.func_by_name("stdlib.runtime-error"));
+
             builder.unreachable();
         }
 
         Ok(())
+    }
+
+    pub fn asserts_return_early(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+    ) -> Result<(), GeneratorError> {
+        if let Some(block_id) = self.early_return_block_id {
+            builder.instr(walrus::ir::Br { block: block_id });
+            return Ok(());
+        }
+
+        let ty = self
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
+            })?
+            .clone();
+
+        let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
+        self.write_to_memory(builder, val_offset, 0, &ty)?;
+        let serialized_ty = self.type_for_serialization(&ty).to_string();
+
+        // Check, at compile time, if the type can be deserialized.
+        signature_from_string(
+            &serialized_ty,
+            self.contract_analysis.clarity_version,
+            self.contract_analysis.epoch,
+        )
+        .map_err(|e| GeneratorError::TypeError(format!("type cannot be deserialized: {e:?}")))?;
+
+        let (type_ser_offset, type_ser_len) =
+            self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                data: serialized_ty.bytes().collect(),
+            }))?;
+
+        builder
+            .local_get(val_offset)
+            .global_set(get_global(&self.module, "runtime-error-value-offset")?)
+            .i32_const(type_ser_offset as i32)
+            .global_set(get_global(&self.module, "runtime-error-type-ser-offset")?)
+            .i32_const(type_ser_len as i32)
+            .global_set(get_global(&self.module, "runtime-error-type-ser-len")?)
+            .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
+            .call(self.func_by_name("stdlib.runtime-error"));
+
+        builder.unreachable();
+
+        Ok(())
+    }
+
+    /// Try to change `ty` for serialization/deserialization (as stringified signature)
+    /// In case of failure, clones the input `ty`
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn type_for_serialization(&self, ty: &TypeSignature) -> TypeSignature {
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            // NoType and BoolType have the same size (both type and inner)
+            NoType => BoolType,
+            // Avoid serialization like `(list 2 <S1G2081040G2081040G2081040G208105NK8PE5.my-trait.my-trait>)`
+            CallableType(CallableSubtype::Trait(_)) => PrincipalType,
+            // Recursive types
+            ResponseType(types) => ResponseType(Box::new((
+                self.type_for_serialization(&types.0),
+                self.type_for_serialization(&types.1),
+            ))),
+            OptionalType(value_ty) => OptionalType(Box::new(self.type_for_serialization(value_ty))),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => {
+                SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        self.type_for_serialization(list_ty.get_list_item_type()),
+                        list_ty.get_max_len(),
+                    )
+                    .unwrap_or_else(|_| list_ty.clone()),
+                ))
+            }
+            TupleType(tuple_ty) => TupleType(
+                TupleTypeSignature::try_from(
+                    tuple_ty
+                        .get_type_map()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), self.type_for_serialization(v)))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap_or_else(|_| tuple_ty.clone()),
+            ),
+            t => t.clone(),
+        }
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
