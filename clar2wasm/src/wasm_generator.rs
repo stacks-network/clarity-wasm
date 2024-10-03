@@ -642,6 +642,24 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Generates WebAssembly instructions for an early-return of the `asserts!` Clarity function.
+    ///
+    /// This function is responsible for creating the necessary WebAssembly instructions to handle
+    /// the `asserts!` functionality in Clarity, which allows for early-return with an assertion failure.
+    /// It either generates a branch instruction to an early return block if one exists, or sets up
+    /// the context for a runtime error if the assertion fails.
+    ///
+    /// # Behavior
+    ///
+    /// 1. If an early return block ID exists, it generates a branch instruction to that block.
+    /// 2. Otherwise, it sets up the context for a runtime error:
+    ///    - Determines the type of the expression.
+    ///    - Creates a local on the call stack for the value.
+    ///    - Writes the value to memory.
+    ///    - Serializes the type and adds it as a string literal.
+    ///    - Sets up global variables with offsets and lengths for the value and type.
+    ///    - Calls the runtime error function with the appropriate error code.
+    ///
     pub fn asserts_return_early(
         &mut self,
         builder: &mut InstrSeqBuilder,
