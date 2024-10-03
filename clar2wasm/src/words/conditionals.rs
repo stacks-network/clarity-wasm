@@ -701,7 +701,7 @@ impl ComplexWord for Asserts {
         }
 
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.asserts_return_early(&mut throw_branch, throw)?;
+        generator.asserts_early_return(&mut throw_branch, throw)?;
 
         let throw_branch_id = throw_branch.id();
 

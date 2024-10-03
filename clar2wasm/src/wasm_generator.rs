@@ -660,7 +660,7 @@ impl WasmGenerator {
     ///    - Sets up global variables with offsets and lengths for the value and type.
     ///    - Calls the runtime error function with the appropriate error code.
     ///
-    pub fn asserts_return_early(
+    pub fn asserts_early_return(
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
