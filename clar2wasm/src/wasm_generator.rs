@@ -1,3 +1,4 @@
+use core::panic;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
@@ -24,8 +25,7 @@ use walrus::{
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
-    get_type_in_memory_size, get_type_size, is_in_memory_type, ordered_tuple_signature,
-    owned_ordered_tuple_signature, signature_from_string,
+    get_type_in_memory_size, get_type_size, is_in_memory_type, signature_from_string,
 };
 use crate::{debug_msg, words};
 
@@ -627,82 +627,100 @@ impl WasmGenerator {
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
-        if let Some(block_id) = self.early_return_block_id {
-            builder.instr(walrus::ir::Br { block: block_id });
-        } else {
-            // This must be from a top-level statement, so it should cause a runtime error
-            builder
-                .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
-                .call(self.func_by_name("stdlib.runtime-error"));
-
-            builder.unreachable();
-        }
-
-        Ok(())
-    }
-
-    /// Generates WebAssembly instructions for an early-return of the `asserts!` Clarity function.
+    /// Handles early return scenarios in the code generation process.
     ///
-    /// This function is responsible for creating the necessary WebAssembly instructions to handle
-    /// the `asserts!` functionality in Clarity, which allows for early-return with an assertion failure.
-    /// It either generates a branch instruction to an early return block if one exists, or sets up
-    /// the context for a runtime error if the assertion fails.
+    /// This function is responsible for managing early returns in the generated code,
+    /// used in the context of `try!`, `unwrap!`, `unwrap-err!` and `asserts!` functions.
+    /// It handles different types of runtime errors and generates appropriate
+    /// WebAssembly instructions for each case.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
+    ///               the WebAssembly instruction sequence.
+    /// * `expr` - A reference to the `SymbolicExpression` representing the expression
+    ///            that triggered the early return.
+    /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the early return is handled successfully, or a `GeneratorError`
+    /// if an error occurs during the process.
     ///
     /// # Behavior
     ///
-    /// 1. If an early return block ID exists, it generates a branch instruction to that block.
-    /// 2. Otherwise, it sets up the context for a runtime error:
-    ///    - Determines the type of the expression.
-    ///    - Creates a local on the call stack for the value.
-    ///    - Writes the value to memory.
-    ///    - Serializes the type and adds it as a string literal.
-    ///    - Sets up global variables with offsets and lengths for the value and type.
-    ///    - Calls the runtime error function with the appropriate error code.
+    /// - If `early_return_block_id` is set, it will generate a branch instruction to that block.
+    /// - For `ShortReturnAssertionFailure`, `ShortReturnExpectedValue`, and `ShortReturnExpectedValueResponse`:
+    ///   - It generates code to create a local variable, write the value to memory,
+    ///     serialize the type, and set up global variables for the runtime error.
+    /// - For `ShortReturnExpectedValueOptional`, it directly calls the runtime error function.
+    /// - For any other error type, it returns an `InternalError`.
     ///
-    pub fn asserts_early_return(
+    pub fn return_early(
         &mut self,
         builder: &mut InstrSeqBuilder,
         expr: &SymbolicExpression,
+        runtime_error: ErrorMap,
     ) -> Result<(), GeneratorError> {
         if let Some(block_id) = self.early_return_block_id {
             builder.instr(walrus::ir::Br { block: block_id });
             return Ok(());
         }
 
-        let ty = self
-            .get_expr_type(expr)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
-            })?
-            .clone();
+        match runtime_error {
+            ErrorMap::ShortReturnAssertionFailure
+            | ErrorMap::ShortReturnExpectedValue
+            | ErrorMap::ShortReturnExpectedValueResponse => {
+                let ty = self
+                    .get_expr_type(expr)
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
+                    })?
+                    .clone();
 
-        let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
-        self.write_to_memory(builder, val_offset, 0, &ty)?;
-        let serialized_ty = self.type_for_serialization(&ty).to_string();
+                let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
+                self.write_to_memory(builder, val_offset, 0, &ty)?;
 
-        // Check, at compile time, if the type can be deserialized.
-        signature_from_string(
-            &serialized_ty,
-            self.contract_analysis.clarity_version,
-            self.contract_analysis.epoch,
-        )
-        .map_err(|e| GeneratorError::TypeError(format!("type cannot be deserialized: {e:?}")))?;
+                let serialized_ty = self.type_for_serialization(&ty).to_string();
 
-        let (type_ser_offset, type_ser_len) =
-            self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
-                data: serialized_ty.bytes().collect(),
-            }))?;
+                // Validate serialized type
+                signature_from_string(
+                    &serialized_ty,
+                    self.contract_analysis.clarity_version,
+                    self.contract_analysis.epoch,
+                )
+                .map_err(|e| {
+                    GeneratorError::TypeError(format!("type cannot be deserialized: {e:?}"))
+                })?;
 
-        builder
-            .local_get(val_offset)
-            .global_set(get_global(&self.module, "runtime-error-value-offset")?)
-            .i32_const(type_ser_offset as i32)
-            .global_set(get_global(&self.module, "runtime-error-type-ser-offset")?)
-            .i32_const(type_ser_len as i32)
-            .global_set(get_global(&self.module, "runtime-error-type-ser-len")?)
-            .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
-            .call(self.func_by_name("stdlib.runtime-error"));
+                let (type_ser_offset, type_ser_len) =
+                    self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                        data: serialized_ty.bytes().collect(),
+                    }))?;
+
+                // Set runtime error globals
+                builder
+                    .local_get(val_offset)
+                    .global_set(get_global(&self.module, "runtime-error-value-offset")?)
+                    .i32_const(type_ser_offset as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-offset")?)
+                    .i32_const(type_ser_len as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-len")?)
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            ErrorMap::ShortReturnExpectedValueOptional => {
+                // Simple case: just call runtime error
+                builder
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "Unhandled runtime error for try! function".to_owned(),
+                ))
+            }
+        }
 
         builder.unreachable();
 

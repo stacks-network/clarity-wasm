@@ -1,12 +1,14 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
 use clarity::vm::errors::{Error, ShortReturnType};
-use clarity::vm::types::{ListTypeData, SequenceData, SequenceSubtype, TypeSignature};
+use clarity::vm::types::{
+    ListTypeData, ResponseData, SequenceData, SequenceSubtype, TypeSignature,
+};
 use clarity::vm::Value;
 use proptest::prelude::any;
 use proptest::proptest;
 use proptest::strategy::{Just, Strategy};
 
-use crate::{bool, prop_signature, type_string, PropValue};
+use crate::{prop_signature, type_string, PropValue};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -93,14 +95,13 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #385"]
     #[test]
     fn unwrap_optional_none(val in PropValue::any()) {
         let snippet = format!(r#"(unwrap! (if true none (some {val})) {val})"#);
 
         crosscheck(
             &snippet,
-            Ok(Some(val.into()))
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::from(val.clone()))))
         );
     }
 }
@@ -122,24 +123,19 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #385"]
     #[test]
     fn unwrap_response_err(val in PropValue::any()) {
         let snippet = format!(r#"(unwrap! (if true (err u1) (ok {val})) {val})"#);
 
         crosscheck(
             &snippet,
-            Ok(Some(val.into()))
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::from(val.clone()))))
         );
     }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn unwrap_optional_none_inside_function(val in PropValue::any()) {
-        let snippet = format!("(define-private (foo) (unwrap! (if true none (some {val})) {val})) (foo)");
+    fn unwrap_response_err_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap! (if true (err 1) (ok {val})) {val})) (foo)");
 
         crosscheck(
             &snippet,
@@ -152,8 +148,8 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn unwrap_response_err_inside_function(val in PropValue::any()) {
-        let snippet = format!("(define-private (foo) (unwrap! (if true (err 1) (ok {val})) {val})) (foo)");
+    fn unwrap_optional_none_inside_function(val in PropValue::any()) {
+        let snippet = format!("(define-private (foo) (unwrap! (if true none (some {val})) {val})) (foo)");
 
         crosscheck(
             &snippet,
@@ -211,20 +207,31 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #385"]
     #[test]
-    fn crosscheck_try_optional_inside_function(bool in bool(), val in PropValue::any()) {
-        let expected = match bool.to_string().as_str() {
-            "true" => val.clone(),
-            "false" => PropValue::from(Value::none()),
-            _ => panic!("Invalid boolean string"),
+    fn crosscheck_try_optional(bool in any::<bool>(), val in PropValue::any()) {
+        let expected = if bool {
+            Ok(Some(Value::from(val.clone())))
+        } else {
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::none())))
         };
 
-        let snippet = format!("(define-private (foo) (if {bool} (some {val}) none)) (try! (foo))");
+        crosscheck(
+            &format!("(try! (if {bool} (some {val}) none))"),
+            expected
+        );
+    }
+
+    #[test]
+    fn crosscheck_try_optional_inside_function(bool in any::<bool>(), val in PropValue::any()) {
+        let expected = if bool {
+            Ok(Some(Value::from(val.clone())))
+        } else {
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::none())))
+        };
 
         crosscheck(
-            &snippet,
-            Ok(Some(expected.into()))
+            &format!("(define-private (foo) (if {bool} (some {val}) none)) (try! (foo))"),
+            expected
         );
     }
 }
@@ -232,24 +239,43 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
-    #[ignore = "see issue: #385"]
     #[test]
-    fn crosscheck_try_response_inside_function(
-        bool in bool(),
-        val in PropValue::any(),
-        err_val in PropValue::any()
-    ) {
-        let expected = match bool.to_string().as_str() {
-            "true" => val.clone(),
-            "false" => err_val.clone(),
-            _ => panic!("Invalid boolean string"),
+    fn crosscheck_try_response(bool in any::<bool>(), val in PropValue::any()) {
+        let expected = if bool {
+            Ok(Some(Value::from(val.clone())))
+        } else {
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Response(ResponseData {
+                committed: false,
+                data: Box::new(Value::from(val.clone()))
+            }))))
         };
 
-        let snippet = format!("(define-private (foo) (if {bool} (ok {val}) (err {err_val}))) (try! (foo))");
+        crosscheck(
+            &format!("(try! (if {bool} (ok {val}) (err {val})))"),
+            expected
+        );
+    }
+
+    // This test was initially ignored due to issue #385.
+    // However, after issue #385 was resolved, this test is now failing due to issue #475.
+    #[ignore = "see issue: #475"]
+    #[test]
+    fn crosscheck_try_response_inside_function(
+        bool in any::<bool>(),
+        val in PropValue::any()
+    ) {
+        let expected = if bool {
+            Ok(Some(Value::from(val.clone())))
+        } else {
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Response(ResponseData {
+                committed: false,
+                data: Box::new(Value::from(val.clone()))
+            }))))
+        };
 
         crosscheck(
-            &snippet,
-            Ok(Some(expected.into()))
+            &format!("(define-private (foo) (if {bool} (ok {val}) (err {val}))) (try! (foo))"),
+            expected
         );
     }
 }

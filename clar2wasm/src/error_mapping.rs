@@ -1,6 +1,7 @@
 use clarity::types::StacksEpochId;
 use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType, ShortReturnType, WasmError};
-use clarity::vm::ClarityVersion;
+use clarity::vm::types::ResponseData;
+use clarity::vm::{ClarityVersion, Value};
 use wasmtime::{AsContextMut, Instance, Trap};
 
 use crate::wasm_utils::{
@@ -56,6 +57,18 @@ pub enum ErrorMap {
     /// Indicates an attempt to use a name that is already in use, possibly for a variable or function.
     NameAlreadyUsed = 9,
 
+    /// Represents a short-return error for an expected value that wraps a Response type.
+    /// Usually triggered by `(try!...)`.
+    ShortReturnExpectedValueResponse = 10,
+
+    /// Represents a short-return error for an expected value that wraps an Optional type.
+    /// Usually triggered by `(try!...)`.
+    ShortReturnExpectedValueOptional = 11,
+
+    /// Represents a short-return error for an expected value.
+    /// usually triggered by `(unwrap!...)` and `(unwrap-err!...)`.
+    ShortReturnExpectedValue = 12,
+
     /// A catch-all for errors that are not mapped to specific error codes.
     /// This might be used for unexpected or unclassified errors.
     NotMapped = 99,
@@ -75,6 +88,9 @@ impl From<i32> for ErrorMap {
             7 => ErrorMap::ShortReturnAssertionFailure,
             8 => ErrorMap::ArithmeticPowError,
             9 => ErrorMap::NameAlreadyUsed,
+            10 => ErrorMap::ShortReturnExpectedValueResponse,
+            11 => ErrorMap::ShortReturnExpectedValueOptional,
+            12 => ErrorMap::ShortReturnExpectedValue,
             _ => ErrorMap::NotMapped,
         }
     }
@@ -260,6 +276,94 @@ fn from_runtime_error_code(
             .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
 
             Error::Unchecked(CheckErrors::NameAlreadyUsed(arg_name))
+        }
+        ErrorMap::ShortReturnExpectedValueResponse => {
+            let val_offset = instance
+                .get_global(&mut store, "runtime-error-value-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-value-offset global with i32 value")
+                });
+
+            let type_ser_offset = instance
+                .get_global(&mut store, "runtime-error-type-ser-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-offset global with i32 value")
+                });
+
+            let type_ser_len = instance
+                .get_global(&mut store, "runtime-error-type-ser-len")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-len global with i32 value")
+                });
+
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+
+            let type_ser_str =
+                read_identifier_from_wasm(memory, &mut store, type_ser_offset, type_ser_len)
+                    .unwrap_or_else(|e| panic!("Could not recover stringified type: {e}"));
+
+            let value_ty = signature_from_string(&type_ser_str, *clarity_version, *epoch_id)
+                .unwrap_or_else(|e| panic!("Could not recover thrown value: {e}"));
+
+            let clarity_val =
+                read_from_wasm_indirect(memory, &mut store, &value_ty, val_offset, *epoch_id)
+                    .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {e}"));
+
+            Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Response(
+                ResponseData {
+                    committed: false,
+                    data: Box::new(clarity_val),
+                },
+            )))
+        }
+        ErrorMap::ShortReturnExpectedValueOptional => {
+            Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Optional(
+                clarity::vm::types::OptionalData { data: None },
+            )))
+        }
+        ErrorMap::ShortReturnExpectedValue => {
+            let val_offset = instance
+                .get_global(&mut store, "runtime-error-value-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-value-offset global with i32 value")
+                });
+
+            let type_ser_offset = instance
+                .get_global(&mut store, "runtime-error-type-ser-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-offset global with i32 value")
+                });
+
+            let type_ser_len = instance
+                .get_global(&mut store, "runtime-error-type-ser-len")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-type-ser-len global with i32 value")
+                });
+
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+
+            let type_ser_str =
+                read_identifier_from_wasm(memory, &mut store, type_ser_offset, type_ser_len)
+                    .unwrap_or_else(|e| panic!("Could not recover stringified type: {e}"));
+
+            let value_ty = signature_from_string(&type_ser_str, *clarity_version, *epoch_id)
+                .unwrap_or_else(|e| panic!("Could not recover thrown value: {e}"));
+
+            let clarity_val =
+                read_from_wasm_indirect(memory, &mut store, &value_ty, val_offset, *epoch_id)
+                    .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {e}"));
+
+            Error::ShortReturn(ShortReturnType::ExpectedValue(clarity_val))
         }
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }
