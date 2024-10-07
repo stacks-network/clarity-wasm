@@ -1214,7 +1214,7 @@ impl WasmGenerator {
                             &mut case_block,
                             offset_local,
                             end_local,
-                            &field_ty,
+                            field_ty,
                         )?;
                         for &l in field_locals.iter().rev() {
                             case_block.local_set(l);

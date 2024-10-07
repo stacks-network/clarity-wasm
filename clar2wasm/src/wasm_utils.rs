@@ -1,7 +1,5 @@
 #![allow(non_camel_case_types)]
 
-use std::collections::BTreeMap;
-
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::ast::{build_ast_with_rules, ASTRules};
 use clarity::vm::contexts::GlobalContext;
@@ -10,10 +8,9 @@ use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{
     ASCIIData, BuffData, BufferLength, CallableData, CharType, ListData, OptionalData,
     PrincipalData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
-    SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TupleTypeSignature,
-    TypeSignature,
+    SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TypeSignature,
 };
-use clarity::vm::{CallStack, ClarityName, ClarityVersion, ContractContext, ContractName, Value};
+use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 

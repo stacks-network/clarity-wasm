@@ -144,7 +144,7 @@ impl ComplexWord for TupleGet {
         // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
-        for (field_name, field_ty) in field_types.into_iter().rev() {
+        for (field_name, field_ty) in field_types.iter().rev() {
             // If this is the target field, store it in the locals we created
             // above.
             if field_name == target_field_name {
