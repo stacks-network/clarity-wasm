@@ -1,4 +1,4 @@
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
@@ -28,8 +28,13 @@ impl ComplexWord for DefineDataVar {
             )));
         }
 
-        let _data_type = args.get_expr(1)?;
+        let data_type = args.get_expr(1)?;
+        let ty =
+            TypeSignature::parse_type_repr(generator.contract_analysis.epoch, data_type, &mut ())
+                .map_err(|e| GeneratorError::TypeError(e.to_string()))?;
+
         let initial = args.get_expr(2)?;
+        generator.set_expr_type(initial, ty.clone())?;
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -40,12 +45,6 @@ impl ComplexWord for DefineDataVar {
 
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
-        let ty = generator
-            .get_expr_type(initial)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("initial value expression must be typed".to_owned())
-            })?
-            .clone();
         let offset = generator.module.locals.add(ValType::I32);
         builder
             .i32_const(generator.literal_memory_end as i32)
