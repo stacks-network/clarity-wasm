@@ -1,3 +1,4 @@
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
@@ -28,8 +29,13 @@ impl ComplexWord for DefineDataVar {
             )));
         }
 
-        let _data_type = args.get_expr(1)?;
+        let data_type = args.get_expr(1)?;
+        let ty =
+            TypeSignature::parse_type_repr(generator.contract_analysis.epoch, data_type, &mut ())
+                .map_err(|e| GeneratorError::TypeError(e.to_string()))?;
+
         let initial = args.get_expr(2)?;
+        generator.set_expr_type(initial, ty.clone())?;
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -40,12 +46,6 @@ impl ComplexWord for DefineDataVar {
 
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
-        let ty = generator
-            .get_expr_type(initial)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("initial value expression must be typed".to_owned())
-            })?
-            .clone();
         let offset = generator.module.locals.add(ValType::I32);
         builder
             .i32_const(generator.literal_memory_end as i32)
@@ -227,8 +227,12 @@ impl ComplexWord for GetDataVar {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
+    use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version,
+        crosscheck_with_epoch, evaluate,
+    };
 
     #[test]
     fn test_var_get() {
@@ -283,5 +287,21 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-data-var index-of? int 0)");
+    }
+
+    #[test]
+    fn define_data_var_has_correct_type_with_clarity1() {
+        // https://github.com/stacks-network/clarity-wasm/issues/497
+        let snippet = "
+            (define-data-var v (optional uint) none)
+            (var-set v (some u171713071701372222108711587))
+            (var-get v)
+        ";
+
+        crosscheck_with_clarity_version(
+            snippet,
+            Ok(Value::some(Value::UInt(171713071701372222108711587)).ok()),
+            clarity::vm::ClarityVersion::Clarity1,
+        );
     }
 }

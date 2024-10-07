@@ -604,6 +604,30 @@ pub fn crosscheck_with_epoch(
     );
 }
 
+pub fn crosscheck_with_clarity_version(
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+    version: ClarityVersion,
+) {
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), version),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
+
+    assert_eq!(
+        eval.compiled, expected,
+        "value is not the expected {:?}",
+        eval.compiled
+    );
+}
+
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
     let eval = match crosseval(
         snippet,
