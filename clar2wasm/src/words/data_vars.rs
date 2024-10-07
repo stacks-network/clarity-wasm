@@ -1,4 +1,5 @@
-use clarity::vm::{types::TypeSignature, ClarityName, SymbolicExpression};
+use clarity::vm::types::TypeSignature;
+use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
@@ -225,7 +226,8 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use clarity::{types::StacksEpochId, vm::Value};
+    use clarity::types::StacksEpochId;
+    use clarity::vm::Value;
 
     use crate::tools::{
         crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version,
