@@ -160,12 +160,16 @@ impl ComplexWord for IndexOf {
             // STACK: [item]
 
             // Get the type of the item expression
-            let item_ty = generator
-                .get_expr_type(item)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("index_of item expression must be typed".to_owned())
-                })?
-                .clone();
+            let item_ty = if let SequenceElementType::Other(ty) = &elem_ty {
+				ty.clone()
+			} else {
+				generator
+					.get_expr_type(item)
+					.ok_or_else(|| {
+						GeneratorError::TypeError("index_of item expression must be typed".to_owned())
+					})?
+					.clone()
+			};
 
             // Store the item into a local.
             let item_locals = generator.save_to_locals(else_case, &item_ty, true);
@@ -372,6 +376,11 @@ fn wasm_equal(
     first_op: &[LocalId],
     nth_op: &[LocalId],
 ) -> Result<(), GeneratorError> {
+
+	println!("WASM_EQUAL");
+	println!("TY {:?}", ty);
+	println!("NTH TY {:?}", nth_ty);
+
     // This is for the case where we have to compare two type that differs, it is a direct false
     // Only case should be a NoType with something, in the case where we compare
     // Response<NoType, x> == Response<y, NoType>
@@ -403,7 +412,8 @@ fn wasm_equal(
         }
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-        | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
+			| TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
+				println!("HERE");
             if matches!(
                 (ty, nth_ty),
                 (
@@ -461,17 +471,22 @@ fn wasm_equal(
             }
             _ => no_type_match(),
         },
-        TypeSignature::SequenceType(SequenceSubtype::ListType(list_ty)) => match nth_ty {
-            TypeSignature::SequenceType(SequenceSubtype::ListType(nth_list_ty)) => wasm_equal_list(
-                generator,
-                builder,
-                first_op,
-                nth_op,
-                list_ty.get_list_item_type(),
-                nth_list_ty.get_list_item_type(),
-            ),
-            _ => no_type_match(),
-        },
+        TypeSignature::SequenceType(SequenceSubtype::ListType(list_ty)) => {
+
+			println!("list type {:?}", list_ty);
+
+			match nth_ty {
+				TypeSignature::SequenceType(SequenceSubtype::ListType(nth_list_ty)) => wasm_equal_list(
+					generator,
+					builder,
+					first_op,
+					nth_op,
+					list_ty.get_list_item_type(),
+					nth_list_ty.get_list_item_type(),
+				),
+				_ => no_type_match(),
+			}
+		},
         _ => Err(GeneratorError::NotImplemented),
     }
 }
@@ -849,6 +864,12 @@ fn wasm_equal_list(
     list_ty: &TypeSignature,
     nth_list_ty: &TypeSignature,
 ) -> Result<(), GeneratorError> {
+
+	println!("wasm equal list");
+
+	println!("lity {:?}", list_ty);
+	println!("nthli {:?}", nth_list_ty);
+
     let [offset_a, len_a] = first_op else {
         return Err(GeneratorError::InternalError(
             "List type should have two i32 locals: offset and length".to_string(),
@@ -908,7 +929,7 @@ fn wasm_equal_list(
 
             // compare both elements
             wasm_equal(
-                list_ty,
+               list_ty,
                 nth_list_ty,
                 generator,
                 &mut loop_,
@@ -996,7 +1017,9 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, TestEnvironment, evaluate_at};
+	use clarity::vm::ClarityVersion;
+	use clarity::types::StacksEpochId;
 
     #[test]
     fn index_of_list_not_present() {
@@ -1253,6 +1276,19 @@ mod tests {
         (is-eq (var-get a) (var-get b))";
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
+
+	#[test]
+	fn index_of_complex_type_versions() {
+		let snippet = "(index-of
+               (list (list (err 7))
+                     (list (ok 3)))
+               (list (err 7)))";
+		println!("\n-----------------\n CLARITY 1\n-----------------");
+		let v1 = evaluate_at(snippet,  StacksEpochId::latest(), ClarityVersion::Clarity1);
+		println!("\n-----------------\n CLARITY 2\n-----------------");
+		let v2 = evaluate_at(snippet,  StacksEpochId::latest(), ClarityVersion::Clarity2);
+		assert_eq!(v1, v2);
+	}
 
     //
     // Module with tests that should only be executed
