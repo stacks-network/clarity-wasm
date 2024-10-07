@@ -847,16 +847,19 @@ mod tests {
         assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
         crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
 
-        let e = interpret_at(
-            snippet_no_rgx_2nd_match,
-            StacksEpochId::latest(),
-            ClarityVersion::Clarity1,
-        )
-        .expect_err("Snippet should err due to bug");
-        assert!(KnownBug::has_list_of_qualified_principal_issue(dbg!(&e)));
-        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+        // Those tests below use `replace-at`, which didn't exist in Clarity 1
+        #[cfg(not(feature = "test-clarity-v1"))]
+        {
+            let e = interpret_at(
+                snippet_no_rgx_2nd_match,
+                StacksEpochId::latest(),
+                ClarityVersion::Clarity1,
+            )
+            .expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(dbg!(&e)));
+            crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
 
-        let snippet_wrapped = r#"(replace-at?
+            let snippet_wrapped = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
                 (ok 5)
@@ -865,11 +868,11 @@ mod tests {
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         )"#;
 
-        let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
-        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
-        crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
+            let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+            crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
 
-        let working_snippet = r#"(replace-at?
+            let working_snippet = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN)
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
@@ -878,9 +881,9 @@ mod tests {
             u0
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         )"#;
-        assert!(interpret(working_snippet).is_ok());
+            assert!(interpret(working_snippet).is_ok());
 
-        let snippet_different_err = r#"(replace-at?
+            let snippet_different_err = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
                 (ok 5)
@@ -888,7 +891,8 @@ mod tests {
             u0
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         "#;
-        let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
-        assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+            let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
+            assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+        }
     }
 }
