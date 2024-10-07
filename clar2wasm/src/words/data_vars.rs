@@ -225,9 +225,12 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use clarity::{types::StacksEpochId, vm::Value};
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version,
+        crosscheck_with_epoch, evaluate,
+    };
 
     #[test]
     fn test_var_get() {
@@ -282,5 +285,21 @@ mod tests {
         );
 
         crosscheck_expect_failure("(define-data-var index-of? int 0)");
+    }
+
+    #[test]
+    fn define_data_var_has_correct_type_with_clarity1() {
+        // https://github.com/stacks-network/clarity-wasm/issues/497
+        let snippet = "
+            (define-data-var v (optional uint) none)
+            (var-set v (some u171713071701372222108711587))
+            (var-get v)
+        ";
+
+        crosscheck_with_clarity_version(
+            snippet,
+            Ok(Value::some(Value::UInt(171713071701372222108711587)).ok()),
+            clarity::vm::ClarityVersion::Clarity1,
+        );
     }
 }
