@@ -426,7 +426,7 @@ impl KnownBug {
     /// [https://github.com/stacks-network/stacks-core/issues/4622].
     fn has_list_of_qualified_principal_issue(err: &Error) -> bool {
         static RGX: LazyLock<Regex> = LazyLock::new(|| {
-            let regex = r#"expecting expression of type '(?:\(principal ([^\)]+)\)|principal)', found '\(principal ([^\)]+)\)'"#;
+            let regex = r#"expecting expression of type '.*(?:\(principal ([A-Z0-9]{41}\.[^\)]+)\)|principal).*', found '\(.*principal ([^\)]+).*\)'"#;
             Regex::new(regex).unwrap()
         });
 
@@ -835,9 +835,33 @@ mod tests {
 
     #[test]
     fn detect_list_of_qualified_principal_issue() {
+        let snippet_no_wrap = r#"(index-of (list 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb) 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)"#;
+
+        let e = interpret(snippet_no_wrap).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_no_wrap, Ok(None)); // we don't care about the expected result
+
+        let e = interpret_at(
+            snippet_no_wrap,
+            StacksEpochId::latest(),
+            ClarityVersion::Clarity1,
+        )
+        .expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_no_wrap, Ok(None)); // we don't care about the expected result
+
         let snippet_simple = r#"(index-of (list (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)) (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb))"#;
 
         let e = interpret(snippet_simple).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        let e = interpret_at(
+            snippet_simple,
+            StacksEpochId::latest(),
+            ClarityVersion::Clarity1,
+        )
+        .expect_err("Snippet should err due to bug");
         assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
         crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
 
@@ -847,7 +871,19 @@ mod tests {
         assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
         crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
 
-        let snippet_wrapped = r#"(replace-at?
+        // Those tests below use `replace-at`, which didn't exist in Clarity 1
+        #[cfg(not(feature = "test-clarity-v1"))]
+        {
+            let e = interpret_at(
+                snippet_no_rgx_2nd_match,
+                StacksEpochId::latest(),
+                ClarityVersion::Clarity1,
+            )
+            .expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(dbg!(&e)));
+            crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+            let snippet_wrapped = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
                 (ok 5)
@@ -856,11 +892,11 @@ mod tests {
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         )"#;
 
-        let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
-        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
-        crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
+            let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+            crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
 
-        let working_snippet = r#"(replace-at?
+            let working_snippet = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN)
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
@@ -869,9 +905,9 @@ mod tests {
             u0
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         )"#;
-        assert!(interpret(working_snippet).is_ok());
+            assert!(interpret(working_snippet).is_ok());
 
-        let snippet_different_err = r#"(replace-at?
+            let snippet_different_err = r#"(replace-at?
             (list
                 (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
                 (ok 5)
@@ -879,7 +915,8 @@ mod tests {
             u0
             (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
         "#;
-        let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
-        assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+            let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
+            assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+        }
     }
 }
