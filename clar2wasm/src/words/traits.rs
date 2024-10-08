@@ -135,9 +135,26 @@ mod tests {
     use clarity::vm::Value;
 
     use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, crosscheck_with_epoch,
-        TestEnvironment,
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, TestEnvironment,
     };
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_trait_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-trait index-of? ((func (int) (response int int))))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_expect_failure("(define-trait index-of? ((func (int) (response int int))))");
+        }
+    }
 
     #[test]
     fn define_trait_eval() {
@@ -318,17 +335,5 @@ mod tests {
           (define-trait a ((func (int) (response int int))))
         "#;
         crosscheck_expect_failure(snippet);
-    }
-
-    #[test]
-    fn validate_define_trait_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-trait index-of? ((func (int) (response int int))))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-trait index-of? ((func (int) (response int int))))");
     }
 }

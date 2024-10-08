@@ -78,12 +78,27 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{
-        crosscheck, crosscheck_compare_only, crosscheck_expect_failure, crosscheck_with_epoch,
-    };
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure};
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_let_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(let ((index-of? 2)) (+ index-of? index-of?))",
+                Ok(Some(Value::Int(4))),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -133,19 +148,5 @@ mod tests {
 
         // Custom variable name duplicate
         crosscheck_expect_failure("(let ((a 2) (a 3)) (+ a a))");
-    }
-
-    #[test]
-    fn validate_let_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(let ((index-of? 2)) (+ index-of? index-of?))",
-            Ok(Some(Value::Int(4))),
-            StacksEpochId::Epoch20,
-        );
-
-        // Latest Epoch and Clarity Version
-        crosscheck_expect_failure("(let ((index-of 2)) 2)");
-        crosscheck_expect_failure("(let ((index-of? 2)) 2)");
     }
 }

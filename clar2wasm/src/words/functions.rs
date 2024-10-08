@@ -111,14 +111,67 @@ impl ComplexWord for DefinePublicFunction {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
     use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, crosscheck_with_epoch,
-        evaluate,
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, evaluate,
     };
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_private_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-private (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-private (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+
+        #[test]
+        fn validate_define_public_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-public (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-public (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+
+        #[test]
+        fn validate_define_read_only_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-read-only (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-read-only (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn top_level_define_first() {
@@ -277,72 +330,6 @@ mod tests {
         crosscheck_expect_failure(
             "(define-read-only (a) (ok true))(define-read-only (a) (ok true))",
         );
-    }
-
-    #[test]
-    fn validate_define_private_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-private (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_with_epoch(
-            "(define-private (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-private (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-private (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-private (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-private (element-at) (ok u0))");
-    }
-
-    #[test]
-    fn validate_define_public_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-public (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_with_epoch(
-            "(define-public (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-public (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-public (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-public (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-public (element-at) (ok u0))");
-    }
-
-    #[test]
-    fn validate_define_read_only_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-read-only (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_with_epoch(
-            "(define-read-only (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-read-only (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-read-only (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-read-only (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-read-only (element-at) (ok u0))");
     }
 
     #[test]

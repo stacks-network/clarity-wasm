@@ -145,23 +145,86 @@ impl ComplexWord for AtBlock {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck_with_epoch, evaluate, TestEnvironment};
+    use crate::tools::{evaluate, TestEnvironment};
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn get_block_info_non_existent() {
+            crosscheck_with_epoch(
+                "(get-block-info? time u9999999)",
+                Ok(Some(Value::none())),
+                StacksEpochId::Epoch25,
+            );
+        }
+
+        #[test]
+        fn test_block_height() {
+            let snpt = "
+                (define-public (block)
+                (ok block-height))
+
+                (define-public (burn-block)
+                (ok burn-block-height))
+            ";
+
+            crosscheck_with_epoch(
+                &format!("{snpt} (block)"),
+                evaluate("(ok u0)"),
+                StacksEpochId::Epoch24,
+            );
+            crosscheck_with_epoch(
+                &format!("{snpt} (burn-block)"),
+                evaluate("(ok u0)"),
+                StacksEpochId::Epoch24,
+            );
+        }
+    }
+
+    #[cfg(feature = "test-clarity-v2")]
+    mod clarity_v2 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        //- At Block
+        #[test]
+        fn at_block() {
+            crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+            Ok(Some(Value::UInt(0xFFFFFFFF))),
+            StacksEpochId::Epoch24,
+        )
+        }
+    }
+
+    #[cfg(feature = "test-clarity-v3")]
+    mod clarity_v3 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        //- At Block
+        #[test]
+        fn at_block_with_stacks_block_height() {
+            crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+                Ok(Some(Value::UInt(0xFFFFFFFF))),
+                StacksEpochId::Epoch30,
+            )
+        }
+    }
 
     //- Block Info
-
-    #[test]
-    fn get_block_info_non_existent() {
-        crosscheck_with_epoch(
-            "(get-block-info? time u9999999)",
-            Ok(Some(Value::none())),
-            StacksEpochId::Epoch25,
-        );
-    }
 
     #[test]
     fn get_block_info_burnchain_header_hash() {
@@ -314,24 +377,6 @@ mod tests {
         );
     }
 
-    //- At Block
-    #[test]
-    fn at_block() {
-        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF))),
-            StacksEpochId::Epoch24,
-        )
-    }
-
-    //- At Block
-    #[test]
-    fn at_block_with_stacks_block_height() {
-        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF))),
-            StacksEpochId::Epoch30,
-        )
-    }
-
     #[test]
     fn at_block_var() {
         let e = evaluate(
@@ -344,28 +389,6 @@ mod tests {
         assert_eq!(
             e,
             Error::Unchecked(CheckErrors::NoSuchDataVariable("data".into()))
-        );
-    }
-
-    #[test]
-    fn test_block_height() {
-        let snpt = "
-(define-public (block)
-  (ok block-height))
-
-(define-public (burn-block)
-  (ok burn-block-height))
-";
-
-        crosscheck_with_epoch(
-            &format!("{snpt} (block)"),
-            evaluate("(ok u0)"),
-            StacksEpochId::Epoch24,
-        );
-        crosscheck_with_epoch(
-            &format!("{snpt} (burn-block)"),
-            evaluate("(ok u0)"),
-            StacksEpochId::Epoch24,
         );
     }
 

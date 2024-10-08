@@ -1,6 +1,4 @@
-use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip, crosscheck_with_epoch};
-use clarity::types::StacksEpochId;
-use clarity::vm::Value;
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only_advancing_tip};
 use proptest::proptest;
 
 use crate::{buffer, PropValue};
@@ -12,7 +10,6 @@ const BLOCK_INFO_V1: [&str; 5] = [
     "miner-address",
     "time",
 ];
-const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
 const STACKS_BLOCK_HEIGHT_LIMIT: u32 = 100;
 
@@ -35,8 +32,14 @@ mod clarity_v1 {
 
 #[cfg(feature = "test-clarity-v2")]
 mod clarity_v2 {
+    use clar2wasm::tools::crosscheck_with_epoch;
+    use clarity::types::StacksEpochId;
+    use clarity::vm::Value;
+
     use super::*;
     use crate::runtime_config;
+
+    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
     proptest! {
         #![proptest_config(runtime_config())]
@@ -47,13 +50,33 @@ mod clarity_v2 {
                 crosscheck_compare_only_advancing_tip(&format!("(get-block-info? {info} u{block_height})"), tip)
             }
         }
+
+        #[test]
+        fn crosscheck_at_block_no_leak_v2(
+            value in PropValue::any(),
+            buf in buffer(32)
+        ) {
+            let expected = Value::UInt(0);
+
+            crosscheck_with_epoch(
+                &format!("(at-block {buf} {value}) (ok block-height)"),
+                Ok(Some(Value::okay(expected).unwrap())),
+                StacksEpochId::Epoch24,
+            );
+        }
     }
 }
 
 #[cfg(not(any(feature = "test-clarity-v1", feature = "test-clarity-v2")))]
 mod clarity_v3 {
+    use clar2wasm::tools::crosscheck_with_epoch;
+    use clarity::types::StacksEpochId;
+    use clarity::vm::Value;
+
     use super::*;
     use crate::runtime_config;
+
+    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
     proptest! {
         #![proptest_config(runtime_config())]
@@ -64,6 +87,20 @@ mod clarity_v3 {
             for info in BLOCK_INFO_V1.iter().chain(BLOCK_INFO_V2.iter()) {
                 crosscheck_compare_only_advancing_tip(&format!("(get-stacks-block-info? {info} u{block_height})"), tip)
             }
+        }
+
+        #[test]
+        fn crosscheck_at_block_no_leak_v3(
+            value in PropValue::any(),
+            buf in buffer(32)
+        ) {
+            let expected = Value::UInt(0);
+
+            crosscheck_with_epoch(
+                &format!("(at-block {buf} {value}) (ok stacks-block-height)"),
+                Ok(Some(Value::okay(expected).unwrap())),
+                StacksEpochId::Epoch30,
+            );
         }
     }
 }
@@ -102,24 +139,5 @@ proptest! {
             &format!("(at-block {buf} {value})"),
             Ok(Some(value.into()))
         )
-    }
-
-    #[test]
-    fn crosscheck_at_block_no_leak(
-        value in PropValue::any(),
-        buf in buffer(32)
-    ) {
-        let expected_block = Value::UInt(0);
-
-        let crosscheck_for = |epoch: StacksEpochId, expected: Value, keyword: &str| {
-            crosscheck_with_epoch(
-                &format!("(at-block {buf} {value}) (ok {keyword})"),
-                Ok(Some(Value::okay(expected).unwrap())),
-                epoch,
-            );
-        };
-
-        crosscheck_for(StacksEpochId::Epoch30, expected_block.clone(), "stacks-block-height");
-        crosscheck_for(StacksEpochId::Epoch24, expected_block, "block-height");
     }
 }

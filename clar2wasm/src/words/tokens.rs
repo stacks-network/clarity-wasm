@@ -495,9 +495,39 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_fungible_tokens_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-fungible-token index-of? u100)",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_expect_failure("(define-fungible-token index-of? u100)");
+        }
+
+        #[test]
+        fn validate_define_non_fungible_tokens_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-non-fungible-token index-of? (buff 50))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_expect_failure("(define-non-fungible-token index-of? (buff 50))");
+        }
+    }
 
     #[test]
     fn bar_mint_too_many() {
@@ -530,18 +560,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_fungible_tokens_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-fungible-token index-of? u100)",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-fungible-token index-of? u100)");
-    }
-
-    #[test]
     fn validate_define_non_fungible_tokens() {
         // Reserved keyword
         crosscheck_expect_failure("(define-non-fungible-token map (buff 50))");
@@ -553,17 +571,5 @@ mod tests {
         crosscheck_expect_failure(
             "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
         );
-    }
-
-    #[test]
-    fn validate_define_non_fungible_tokens_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-non-fungible-token index-of? (buff 50))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-non-fungible-token index-of? (buff 50))");
     }
 }

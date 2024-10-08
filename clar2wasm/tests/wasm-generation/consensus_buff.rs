@@ -65,7 +65,6 @@ mod clarity_v2_v3 {
             prop_assume!(merged_tuple.is_ok(), "Cannot create a correct merged tuple");
             let merged_tuple = PropValue::from(Value::from(merged_tuple.unwrap()));
 
-
             let mut data = Vec::new();
             prop_assume!(
                 merged_tuple.0.serialize_write(&mut data).is_ok(),

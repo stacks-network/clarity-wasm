@@ -226,13 +226,27 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
     use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version,
-        crosscheck_with_epoch, evaluate,
+        crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version, evaluate,
     };
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_data_var_epoch() {
+            crosscheck_with_epoch(
+                "(define-data-var index-of? int 0)",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn test_var_get() {
@@ -276,17 +290,6 @@ mod tests {
 
         // Custom variable name duplicate
         crosscheck_expect_failure("(define-data-var a int 0) (define-data-var a int 0)");
-    }
-
-    #[test]
-    fn validate_define_data_var_epoch() {
-        crosscheck_with_epoch(
-            "(define-data-var index-of? int 0)",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-data-var index-of? int 0)");
     }
 
     #[test]

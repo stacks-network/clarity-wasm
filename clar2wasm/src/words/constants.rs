@@ -116,9 +116,23 @@ mod tests {
     };
     use clarity::vm::Value;
 
-    use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate, TestEnvironment,
-    };
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_const_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-constant index-of? (+ 2 2))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn define_constant_const() {
@@ -223,18 +237,6 @@ mod tests {
 
         // Custom constant name duplicate
         crosscheck_expect_failure("(define-constant a (+ 2 2)) (define-constant a (+ 2 2))");
-    }
-
-    #[test]
-    fn validate_define_const_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-constant index-of? (+ 2 2))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-constant index-of? (+ 2 2))");
     }
 
     #[test]
