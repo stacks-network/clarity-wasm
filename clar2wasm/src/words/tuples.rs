@@ -5,7 +5,6 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -28,7 +27,7 @@ impl ComplexWord for TupleCons {
             .clone();
 
         let mut tuple_ty = match ty {
-            TypeSignature::TupleType(ref tuple) => ordered_tuple_signature(tuple),
+            TypeSignature::TupleType(ref tuple) => tuple.get_type_map().clone(),
             _ => return Err(GeneratorError::TypeError("expected tuple type".to_string())),
         };
 
@@ -69,7 +68,7 @@ impl ComplexWord for TupleCons {
             generator.set_expr_type(value, value_ty.clone())?;
 
             generator.traverse_expr(builder, value)?;
-            locals_map.insert(key, generator.save_to_locals(builder, value_ty, true));
+            locals_map.insert(key, generator.save_to_locals(builder, &value_ty, true));
         }
 
         // Make sure that all the tuples keys were defined
@@ -130,7 +129,7 @@ impl ComplexWord for TupleGet {
         generator.traverse_expr(builder, &args[1])?;
 
         // Determine the wasm types for each field of the tuple
-        let field_types = ordered_tuple_signature(&tuple_ty);
+        let field_types = tuple_ty.get_type_map();
 
         // Create locals for the target field
         let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or_else(|| {
@@ -145,7 +144,7 @@ impl ComplexWord for TupleGet {
         // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
-        for (field_name, field_ty) in field_types.into_iter().rev() {
+        for (field_name, field_ty) in field_types.iter().rev() {
             // If this is the target field, store it in the locals we created
             // above.
             if field_name == target_field_name {
@@ -213,7 +212,7 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })
-            .map(owned_ordered_tuple_signature)?
+            .map(|tuple| tuple.get_type_map().clone())?
             .into_iter()
             .map(|(name, ty_)| {
                 (
@@ -231,7 +230,7 @@ impl ComplexWord for TupleMerge {
 
         // We will copy the values from LHS into the result locals iff the key is not
         // present in RHS. Otherwise, we drop the values.
-        for (name, ty_) in ordered_tuple_signature(&lhs_tuple_ty).into_iter().rev() {
+        for (name, ty_) in lhs_tuple_ty.get_type_map().iter().rev() {
             if !rhs_tuple_ty.get_type_map().contains_key(name) {
                 result_locals
                     .get(name)
@@ -254,7 +253,7 @@ impl ComplexWord for TupleMerge {
         generator.traverse_expr(builder, &args[1])?;
 
         // We will copy all values of RHS into the result locals
-        for (name, _) in ordered_tuple_signature(&rhs_tuple_ty).into_iter().rev() {
+        for (name, _) in rhs_tuple_ty.get_type_map().iter().rev() {
             result_locals
                 .get(name)
                 .ok_or_else(|| {

@@ -12,7 +12,6 @@ use walrus::{InstrSeqBuilder, LocalId, MemoryId, ValType};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
 };
-use crate::wasm_utils::ordered_tuple_signature;
 
 impl WasmGenerator {
     /// Deserialize an integer (`int` or `uint`) from memory using consensus
@@ -993,7 +992,7 @@ impl WasmGenerator {
         // We will need to add all the keys to the data to be able to check if
         // they are part of the tuple and find their index. They will be stored as
         // [number of keys as u32 | key 1 offset as u32 | key 2 offset as u32 | key 1 len as u8 | key 2 len as u8 | ... | key 1 | key 2 | ...]
-        let tm = ordered_tuple_signature(tuple_ty);
+        let tm = tuple_ty.get_type_map();
         let (keys_offset, keys_len) = {
             let mut keys = (tm.len() as u32).to_le_bytes().to_vec();
             // add relative offsets
@@ -1188,7 +1187,7 @@ impl WasmGenerator {
                     }
 
                     // switch case for valid fields
-                    for (((&case, &field_ty), field_locals), case_idx) in switch_case_blocks[1..]
+                    for (((&case, field_ty), field_locals), case_idx) in switch_case_blocks[1..]
                         .iter()
                         .zip(tm.values())
                         .zip(values_locals.iter())

@@ -1,7 +1,5 @@
 #![allow(non_camel_case_types)]
 
-use std::collections::BTreeMap;
-
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::ast::{build_ast_with_rules, ASTRules};
 use clarity::vm::contexts::GlobalContext;
@@ -10,10 +8,9 @@ use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{
     ASCIIData, BuffData, BufferLength, CallableData, CharType, ListData, OptionalData,
     PrincipalData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
-    SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TupleTypeSignature,
-    TypeSignature,
+    SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TypeSignature,
 };
-use clarity::vm::{CallStack, ClarityName, ClarityVersion, ContractContext, ContractName, Value};
+use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
@@ -314,7 +311,7 @@ pub fn wasm_to_clarity_value(
         TypeSignature::TupleType(t) => {
             let mut index = value_index;
             let mut data_map = Vec::new();
-            for (name, ty) in ordered_tuple_signature(t) {
+            for (name, ty) in t.get_type_map() {
                 let (value, increment) =
                     wasm_to_clarity_value(ty, index, buffer, memory, store, epoch)?;
                 data_map.push((
@@ -510,7 +507,7 @@ pub fn read_from_wasm(
         TypeSignature::TupleType(type_sig) => {
             let mut data = Vec::new();
             let mut current_offset = offset;
-            for (field_key, field_ty) in ordered_tuple_signature(type_sig) {
+            for (field_key, field_ty) in type_sig.get_type_map() {
                 let field_length = get_type_size(field_ty);
                 let field_value =
                     read_from_wasm_indirect(memory, store, field_ty, current_offset, epoch)?;
@@ -1057,9 +1054,10 @@ pub fn write_to_wasm(
             let mut written = 0;
             let mut in_mem_written = 0;
 
-            for (key, val) in &tuple_data.data_map {
-                let val_type = type_sig
-                    .field_type(key)
+            for (key, val_type) in type_sig.get_type_map() {
+                let val = tuple_data
+                    .data_map
+                    .get(key)
                     .ok_or(Error::Wasm(WasmError::ValueTypeMismatch))?;
                 let (new_written, new_in_mem_written) = write_to_wasm(
                     store.as_context_mut(),
@@ -1224,7 +1222,7 @@ fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
         }
         TypeSignature::TupleType(inner_types) => {
             let mut types = vec![];
-            for &inner_type in ordered_tuple_signature(inner_types).values() {
+            for inner_type in inner_types.get_type_map().values() {
                 types.extend(clar2wasm_ty(inner_type));
             }
             types
@@ -1607,7 +1605,7 @@ fn reserve_space_for_return(
         TypeSignature::TupleType(type_sig) => {
             let mut vals = vec![];
             let mut adjusted = offset;
-            for ty in ordered_tuple_signature(type_sig).values() {
+            for ty in type_sig.get_type_map().values() {
                 let (subexpr_values, new_offset) = reserve_space_for_return(adjusted, ty)?;
                 vals.extend(subexpr_values);
                 adjusted = new_offset;
@@ -1618,22 +1616,6 @@ fn reserve_space_for_return(
             unreachable!("not a valid return type");
         }
     }
-}
-
-pub(crate) fn ordered_tuple_signature(
-    tuple: &TupleTypeSignature,
-) -> BTreeMap<&ClarityName, &TypeSignature> {
-    tuple.get_type_map().iter().collect()
-}
-
-pub(crate) fn owned_ordered_tuple_signature(
-    tuple: &TupleTypeSignature,
-) -> BTreeMap<ClarityName, TypeSignature> {
-    tuple
-        .get_type_map()
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
 }
 
 pub fn signature_from_string(
