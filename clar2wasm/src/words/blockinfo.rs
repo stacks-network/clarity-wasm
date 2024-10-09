@@ -151,8 +151,13 @@ mod tests {
 
     use crate::tools::{evaluate, TestEnvironment};
 
-    #[cfg(feature = "test-clarity-v1")]
-    mod clarity_v1 {
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1 or Clarity::V2.
+    //
+    #[cfg(not(feature = "test-clarity-v3"))]
+    #[cfg(test)]
+    mod clarity_v1_v2 {
         use clarity::types::StacksEpochId;
 
         use super::*;
@@ -188,25 +193,21 @@ mod tests {
                 StacksEpochId::Epoch24,
             );
         }
-    }
 
-    #[cfg(feature = "test-clarity-v2")]
-    mod clarity_v2 {
-        use clarity::types::StacksEpochId;
-
-        use super::*;
-        use crate::tools::crosscheck_with_epoch;
-
-        //- At Block
         #[test]
         fn at_block() {
-            crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF))),
-            StacksEpochId::Epoch24,
-        )
+            crosscheck_with_epoch(
+                "(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+                Ok(Some(Value::UInt(0xFFFFFFFF))),
+                StacksEpochId::Epoch24,
+            )
         }
     }
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V3.
+    //
     #[cfg(feature = "test-clarity-v3")]
     mod clarity_v3 {
         use clarity::types::StacksEpochId;

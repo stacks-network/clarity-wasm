@@ -10,9 +10,14 @@ const BLOCK_INFO_V1: [&str; 5] = [
     "miner-address",
     "time",
 ];
+const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
 const STACKS_BLOCK_HEIGHT_LIMIT: u32 = 100;
 
+//
+// Module with tests that should only be executed
+// when running Clarity::V1.
+//
 #[cfg(feature = "test-clarity-v1")]
 mod clarity_v1 {
     use super::*;
@@ -30,16 +35,14 @@ mod clarity_v1 {
     }
 }
 
+//
+// Module with tests that should only be executed
+// when running Clarity::V2.
+//
 #[cfg(feature = "test-clarity-v2")]
 mod clarity_v2 {
-    use clar2wasm::tools::crosscheck_with_epoch;
-    use clarity::types::StacksEpochId;
-    use clarity::vm::Value;
-
     use super::*;
     use crate::runtime_config;
-
-    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
     proptest! {
         #![proptest_config(runtime_config())]
@@ -50,23 +53,13 @@ mod clarity_v2 {
                 crosscheck_compare_only_advancing_tip(&format!("(get-block-info? {info} u{block_height})"), tip)
             }
         }
-
-        #[test]
-        fn crosscheck_at_block_no_leak_v2(
-            value in PropValue::any(),
-            buf in buffer(32)
-        ) {
-            let expected = Value::UInt(0);
-
-            crosscheck_with_epoch(
-                &format!("(at-block {buf} {value}) (ok block-height)"),
-                Ok(Some(Value::okay(expected).unwrap())),
-                StacksEpochId::Epoch24,
-            );
-        }
     }
 }
 
+//
+// Module with tests that should only be executed
+// when running Clarity::V3.
+//
 #[cfg(not(any(feature = "test-clarity-v1", feature = "test-clarity-v2")))]
 mod clarity_v3 {
     use clar2wasm::tools::crosscheck_with_epoch;
@@ -75,8 +68,6 @@ mod clarity_v3 {
 
     use super::*;
     use crate::runtime_config;
-
-    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
     proptest! {
         #![proptest_config(runtime_config())]
@@ -90,7 +81,7 @@ mod clarity_v3 {
         }
 
         #[test]
-        fn crosscheck_at_block_no_leak_v3(
+        fn crosscheck_at_block_no_leak(
             value in PropValue::any(),
             buf in buffer(32)
         ) {
@@ -105,6 +96,10 @@ mod clarity_v3 {
     }
 }
 
+//
+// Module with tests that should only be executed
+// when running Clarity::V2 or Clarity::V3.
+//
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use super::*;
@@ -123,6 +118,38 @@ mod clarity_v2_v3 {
                     &format!("(get-burn-block-info? {info} u{block_height})"), tip
                 )
             }
+        }
+    }
+}
+
+//
+// Module with tests that should only be executed
+// when running Clarity::V1 or Clarity::V2.
+//
+#[cfg(not(feature = "test-clarity-v3"))]
+mod clarity_v1_v2 {
+    use clar2wasm::tools::crosscheck_with_epoch;
+    use clarity::types::StacksEpochId;
+    use clarity::vm::Value;
+
+    use super::*;
+    use crate::runtime_config;
+
+    proptest! {
+        #![proptest_config(runtime_config())]
+
+        #[test]
+        fn crosscheck_at_block_no_leak(
+            value in PropValue::any(),
+            buf in buffer(32)
+        ) {
+            let expected = Value::UInt(0);
+
+            crosscheck_with_epoch(
+                &format!("(at-block {buf} {value}) (ok block-height)"),
+                Ok(Some(Value::okay(expected).unwrap())),
+                StacksEpochId::Epoch24,
+            );
         }
     }
 }
