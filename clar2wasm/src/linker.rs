@@ -81,7 +81,8 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_load_constant_fn(linker)?;
     link_skip_list(linker)?;
 
-    link_log(linker)
+    link_log(linker)?;
+	link_debug_msg(linker)
 }
 
 /// Link host interface function, `define_variable`, into the Wasm module.
@@ -92,10 +93,10 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
             "clarity",
             "define_variable",
             |mut caller: Caller<'_, ClarityWasmContext>,
-             name_offset: i32,
-             name_length: i32,
-             mut value_offset: i32,
-             mut value_length: i32| {
+            name_offset: i32,
+            name_length: i32,
+            mut value_offset: i32,
+            mut value_length: i32| {
                 // TODO: Include this cost
                 // runtime_cost(ClarityCostFunction::CreateVar, global_context, value_type.size())?;
 
@@ -4239,6 +4240,18 @@ fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
         .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("log".to_string(), e)))
 }
 
+/// Link host-interface function, `debug_msg`, into the Wasm module.
+/// This function is used for debugging the Wasm, and should not be called in
+/// production.
+fn link_debug_msg<T>(linker: &mut Linker<T>) -> Result<(), Error> {
+    linker
+        .func_wrap("", "debug_msg", |_caller: Caller<'_, T>, param: i32| {
+			crate::debug_msg::recall(param, |s| println!("DEBUG: {}", s))
+        })
+        .map(|_| ())
+        .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("debug_msg".to_string(), e)))
+}
+
 /// the standard.wat file and link in all of the host interface functions.
 pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let standard_lib = include_str!("standard/standard.wat");
@@ -4727,6 +4740,11 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 
     // Create a log function for debugging.
     linker.func_wrap("", "log", |param: i64| {
+        println!("log: {param}");
+    })?;
+
+    // Create another log function for debugging.
+    linker.func_wrap("", "debug_msg", |param: i32| {
         println!("log: {param}");
     })?;
 

@@ -24,6 +24,7 @@ pub mod datastore;
 pub mod tools;
 
 mod error_mapping;
+mod debug_msg;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
