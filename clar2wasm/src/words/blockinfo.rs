@@ -155,7 +155,7 @@ mod tests {
     // Module with tests that should only be executed
     // when running Clarity::V1 or Clarity::V2.
     //
-    #[cfg(not(feature = "test-clarity-v3"))]
+    #[cfg(any(feature = "test-clarity-v1", feature = "test-clarity-v2"))]
     #[cfg(test)]
     mod clarity_v1_v2 {
         use clarity::types::StacksEpochId;
