@@ -118,6 +118,10 @@ mod tests {
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
     #[cfg(feature = "test-clarity-v1")]
     mod clarity_v1 {
         use super::*;

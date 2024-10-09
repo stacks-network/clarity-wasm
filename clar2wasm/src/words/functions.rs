@@ -118,6 +118,10 @@ mod tests {
         crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, evaluate,
     };
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
     #[cfg(feature = "test-clarity-v1")]
     mod clarity_v1 {
         use clarity::types::StacksEpochId;
