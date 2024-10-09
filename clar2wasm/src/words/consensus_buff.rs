@@ -151,9 +151,13 @@ impl ComplexWord for FromConsensusBuff {
     }
 }
 
-#[cfg(not(feature = "test-clarity-v1"))]
 #[cfg(test)]
 mod tests {
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::V3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
     #[cfg(test)]
     mod clarity_v2_v3 {
 
