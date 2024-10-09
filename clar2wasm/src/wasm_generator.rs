@@ -24,8 +24,7 @@ use walrus::{
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{get_type_in_memory_size, get_type_size, is_in_memory_type};
-use crate::words;
-use crate::debug_msg;
+use crate::{debug_msg, words};
 
 // First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 1352;
@@ -1709,7 +1708,7 @@ impl WasmGenerator {
     }
 
     pub fn debug_msg<M: Into<String>>(&mut self, builder: &mut InstrSeqBuilder, message: M) {
-		let id = debug_msg::register(message.into());
+        let id = debug_msg::register(message.into());
         builder.i32_const(id);
         builder.call(self.func_by_name("debug_msg"));
     }

@@ -82,7 +82,7 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_skip_list(linker)?;
 
     link_log(linker)?;
-	link_debug_msg(linker)
+    link_debug_msg(linker)
 }
 
 /// Link host interface function, `define_variable`, into the Wasm module.
@@ -93,10 +93,10 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
             "clarity",
             "define_variable",
             |mut caller: Caller<'_, ClarityWasmContext>,
-            name_offset: i32,
-            name_length: i32,
-            mut value_offset: i32,
-            mut value_length: i32| {
+             name_offset: i32,
+             name_length: i32,
+             mut value_offset: i32,
+             mut value_length: i32| {
                 // TODO: Include this cost
                 // runtime_cost(ClarityCostFunction::CreateVar, global_context, value_type.size())?;
 
@@ -4246,10 +4246,15 @@ fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
 fn link_debug_msg<T>(linker: &mut Linker<T>) -> Result<(), Error> {
     linker
         .func_wrap("", "debug_msg", |_caller: Caller<'_, T>, param: i32| {
-			crate::debug_msg::recall(param, |s| println!("DEBUG: {}", s))
+            crate::debug_msg::recall(param, |s| println!("DEBUG: {}", s))
         })
         .map(|_| ())
-        .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("debug_msg".to_string(), e)))
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "debug_msg".to_string(),
+                e,
+            ))
+        })
 }
 
 /// the standard.wat file and link in all of the host interface functions.

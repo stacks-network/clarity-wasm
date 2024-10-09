@@ -23,8 +23,8 @@ mod words;
 pub mod datastore;
 pub mod tools;
 
-mod error_mapping;
 mod debug_msg;
+mod error_mapping;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
