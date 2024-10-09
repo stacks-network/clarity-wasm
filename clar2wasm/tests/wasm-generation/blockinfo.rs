@@ -10,7 +10,6 @@ const BLOCK_INFO_V1: [&str; 5] = [
     "miner-address",
     "time",
 ];
-const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
 const STACKS_BLOCK_HEIGHT_LIMIT: u32 = 100;
 
@@ -44,6 +43,8 @@ mod clarity_v2 {
     use super::*;
     use crate::runtime_config;
 
+    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
+
     proptest! {
         #![proptest_config(runtime_config())]
 
@@ -68,6 +69,8 @@ mod clarity_v3 {
 
     use super::*;
     use crate::runtime_config;
+
+    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
 
     proptest! {
         #![proptest_config(runtime_config())]
