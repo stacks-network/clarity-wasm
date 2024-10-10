@@ -252,6 +252,9 @@
     ;; Useful for debugging, just prints the value
     (import "" "log" (func $log (param $value i64)))
 
+    ;; Useful for debugging, just prints a message
+    (import "" "debug_msg" (func $debug_msg (param $value i32)))
+
     ;;
     ;; Global definitions
     (global $stack-pointer (mut i32) (i32.const 0))
