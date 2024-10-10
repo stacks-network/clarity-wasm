@@ -587,7 +587,7 @@ pub fn crosscheck_with_epoch(
 ) {
     let eval = match crosseval(
         snippet,
-        TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch)),
+        TestEnvironment::new(epoch, TestConfig::clarity_version()),
     ) {
         Ok(result) => result,
         Err(_bug) => {

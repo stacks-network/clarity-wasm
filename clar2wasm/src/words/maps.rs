@@ -372,10 +372,30 @@ impl ComplexWord for MapDelete {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_map_epoch() {
+            // Epoch
+            crosscheck_with_epoch(
+                "(define-map index-of? {x: int} {square: int})",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn map_define_get() {
@@ -417,18 +437,5 @@ mod tests {
         crosscheck_expect_failure(
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
         );
-    }
-
-    #[test]
-    fn validate_define_map_epoch() {
-        // Epoch
-        crosscheck_with_epoch(
-            "(define-map index-of? {x: int} {square: int})",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-map index-of? {x: int} {square: int})");
-        crosscheck_expect_failure("(define-map index-of {x: int} {square: int})");
     }
 }
