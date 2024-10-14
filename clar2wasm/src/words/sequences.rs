@@ -1181,7 +1181,7 @@ impl ComplexWord for ReplaceAt {
             builder.local_tee(repl_len).unop(UnaryOp::I32Eqz).if_else(
                 None,
                 |then| {
-                    then.i32_const(ErrorMap::Panic as i32)
+                    then.i32_const(ErrorMap::BadTypeConstruction as i32)
                         .call(generator.func_by_name("stdlib.runtime-error"));
                 },
                 |_| {},
@@ -1986,24 +1986,6 @@ mod tests {
     }
 
     #[test]
-    fn replace_element_cannot_be_empty_string_ascii() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? "abcd" u0 "")"#));
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn replace_element_cannot_be_empty_string_utf8() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? u"abcd" u0 u"")"#));
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn replace_element_cannot_be_empty_buff() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? 0x12345678 u0 0x)"#));
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn unit_fold_repsonses_full_type() {
         let snippet = "
 (define-private (knus (a (response int int))
@@ -2052,6 +2034,8 @@ mod tests {
     #[cfg(not(feature = "test-clarity-v1"))]
     #[cfg(test)]
     mod clarity_v2_v3 {
+        use clarity::vm::errors::RuntimeErrorType;
+
         use super::*;
 
         #[test]
@@ -2151,6 +2135,45 @@ mod tests {
         #[test]
         fn slice_full() {
             crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_buff() {
+            let snippet = r#"(replace-at? 0x12345678 u0 0x)"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_string_ascii() {
+            let snippet = r#"(replace-at? "abcd" u0 "")"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_string_utf8() {
+            let snippet = r#"(replace-at? u"abcd" u0 u"")"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
         }
     }
 }
