@@ -23,14 +23,14 @@ impl ComplexWord for GetBlockInfo {
 
         // Parse the property name at compile time
         let (name_length, return_size) = match prop_name.as_str() {
-            "time" => (4, 16), // uint (128-bit) - the dynamic values are totally different from these ones. why?
-            "header-hash" => (11, 32), // buff 32
-            "burnchain-header-hash" => (21, 32), // buff 32
-            "id-header-hash" => (14, 32), // buff 32
+            "time" => (4, 40), // uint (128-bit)
+            "header-hash" => (11, 56), // buff 32
+            "burnchain-header-hash" => (21, 56), // buff 32
+            "id-header-hash" => (14, 56), // buff 32
             "miner-address" => (13, 0), // return-size should remain dynamic as it may also be a smart contract
-            "block-reward" => (12, 16), // uint (128-bit)
-            "miner-spend-total" => (17, 16), // uint (128-bit)
-            "miner-spend-winner" => (18, 16), // uint (128-bit)
+            "block-reward" => (12, 40), // uint (128-bit)
+            "miner-spend-total" => (17, 40), // uint (128-bit)
+            "miner-spend-winner" => (18, 40), // uint (128-bit)
             _ => {
                 return Err(GeneratorError::InternalError(format!(
                     "{self:?} does not have a property of type {}",
