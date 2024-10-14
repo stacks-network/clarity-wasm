@@ -263,10 +263,10 @@ impl ComplexWord for UnwrapErrPanic {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::errors::Error;
+    use clarity::vm::errors::{Error, RuntimeErrorType};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     #[test]
     fn test_unwrap_panic_some() {
@@ -282,8 +282,13 @@ mod tests {
 (unwrap-opt none)
         "#;
 
-        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
-        assert!(result.is_err());
+        crosscheck(
+            snippet,
+            Err(Error::Runtime(
+                RuntimeErrorType::UnwrapFailure,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     #[test]
@@ -299,8 +304,13 @@ mod tests {
 )
 (unwrap-opt (err u42))"#;
 
-        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
-        assert!(result.is_err());
+        crosscheck(
+            snippet,
+            Err(Error::Runtime(
+                RuntimeErrorType::UnwrapFailure,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     #[test]
@@ -316,8 +326,13 @@ mod tests {
 )
 (unwrap-opt (ok u42))"#;
 
-        let result = std::panic::catch_unwind(|| TestEnvironment::default().evaluate(snippet));
-        assert!(result.is_err());
+        crosscheck(
+            snippet,
+            Err(Error::Runtime(
+                RuntimeErrorType::UnwrapFailure,
+                Some(Vec::new()),
+            )),
+        )
     }
 
     /// Verify that the full response type is set correctly for the last
