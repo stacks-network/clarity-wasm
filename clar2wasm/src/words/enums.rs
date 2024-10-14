@@ -22,7 +22,7 @@ impl ComplexWord for ClaritySome {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "some expected 1 argument, got {}",
                 args.len()
             )));
@@ -64,7 +64,7 @@ impl ComplexWord for ClarityOk {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ok expected 1 argument, got {}",
                 args.len()
             )));
@@ -116,7 +116,7 @@ impl ComplexWord for ClarityErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "err expected 1 argument, got {}",
                 args.len()
             )));

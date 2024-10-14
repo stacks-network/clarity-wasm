@@ -26,7 +26,7 @@ impl ComplexWord for If {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "if expected 3 arguments, got {}",
                 args.len()
             )));
@@ -104,7 +104,7 @@ impl ComplexWord for Match {
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
                 if args.len() != 4 {
-                    return Err(GeneratorError::InternalError(format!(
+                    return Err(GeneratorError::ArgumentLengthError(format!(
                         "match expected 4 arguments, got {}",
                         args.len()
                     )));
@@ -137,7 +137,7 @@ impl ComplexWord for Match {
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
                 if args.len() != 5 {
-                    return Err(GeneratorError::InternalError(format!(
+                    return Err(GeneratorError::ArgumentLengthError(format!(
                         "match expected 5 arguments, got {}",
                         args.len()
                     )));
@@ -207,7 +207,7 @@ impl ComplexWord for Filter {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "filter expected 2 arguments, got {}",
                 args.len()
             )));
@@ -437,7 +437,9 @@ impl ComplexWord for And {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.is_empty() {
-            return Err(GeneratorError::InternalError("and expected at least 1 argument, got 0".to_owned()));
+            return Err(GeneratorError::ArgumentLengthError(
+                "and expected at least 1 argument, got 0".to_owned(),
+            ));
         };
 
         traverse_short_circuiting_list(generator, builder, args, false)
@@ -482,7 +484,9 @@ impl ComplexWord for Or {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.is_empty() {
-            return Err(GeneratorError::InternalError("or expected at least 1 argument, got 0".to_owned()));
+            return Err(GeneratorError::ArgumentLengthError(
+                "or expected at least 1 argument, got 0".to_owned(),
+            ));
         };
 
         traverse_short_circuiting_list(generator, builder, args, true)
@@ -527,7 +531,7 @@ impl ComplexWord for Unwrap {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "unwrap! expected 2 arguments, got {}",
                 args.len()
             )));
@@ -615,7 +619,7 @@ impl ComplexWord for UnwrapErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "unwrap-err! expected 2 arguments, got {}",
                 args.len()
             )));
@@ -711,7 +715,7 @@ impl ComplexWord for Asserts {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "asserts! expected 2 arguments, got {}",
                 args.len()
             )));
@@ -788,7 +792,7 @@ impl ComplexWord for Try {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "try! expected 1 argument, got {}",
                 args.len()
             )));

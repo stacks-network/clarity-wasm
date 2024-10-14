@@ -21,7 +21,7 @@ impl ComplexWord for DefineConstant {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-constant expected 2 arguments, got {}",
                 args.len()
             )));

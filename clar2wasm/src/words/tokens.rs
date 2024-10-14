@@ -20,7 +20,7 @@ impl ComplexWord for DefineFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 && args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-fungible-token expected 1 or 2 arguments, got {}",
                 args.len()
             )));
@@ -75,7 +75,7 @@ impl ComplexWord for BurnFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ft-burn? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -118,7 +118,7 @@ impl ComplexWord for TransferFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 4 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ft-transfer? expected 4 arguments, got {}",
                 args.len()
             )));
@@ -163,7 +163,7 @@ impl ComplexWord for MintFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ft-mint? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -205,7 +205,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ft-get-supply expected 1 argument, got {}",
                 args.len()
             )));
@@ -240,7 +240,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "ft-get-balance expected 2 arguments, got {}",
                 args.len()
             )));
@@ -283,7 +283,7 @@ impl ComplexWord for DefineNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-non-fungible-token expected 2 arguments, got {}",
                 args.len()
             )));
@@ -337,7 +337,7 @@ impl ComplexWord for BurnNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "nft-burn? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -397,7 +397,7 @@ impl ComplexWord for TransferNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 4 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "nft-transfer? expected 4 arguments, got {}",
                 args.len()
             )));
@@ -461,7 +461,7 @@ impl ComplexWord for MintNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "nft-mint? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -521,7 +521,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "nft-get-owner? expected 2 arguments, got {}",
                 args.len()
             )));

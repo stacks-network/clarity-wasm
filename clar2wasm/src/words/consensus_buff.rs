@@ -23,7 +23,7 @@ impl ComplexWord for ToConsensusBuff {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "to-consensus-buff? expected 1 argument, got {}",
                 args.len()
             )));
@@ -101,7 +101,7 @@ impl ComplexWord for FromConsensusBuff {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "from-consensus-buff? expected 2 arguments, got {}",
                 args.len()
             )));

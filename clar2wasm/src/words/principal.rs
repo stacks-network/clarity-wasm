@@ -99,7 +99,7 @@ impl ComplexWord for Construct {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 && args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "principal-construct? expected 2 or 3 arguments, got {}",
                 args.len()
             )));
@@ -280,7 +280,7 @@ impl ComplexWord for PrincipalOf {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "principal-of? expected 1 argument, got {}",
                 args.len()
             )));

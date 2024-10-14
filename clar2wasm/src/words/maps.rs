@@ -20,7 +20,7 @@ impl ComplexWord for MapDefinition {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-map expected 3 arguments, got {}",
                 args.len()
             )));
@@ -87,7 +87,7 @@ impl ComplexWord for MapGet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "map-get expected 2 arguments, got {}",
                 args.len()
             )));
@@ -171,7 +171,7 @@ impl ComplexWord for MapSet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "map-insert expected 3 arguments, got {}",
                 args.len()
             )));
@@ -258,7 +258,7 @@ impl ComplexWord for MapInsert {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "map-insert expected 3 arguments, got {}",
                 args.len()
             )));
@@ -345,7 +345,7 @@ impl ComplexWord for MapDelete {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "map-delete expected 2 arguments, got {}",
                 args.len()
             )));

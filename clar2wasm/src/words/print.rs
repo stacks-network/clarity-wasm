@@ -62,7 +62,7 @@ impl ComplexWord for Print {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "print expected 1 argument, got {}",
                 args.len()
             )));

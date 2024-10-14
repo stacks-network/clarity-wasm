@@ -19,7 +19,7 @@ impl ComplexWord for Let {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() < 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "let expected at least 2 arguments, got {}",
                 args.len()
             )));

@@ -24,11 +24,10 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() < 1 {
-            return Err(GeneratorError::InternalError(format!(
-                "is-eq expected at least 1 argument, got {}",
-                args.len()
-            )));
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(
+                "is-eq expected at least 1 argument, got 0".to_owned(),
+            ));
         };
 
         // Traverse the first operand pushing it onto the stack
@@ -121,7 +120,7 @@ impl ComplexWord for IndexOf {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "index-of expected 2 arguments, got {}",
                 args.len()
             )));

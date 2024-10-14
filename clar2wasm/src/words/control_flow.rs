@@ -22,7 +22,7 @@ impl ComplexWord for Begin {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.is_empty() {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "begin expected at least 1 argument, got {}",
                 args.len()
             )));
@@ -57,7 +57,7 @@ impl ComplexWord for UnwrapPanic {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "unwrap-panic expected 1 argument, got {}",
                 args.len()
             )));
@@ -200,7 +200,7 @@ impl ComplexWord for UnwrapErrPanic {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "unwrap-err-panic expected 1 argument, got {}",
                 args.len()
             )));

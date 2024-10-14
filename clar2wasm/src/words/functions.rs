@@ -19,7 +19,7 @@ impl ComplexWord for DefinePrivateFunction {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-private expected 2 arguments, got {}",
                 args.len()
             )));
@@ -60,7 +60,7 @@ impl ComplexWord for DefineReadonlyFunction {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-read-only expected 2 arguments, got {}",
                 args.len()
             )));
@@ -103,7 +103,7 @@ impl ComplexWord for DefinePublicFunction {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-public expected 2 arguments, got {}",
                 args.len()
             )));

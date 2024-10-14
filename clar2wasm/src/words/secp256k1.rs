@@ -19,7 +19,7 @@ impl ComplexWord for Recover {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "secp256k1-recover? expected 2 arguments, got {}",
                 args.len()
             )));
@@ -73,7 +73,7 @@ impl ComplexWord for Verify {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "secp256k1-verify expected 3 arguments, got {}",
                 args.len()
             )));

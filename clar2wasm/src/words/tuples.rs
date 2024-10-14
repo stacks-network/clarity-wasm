@@ -22,7 +22,9 @@ impl ComplexWord for TupleCons {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.is_empty() {
-            return Err(GeneratorError::InternalError("tuple expected at least 1 argument, got 0".to_owned()));
+            return Err(GeneratorError::ArgumentLengthError(
+                "tuple expected at least 1 argument, got 0".to_owned(),
+            ));
         };
 
         let ty = generator
@@ -107,7 +109,7 @@ impl ComplexWord for TupleGet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "get expected 2 arguments, got {}",
                 args.len()
             )));
@@ -186,7 +188,7 @@ impl ComplexWord for TupleMerge {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "merge expected 2 arguments, got {}",
                 args.len()
             )));

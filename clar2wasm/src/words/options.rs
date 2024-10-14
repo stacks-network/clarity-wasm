@@ -51,7 +51,7 @@ impl ComplexWord for IsSome {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "is-some expected 1 argument, got {}",
                 args.len()
             )));
@@ -77,7 +77,7 @@ impl ComplexWord for IsNone {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "is-none expected 1 argument, got {}",
                 args.len()
             )));

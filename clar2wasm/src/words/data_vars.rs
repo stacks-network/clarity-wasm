@@ -21,7 +21,7 @@ impl ComplexWord for DefineDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-data-var expected 3 arguments, got {}",
                 args.len()
             )));
@@ -116,7 +116,7 @@ impl ComplexWord for SetDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "var-set expected 2 arguments, got {}",
                 args.len()
             )));
@@ -194,7 +194,7 @@ impl ComplexWord for GetDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "var-get expected 1 argument, got {}",
                 args.len()
             )));

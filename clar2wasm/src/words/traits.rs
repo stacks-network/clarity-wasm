@@ -19,7 +19,7 @@ impl ComplexWord for DefineTrait {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "define-trait expected 2 arguments, got {}",
                 args.len()
             )));
@@ -71,7 +71,7 @@ impl ComplexWord for UseTrait {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "use-trait expected 2 arguments, got {}",
                 args.len()
             )));
@@ -110,7 +110,7 @@ impl ComplexWord for ImplTrait {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "impl-trait expected 1 argument, got {}",
                 args.len()
             )));

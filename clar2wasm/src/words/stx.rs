@@ -63,7 +63,7 @@ impl ComplexWord for StxTransfer {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "stx-transfer? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -100,7 +100,7 @@ impl ComplexWord for StxTransferMemo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 4 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "stx-transfer-memo? expected 4 arguments, got {}",
                 args.len()
             )));

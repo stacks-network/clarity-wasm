@@ -24,7 +24,7 @@ impl ComplexWord for AsContract {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "as-contract expected 1 argument, got {}",
                 args.len()
             )));
@@ -61,7 +61,7 @@ impl ComplexWord for ContractCall {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() < 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "contract-call? expected at least 2 arguments, got {}",
                 args.len()
             )));

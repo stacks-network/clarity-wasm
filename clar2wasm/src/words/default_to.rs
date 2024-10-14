@@ -23,7 +23,7 @@ impl ComplexWord for DefaultTo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "default-to expected 2 arguments, got {}",
                 args.len()
             )));

@@ -85,7 +85,7 @@ impl ComplexWord for Fold {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "fold expected 3 arguments, got {}",
                 args.len()
             )));
@@ -276,7 +276,7 @@ impl ComplexWord for Append {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "append expected 2 arguments, got {}",
                 args.len()
             )));
@@ -370,7 +370,7 @@ impl ComplexWord for AsMaxLen {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "as-max-len? expected 2 arguments, got {}",
                 args.len()
             )));
@@ -477,7 +477,7 @@ impl ComplexWord for Concat {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "concat expected 2 arguments, got {}",
                 args.len()
             )));
@@ -555,7 +555,7 @@ impl ComplexWord for Map {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() < 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "map expected at least 2 arguments, got {}",
                 args.len()
             )));
@@ -842,7 +842,7 @@ impl ComplexWord for Len {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "len expected 1 argument, got {}",
                 args.len()
             )));
@@ -929,7 +929,7 @@ impl ComplexWord for ElementAt {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "element-at expected 2 arguments, got {}",
                 args.len()
             )));
@@ -1115,7 +1115,7 @@ impl ComplexWord for ReplaceAt {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "replace-at? expected 3 arguments, got {}",
                 args.len()
             )));
@@ -1371,7 +1371,7 @@ impl ComplexWord for Slice {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::InternalError(format!(
+            return Err(GeneratorError::ArgumentLengthError(format!(
                 "slice? expected 3 arguments, got {}",
                 args.len()
             )));
