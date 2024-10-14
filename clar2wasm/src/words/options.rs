@@ -50,6 +50,13 @@ impl ComplexWord for IsSome {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "is-some expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_optional(generator, builder, args)
     }
 }
@@ -69,6 +76,13 @@ impl ComplexWord for IsNone {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "is-none expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_optional(generator, builder, args)?;
 
         // Add one to stack

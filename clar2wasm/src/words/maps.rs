@@ -19,6 +19,13 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-map expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -79,6 +86,13 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "map-get expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -156,6 +170,13 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "map-insert expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -236,6 +257,13 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "map-insert expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -316,6 +344,13 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "map-delete expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 

@@ -53,6 +53,13 @@ impl ComplexWord for IsOk {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "is-ok expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_response(generator, builder, args)
     }
 }
@@ -72,6 +79,13 @@ impl ComplexWord for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "is-err expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_response(generator, builder, args)?;
 
         // Add one to stack

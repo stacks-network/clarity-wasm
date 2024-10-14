@@ -22,6 +22,13 @@ impl ComplexWord for ToConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "to-consensus-buff? expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         generator.traverse_args(builder, args)?;
 
         let ty = generator
@@ -93,6 +100,13 @@ impl ComplexWord for FromConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "from-consensus-buff? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator

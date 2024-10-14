@@ -18,6 +18,13 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "get-block-info? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -70,6 +77,13 @@ impl ComplexWord for GetBurnBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "get-burn-block-info? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -124,6 +138,13 @@ impl ComplexWord for AtBlock {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "at-block expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
 

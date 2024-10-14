@@ -18,6 +18,13 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() < 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "let expected at least 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let bindings = args.get_list(0)?;
 
         // Save the current named locals

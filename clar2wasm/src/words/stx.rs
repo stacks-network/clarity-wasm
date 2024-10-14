@@ -62,6 +62,13 @@ impl ComplexWord for StxTransfer {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "stx-transfer? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -92,6 +99,13 @@ impl ComplexWord for StxTransferMemo {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 4 {
+            return Err(GeneratorError::InternalError(format!(
+                "stx-transfer-memo? expected 4 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;

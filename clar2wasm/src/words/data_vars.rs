@@ -20,6 +20,13 @@ impl ComplexWord for DefineDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-data-var expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -108,6 +115,13 @@ impl ComplexWord for SetDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "var-set expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -179,6 +193,13 @@ impl ComplexWord for GetDataVar {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "var-get expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory

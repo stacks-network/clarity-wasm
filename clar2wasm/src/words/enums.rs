@@ -21,6 +21,13 @@ impl ComplexWord for ClaritySome {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "some expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
@@ -56,6 +63,13 @@ impl ComplexWord for ClarityOk {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "ok expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
 
         let TypeSignature::ResponseType(inner_types) = generator
@@ -101,6 +115,13 @@ impl ComplexWord for ClarityErr {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "err expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value

@@ -23,6 +23,13 @@ impl ComplexWord for AsContract {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "as-contract expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
@@ -53,6 +60,13 @@ impl ComplexWord for ContractCall {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() < 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "contract-call? expected at least 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;
         if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(

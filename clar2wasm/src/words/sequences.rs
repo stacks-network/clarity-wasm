@@ -84,6 +84,13 @@ impl ComplexWord for Fold {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "fold expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -268,6 +275,13 @@ impl ComplexWord for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "append expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
@@ -355,6 +369,13 @@ impl ComplexWord for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "as-max-len? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
         builder.i32_const(0).i32_const(1);
@@ -455,6 +476,13 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "concat expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
@@ -526,6 +554,13 @@ impl ComplexWord for Map {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() < 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "map expected at least 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let fname = args.get_name(0)?;
 
         let seq_ty = generator
@@ -806,6 +841,13 @@ impl ComplexWord for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "len expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -886,6 +928,13 @@ impl ComplexWord for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "element-at expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -1065,6 +1114,13 @@ impl ComplexWord for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "replace-at? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
@@ -1314,6 +1370,13 @@ impl ComplexWord for Slice {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "slice? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let seq = args.get_expr(0)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.

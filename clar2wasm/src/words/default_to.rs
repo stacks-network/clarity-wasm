@@ -22,6 +22,13 @@ impl ComplexWord for DefaultTo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "default-to expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))
         // i64              i64               i32        i64           i64

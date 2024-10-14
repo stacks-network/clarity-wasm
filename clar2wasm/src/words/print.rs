@@ -61,6 +61,13 @@ impl ComplexWord for Print {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "print expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
 
         // Traverse the value, leaving it on the data stack

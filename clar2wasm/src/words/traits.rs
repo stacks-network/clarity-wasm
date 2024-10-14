@@ -18,6 +18,13 @@ impl ComplexWord for DefineTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-trait expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -63,6 +70,13 @@ impl ComplexWord for UseTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "use-trait expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // We simply add the trait alias to the memory so that contract-call?
         // can retrieve a correct function return type at call.
         let name = &args
@@ -95,6 +109,13 @@ impl ComplexWord for ImplTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "impl-trait expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let trait_identifier = match &args.get_expr(0)?.expr {
             SymbolicExpressionType::Field(trait_identifier) => trait_identifier,
             _ => {

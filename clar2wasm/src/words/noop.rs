@@ -67,6 +67,13 @@ impl ComplexWord for ContractOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "contract-of expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         generator.traverse_args(builder, args)?;
 
         Ok(())

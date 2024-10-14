@@ -19,6 +19,13 @@ impl ComplexWord for DefineFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 && args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-fungible-token expected 1 or 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -67,6 +74,13 @@ impl ComplexWord for BurnFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "ft-burn? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -103,6 +117,13 @@ impl ComplexWord for TransferFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 4 {
+            return Err(GeneratorError::InternalError(format!(
+                "ft-transfer? expected 4 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -141,6 +162,13 @@ impl ComplexWord for MintFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "ft-mint? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -176,6 +204,13 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "ft-get-supply expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
 
         let (id_offset, id_length) = generator.add_string_literal(token)?;
@@ -204,6 +239,13 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "ft-get-balance expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
 
@@ -240,6 +282,13 @@ impl ComplexWord for DefineNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-non-fungible-token expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -287,6 +336,13 @@ impl ComplexWord for BurnNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "nft-burn? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -340,6 +396,13 @@ impl ComplexWord for TransferNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 4 {
+            return Err(GeneratorError::InternalError(format!(
+                "nft-transfer? expected 4 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -397,6 +460,13 @@ impl ComplexWord for MintNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "nft-mint? expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -450,6 +520,13 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "nft-get-owner? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
 

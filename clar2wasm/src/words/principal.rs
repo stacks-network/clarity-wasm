@@ -98,6 +98,13 @@ impl ComplexWord for Construct {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 && args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "principal-construct? expected 2 or 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         // [ version_offset, version_length ]
@@ -272,6 +279,13 @@ impl ComplexWord for PrincipalOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "principal-of? expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 

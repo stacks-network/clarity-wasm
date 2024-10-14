@@ -25,6 +25,13 @@ impl ComplexWord for If {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::InternalError(format!(
+                "if expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
@@ -96,6 +103,13 @@ impl ComplexWord for Match {
 
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
+                if args.len() != 4 {
+                    return Err(GeneratorError::InternalError(format!(
+                        "match expected 4 arguments, got {}",
+                        args.len()
+                    )));
+                };
+
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
@@ -122,6 +136,13 @@ impl ComplexWord for Match {
                 Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
+                if args.len() != 5 {
+                    return Err(GeneratorError::InternalError(format!(
+                        "match expected 5 arguments, got {}",
+                        args.len()
+                    )));
+                };
+
                 let (ok_ty, err_ty) = &*inner_types;
 
                 let err_binding = args.get_name(3)?;
@@ -185,6 +206,13 @@ impl ComplexWord for Filter {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "filter expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
@@ -408,6 +436,10 @@ impl ComplexWord for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::InternalError("and expected at least 1 argument, got 0".to_owned()));
+        };
+
         traverse_short_circuiting_list(generator, builder, args, false)
     }
 }
@@ -449,6 +481,10 @@ impl ComplexWord for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::InternalError("or expected at least 1 argument, got 0".to_owned()));
+        };
+
         traverse_short_circuiting_list(generator, builder, args, true)
     }
 }
@@ -490,6 +526,13 @@ impl ComplexWord for Unwrap {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "unwrap! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -571,6 +614,13 @@ impl ComplexWord for UnwrapErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "unwrap-err! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -660,6 +710,13 @@ impl ComplexWord for Asserts {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "asserts! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -730,6 +787,13 @@ impl ComplexWord for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::InternalError(format!(
+                "try! expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
 

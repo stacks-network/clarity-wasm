@@ -20,6 +20,13 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::InternalError(format!(
+                "define-constant expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Constant name
         let name = args.get_name(0)?;
 
