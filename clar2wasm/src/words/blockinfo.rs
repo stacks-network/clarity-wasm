@@ -170,7 +170,7 @@ mod tests {
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck_expect_failure, evaluate, TestEnvironment};
 
     //
     // Module with tests that should only be executed
@@ -247,6 +247,16 @@ mod tests {
     }
 
     //- Block Info
+
+    #[test]
+    fn get_block_info_less_than_two_args() {
+        crosscheck_expect_failure("(get-block-info? id-header-hash)");
+    }
+
+    #[test]
+    fn get_block_info_more_than_two_args() {
+        crosscheck_expect_failure("(get-block-info? id-header-hash u0 u0)");
+    }
 
     #[test]
     fn get_block_info_burnchain_header_hash() {
@@ -365,6 +375,16 @@ mod tests {
     }
 
     #[test]
+    fn get_burn_block_info_less_than_two_args() {
+        crosscheck_expect_failure("(get-burn-block-info? id-header-hash)");
+    }
+
+    #[test]
+    fn get_burn_block_info_more_than_two_args() {
+        crosscheck_expect_failure("(get-burn-block-info? id-header-hash u0 u0)");
+    }
+
+    #[test]
     fn get_burn_block_info_pox_addrs() {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
@@ -396,6 +416,20 @@ mod tests {
                 )
                 .unwrap()
             )
+        );
+    }
+
+    #[test]
+    fn at_block_less_than_two_args() {
+        crosscheck_expect_failure(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e)",
+        );
+    }
+
+    #[test]
+    fn at_block_more_than_two_args() {
+        crosscheck_expect_failure(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e u0 u0)",
         );
     }
 

@@ -274,6 +274,36 @@ mod tests {
     }
 
     #[test]
+    fn define_data_var_less_than_three_args() {
+        crosscheck_expect_failure("(define-data-var something int)");
+    }
+
+    #[test]
+    fn define_data_var_more_than_three_args() {
+        crosscheck_expect_failure("(define-data-var something int 0 0)");
+    }
+
+    #[test]
+    fn var_set_less_than_two_args() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-set something)");
+    }
+
+    #[test]
+    fn var_set_more_than_two_args() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-set something 1 2)");
+    }
+
+    #[test]
+    fn var_get_less_than_one_arg() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
+    }
+
+    #[test]
+    fn var_get_more_than_one_arg() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
+    }
+
+    #[test]
     fn test_var_get() {
         crosscheck(
             "

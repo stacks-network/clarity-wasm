@@ -199,6 +199,35 @@ mod tests {
     }
 
     #[test]
+    fn define_private_less_than_two_args() {
+        crosscheck_expect_failure("(define-private 21)");
+    }
+
+    #[test]
+    fn define_private_more_than_two_args() {
+        crosscheck_expect_failure("(define-private (a b c) 21 4)");
+    }
+
+    #[test]
+    fn define_read_only_less_than_two_args() {
+        crosscheck_expect_failure("(define-read-only 21)");
+    }
+
+    #[test]
+    fn define_read_only_more_than_two_args() {
+        crosscheck_expect_failure("(define-read-only (a b c) 21 4)");
+    }
+
+    #[test]
+    fn define_public_less_than_two_args() {
+        crosscheck_expect_failure("(define-public 21)");
+    }
+
+    #[test]
+    fn define_public_more_than_two_args() {
+        crosscheck_expect_failure("(define-public (a b c) 21 4)");
+    }
+    #[test]
     fn top_level_define_first() {
         crosscheck(
             "

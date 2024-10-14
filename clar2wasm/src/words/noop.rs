@@ -86,7 +86,7 @@ mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, TestEnvironment};
 
     #[test]
     fn to_int_out_of_range() {
@@ -233,5 +233,15 @@ mod tests {
     ",
             Ok(Some(Value::Int(170141183460469231731687303715884105727))),
         );
+    }
+
+    #[test]
+    fn test_contract_of_no_args() {
+        crosscheck_expect_failure("(contract-of)");
+    }
+
+    #[test]
+    fn test_contract_of_more_than_one_arg() {
+        crosscheck_expect_failure("(contract-of 21 21)");
     }
 }

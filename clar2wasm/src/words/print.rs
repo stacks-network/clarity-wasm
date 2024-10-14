@@ -135,7 +135,17 @@ mod tests {
     use clarity::vm::types::{ListTypeData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
+
+    #[test]
+    fn print_no_args() {
+        crosscheck_expect_failure("(print)");
+    }
+
+    #[test]
+    fn print_more_than_one_arg() {
+        crosscheck_expect_failure("(print 21 21)");
+    }
 
     #[test]
     fn test_simple() {

@@ -1009,7 +1009,22 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, TestEnvironment};
+
+    #[test]
+    fn is_eq_less_than_one_arg() {
+        crosscheck_expect_failure("(is-eq)");
+    }
+
+    #[test]
+    fn index_of_list_less_than_two_args() {
+        crosscheck_expect_failure("(index-of (list 1 2 3))");
+    }
+
+    #[test]
+    fn index_of_list_more_than_two_args() {
+        crosscheck_expect_failure("(index-of (list 1 2 3) 1 2)");
+    }
 
     #[test]
     fn index_of_list_not_present() {

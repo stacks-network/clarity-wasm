@@ -191,7 +191,27 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::TestEnvironment;
+    use crate::tools::{crosscheck_expect_failure, TestEnvironment};
+
+    #[test]
+    fn as_contract_less_than_one_arg() {
+        crosscheck_expect_failure("(as-contract)");
+    }
+
+    #[test]
+    fn as_contract_more_than_one_arg() {
+        crosscheck_expect_failure("(as-contract 1 2)");
+    }
+
+    #[test]
+    fn contract_call_less_than_two_args() {
+        crosscheck_expect_failure("(contract-call? 1)");
+    }
+
+    #[test]
+    fn contract_call_more_than_two_args() {
+        crosscheck_expect_failure("(contract-call? 1 2 3)");
+    }
 
     #[test]
     fn static_no_args() {

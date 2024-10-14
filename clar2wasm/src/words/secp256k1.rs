@@ -106,7 +106,17 @@ mod tests {
     };
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
+
+    #[test]
+    fn secp256k1_recover_less_than_two_args() {
+        crosscheck_expect_failure("(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04)");
+    }
+
+    #[test]
+    fn secp256k1_recover_more_than_two_args() {
+        crosscheck_expect_failure("(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)");
+    }
 
     #[test]
     fn test_secp256k1_recover() {
@@ -135,6 +145,22 @@ mod tests {
         crosscheck("(secp256k1-recover? 0x19148567fff5a6177a7acae9ad60ceeff66f07ba00570b7abb64ff1f9d665dd4
                 0x00000000000000000000000000000000604b173b69f8f48ee7a8780e6660b166fd76498d6e1552efce5bf370d0b17ebfd58df8a7fafa10ad9d32a7de305597e803)",
         Ok(Some(Value::okay(Value::buff_from(expected.to_vec()).unwrap()).unwrap())))
+    }
+
+    #[test]
+    fn secp256k1_verify_less_than_three_args() {
+        crosscheck_expect_failure(
+            "(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04)",
+        );
+    }
+
+    #[test]
+    fn secp256k1_verify_more_than_three_args() {
+        crosscheck_expect_failure("
+        (secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 
+        0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301 
+        0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110 
+        0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)");
     }
 
     #[test]

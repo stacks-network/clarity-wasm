@@ -473,4 +473,54 @@ mod tests {
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
         );
     }
+
+    #[test]
+    fn define_map_less_than_three_args() {
+        crosscheck_expect_failure("(define-map 21)");
+    }
+
+    #[test]
+    fn define_map_more_than_three_args() {
+        crosscheck_expect_failure("(define-map map int 5 6)");
+    }
+
+    #[test]
+    fn map_get_less_than_two_args() {
+        crosscheck_expect_failure("(map-get? map)");
+    }
+
+    #[test]
+    fn map_set_less_than_two_args() {
+        crosscheck_expect_failure("(map-set map)");
+    }
+
+    #[test]
+    fn map_insert_less_than_two_args() {
+        crosscheck_expect_failure("(map-insert map)");
+    }
+
+    #[test]
+    fn map_delete_less_than_two_args() {
+        crosscheck_expect_failure("(map-delete map)");
+    }
+
+    #[test]
+    fn map_get_more_than_two_args() {
+        crosscheck_expect_failure("(map-get? map 21 21)");
+    }
+
+    #[test]
+    fn map_set_more_than_two_args() {
+        crosscheck_expect_failure("(map-set map 21 {x: 21} 21)");
+    }
+
+    #[test]
+    fn map_insert_more_than_two_args() {
+        crosscheck_expect_failure("(map-insert map 21 {x: 21} 21)");
+    }
+
+    #[test]
+    fn map_delete_more_than_two_args() {
+        crosscheck_expect_failure("(map-delete map 21 21)");
+    }
 }

@@ -314,7 +314,7 @@ mod tests {
     };
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
 
     #[test]
     fn test_principal_of() {
@@ -356,6 +356,25 @@ mod tests {
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)",
             Ok(Some(Value::err_uint(1))),
         );
+    }
+    #[test]
+    fn principal_construct_less_than_two_args() {
+        crosscheck_expect_failure("(principal-construct? 0x1a)");
+    }
+
+    #[test]
+    fn principal_construct_more_than_three_args() {
+        crosscheck_expect_failure("(principal-construct? 21 21 21 21)");
+    }
+
+    #[test]
+    fn principal_of_no_args() {
+        crosscheck_expect_failure("(principal-of?)");
+    }
+
+    #[test]
+    fn principal_of_more_than_one_arg() {
+        crosscheck_expect_failure("(principal-of? 21 21)");
     }
 
     //

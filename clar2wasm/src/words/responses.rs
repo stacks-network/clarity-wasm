@@ -97,3 +97,28 @@ impl ComplexWord for IsErr {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck_expect_failure;
+
+    #[test]
+    fn test_is_ok_no_args() {
+        crosscheck_expect_failure("(is-ok)");
+    }
+
+    #[test]
+    fn test_is_ok_more_than_one_arg() {
+        crosscheck_expect_failure("(is-ok (ok 21) 21)");
+    }
+
+    #[test]
+    fn test_is_err_no_args() {
+        crosscheck_expect_failure("(is-err)");
+    }
+
+    #[test]
+    fn test_is_err_more_than_one_arg() {
+        crosscheck_expect_failure("(is-err (err 21) 21)");
+    }
+}

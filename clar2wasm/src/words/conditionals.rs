@@ -928,6 +928,16 @@ mod tests {
     }
 
     #[test]
+    fn if_less_than_three_args() {
+        crosscheck_expect_failure("(if true true)");
+    }
+
+    #[test]
+    fn if_more_than_three_args() {
+        crosscheck_expect_failure("(if true true true true)");
+    }
+
+    #[test]
     fn what_if() {
         crosscheck("(if true true false)", Ok(Some(Value::Bool(true))));
     }
@@ -944,6 +954,16 @@ mod tests {
             "(if (> 9001 9000) (+ 1 1) (+ 2 2))",
             Ok(Some(Value::Int(2))),
         );
+    }
+
+    #[test]
+    fn filter_less_than_two_args() {
+        crosscheck_expect_failure("(filter (x int))");
+    }
+
+    #[test]
+    fn filter_more_than_two_args() {
+        crosscheck_expect_failure("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
     }
 
     #[test]
@@ -1028,6 +1048,11 @@ mod tests {
     }
 
     #[test]
+    fn and_less_than_two_args() {
+        crosscheck_expect_failure("(and)");
+    }
+
+    #[test]
     fn and() {
         crosscheck(
             r#"
@@ -1045,6 +1070,11 @@ mod tests {
     }
 
     #[test]
+    fn or_less_than_two_args() {
+        crosscheck_expect_failure("(or)");
+    }
+
+    #[test]
     fn or() {
         crosscheck(
             r#"
@@ -1059,6 +1089,30 @@ mod tests {
 (var-get cursor)
                 "#,
             evaluate("8"),
+        );
+    }
+
+    #[test]
+    fn match_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+    ))",
+        );
+    }
+
+    #[test]
+    fn match_more_than_five_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   error (+ error 107)
+   error2
+   ))",
         );
     }
 
@@ -1105,6 +1159,27 @@ mod tests {
     }
 
     #[test]
+    fn match_optional_less_than_four_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val))",
+        );
+    }
+
+    #[test]
+    fn match_optional_more_than_four_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val
+   1001 1010))",
+        );
+    }
+
+    #[test]
     fn clar_match_b() {
         const ADD_10: &str = "
 (define-private (add-10 (x (optional int)))
@@ -1120,6 +1195,24 @@ mod tests {
         crosscheck(
             &format!("{ADD_10} (add-10 (some 10))"),
             Ok(Some(Value::Int(10))),
+        );
+    }
+
+    #[test]
+    fn unwrap_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x) 10))",
+        );
+    }
+
+    #[test]
+    fn unwrap_more_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x 23 23) 10)",
         );
     }
 
@@ -1151,6 +1244,24 @@ mod tests {
         crosscheck(
             &format!("{FN} (unwrapper (ok 10))"),
             Ok(Some(Value::Int(20))),
+        );
+    }
+
+    #[test]
+    fn unwrap_err_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap-err! x) 10))",
+        );
+    }
+
+    #[test]
+    fn unwrap_err_more_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap-err! x 23 23) 10))",
         );
     }
 
@@ -1267,6 +1378,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn try_less_than_one_arg() {
+        crosscheck_expect_failure(
+            "
+(define-private (tryharder (x (optional int)))
+  (some (+ (try!) 10)))",
+        );
+    }
+
+    #[test]
+    fn try_more_than_one_arg() {
+        crosscheck_expect_failure(
+            "
+(define-private (tryharder (x (optional int)))
+  (some (+ (try! x 23 23) 10)))",
+        );
+    }
+
     const ASSERT: &str = "
       (define-private (is-even (x int))
         (is-eq (* (/ x 2) 2) x))
@@ -1310,5 +1439,15 @@ mod tests {
                 }),
             ))),
         )
+    }
+
+    #[test]
+    fn asserts_less_than_two_args() {
+        crosscheck_expect_failure("(asserts! true)");
+    }
+
+    #[test]
+    fn asserts_more_than_two_args_false() {
+        crosscheck_expect_failure("(asserts! true true true)");
     }
 }

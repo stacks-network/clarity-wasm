@@ -108,6 +108,11 @@ mod tests {
     }
 
     #[test]
+    fn let_less_than_two_args() {
+        crosscheck_expect_failure("(let ((current-count (count u1))))");
+    }
+
+    #[test]
     fn clar_let_disallow_builtin_names() {
         // It's not allowed to use names of user-defined functions as bindings
         const ERR: &str = "

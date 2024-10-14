@@ -290,7 +290,7 @@ mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
 
     #[test]
     fn test_get_optional() {
@@ -406,5 +406,37 @@ mod tests {
 
             crosscheck(snippet, Ok(None));
         }
+    }
+
+    #[test]
+    fn tuple_less_than_one_arg() {
+        crosscheck_expect_failure("(tuple)");
+    }
+
+    #[test]
+    fn tuple_more_than_one_arg() {
+        crosscheck_expect_failure(
+            "(tuple {name: blockstack, id: 1337} {name: blockstack, id: 1337})",
+        );
+    }
+
+    #[test]
+    fn get_less_than_two_args() {
+        crosscheck_expect_failure("(get id)");
+    }
+
+    #[test]
+    fn get_more_than_two_args() {
+        crosscheck_expect_failure("(get id 2 3)");
+    }
+
+    #[test]
+    fn merge_less_than_two_args() {
+        crosscheck_expect_failure("(merge)");
+    }
+
+    #[test]
+    fn merge_more_than_two_args() {
+        crosscheck_expect_failure("(merge {a: 1} {b: 2} {c: 3})");
     }
 }

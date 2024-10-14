@@ -611,6 +611,115 @@ mod tests {
     }
 
     #[test]
+    fn define_fungible_tokens_less_than_one_arg() {
+        crosscheck_expect_failure("(define-fungible-token)");
+    }
+
+    #[test]
+    fn define_fungible_tokens_more_than_two_args() {
+        crosscheck_expect_failure("(define-fungible-token a u100 b)");
+    }
+
+    #[test]
+    fn ft_burn_less_than_three_args() {
+        crosscheck_expect_failure("(ft-burn? bar u100)");
+    }
+
+    #[test]
+    fn ft_burn_more_than_three_args() {
+        crosscheck_expect_failure("(ft-burn? bar u100 tx-sender 0x12345678)");
+    }
+
+    #[test]
+    fn ft_transfer_less_than_four_args() {
+        crosscheck_expect_failure("(ft-transfer? bar u100 tx-sender)");
+    }
+
+    #[test]
+    fn ft_transfer_more_than_four_args() {
+        crosscheck_expect_failure("(ft-transfer? bar u100 tx-sender tx-recipient 0x12345678)");
+    }
+
+    #[test]
+    fn ft_mint_less_than_three_args() {
+        crosscheck_expect_failure("(ft-mint? bar u100)");
+    }
+
+    #[test]
+    fn ft_mint_more_than_three_args() {
+        crosscheck_expect_failure("(ft-mint? bar u100 tx-sender 0x12345678)");
+    }
+
+    #[test]
+    fn ft_get_supply_less_than_one_arg() {
+        crosscheck_expect_failure("(ft-get-supply?)");
+    }
+
+    #[test]
+    fn ft_get_supply_more_than_one_arg() {
+        crosscheck_expect_failure("(ft-get-supply? bar u100)");
+    }
+
+    #[test]
+    fn ft_get_balance_less_than_two_args() {
+        crosscheck_expect_failure("(ft-get-balance? bar)");
+    }
+
+    #[test]
+    fn ft_get_balance_more_than_two_args() {
+        crosscheck_expect_failure("(ft-get-balance? bar u100 tx-sender)");
+    }
+
+    #[test]
+    fn define_non_fungible_tokens_less_than_two_args() {
+        crosscheck_expect_failure("(define-non-fungible-token?)");
+    }
+
+    #[test]
+    fn define_non_fungible_tokens_more_than_two_args() {
+        crosscheck_expect_failure("(define-non-fungible-token? bar (buff 50) u100)");
+    }
+
+    #[test]
+    fn nft_burn_less_than_three_args() {
+        crosscheck_expect_failure("(nft-burn? bar u100)");
+    }
+
+    #[test]
+    fn nft_burn_more_than_three_args() {
+        crosscheck_expect_failure("(nft-burn? bar u100 tx-sender 0x12345678)");
+    }
+
+    #[test]
+    fn nft_transfer_less_than_four_args() {
+        crosscheck_expect_failure("(nft-transfer? bar u100 tx-sender)");
+    }
+
+    #[test]
+    fn nft_transfer_more_than_four_args() {
+        crosscheck_expect_failure("(nft-transfer? bar u100 tx-sender tx-recipient 0x12345678)");
+    }
+
+    #[test]
+    fn nft_mint_less_than_three_args() {
+        crosscheck_expect_failure("(nft-mint? bar u100)");
+    }
+
+    #[test]
+    fn nft_mint_more_than_three_args() {
+        crosscheck_expect_failure("(nft-mint? bar u100 tx-sender 0x12345678)");
+    }
+
+    #[test]
+    fn nft_get_owner_less_than_two_args() {
+        crosscheck_expect_failure("(nft-get-owner? bar)");
+    }
+
+    #[test]
+    fn nft_get_owner_more_than_two_args() {
+        crosscheck_expect_failure("(nft-get-owner? bar u100 tx-sender)");
+    }
+    #[test]
     fn bar_mint_too_many() {
         crosscheck_expect_failure("(ft-mint? bar u1000001 tx-sender)");
     }

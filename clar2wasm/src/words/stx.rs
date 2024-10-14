@@ -143,7 +143,27 @@ impl SimpleWord for StxGetAccount {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
+
+    #[test]
+    fn stx_transfer_less_than_three_args() {
+        crosscheck_expect_failure("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5)");
+    }
+
+    #[test]
+    fn stx_transfer_more_than_three_args() {
+        crosscheck_expect_failure("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678 0x12345678)");
+    }
+
+    #[test]
+    fn stx_transfer_memo_less_than_four_args() {
+        crosscheck_expect_failure("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)");
+    }
+
+    #[test]
+    fn stx_transfer_memo_more_than_four_args() {
+        crosscheck_expect_failure("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678 0x12345678)");
+    }
 
     #[test]
     fn stx_get_balance() {

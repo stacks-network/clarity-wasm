@@ -290,6 +290,31 @@ mod tests {
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
 
     #[test]
+    fn begin_less_than_one_arg() {
+        crosscheck_expect_failure("(begin)");
+    }
+
+    #[test]
+    fn unwrap_panic_less_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-panic)");
+    }
+
+    #[test]
+    fn unwrap_panic_more_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-panic (some 1) 2)");
+    }
+
+    #[test]
+    fn unwrap_err_panic_less_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-err-panic)");
+    }
+
+    #[test]
+    fn unwrap_err_panic_more_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-err-panic (some x) 2)");
+    }
+
+    #[test]
     fn test_unwrap_panic_some() {
         crosscheck("(unwrap-panic (some u1))", Ok(Some(Value::UInt(1))))
     }

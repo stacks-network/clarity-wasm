@@ -144,3 +144,38 @@ impl ComplexWord for ClarityErr {
         generator.traverse_expr(builder, value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck_expect_failure;
+
+    #[test]
+    fn some_less_than_one_arg() {
+        crosscheck_expect_failure("(some)");
+    }
+
+    #[test]
+    fn some_more_than_one_arg() {
+        crosscheck_expect_failure("(some 1 2)");
+    }
+
+    #[test]
+    fn ok_less_than_one_arg() {
+        crosscheck_expect_failure("(ok)");
+    }
+
+    #[test]
+    fn ok_more_than_one_arg() {
+        crosscheck_expect_failure("(ok 1 2)");
+    }
+
+    #[test]
+    fn err_less_than_one_arg() {
+        crosscheck_expect_failure("(err)");
+    }
+
+    #[test]
+    fn err_more_than_one_arg() {
+        crosscheck_expect_failure("(err 1 2)");
+    }
+}

@@ -146,6 +146,16 @@ mod tests {
     }
 
     #[test]
+    fn define_constant_less_than_two_args() {
+        crosscheck_expect_failure("(define-constant)");
+    }
+
+    #[test]
+    fn define_constant_more_than_two_args() {
+        crosscheck_expect_failure("(define-constant two 2 3)");
+    }
+
+    #[test]
     fn define_constant_const() {
         crosscheck(
             r#"(define-constant four 4) (define-private (go) (print four)) (go)"#,
