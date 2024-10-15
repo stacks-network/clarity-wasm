@@ -500,10 +500,8 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{PrincipalData, TupleData},
-        Value,
-    };
+    use clarity::vm::types::{PrincipalData, TupleData};
+    use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure};
 
