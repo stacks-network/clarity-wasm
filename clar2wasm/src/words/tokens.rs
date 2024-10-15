@@ -500,6 +500,11 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::{
+        types::{PrincipalData, TupleData},
+        Value,
+    };
+
     use crate::tools::{crosscheck, crosscheck_expect_failure};
 
     //
@@ -580,5 +585,37 @@ mod tests {
         crosscheck_expect_failure(
             "(define-non-fungible-token a (buff 50)) (define-non-fungible-token a (buff 50))",
         );
+    }
+
+    #[test]
+    fn validate_nft_functions_with_optionals() {
+        // from [issue #515](https://github.com/stacks-network/clarity-wasm/issues/515)
+        let snippet = r#"
+            (define-non-fungible-token stackaroo {JCJHgKArcQrz: (string-utf8 30),YMZJ: (optional (buff 25)),ev: (buff 48),ms: int,})
+            {
+                mint: (nft-mint? stackaroo (tuple (JCJHgKArcQrz u"h\u{FEFF}=q:Uc:\u{F9BBB}\u{9}B3'\u{70CED}\u{A}W%\u{202E}{:\u{6CEA1}'\u{3ACDD}\u{E7000}Ul$\u{FB}\u{468}R") (YMZJ none) (ev 0xfe6c9e104fbf8259c4d35cfc9047ebe3db0e4eccaa4eafad5959ccebc1b3730c463f778200fe3e87c25678322a073956) (ms -112969277120374636135691771896584435906)) 'SS5V2M24Z6WSK5PWMPTNQZNRKE15NKE5KV9PG69J),
+                owner: (nft-get-owner? stackaroo (tuple (JCJHgKArcQrz u"h\u{FEFF}=q:Uc:\u{F9BBB}\u{9}B3'\u{70CED}\u{A}W%\u{202E}{:\u{6CEA1}'\u{3ACDD}\u{E7000}Ul$\u{FB}\u{468}R") (YMZJ none) (ev 0xfe6c9e104fbf8259c4d35cfc9047ebe3db0e4eccaa4eafad5959ccebc1b3730c463f778200fe3e87c25678322a073956) (ms -112969277120374636135691771896584435906))),
+            }
+        "#;
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                ("mint".into(), Value::okay_true()),
+                (
+                    "owner".into(),
+                    Value::some(Value::Principal(
+                        PrincipalData::parse_standard_principal(
+                            "SS5V2M24Z6WSK5PWMPTNQZNRKE15NKE5KV9PG69J",
+                        )
+                        .unwrap()
+                        .into(),
+                    ))
+                    .unwrap(),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
     }
 }
