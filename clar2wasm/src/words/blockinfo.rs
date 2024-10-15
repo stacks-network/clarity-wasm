@@ -27,7 +27,7 @@ impl ComplexWord for GetBlockInfo {
             "header-hash" => (11, 56), // buff 32
             "burnchain-header-hash" => (21, 56), // buff 32
             "id-header-hash" => (14, 56), // buff 32
-            "miner-address" => (13, 0), // return-size should remain dynamic as it may also be a smart contract
+            "miner-address" => (13, 174), // principal - max size it always takes
             "block-reward" => (12, 40), // uint (128-bit)
             "miner-spend-total" => (17, 40), // uint (128-bit)
             "miner-spend-winner" => (18, 40), // uint (128-bit)
@@ -53,17 +53,12 @@ impl ComplexWord for GetBlockInfo {
             })?
             .clone();
 
-        let (return_offset, return_size_dinamic) =
+        let (return_offset, _) =
             generator.create_call_stack_local(builder, &return_ty, true, true);
 
-        if prop_name.as_str() != "miner-address" {
-            // Push the offset and size to the data stack
-            builder.local_get(return_offset).i32_const(return_size);
-        } else {
-            builder
-                .local_get(return_offset)
-                .i32_const(return_size_dinamic);
-        }
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+
         // Call the host interface function, `get_block_info`
         builder.call(generator.func_by_name("stdlib.get_block_info"));
 
