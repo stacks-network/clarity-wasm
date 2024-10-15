@@ -249,7 +249,16 @@ impl ComplexWord for DefineNonFungibleToken {
             )));
         }
 
-        let _nft_type = args.get_expr(1)?;
+        // we will save the NFT type for reuse with the nft-x functions
+        // (a wrong NFT type is an issue only with Clarity1, but it doesn't
+        // hurt to use it with all Clarity versions)
+        let nft_type = TypeSignature::parse_type_repr(
+            generator.contract_analysis.epoch,
+            args.get_expr(1)?,
+            &mut (),
+        )
+        .map_err(|e| GeneratorError::TypeError(e.to_string()))?;
+        generator.nft_types.insert(name.clone(), nft_type);
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -298,12 +307,11 @@ impl ComplexWord for BurnNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -352,12 +360,11 @@ impl ComplexWord for TransferNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -408,12 +415,11 @@ impl ComplexWord for MintNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -460,12 +466,11 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
