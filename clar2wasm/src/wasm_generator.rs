@@ -53,6 +53,8 @@ pub struct WasmGenerator {
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
     /// The types of (key, value) in defined maps
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
+    /// The type of defined NFTs
+    pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
@@ -319,6 +321,7 @@ impl WasmGenerator {
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
             local_pool: Rc::new(RefCell::new(HashMap::new())),
+            nft_types: HashMap::new(),
         })
     }
 
