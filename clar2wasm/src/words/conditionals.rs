@@ -4,6 +4,7 @@ use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
 use super::{ComplexWord, SimpleWord};
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     SequenceElementType, WasmGenerator,
@@ -529,7 +530,7 @@ impl ComplexWord for Unwrap {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -612,7 +613,7 @@ impl ComplexWord for UnwrapErr {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -699,8 +700,13 @@ impl ComplexWord for Asserts {
         if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
+
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(
+            &mut throw_branch,
+            throw,
+            ErrorMap::ShortReturnAssertionFailure,
+        )?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -759,7 +765,11 @@ impl ComplexWord for Try {
                     None => &TypeSignature::NoType,
                 };
                 add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
-                generator.return_early(&mut throw_branch)?;
+                generator.return_early(
+                    &mut throw_branch,
+                    _expr,
+                    ErrorMap::ShortReturnExpectedValueOptional,
+                )?;
 
                 let throw_branch_id = throw_branch.id();
 
@@ -811,7 +821,11 @@ impl ComplexWord for Try {
                 for local in &err_locals {
                     throw_branch.local_get(*local);
                 }
-                generator.return_early(&mut throw_branch)?;
+                generator.return_early(
+                    &mut throw_branch,
+                    _expr,
+                    ErrorMap::ShortReturnExpectedValueResponse,
+                )?;
 
                 let throw_branch_id = throw_branch.id();
 
@@ -1230,7 +1244,6 @@ mod tests {
         crosscheck("(asserts! true (err u1))", Ok(Some(Value::Bool(true))));
     }
 
-    #[ignore = "see issue: #385"]
     #[test]
     fn asserts_top_level_false() {
         crosscheck(
@@ -1240,6 +1253,29 @@ mod tests {
                     committed: false,
                     data: Box::new(Value::UInt(1)),
                 }),
+            ))),
+        )
+    }
+
+    #[test]
+    fn try_response_false() {
+        crosscheck(
+            "(try! (if false (ok u1) (err u42)))",
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(
+                Value::Response(ResponseData {
+                    committed: false,
+                    data: Box::new(Value::UInt(42)),
+                }),
+            ))),
+        )
+    }
+
+    #[test]
+    fn try_optional_false() {
+        crosscheck(
+            "(try! (if false (some u1) none))",
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(
+                Value::Optional(clarity::vm::types::OptionalData { data: None }),
             ))),
         )
     }
