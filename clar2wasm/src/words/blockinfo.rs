@@ -21,11 +21,26 @@ impl ComplexWord for GetBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
-        // Push the property name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(prop_name)?;
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
+        // Parse the property name at compile time
+        let (name_length, return_size) = match prop_name.as_str() {
+            "time" => (4, 40), // uint (128-bit)
+            "header-hash" => (11, 56), // buff 32
+            "burnchain-header-hash" => (21, 56), // buff 32
+            "id-header-hash" => (14, 56), // buff 32
+            "miner-address" => (13, 174), // principal - max size it always takes
+            "block-reward" => (12, 40), // uint (128-bit)
+            "miner-spend-total" => (17, 40), // uint (128-bit)
+            "miner-spend-winner" => (18, 40), // uint (128-bit)
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
+
+        let (id_offset, _) = generator.add_string_literal(prop_name)?;
+        builder.i32_const(id_offset as i32).i32_const(name_length);
 
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
@@ -38,7 +53,7 @@ impl ComplexWord for GetBlockInfo {
             })?
             .clone();
 
-        let (return_offset, return_size) =
+        let (return_offset, _) =
             generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the offset and size to the data stack
@@ -73,11 +88,20 @@ impl ComplexWord for GetBurnBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
+        let (name_length, return_size) = match prop_name.as_str() {
+            "header-hash" => (11, 56), // buff 32 - the default run before any modifications shows it takes 56 bites, not 32
+            "pox-addrs" => (9, 154),
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
+
         // Push the property name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(prop_name)?;
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
+        let (id_offset, _) = generator.add_string_literal(prop_name)?;
+        builder.i32_const(id_offset as i32).i32_const(name_length);
 
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
@@ -92,8 +116,7 @@ impl ComplexWord for GetBurnBlockInfo {
             })?
             .clone();
 
-        let (return_offset, return_size) =
-            generator.create_call_stack_local(builder, &return_ty, true, true);
+        let (return_offset, _) = generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
