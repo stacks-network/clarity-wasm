@@ -222,8 +222,10 @@ fn from_runtime_error_code(
             Some(Vec::new()),
         ),
         ErrorMap::NameAlreadyUsed => {
-            let runtime_error_arg_offset = get_global_i32(&instance, &mut store, "runtime-error-arg-offset");
-            let runtime_error_arg_len = get_global_i32(&instance, &mut store, "runtime-error-arg-len");
+            let runtime_error_arg_offset =
+                get_global_i32(&instance, &mut store, "runtime-error-arg-offset");
+            let runtime_error_arg_len =
+                get_global_i32(&instance, &mut store, "runtime-error-arg-len");
 
             let memory = instance
                 .get_memory(&mut store, "memory")
