@@ -18,6 +18,13 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() < 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "let expected at least 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
@@ -98,6 +105,11 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn let_less_than_two_args() {
+        crosscheck_expect_failure("(let ((current-count (count u1))))");
     }
 
     #[test]

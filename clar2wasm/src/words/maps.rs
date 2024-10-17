@@ -19,6 +19,13 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-map expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -79,6 +86,13 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "map-get expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -156,6 +170,13 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "map-insert expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -236,6 +257,13 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "map-insert expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -316,6 +344,13 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "map-delete expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -437,5 +472,55 @@ mod tests {
         crosscheck_expect_failure(
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
         );
+    }
+
+    #[test]
+    fn define_map_less_than_three_args() {
+        crosscheck_expect_failure("(define-map 21)");
+    }
+
+    #[test]
+    fn define_map_more_than_three_args() {
+        crosscheck_expect_failure("(define-map map int 5 6)");
+    }
+
+    #[test]
+    fn map_get_less_than_two_args() {
+        crosscheck_expect_failure("(map-get? map)");
+    }
+
+    #[test]
+    fn map_set_less_than_two_args() {
+        crosscheck_expect_failure("(map-set map)");
+    }
+
+    #[test]
+    fn map_insert_less_than_two_args() {
+        crosscheck_expect_failure("(map-insert map)");
+    }
+
+    #[test]
+    fn map_delete_less_than_two_args() {
+        crosscheck_expect_failure("(map-delete map)");
+    }
+
+    #[test]
+    fn map_get_more_than_two_args() {
+        crosscheck_expect_failure("(map-get? map 21 21)");
+    }
+
+    #[test]
+    fn map_set_more_than_two_args() {
+        crosscheck_expect_failure("(map-set map 21 {x: 21} 21)");
+    }
+
+    #[test]
+    fn map_insert_more_than_two_args() {
+        crosscheck_expect_failure("(map-insert map 21 {x: 21} 21)");
+    }
+
+    #[test]
+    fn map_delete_more_than_two_args() {
+        crosscheck_expect_failure("(map-delete map 21 21)");
     }
 }

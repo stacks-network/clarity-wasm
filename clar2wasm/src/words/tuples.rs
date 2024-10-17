@@ -21,6 +21,12 @@ impl ComplexWord for TupleCons {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(
+                "tuple expected at least 1 argument, got 0".to_owned(),
+            ));
+        };
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))?
@@ -103,10 +109,11 @@ impl ComplexWord for TupleGet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple get".to_string(),
-            ));
-        }
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "get expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
 
         let target_field_name = args[0]
             .match_atom()
@@ -181,10 +188,11 @@ impl ComplexWord for TupleMerge {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple merge".to_string(),
-            ));
-        }
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "merge expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
 
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])
@@ -282,7 +290,7 @@ mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, crosscheck_expect_failure};
 
     #[test]
     fn test_get_optional() {
@@ -398,5 +406,37 @@ mod tests {
 
             crosscheck(snippet, Ok(None));
         }
+    }
+
+    #[test]
+    fn tuple_less_than_one_arg() {
+        crosscheck_expect_failure("(tuple)");
+    }
+
+    #[test]
+    fn tuple_more_than_one_arg() {
+        crosscheck_expect_failure(
+            "(tuple {name: blockstack, id: 1337} {name: blockstack, id: 1337})",
+        );
+    }
+
+    #[test]
+    fn get_less_than_two_args() {
+        crosscheck_expect_failure("(get id)");
+    }
+
+    #[test]
+    fn get_more_than_two_args() {
+        crosscheck_expect_failure("(get id 2 3)");
+    }
+
+    #[test]
+    fn merge_less_than_two_args() {
+        crosscheck_expect_failure("(merge)");
+    }
+
+    #[test]
+    fn merge_more_than_two_args() {
+        crosscheck_expect_failure("(merge {a: 1} {b: 2} {c: 3})");
     }
 }

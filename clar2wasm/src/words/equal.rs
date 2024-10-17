@@ -24,6 +24,12 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(
+                "is-eq expected at least 1 argument, got 0".to_owned(),
+            ));
+        };
+
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
@@ -113,6 +119,13 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "index-of expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -996,7 +1009,22 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, TestEnvironment};
+
+    #[test]
+    fn is_eq_less_than_one_arg() {
+        crosscheck_expect_failure("(is-eq)");
+    }
+
+    #[test]
+    fn index_of_list_less_than_two_args() {
+        crosscheck_expect_failure("(index-of (list 1 2 3))");
+    }
+
+    #[test]
+    fn index_of_list_more_than_two_args() {
+        crosscheck_expect_failure("(index-of (list 1 2 3) 1 2)");
+    }
 
     #[test]
     fn index_of_list_not_present() {

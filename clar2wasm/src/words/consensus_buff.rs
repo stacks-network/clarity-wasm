@@ -22,6 +22,13 @@ impl ComplexWord for ToConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "to-consensus-buff? expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         generator.traverse_args(builder, args)?;
 
         let ty = generator
@@ -93,6 +100,13 @@ impl ComplexWord for FromConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "from-consensus-buff? expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator
@@ -168,7 +182,17 @@ mod tests {
         use clarity::vm::Value;
         use hex::FromHex as _;
 
-        use crate::tools::crosscheck;
+        use crate::tools::{crosscheck, crosscheck_expect_failure};
+
+        #[test]
+        fn to_consensus_buff_less_than_one_arg() {
+            crosscheck_expect_failure("(to-consensus-buff?)");
+        }
+
+        #[test]
+        fn to_consensus_buff_more_than_one_arg() {
+            crosscheck_expect_failure("(to-consensus-buff? 1 2)");
+        }
 
         #[test]
         fn to_consensus_buff_int() {
@@ -353,6 +377,16 @@ mod tests {
         }
 
         //--- `from-consensus-buff?` tests
+
+        #[test]
+        fn from_consensus_buff_less_than_two_args() {
+            crosscheck_expect_failure("(from-consensus-buff? int)");
+        }
+
+        #[test]
+        fn from_consensus_buff_more_than_two_args() {
+            crosscheck_expect_failure("(from-consensus-buff? int 0x000000000000000000000000000001e240 0x000000000000000000000000000001e240)");
+        }
 
         #[test]
         fn from_consensus_buff_int() {

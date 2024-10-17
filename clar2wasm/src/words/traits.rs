@@ -18,6 +18,13 @@ impl ComplexWord for DefineTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-trait expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -63,6 +70,13 @@ impl ComplexWord for UseTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "use-trait expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // We simply add the trait alias to the memory so that contract-call?
         // can retrieve a correct function return type at call.
         let name = &args
@@ -95,6 +109,13 @@ impl ComplexWord for ImplTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "impl-trait expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let trait_identifier = match &args.get_expr(0)?.expr {
             SymbolicExpressionType::Field(trait_identifier) => trait_identifier,
             _ => {
@@ -161,9 +182,39 @@ mod tests {
     }
 
     #[test]
+    fn define_trait_less_than_two_args() {
+        crosscheck_expect_failure("(define-trait)");
+    }
+
+    #[test]
+    fn define_trait_more_than_two_args() {
+        crosscheck_expect_failure("(define-trait my-trait (ok true) (ok false))");
+    }
+
+    #[test]
     fn define_trait_eval() {
         // Just validate that it doesn't crash
         crosscheck("(define-trait my-trait ())", Ok(None))
+    }
+
+    #[test]
+    fn use_trait_less_than_two_args() {
+        crosscheck_expect_failure("(use-trait the-trait)");
+    }
+
+    #[test]
+    fn use_trait_more_than_two_args() {
+        crosscheck_expect_failure("(use-trait the-trait .my-trait.my-trait (ok true))");
+    }
+
+    #[test]
+    fn impl_trait_less_than_one_arg() {
+        crosscheck_expect_failure("(impl-trait)");
+    }
+
+    #[test]
+    fn impl_trait_more_than_one_arg() {
+        crosscheck_expect_failure("(impl-trait .my-trait.my-trait .my-trait.my-trait)");
     }
 
     #[test]

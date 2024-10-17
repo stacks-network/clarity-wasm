@@ -21,6 +21,13 @@ impl ComplexWord for ClaritySome {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "some expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
@@ -56,6 +63,13 @@ impl ComplexWord for ClarityOk {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "ok expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
 
         let TypeSignature::ResponseType(inner_types) = generator
@@ -101,6 +115,13 @@ impl ComplexWord for ClarityErr {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "err expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
@@ -121,5 +142,40 @@ impl ComplexWord for ClarityErr {
             ));
         }
         generator.traverse_expr(builder, value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck_expect_failure;
+
+    #[test]
+    fn some_less_than_one_arg() {
+        crosscheck_expect_failure("(some)");
+    }
+
+    #[test]
+    fn some_more_than_one_arg() {
+        crosscheck_expect_failure("(some 1 2)");
+    }
+
+    #[test]
+    fn ok_less_than_one_arg() {
+        crosscheck_expect_failure("(ok)");
+    }
+
+    #[test]
+    fn ok_more_than_one_arg() {
+        crosscheck_expect_failure("(ok 1 2)");
+    }
+
+    #[test]
+    fn err_less_than_one_arg() {
+        crosscheck_expect_failure("(err)");
+    }
+
+    #[test]
+    fn err_more_than_one_arg() {
+        crosscheck_expect_failure("(err 1 2)");
     }
 }

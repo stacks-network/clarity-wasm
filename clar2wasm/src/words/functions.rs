@@ -18,6 +18,13 @@ impl ComplexWord for DefinePrivateFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-private expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -52,6 +59,13 @@ impl ComplexWord for DefineReadonlyFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-read-only expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -88,6 +102,13 @@ impl ComplexWord for DefinePublicFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-public expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -177,6 +198,35 @@ mod tests {
         }
     }
 
+    #[test]
+    fn define_private_less_than_two_args() {
+        crosscheck_expect_failure("(define-private 21)");
+    }
+
+    #[test]
+    fn define_private_more_than_two_args() {
+        crosscheck_expect_failure("(define-private (a b c) 21 4)");
+    }
+
+    #[test]
+    fn define_read_only_less_than_two_args() {
+        crosscheck_expect_failure("(define-read-only 21)");
+    }
+
+    #[test]
+    fn define_read_only_more_than_two_args() {
+        crosscheck_expect_failure("(define-read-only (a b c) 21 4)");
+    }
+
+    #[test]
+    fn define_public_less_than_two_args() {
+        crosscheck_expect_failure("(define-public 21)");
+    }
+
+    #[test]
+    fn define_public_more_than_two_args() {
+        crosscheck_expect_failure("(define-public (a b c) 21 4)");
+    }
     #[test]
     fn top_level_define_first() {
         crosscheck(

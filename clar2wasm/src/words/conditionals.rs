@@ -25,6 +25,13 @@ impl ComplexWord for If {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "if expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
@@ -96,6 +103,13 @@ impl ComplexWord for Match {
 
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
+                if args.len() != 4 {
+                    return Err(GeneratorError::ArgumentLengthError(format!(
+                        "match expected 4 arguments, got {}",
+                        args.len()
+                    )));
+                };
+
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
@@ -122,6 +136,13 @@ impl ComplexWord for Match {
                 Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
+                if args.len() != 5 {
+                    return Err(GeneratorError::ArgumentLengthError(format!(
+                        "match expected 5 arguments, got {}",
+                        args.len()
+                    )));
+                };
+
                 let (ok_ty, err_ty) = &*inner_types;
 
                 let err_binding = args.get_name(3)?;
@@ -185,6 +206,13 @@ impl ComplexWord for Filter {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "filter expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
@@ -408,6 +436,12 @@ impl ComplexWord for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(
+                "and expected at least 1 argument, got 0".to_owned(),
+            ));
+        };
+
         traverse_short_circuiting_list(generator, builder, args, false)
     }
 }
@@ -449,6 +483,12 @@ impl ComplexWord for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(
+                "or expected at least 1 argument, got 0".to_owned(),
+            ));
+        };
+
         traverse_short_circuiting_list(generator, builder, args, true)
     }
 }
@@ -490,6 +530,13 @@ impl ComplexWord for Unwrap {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "unwrap! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -571,6 +618,13 @@ impl ComplexWord for UnwrapErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "unwrap-err! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -660,6 +714,13 @@ impl ComplexWord for Asserts {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "asserts! expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -730,6 +791,13 @@ impl ComplexWord for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "try! expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
 
@@ -860,6 +928,16 @@ mod tests {
     }
 
     #[test]
+    fn if_less_than_three_args() {
+        crosscheck_expect_failure("(if true true)");
+    }
+
+    #[test]
+    fn if_more_than_three_args() {
+        crosscheck_expect_failure("(if true true true true)");
+    }
+
+    #[test]
     fn what_if() {
         crosscheck("(if true true false)", Ok(Some(Value::Bool(true))));
     }
@@ -876,6 +954,16 @@ mod tests {
             "(if (> 9001 9000) (+ 1 1) (+ 2 2))",
             Ok(Some(Value::Int(2))),
         );
+    }
+
+    #[test]
+    fn filter_less_than_two_args() {
+        crosscheck_expect_failure("(filter (x int))");
+    }
+
+    #[test]
+    fn filter_more_than_two_args() {
+        crosscheck_expect_failure("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
     }
 
     #[test]
@@ -960,6 +1048,11 @@ mod tests {
     }
 
     #[test]
+    fn and_less_than_two_args() {
+        crosscheck_expect_failure("(and)");
+    }
+
+    #[test]
     fn and() {
         crosscheck(
             r#"
@@ -977,6 +1070,11 @@ mod tests {
     }
 
     #[test]
+    fn or_less_than_two_args() {
+        crosscheck_expect_failure("(or)");
+    }
+
+    #[test]
     fn or() {
         crosscheck(
             r#"
@@ -991,6 +1089,30 @@ mod tests {
 (var-get cursor)
                 "#,
             evaluate("8"),
+        );
+    }
+
+    #[test]
+    fn match_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+    ))",
+        );
+    }
+
+    #[test]
+    fn match_more_than_five_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   error (+ error 107)
+   error2
+   ))",
         );
     }
 
@@ -1037,6 +1159,27 @@ mod tests {
     }
 
     #[test]
+    fn match_optional_less_than_four_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val))",
+        );
+    }
+
+    #[test]
+    fn match_optional_more_than_four_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (optional int)))
+ (match x
+   val val
+   1001 1010))",
+        );
+    }
+
+    #[test]
     fn clar_match_b() {
         const ADD_10: &str = "
 (define-private (add-10 (x (optional int)))
@@ -1052,6 +1195,24 @@ mod tests {
         crosscheck(
             &format!("{ADD_10} (add-10 (some 10))"),
             Ok(Some(Value::Int(10))),
+        );
+    }
+
+    #[test]
+    fn unwrap_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x) 10))",
+        );
+    }
+
+    #[test]
+    fn unwrap_more_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (optional int)))
+  (+ (unwrap! x 23 23) 10)",
         );
     }
 
@@ -1083,6 +1244,24 @@ mod tests {
         crosscheck(
             &format!("{FN} (unwrapper (ok 10))"),
             Ok(Some(Value::Int(20))),
+        );
+    }
+
+    #[test]
+    fn unwrap_err_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap-err! x) 10))",
+        );
+    }
+
+    #[test]
+    fn unwrap_err_more_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (unwrapper (x (response int int)))
+  (+ (unwrap-err! x 23 23) 10))",
         );
     }
 
@@ -1199,6 +1378,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn try_less_than_one_arg() {
+        crosscheck_expect_failure(
+            "
+(define-private (tryharder (x (optional int)))
+  (some (+ (try!) 10)))",
+        );
+    }
+
+    #[test]
+    fn try_more_than_one_arg() {
+        crosscheck_expect_failure(
+            "
+(define-private (tryharder (x (optional int)))
+  (some (+ (try! x 23 23) 10)))",
+        );
+    }
+
     const ASSERT: &str = "
       (define-private (is-even (x int))
         (is-eq (* (/ x 2) 2) x))
@@ -1242,5 +1439,15 @@ mod tests {
                 }),
             ))),
         )
+    }
+
+    #[test]
+    fn asserts_less_than_two_args() {
+        crosscheck_expect_failure("(asserts! true)");
+    }
+
+    #[test]
+    fn asserts_more_than_two_args_false() {
+        crosscheck_expect_failure("(asserts! true true true)");
     }
 }

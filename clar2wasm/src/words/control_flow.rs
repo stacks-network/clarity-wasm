@@ -21,6 +21,13 @@ impl ComplexWord for Begin {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.is_empty() {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "begin expected at least 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError("begin must have at least one arg".to_string())
@@ -49,6 +56,13 @@ impl ComplexWord for UnwrapPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "unwrap-panic expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // There must be either an `optional` or a `response` on the top of the
@@ -185,6 +199,13 @@ impl ComplexWord for UnwrapErrPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "unwrap-err-panic expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // The input must be a `response` type. It uses an i32 indicator, where
@@ -267,6 +288,31 @@ mod tests {
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
+
+    #[test]
+    fn begin_less_than_one_arg() {
+        crosscheck_expect_failure("(begin)");
+    }
+
+    #[test]
+    fn unwrap_panic_less_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-panic)");
+    }
+
+    #[test]
+    fn unwrap_panic_more_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-panic (some 1) 2)");
+    }
+
+    #[test]
+    fn unwrap_err_panic_less_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-err-panic)");
+    }
+
+    #[test]
+    fn unwrap_err_panic_more_than_one_arg() {
+        crosscheck_expect_failure("(unwrap-err-panic (some x) 2)");
+    }
 
     #[test]
     fn test_unwrap_panic_some() {

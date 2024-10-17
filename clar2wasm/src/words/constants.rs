@@ -20,6 +20,13 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-constant expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         // Constant name
         let name = args.get_name(0)?;
 
@@ -136,6 +143,16 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn define_constant_less_than_two_args() {
+        crosscheck_expect_failure("(define-constant)");
+    }
+
+    #[test]
+    fn define_constant_more_than_two_args() {
+        crosscheck_expect_failure("(define-constant two 2 3)");
     }
 
     #[test]

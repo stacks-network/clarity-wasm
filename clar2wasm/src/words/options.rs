@@ -50,6 +50,13 @@ impl ComplexWord for IsSome {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "is-some expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_optional(generator, builder, args)
     }
 }
@@ -69,6 +76,13 @@ impl ComplexWord for IsNone {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "is-none expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         traverse_optional(generator, builder, args)?;
 
         // Add one to stack
@@ -78,5 +92,30 @@ impl ComplexWord for IsNone {
 
         // Xor'ed indicator is on stack.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::crosscheck_expect_failure;
+
+    #[test]
+    fn test_is_some_no_args() {
+        crosscheck_expect_failure("(is-some)");
+    }
+
+    #[test]
+    fn test_is_some_more_than_one_arg() {
+        crosscheck_expect_failure("(is-some x y)");
+    }
+
+    #[test]
+    fn test_is_none_no_args() {
+        crosscheck_expect_failure("(is-none)");
+    }
+
+    #[test]
+    fn test_is_none_more_than_one_arg() {
+        crosscheck_expect_failure("(is-none x y)");
     }
 }

@@ -23,6 +23,13 @@ impl ComplexWord for AsContract {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "as-contract expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
@@ -53,6 +60,13 @@ impl ComplexWord for ContractCall {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() < 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "contract-call? expected at least 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;
         if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
@@ -177,7 +191,27 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::TestEnvironment;
+    use crate::tools::{crosscheck_expect_failure, TestEnvironment};
+
+    #[test]
+    fn as_contract_less_than_one_arg() {
+        crosscheck_expect_failure("(as-contract)");
+    }
+
+    #[test]
+    fn as_contract_more_than_one_arg() {
+        crosscheck_expect_failure("(as-contract 1 2)");
+    }
+
+    #[test]
+    fn contract_call_less_than_two_args() {
+        crosscheck_expect_failure("(contract-call? 1)");
+    }
+
+    #[test]
+    fn contract_call_more_than_two_args() {
+        crosscheck_expect_failure("(contract-call? 1 2 3)");
+    }
 
     #[test]
     fn static_no_args() {

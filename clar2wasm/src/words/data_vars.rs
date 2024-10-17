@@ -20,6 +20,13 @@ impl ComplexWord for DefineDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "define-data-var expected 3 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -108,6 +115,13 @@ impl ComplexWord for SetDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "var-set expected 2 arguments, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -179,6 +193,13 @@ impl ComplexWord for GetDataVar {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 1 {
+            return Err(GeneratorError::ArgumentLengthError(format!(
+                "var-get expected 1 argument, got {}",
+                args.len()
+            )));
+        };
+
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory
@@ -250,6 +271,36 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn define_data_var_less_than_three_args() {
+        crosscheck_expect_failure("(define-data-var something int)");
+    }
+
+    #[test]
+    fn define_data_var_more_than_three_args() {
+        crosscheck_expect_failure("(define-data-var something int 0 0)");
+    }
+
+    #[test]
+    fn var_set_less_than_two_args() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-set something)");
+    }
+
+    #[test]
+    fn var_set_more_than_two_args() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-set something 1 2)");
+    }
+
+    #[test]
+    fn var_get_less_than_one_arg() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
+    }
+
+    #[test]
+    fn var_get_more_than_one_arg() {
+        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
     }
 
     #[test]
