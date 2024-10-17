@@ -361,7 +361,7 @@ impl ComplexWord for TransferNonFungibleToken {
 
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
-            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+            GeneratorError::TypeError("Usage of nft-transfer? on an unknown nft token".to_owned())
         })?;
         generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
@@ -416,7 +416,7 @@ impl ComplexWord for MintNonFungibleToken {
 
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
-            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+            GeneratorError::TypeError("Usage of nft-mint? on an unknown nft token".to_owned())
         })?;
         generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
@@ -467,7 +467,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
-            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+            GeneratorError::TypeError("Usage of nft-get-owner? on an unknown nft token".to_owned())
         })?;
         generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
