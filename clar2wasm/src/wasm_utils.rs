@@ -12,13 +12,13 @@ use clarity::vm::types::{
 };
 use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
-use walrus::GlobalId;
+use walrus::{GlobalId, InstrSeqBuilder};
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
-use crate::error_mapping;
+use crate::error_mapping::{self, ErrorMap};
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
-use crate::wasm_generator::GeneratorError;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[allow(non_snake_case)]
 pub enum MintAssetErrorCodes {
@@ -1659,4 +1659,70 @@ pub fn get_global(module: &walrus::Module, name: &str) -> Result<GlobalId, Gener
         .ok_or_else(|| {
             GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
         })
+}
+
+pub fn check_argument_count(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    expected: usize,
+    actual: usize,
+) -> Result<(), GeneratorError> {
+    if expected != actual {
+        let (arg_name_offset_start, arg_name_len_expected) =
+            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
+        let (_, arg_name_len_got) =
+            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
+        builder
+            .i32_const(arg_name_offset_start as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+            .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+            .call(generator.func_by_name("stdlib.runtime-error"));
+    }
+    Ok(())
+}
+
+pub fn check_argument_count_at_least(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    expected: usize,
+    actual: usize,
+) -> Result<(), GeneratorError> {
+    if expected > actual {
+        let (arg_name_offset_start, arg_name_len_expected) =
+            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
+        let (_, arg_name_len_got) =
+            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
+        builder
+            .i32_const(arg_name_offset_start as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+            .i32_const(ErrorMap::ArgumentCountAtLeast as i32)
+            .call(generator.func_by_name("stdlib.runtime-error"));
+    }
+    Ok(())
+}
+
+pub fn check_argument_count_at_most(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    expected: usize,
+    actual: usize,
+) -> Result<(), GeneratorError> {
+    if expected < actual {
+        let (arg_name_offset_start, arg_name_len_expected) =
+            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
+        let (_, arg_name_len_got) =
+            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
+        builder
+            .i32_const(arg_name_offset_start as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+            .i32_const(ErrorMap::ArgumentCountAtMost as i32)
+            .call(generator.func_by_name("stdlib.runtime-error"));
+    }
+    Ok(())
 }

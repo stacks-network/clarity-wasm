@@ -2,12 +2,11 @@ use clarity::vm::types::{TypeSignature, MAX_VALUE_SIZE};
 use walrus::ir::{BinaryOp, InstrSeqType};
 
 use super::ComplexWord;
-use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
-use crate::wasm_utils::get_global;
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct ToConsensusBuff;
@@ -24,19 +23,8 @@ impl ComplexWord for ToConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        if args.len() != 1 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(1))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 1, args.len())?;
+
         generator.traverse_args(builder, args)?;
 
         let ty = generator
@@ -108,19 +96,7 @@ impl ComplexWord for FromConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator
@@ -205,7 +181,7 @@ mod tests {
             assert!(result
                 .unwrap_err()
                 .to_string()
-                .contains("expecting 1 argument, got 0"));
+                .contains("expecting 1 arguments, got 0"));
         }
 
         #[test]
@@ -215,7 +191,7 @@ mod tests {
             assert!(result
                 .unwrap_err()
                 .to_string()
-                .contains("expecting 1 argument, got 2"));
+                .contains("expecting 1 arguments, got 2"));
         }
 
         #[test]

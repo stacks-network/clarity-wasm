@@ -2,9 +2,10 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
-use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::get_global;
+use crate::wasm_utils::{
+    check_argument_count, check_argument_count_at_least, check_argument_count_at_most,
+};
 
 #[derive(Debug)]
 pub struct DefineFungibleToken;
@@ -21,31 +22,8 @@ impl ComplexWord for DefineFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.is_empty() {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(1))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountAtLeast as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        } else if args.len() > 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountAtMost as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        }
+        check_argument_count_at_least(generator, builder, 1, args.len())?;
+        check_argument_count_at_most(generator, builder, 2, args.len())?;
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -95,19 +73,7 @@ impl ComplexWord for BurnFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -145,19 +111,7 @@ impl ComplexWord for TransferFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 4 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(4))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 4, args.len())?;
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -197,19 +151,7 @@ impl ComplexWord for MintFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -246,19 +188,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 1 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(1))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 1, args.len())?;
 
         let token = args.get_name(0)?;
 
@@ -288,19 +218,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
@@ -338,19 +256,7 @@ impl ComplexWord for DefineNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -408,19 +314,7 @@ impl ComplexWord for BurnNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -474,19 +368,7 @@ impl ComplexWord for TransferNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 4 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(4))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 4, args.len())?;
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -544,19 +426,7 @@ impl ComplexWord for MintNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -610,19 +480,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;

@@ -11,7 +11,7 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::get_global;
+use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
@@ -85,19 +85,7 @@ impl ComplexWord for Fold {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -283,19 +271,7 @@ impl ComplexWord for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let ty = generator
             .get_expr_type(expr)
@@ -384,19 +360,7 @@ impl ComplexWord for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
@@ -498,19 +462,7 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let memory = generator.get_memory()?;
 
@@ -583,19 +535,7 @@ impl ComplexWord for Map {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() < 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountAtLeast as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count_at_least(generator, builder, 2, args.len())?;
 
         let fname = args.get_name(0)?;
 
@@ -877,19 +817,7 @@ impl ComplexWord for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 1 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(1))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 1, args.len())?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
@@ -971,19 +899,7 @@ impl ComplexWord for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
@@ -1164,19 +1080,7 @@ impl ComplexWord for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let seq = args.get_expr(0)?;
         let seq_ty = generator
@@ -1427,19 +1331,7 @@ impl ComplexWord for Slice {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let seq = args.get_expr(0)?;
 

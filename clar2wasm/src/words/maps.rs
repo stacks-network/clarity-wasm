@@ -2,9 +2,8 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
-use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
-use crate::wasm_utils::get_global;
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct MapDefinition;
@@ -21,19 +20,7 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -95,19 +82,7 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -186,19 +161,7 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -280,19 +243,7 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(3))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        }
+        check_argument_count(generator, builder, 3, args.len())?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -374,19 +325,7 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            let (arg_name_offset_start, arg_name_len_expected) =
-                generator.add_literal(&clarity::vm::Value::UInt(2))?;
-            let (_, arg_name_len_got) =
-                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
-            builder
-                .i32_const(arg_name_offset_start as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"));
-        };
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -446,6 +385,7 @@ impl ComplexWord for MapDelete {
 mod tests {
     // use clarity::vm::errors::{CheckErrors, Error};
 
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
@@ -594,10 +534,13 @@ mod tests {
         (map-set some-map 21 {x: 21} {x: 21})";
         let result = evaluate(snippet);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting 3 arguments, got 4"));
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 3 arguments, got 4") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
+            );
+        }
     }
 
     #[test]
@@ -607,10 +550,13 @@ mod tests {
         (map-insert some-map 21 {x: 21} {x: 21})";
         let result = evaluate(snippet);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting 3 arguments, got 4"));
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 3 arguments, got 4") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
+            );
+        }
     }
 
     #[test]
@@ -621,9 +567,12 @@ mod tests {
         (map-delete some-map 21 21)";
         let result = evaluate(snippet);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting 2 arguments, got 3"));
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 2 arguments, got 3") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
+            );
+        }
     }
 }
