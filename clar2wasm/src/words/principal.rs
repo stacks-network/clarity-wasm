@@ -7,29 +7,14 @@ use clarity::{
     C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
 use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
-use walrus::{GlobalId, LocalId, Module, ValType};
+use walrus::{LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
-    module
-        .globals
-        .iter()
-        .find(|global| {
-            global
-                .name
-                .as_ref()
-                .map_or(false, |other_name| name == other_name)
-        })
-        .map(|global| global.id())
-        .ok_or_else(|| {
-            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
-        })
-}
+use crate::wasm_utils::get_global;
 
 #[derive(Debug)]
 pub struct IsStandard;

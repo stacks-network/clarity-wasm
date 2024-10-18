@@ -1,25 +1,9 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::{GlobalId, Module};
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::get_global;
 use crate::words::ComplexWord;
-
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
-    module
-        .globals
-        .iter()
-        .find(|global| {
-            global
-                .name
-                .as_ref()
-                .map_or(false, |other_name| name == other_name)
-        })
-        .map(|global| global.id())
-        .ok_or_else(|| {
-            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
-        })
-}
 
 #[derive(Debug)]
 pub struct Let;

@@ -1,29 +1,13 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::InstrSeqType;
-use walrus::{GlobalId, Module};
 
 use super::ComplexWord;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
-    module
-        .globals
-        .iter()
-        .find(|global| {
-            global
-                .name
-                .as_ref()
-                .map_or(false, |other_name| name == other_name)
-        })
-        .map(|global| global.id())
-        .ok_or_else(|| {
-            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
-        })
-}
+use crate::wasm_utils::get_global;
 
 #[derive(Debug)]
 pub struct DefaultTo;

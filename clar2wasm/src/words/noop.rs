@@ -1,26 +1,10 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::{GlobalId, Module};
 
 use super::{ComplexWord, SimpleWord};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
-    module
-        .globals
-        .iter()
-        .find(|global| {
-            global
-                .name
-                .as_ref()
-                .map_or(false, |other_name| name == other_name)
-        })
-        .map(|global| global.id())
-        .ok_or_else(|| {
-            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
-        })
-}
+use crate::wasm_utils::get_global;
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.

@@ -269,69 +269,17 @@ fn from_runtime_error_code(
         ErrorMap::ShortReturnExpectedValue => {
             let clarity_val = short_return_value(&instance, &mut store, epoch_id, clarity_version);
             Error::ShortReturn(ShortReturnType::ExpectedValue(clarity_val))
-
         }
         ErrorMap::ArgumentCountMismatch => {
-            let runtime_error_arg_offset =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-offset");
-            let runtime_error_arg_len =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-len");
-
-            let memory = instance
-                .get_memory(&mut store, "memory")
-                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
-            let arg_lengths = read_identifier_from_wasm(
-                memory,
-                &mut store,
-                runtime_error_arg_offset,
-                runtime_error_arg_len,
-            )
-            .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
-
-            let (expected, got) = extract_expected_and_got(&arg_lengths);
-
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
             Error::Unchecked(CheckErrors::IncorrectArgumentCount(expected, got))
         }
         ErrorMap::ArgumentCountAtLeast => {
-            let runtime_error_arg_offset =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-offset");
-            let runtime_error_arg_len =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-len");
-
-            let memory = instance
-                .get_memory(&mut store, "memory")
-                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
-            let arg_lengths = read_identifier_from_wasm(
-                memory,
-                &mut store,
-                runtime_error_arg_offset,
-                runtime_error_arg_len,
-            )
-            .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
-
-            let (expected, got) = extract_expected_and_got(&arg_lengths);
-
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
             Error::Unchecked(CheckErrors::RequiresAtLeastArguments(expected, got))
         }
         ErrorMap::ArgumentCountAtMost => {
-            let runtime_error_arg_offset =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-offset");
-            let runtime_error_arg_len =
-                get_global_i32(&instance, &mut store, "runtime-error-arg-len");
-
-            let memory = instance
-                .get_memory(&mut store, "memory")
-                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
-            let arg_lengths = read_identifier_from_wasm(
-                memory,
-                &mut store,
-                runtime_error_arg_offset,
-                runtime_error_arg_len,
-            )
-            .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
-
-            let (expected, got) = extract_expected_and_got(&arg_lengths);
-
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
             Error::Unchecked(CheckErrors::RequiresAtMostArguments(expected, got))
         }
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
@@ -411,4 +359,33 @@ fn short_return_value(
 
     read_from_wasm_indirect(memory, store, &value_ty, val_offset, *epoch_id)
         .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {}", e))
+}
+
+/// Retrieves the argument lengths from the runtime error global variables.
+///
+/// This function reads the global variables `runtime-error-arg-offset` and `runtime-error-arg-len`
+/// from the WebAssembly instance and constructs a string representing the argument lengths.
+///
+/// # Returns
+///
+/// A string representing the argument lengths.
+fn get_runtime_error_arg_lengths(
+    instance: &Instance,
+    store: &mut impl AsContextMut,
+) -> (usize, usize) {
+    let runtime_error_arg_offset = get_global_i32(instance, store, "runtime-error-arg-offset");
+    let runtime_error_arg_len = get_global_i32(instance, store, "runtime-error-arg-len");
+
+    let memory = instance
+        .get_memory(&mut *store, "memory")
+        .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+    let arg_lengths = read_identifier_from_wasm(
+        memory,
+        store,
+        runtime_error_arg_offset,
+        runtime_error_arg_len,
+    )
+    .unwrap_or_else(|e| panic!("Could not recover arg_lengths: {e}"));
+
+    extract_expected_and_got(&arg_lengths)
 }

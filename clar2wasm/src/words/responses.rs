@@ -1,12 +1,11 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
-use walrus::{GlobalId, Module};
 
 use super::ComplexWord;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-
+use crate::wasm_utils::get_global;
 pub fn traverse_response(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -38,22 +37,6 @@ pub fn traverse_response(
     drop_value(builder, ok_ty);
 
     Ok(())
-}
-
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
-    module
-        .globals
-        .iter()
-        .find(|global| {
-            global
-                .name
-                .as_ref()
-                .map_or(false, |other_name| name == other_name)
-        })
-        .map(|global| global.id())
-        .ok_or_else(|| {
-            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
-        })
 }
 
 #[derive(Debug)]

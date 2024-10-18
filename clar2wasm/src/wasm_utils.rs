@@ -12,11 +12,13 @@ use clarity::vm::types::{
 };
 use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
+use walrus::GlobalId;
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
 use crate::error_mapping;
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
+use crate::wasm_generator::GeneratorError;
 
 #[allow(non_snake_case)]
 pub enum MintAssetErrorCodes {
@@ -1641,4 +1643,20 @@ pub fn signature_from_string(
         expr,
         &mut (),
     )?)
+}
+
+pub fn get_global(module: &walrus::Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
 }
