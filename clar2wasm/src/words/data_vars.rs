@@ -4,6 +4,7 @@ use walrus::ValType;
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct DefineDataVar;
@@ -20,6 +21,8 @@ impl ComplexWord for DefineDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 3, args.len())?;
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -108,6 +111,8 @@ impl ComplexWord for SetDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -179,6 +184,8 @@ impl ComplexWord for GetDataVar {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory
@@ -226,6 +233,7 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
     use crate::tools::{
@@ -250,6 +258,63 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn define_data_var_less_than_three_args() {
+        let result = evaluate("(define-data-var something int)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn define_data_var_more_than_three_args() {
+        let result = evaluate("(define-data-var something int 0 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn var_set_less_than_two_args() {
+        let result = evaluate("(define-data-var something int 1)(var-set something)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn var_set_more_than_two_args() {
+        let snippet = "(define-data-var something int 1)(var-set something 1 2)";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        crosscheck(snippet, expected);
+    }
+
+    #[test]
+    fn var_get_less_than_one_arg() {
+        let result = evaluate("(var-get)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn var_get_more_than_one_arg() {
+        let result = evaluate("(define-data-var something int 1)(var-get something 1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]

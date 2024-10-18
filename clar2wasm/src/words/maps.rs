@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct MapDefinition;
@@ -19,6 +20,8 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 3, args.len())?;
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -79,6 +82,8 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -156,6 +161,8 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 3, args.len())?;
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -236,6 +243,8 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 3, args.len())?;
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -316,6 +325,8 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -372,9 +383,12 @@ impl ComplexWord for MapDelete {
 
 #[cfg(test)]
 mod tests {
+    // use clarity::vm::errors::{CheckErrors, Error};
+
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     //
     // Module with tests that should only be executed
@@ -437,5 +451,128 @@ mod tests {
         crosscheck_expect_failure(
             "(define-map a {x: int} {square: int}) (define-map a {x: int} {square: int})",
         );
+    }
+
+    #[test]
+    fn define_map_less_than_three_args() {
+        let result = evaluate("(define-map 21)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_map_more_than_three_args() {
+        let result = evaluate("(define-map map int 5 6)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn map_get_less_than_two_args() {
+        let result = evaluate("(map-get? map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_set_less_than_two_args() {
+        let result = evaluate("(map-set map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_insert_less_than_two_args() {
+        let result = evaluate("(map-insert map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_delete_less_than_two_args() {
+        let result = evaluate("(map-delete map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_get_more_than_two_args() {
+        let result = evaluate("(map-get? map 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn map_set_more_than_two_args() {
+        let snippet = "(define-map some-map int {x: int})
+        (map-set some-map 21 {x: 21} {x: 21})";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 3 arguments, got 4") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
+            );
+        }
+    }
+
+    #[test]
+    fn map_insert_more_than_three_args() {
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21} {x: 21})";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 3 arguments, got 4") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
+            );
+        }
+    }
+
+    #[test]
+    fn map_delete_more_than_two_args() {
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-delete some-map 21 21)";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 2 arguments, got 3") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
+            );
+        }
     }
 }

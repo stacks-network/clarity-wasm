@@ -5,6 +5,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -21,6 +22,8 @@ impl ComplexWord for TupleCons {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count_at_least(generator, builder, 1, args.len())?;
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))?
@@ -102,11 +105,7 @@ impl ComplexWord for TupleGet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple get".to_string(),
-            ));
-        }
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let target_field_name = args[0]
             .match_atom()
@@ -180,11 +179,7 @@ impl ComplexWord for TupleMerge {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple merge".to_string(),
-            ));
-        }
+        check_argument_count(generator, builder, 2, args.len())?;
 
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])
@@ -282,7 +277,7 @@ mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_get_optional() {
@@ -398,5 +393,55 @@ mod tests {
 
             crosscheck(snippet, Ok(None));
         }
+    }
+
+    #[test]
+    fn tuple_less_than_one_arg() {
+        let result = evaluate("(tuple)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn get_less_than_two_args() {
+        let result = evaluate("(get id)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn get_more_than_two_args() {
+        let result = evaluate("(get id 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn merge_less_than_two_args() {
+        let result = evaluate("(merge)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 0"));
+    }
+
+    #[test]
+    fn merge_more_than_two_args() {
+        let result = evaluate("(merge {a: 1} {b: 2} {c: 3})");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

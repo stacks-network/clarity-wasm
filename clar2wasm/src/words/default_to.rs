@@ -6,6 +6,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct DefaultTo;
@@ -22,6 +23,8 @@ impl ComplexWord for DefaultTo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))
         // i64              i64               i32        i64           i64
@@ -87,5 +90,30 @@ impl ComplexWord for DefaultTo {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn default_to_less_than_two_args() {
+        let result = evaluate("(default-to 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn default_to_more_than_two_args() {
+        let result = evaluate("(default-to 0 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

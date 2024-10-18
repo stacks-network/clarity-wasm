@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::check_argument_count_at_least;
 use crate::words::ComplexWord;
 
 #[derive(Debug)]
@@ -18,6 +19,8 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count_at_least(generator, builder, 2, args.len())?;
+
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
@@ -80,7 +83,7 @@ impl ComplexWord for Let {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
 
     #[cfg(feature = "test-clarity-v1")]
     mod clarity_v1 {
@@ -98,6 +101,17 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn let_less_than_two_args() {
+        let result = evaluate("(let ((current-count (count u1))))");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]

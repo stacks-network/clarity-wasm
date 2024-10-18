@@ -4,7 +4,7 @@ use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-
+use crate::wasm_utils::check_argument_count;
 pub fn traverse_response(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -53,6 +53,8 @@ impl ComplexWord for IsOk {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         traverse_response(generator, builder, args)
     }
 }
@@ -72,6 +74,8 @@ impl ComplexWord for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         traverse_response(generator, builder, args)?;
 
         // Add one to stack
@@ -81,5 +85,50 @@ impl ComplexWord for IsErr {
 
         // Xor'ed indicator is on stack.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn test_is_ok_no_args() {
+        let result = evaluate("(is-ok)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn test_is_ok_more_than_one_arg() {
+        let result = evaluate("(is-ok (ok 21) 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn test_is_err_no_args() {
+        let result = evaluate("(is-err)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn test_is_err_more_than_one_arg() {
+        let result = evaluate("(is-err (err 21) 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

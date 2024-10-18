@@ -6,6 +6,7 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct ToConsensusBuff;
@@ -22,6 +23,8 @@ impl ComplexWord for ToConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         generator.traverse_args(builder, args)?;
 
         let ty = generator
@@ -93,6 +96,7 @@ impl ComplexWord for FromConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator
@@ -168,7 +172,27 @@ mod tests {
         use clarity::vm::Value;
         use hex::FromHex as _;
 
-        use crate::tools::crosscheck;
+        use crate::tools::{crosscheck, evaluate};
+
+        #[test]
+        fn to_consensus_buff_less_than_one_arg() {
+            let result = evaluate("(to-consensus-buff?)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 1 arguments, got 0"));
+        }
+
+        #[test]
+        fn to_consensus_buff_more_than_one_arg() {
+            let result = evaluate("(to-consensus-buff? 1 2)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 1 arguments, got 2"));
+        }
 
         #[test]
         fn to_consensus_buff_int() {
@@ -353,6 +377,26 @@ mod tests {
         }
 
         //--- `from-consensus-buff?` tests
+
+        #[test]
+        fn from_consensus_buff_less_than_two_args() {
+            let result = evaluate("(from-consensus-buff? int)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 1"));
+        }
+
+        #[test]
+        fn from_consensus_buff_more_than_two_args() {
+            let result = evaluate("(from-consensus-buff? int 0x000000000000000000000000000001e240 0x000000000000000000000000000001e240)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 3"));
+        }
 
         #[test]
         fn from_consensus_buff_int() {

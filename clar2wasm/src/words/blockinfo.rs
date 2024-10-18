@@ -2,6 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct GetBlockInfo;
@@ -18,6 +19,8 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -70,6 +73,8 @@ impl ComplexWord for GetBurnBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -124,6 +129,8 @@ impl ComplexWord for AtBlock {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
 
@@ -226,6 +233,28 @@ mod tests {
     }
 
     //- Block Info
+
+    #[test]
+    fn get_block_info_less_than_two_args() {
+        let mut env = TestEnvironment::default();
+        env.advance_chain_tip(1);
+        let result = env.evaluate("(get-block-info? id-header-hash)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn get_block_info_more_than_two_args() {
+        let mut env = TestEnvironment::default();
+        env.advance_chain_tip(1);
+        let snippet = "(get-block-info? burnchain-header-hash u0 u0)";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        let result = env.evaluate(snippet);
+        assert_eq!(result, expected);
+    }
 
     #[test]
     fn get_block_info_burnchain_header_hash() {
@@ -344,6 +373,27 @@ mod tests {
     }
 
     #[test]
+    fn get_burn_block_info_less_than_two_args() {
+        let result = evaluate("(get-burn-block-info? id-header-hash)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn get_burn_block_info_more_than_two_args() {
+        let result = evaluate("(get-burn-block-info? id-header-hash u0 u0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
     fn get_burn_block_info_pox_addrs() {
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
@@ -376,6 +426,30 @@ mod tests {
                 .unwrap()
             )
         );
+    }
+
+    #[test]
+    fn at_block_less_than_two_args() {
+        let result = evaluate(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e)",
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn at_block_more_than_two_args() {
+        let result = evaluate(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e u0 u0)",
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]

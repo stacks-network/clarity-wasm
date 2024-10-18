@@ -2,6 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::check_argument_count;
 
 #[derive(Debug)]
 pub struct DefineTrait;
@@ -18,6 +19,8 @@ impl ComplexWord for DefineTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -59,10 +62,12 @@ impl ComplexWord for UseTrait {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
-        _builder: &mut walrus::InstrSeqBuilder,
+        builder: &mut walrus::InstrSeqBuilder,
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 2, args.len())?;
+
         // We simply add the trait alias to the memory so that contract-call?
         // can retrieve a correct function return type at call.
         let name = &args
@@ -95,6 +100,8 @@ impl ComplexWord for ImplTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         let trait_identifier = match &args.get_expr(0)?.expr {
             SymbolicExpressionType::Field(trait_identifier) => trait_identifier,
             _ => {

@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::signature_from_string;
+use crate::wasm_utils::{check_argument_count, signature_from_string};
 
 #[derive(Debug)]
 pub struct Print;
@@ -20,6 +20,8 @@ impl ComplexWord for Print {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(generator, builder, 1, args.len())?;
+
         let value = args.get_expr(0)?;
 
         // Traverse the value, leaving it on the data stack
@@ -87,7 +89,27 @@ mod tests {
     use clarity::vm::types::{ListTypeData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
+
+    #[test]
+    fn print_no_args() {
+        let result = evaluate("(print)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn print_more_than_one_arg() {
+        let result = evaluate("(print 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
 
     #[test]
     fn test_simple() {
