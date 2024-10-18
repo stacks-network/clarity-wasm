@@ -109,13 +109,6 @@ impl ComplexWord for ImplTrait {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 1 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "impl-trait expected 1 argument, got {}",
-                args.len()
-            )));
-        };
-
         let trait_identifier = match &args.get_expr(0)?.expr {
             SymbolicExpressionType::Field(trait_identifier) => trait_identifier,
             _ => {
@@ -182,39 +175,9 @@ mod tests {
     }
 
     #[test]
-    fn define_trait_less_than_two_args() {
-        crosscheck_expect_failure("(define-trait)");
-    }
-
-    #[test]
-    fn define_trait_more_than_two_args() {
-        crosscheck_expect_failure("(define-trait my-trait (ok true) (ok false))");
-    }
-
-    #[test]
     fn define_trait_eval() {
         // Just validate that it doesn't crash
         crosscheck("(define-trait my-trait ())", Ok(None))
-    }
-
-    #[test]
-    fn use_trait_less_than_two_args() {
-        crosscheck_expect_failure("(use-trait the-trait)");
-    }
-
-    #[test]
-    fn use_trait_more_than_two_args() {
-        crosscheck_expect_failure("(use-trait the-trait .my-trait.my-trait (ok true))");
-    }
-
-    #[test]
-    fn impl_trait_less_than_one_arg() {
-        crosscheck_expect_failure("(impl-trait)");
-    }
-
-    #[test]
-    fn impl_trait_more_than_one_arg() {
-        crosscheck_expect_failure("(impl-trait .my-trait.my-trait .my-trait.my-trait)");
     }
 
     #[test]

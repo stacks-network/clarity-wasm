@@ -100,25 +100,45 @@ impl ComplexWord for IsErr {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck_expect_failure;
+    use crate::tools::evaluate;
 
     #[test]
     fn test_is_ok_no_args() {
-        crosscheck_expect_failure("(is-ok)");
+        let result = evaluate("(is-ok)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn test_is_ok_more_than_one_arg() {
-        crosscheck_expect_failure("(is-ok (ok 21) 21)");
+        let result = evaluate("(is-ok (ok 21) 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn test_is_err_no_args() {
-        crosscheck_expect_failure("(is-err)");
+        let result = evaluate("(is-err)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn test_is_err_more_than_one_arg() {
-        crosscheck_expect_failure("(is-err (err 21) 21)");
+        let result = evaluate("(is-err (err 21) 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

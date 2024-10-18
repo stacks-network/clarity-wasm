@@ -103,13 +103,6 @@ impl ComplexWord for Match {
 
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
-                if args.len() != 4 {
-                    return Err(GeneratorError::ArgumentLengthError(format!(
-                        "match expected 4 arguments, got {}",
-                        args.len()
-                    )));
-                };
-
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
@@ -136,13 +129,6 @@ impl ComplexWord for Match {
                 Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
-                if args.len() != 5 {
-                    return Err(GeneratorError::ArgumentLengthError(format!(
-                        "match expected 5 arguments, got {}",
-                        args.len()
-                    )));
-                };
-
                 let (ok_ty, err_ty) = &*inner_types;
 
                 let err_binding = args.get_name(3)?;
@@ -206,13 +192,6 @@ impl ComplexWord for Filter {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "filter expected 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
@@ -530,13 +509,6 @@ impl ComplexWord for Unwrap {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "unwrap! expected 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -618,13 +590,6 @@ impl ComplexWord for UnwrapErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "unwrap-err! expected 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -714,13 +679,6 @@ impl ComplexWord for Asserts {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "asserts! expected 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -791,13 +749,6 @@ impl ComplexWord for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 1 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "try! expected 1 argument, got {}",
-                args.len()
-            )));
-        };
-
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
 
@@ -929,12 +880,22 @@ mod tests {
 
     #[test]
     fn if_less_than_three_args() {
-        crosscheck_expect_failure("(if true true)");
+        let result = evaluate("(if true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn if_more_than_three_args() {
-        crosscheck_expect_failure("(if true true true true)");
+        let result = evaluate("(if true true true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
@@ -958,12 +919,23 @@ mod tests {
 
     #[test]
     fn filter_less_than_two_args() {
-        crosscheck_expect_failure("(filter (x int))");
+        let result = evaluate("(filter (x int))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn filter_more_than_two_args() {
-        crosscheck_expect_failure("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
+        let result = evaluate("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -1048,8 +1020,13 @@ mod tests {
     }
 
     #[test]
-    fn and_less_than_two_args() {
-        crosscheck_expect_failure("(and)");
+    fn and_less_than_one_arg() {
+        let result = evaluate("(and)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
@@ -1070,8 +1047,13 @@ mod tests {
     }
 
     #[test]
-    fn or_less_than_two_args() {
-        crosscheck_expect_failure("(or)");
+    fn or_less_than_one_arg() {
+        let result = evaluate("(or)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
@@ -1160,23 +1142,23 @@ mod tests {
 
     #[test]
     fn match_optional_less_than_four_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (add-10 (x (optional int)))
- (match x
-   val val))",
-        );
+        let result = evaluate("(define-private (add-10 (x (optional int))) (match x val val))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 3"));
     }
 
     #[test]
     fn match_optional_more_than_four_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (add-10 (x (optional int)))
- (match x
-   val val
-   1001 1010))",
-        );
+        let result =
+            evaluate("(define-private (add-10 (x (optional int))) (match x val val 1001 1010))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 5"));
     }
 
     #[test]
@@ -1200,20 +1182,23 @@ mod tests {
 
     #[test]
     fn unwrap_less_than_two_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (unwrapper (x (optional int)))
-  (+ (unwrap! x) 10))",
-        );
+        let result = evaluate("(define-private (unwrapper (x (optional int))) (+ (unwrap! x) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn unwrap_more_than_two_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (unwrapper (x (optional int)))
-  (+ (unwrap! x 23 23) 10)",
-        );
+        let result =
+            evaluate("(define-private (unwrapper (x (optional int))) (+ (unwrap! x 23 23) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -1249,20 +1234,23 @@ mod tests {
 
     #[test]
     fn unwrap_err_less_than_two_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (unwrapper (x (response int int)))
-  (+ (unwrap-err! x) 10))",
-        );
+        let result =
+            evaluate("(define-private (unwrapper (x (response int int))) (+ (unwrap-err! x) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn unwrap_err_more_than_two_args() {
-        crosscheck_expect_failure(
-            "
-(define-private (unwrapper (x (response int int)))
-  (+ (unwrap-err! x 23 23) 10))",
+        let result = evaluate(
+            "(define-private (unwrapper (x (response int int))) (+ (unwrap-err! x 23 23) 10))",
         );
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -1380,20 +1368,25 @@ mod tests {
 
     #[test]
     fn try_less_than_one_arg() {
-        crosscheck_expect_failure(
-            "
-(define-private (tryharder (x (optional int)))
-  (some (+ (try!) 10)))",
-        );
+        let result =
+            evaluate("(define-private (tryharder (x (optional int))) (some (+ (try!) 10)))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn try_more_than_one_arg() {
-        crosscheck_expect_failure(
-            "
-(define-private (tryharder (x (optional int)))
-  (some (+ (try! x 23 23) 10)))",
-        );
+        let result =
+            evaluate("(define-private (tryharder (x (optional int))) (some (+ (try! x 23) 10)))");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     const ASSERT: &str = "
@@ -1443,11 +1436,21 @@ mod tests {
 
     #[test]
     fn asserts_less_than_two_args() {
-        crosscheck_expect_failure("(asserts! true)");
+        let result = evaluate("(asserts! true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn asserts_more_than_two_args_false() {
-        crosscheck_expect_failure("(asserts! true true true)");
+        let result = evaluate("(asserts! true true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

@@ -135,16 +135,26 @@ mod tests {
     use clarity::vm::types::{ListTypeData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn print_no_args() {
-        crosscheck_expect_failure("(print)");
+        let result = evaluate("(print)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn print_more_than_one_arg() {
-        crosscheck_expect_failure("(print 21 21)");
+        let result = evaluate("(print 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]

@@ -147,35 +147,65 @@ impl ComplexWord for ClarityErr {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck_expect_failure;
+    use crate::tools::evaluate;
 
     #[test]
     fn some_less_than_one_arg() {
-        crosscheck_expect_failure("(some)");
+        let result = evaluate("(some)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn some_more_than_one_arg() {
-        crosscheck_expect_failure("(some 1 2)");
+        let result = evaluate("(some 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn ok_less_than_one_arg() {
-        crosscheck_expect_failure("(ok)");
+        let result = evaluate("(ok)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn ok_more_than_one_arg() {
-        crosscheck_expect_failure("(ok 1 2)");
+        let result = evaluate("(ok 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn err_less_than_one_arg() {
-        crosscheck_expect_failure("(err)");
+        let result = evaluate("(err)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn err_more_than_one_arg() {
-        crosscheck_expect_failure("(err 1 2)");
+        let result = evaluate("(err 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

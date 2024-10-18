@@ -200,32 +200,62 @@ mod tests {
 
     #[test]
     fn define_private_less_than_two_args() {
-        crosscheck_expect_failure("(define-private 21)");
+        let result = evaluate("(define-private 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn define_private_more_than_two_args() {
-        crosscheck_expect_failure("(define-private (a b c) 21 4)");
+        let result = evaluate("(define-private (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn define_read_only_less_than_two_args() {
-        crosscheck_expect_failure("(define-read-only 21)");
+        let result = evaluate("(define-read-only 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn define_read_only_more_than_two_args() {
-        crosscheck_expect_failure("(define-read-only (a b c) 21 4)");
+        let result = evaluate("(define-read-only (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn define_public_less_than_two_args() {
-        crosscheck_expect_failure("(define-public 21)");
+        let result = evaluate("(define-public 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn define_public_more_than_two_args() {
-        crosscheck_expect_failure("(define-public (a b c) 21 4)");
+        let result = evaluate("(define-public (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
     #[test]
     fn top_level_define_first() {

@@ -147,12 +147,22 @@ mod tests {
 
     #[test]
     fn define_constant_less_than_two_args() {
-        crosscheck_expect_failure("(define-constant)");
+        let result = evaluate("(define-constant one)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn define_constant_more_than_two_args() {
-        crosscheck_expect_failure("(define-constant two 2 3)");
+        let result = evaluate("(define-constant two 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]

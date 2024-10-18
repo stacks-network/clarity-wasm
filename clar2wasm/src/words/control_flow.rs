@@ -291,27 +291,52 @@ mod tests {
 
     #[test]
     fn begin_less_than_one_arg() {
-        crosscheck_expect_failure("(begin)");
+        let result = evaluate("(begin)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
     fn unwrap_panic_less_than_one_arg() {
-        crosscheck_expect_failure("(unwrap-panic)");
+        let result = evaluate("(unwrap-panic)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn unwrap_panic_more_than_one_arg() {
-        crosscheck_expect_failure("(unwrap-panic (some 1) 2)");
+        let result = evaluate("(unwrap-panic (some 1) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn unwrap_err_panic_less_than_one_arg() {
-        crosscheck_expect_failure("(unwrap-err-panic)");
+        let result = evaluate("(unwrap-err-panic)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn unwrap_err_panic_more_than_one_arg() {
-        crosscheck_expect_failure("(unwrap-err-panic (some x) 2)");
+        let result = evaluate("(unwrap-err-panic (some x) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]

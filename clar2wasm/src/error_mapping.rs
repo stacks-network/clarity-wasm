@@ -54,6 +54,9 @@ pub enum ErrorMap {
     /// Indicates an attempt to use a name that is already in use, possibly for a variable or function.
     NameAlreadyUsed = 9,
 
+    /// Indicates an attempt to use a function with the wrong amount of arguments
+    ArgumentCountMismatch = 10,
+
     /// A catch-all for errors that are not mapped to specific error codes.
     /// This might be used for unexpected or unclassified errors.
     NotMapped = 99,
@@ -73,6 +76,7 @@ impl From<i32> for ErrorMap {
             7 => ErrorMap::ShortReturnAssertionFailure,
             8 => ErrorMap::ArithmeticPowError,
             9 => ErrorMap::NameAlreadyUsed,
+            10 => ErrorMap::ArgumentCountMismatch,
             _ => ErrorMap::NotMapped,
         }
     }
@@ -224,6 +228,35 @@ fn from_runtime_error_code(
             .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
 
             Error::Unchecked(CheckErrors::NameAlreadyUsed(arg_name))
+        }
+        ErrorMap::ArgumentCountMismatch => {
+            let runtime_error_arg_offset = instance
+                .get_global(&mut store, "runtime-error-arg-offset")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-arg-offset global with i32 value")
+                });
+            let runtime_error_arg_len = instance
+                .get_global(&mut store, "runtime-error-arg-len")
+                .and_then(|glob| glob.get(&mut store).i32())
+                .unwrap_or_else(|| {
+                    panic!("Could not find $runtime-error-arg-len global with i32 value")
+                });
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+            let arg_lengths = read_identifier_from_wasm(
+                memory,
+                &mut store,
+                runtime_error_arg_offset,
+                runtime_error_arg_len,
+            )
+            .unwrap_or_else(|e| panic!("Could not recover arg_name: {e}"));
+            let re = regex::Regex::new(r"expected: (\d+) got: (\d+)").unwrap();
+            let captures = re.captures(&arg_lengths).unwrap();
+            let expected: usize = captures[1].parse().unwrap();
+            let got: usize = captures[2].parse().unwrap();
+            Error::Unchecked(CheckErrors::IncorrectArgumentCount(expected, got))
         }
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }

@@ -96,3 +96,28 @@ impl ComplexWord for DefaultTo {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn default_to_less_than_two_args() {
+        let result = evaluate("(default-to 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn default_to_more_than_two_args() {
+        let result = evaluate("(default-to 0 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+}

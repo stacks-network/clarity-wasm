@@ -18,13 +18,6 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() < 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "let expected at least 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
@@ -87,7 +80,7 @@ impl ComplexWord for Let {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
 
     #[cfg(feature = "test-clarity-v1")]
     mod clarity_v1 {
@@ -110,6 +103,17 @@ mod tests {
     #[test]
     fn let_less_than_two_args() {
         crosscheck_expect_failure("(let ((current-count (count u1))))");
+    }
+
+    #[test]
+    fn let_less_than_two_args_evaluate() {
+        let result = evaluate("(let ((current-count (count u1))))");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]

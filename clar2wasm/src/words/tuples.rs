@@ -290,7 +290,7 @@ mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_get_optional() {
@@ -410,33 +410,51 @@ mod tests {
 
     #[test]
     fn tuple_less_than_one_arg() {
-        crosscheck_expect_failure("(tuple)");
-    }
-
-    #[test]
-    fn tuple_more_than_one_arg() {
-        crosscheck_expect_failure(
-            "(tuple {name: blockstack, id: 1337} {name: blockstack, id: 1337})",
-        );
+        let result = evaluate("(tuple)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
     fn get_less_than_two_args() {
-        crosscheck_expect_failure("(get id)");
+        let result = evaluate("(get id)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn get_more_than_two_args() {
-        crosscheck_expect_failure("(get id 2 3)");
+        let result = evaluate("(get id 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn merge_less_than_two_args() {
-        crosscheck_expect_failure("(merge)");
+        let result = evaluate("(merge)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 0"));
     }
 
     #[test]
     fn merge_more_than_two_args() {
-        crosscheck_expect_failure("(merge {a: 1} {b: 2} {c: 3})");
+        let result = evaluate("(merge {a: 1} {b: 2} {c: 3})");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

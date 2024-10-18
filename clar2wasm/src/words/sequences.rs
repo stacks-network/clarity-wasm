@@ -1624,91 +1624,176 @@ impl ComplexWord for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
     #[test]
     fn fold_less_than_three_args() {
-        crosscheck_expect_failure("(fold + (list 1 2 3))");
+        let result = evaluate("(fold + (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn fold_more_than_three_args() {
-        crosscheck_expect_failure("(fold + (list 1 2 3) 1 0)");
+        let result = evaluate("(fold + (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn append_less_than_two_args() {
-        crosscheck_expect_failure("(append (list 1 2 3))");
+        let result = evaluate("(append (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn append_more_than_two_args() {
-        crosscheck_expect_failure("(append (list 1 2 3) 1 0)");
+        let result = evaluate("(append (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn as_max_len_less_than_two_args() {
-        crosscheck_expect_failure("(as-max-len? (list 1 2 3))");
+        let result = evaluate("(as-max-len? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn as_max_len_more_than_two_args() {
-        crosscheck_expect_failure("(as-max-len? (list 1 2 3) 1 0)");
+        let result = evaluate("(as-max-len? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn concat_less_than_two_args() {
-        crosscheck_expect_failure("(concat (list 1 2 3))");
+        let result = evaluate("(concat (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn concat_more_than_two_args() {
-        crosscheck_expect_failure("(concat (list 1 2 3) (list 4 5) (list 6 7))");
+        let result = evaluate("(concat (list 1 2 3) (list 4 5) (list 6 7))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn map_less_than_two_args() {
-        crosscheck_expect_failure("(map +)");
+        let result = evaluate("(map +)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]
     fn len_less_than_one_arg() {
-        crosscheck_expect_failure("(len)");
+        let result = evaluate("(len)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn len_more_than_one_arg() {
-        crosscheck_expect_failure("(len (list 1 2 3) (list 4 5))");
+        let result = evaluate("(len (list 1 2 3) (list 4 5))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn element_at_less_than_two_args() {
-        crosscheck_expect_failure("(element-at? (list 1 2 3))");
+        let result = evaluate("(element-at? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn element_at_more_than_two_args() {
-        crosscheck_expect_failure("(element-at? (list 1 2 3) 1 0)");
+        let result = evaluate("(element-at? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn replace_at_less_than_three_args() {
-        crosscheck_expect_failure("(replace-at? (list 1 2 3))");
+        let result = evaluate("(replace-at? (list 1 2 3) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn replace_at_more_than_three_args() {
-        crosscheck_expect_failure("(replace-at? (list 1 2 3) 1 4 0)");
+        let result = evaluate("(replace-at? (list 1 2 3) 1 4 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn slice_less_than_three_args() {
-        crosscheck_expect_failure("(slice? (list 1 2 3))");
+        let result = evaluate("(slice? (list 1 2 3) u1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn slice_more_than_three_args() {
-        crosscheck_expect_failure("(slice? (list 1 2 3) u1 u2 u3)");
+        let result = evaluate("(slice? (list 1 2 3) u1 u2 u3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]

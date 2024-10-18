@@ -1,8 +1,26 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::{GlobalId, Module};
 
 use super::ComplexWord;
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+
+fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
 
 #[derive(Debug)]
 pub struct MapDefinition;
@@ -19,13 +37,6 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 3 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "define-map expected 3 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -86,13 +97,6 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "map-get expected 2 arguments, got {}",
-                args.len()
-            )));
-        };
-
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -171,10 +175,17 @@ impl ComplexWord for MapSet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "map-insert expected 3 arguments, got {}",
-                args.len()
-            )));
+            let (arg_name_offset, arg_name_len) =
+                generator.add_string_literal(&format!("expected: {} got: {}", 3, args.len()))?;
+            builder
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
         };
 
         let name = args.get_name(0)?;
@@ -258,12 +269,18 @@ impl ComplexWord for MapInsert {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "map-insert expected 3 arguments, got {}",
-                args.len()
-            )));
-        };
-
+            let (arg_name_offset, arg_name_len) =
+                generator.add_string_literal(&format!("expected: {} got: {}", 3, args.len()))?;
+            builder
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
+        }
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -345,10 +362,20 @@ impl ComplexWord for MapDelete {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "map-delete expected 2 arguments, got {}",
-                args.len()
-            )));
+            // make global_set for arg_count and expected_arg_count
+            // builder.i32_const(args.len() as i32).global_set(get_global(&generator.module, "arg-count")?);
+            // builder.i32_const(2).global_set(get_global(&generator.module, "expected-arg-count")?);
+            let (arg_name_offset, arg_name_len) =
+                generator.add_string_literal(&format!("expected: {} got: {}", 2, args.len()))?;
+            builder
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
         };
 
         let name = args.get_name(0)?;
@@ -407,9 +434,11 @@ impl ComplexWord for MapDelete {
 
 #[cfg(test)]
 mod tests {
+    // use clarity::vm::errors::{CheckErrors, Error};
+
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
     //
     // Module with tests that should only be executed
@@ -476,51 +505,115 @@ mod tests {
 
     #[test]
     fn define_map_less_than_three_args() {
-        crosscheck_expect_failure("(define-map 21)");
+        let result = evaluate("(define-map 21)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
     }
 
     #[test]
     fn define_map_more_than_three_args() {
-        crosscheck_expect_failure("(define-map map int 5 6)");
+        let result = evaluate("(define-map map int 5 6)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn map_get_less_than_two_args() {
-        crosscheck_expect_failure("(map-get? map)");
+        let result = evaluate("(map-get? map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn map_set_less_than_two_args() {
-        crosscheck_expect_failure("(map-set map)");
+        let result = evaluate("(map-set map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
     }
 
     #[test]
     fn map_insert_less_than_two_args() {
-        crosscheck_expect_failure("(map-insert map)");
+        let result = evaluate("(map-insert map)");
+        println!("{:#?}", result);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
     }
 
     #[test]
     fn map_delete_less_than_two_args() {
-        crosscheck_expect_failure("(map-delete map)");
+        let result = evaluate("(map-delete map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn map_get_more_than_two_args() {
-        crosscheck_expect_failure("(map-get? map 21 21)");
+        let result = evaluate("(map-get? map 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
     fn map_set_more_than_two_args() {
-        crosscheck_expect_failure("(map-set map 21 {x: 21} 21)");
+        let snippet = "(define-map some-map int {x: int})
+        (map-set some-map 21 {x: 21} {x: 21})";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
-    fn map_insert_more_than_two_args() {
-        crosscheck_expect_failure("(map-insert map 21 {x: 21} 21)");
+    fn map_insert_more_than_three_args() {
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21} {x: 21})";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn map_delete_more_than_two_args() {
-        crosscheck_expect_failure("(map-delete map 21 21)");
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-delete some-map 21 21)";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

@@ -97,25 +97,45 @@ impl ComplexWord for IsNone {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::crosscheck_expect_failure;
+    use crate::tools::evaluate;
 
     #[test]
     fn test_is_some_no_args() {
-        crosscheck_expect_failure("(is-some)");
+        let result = evaluate("(is-some)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn test_is_some_more_than_one_arg() {
-        crosscheck_expect_failure("(is-some x y)");
+        let result = evaluate("(is-some x y)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn test_is_none_no_args() {
-        crosscheck_expect_failure("(is-none)");
+        let result = evaluate("(is-none)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn test_is_none_more_than_one_arg() {
-        crosscheck_expect_failure("(is-none x y)");
+        let result = evaluate("(is-none x y)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

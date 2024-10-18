@@ -1,9 +1,26 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ValType;
+use walrus::{GlobalId, Module, ValType};
 
 use super::ComplexWord;
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+
+fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
 
 #[derive(Debug)]
 pub struct DefineDataVar;
@@ -116,10 +133,17 @@ impl ComplexWord for SetDataVar {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "var-set expected 2 arguments, got {}",
-                args.len()
-            )));
+            let (arg_name_offset, arg_name_len) =
+                generator.add_string_literal(&format!("expected: {} got: {}", 2, args.len()))?;
+            builder
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
         };
 
         let name = args.get_name(0)?;
@@ -247,6 +271,7 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
     use crate::tools::{
@@ -275,32 +300,59 @@ mod tests {
 
     #[test]
     fn define_data_var_less_than_three_args() {
-        crosscheck_expect_failure("(define-data-var something int)");
+        let result = evaluate("(define-data-var something int)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn define_data_var_more_than_three_args() {
-        crosscheck_expect_failure("(define-data-var something int 0 0)");
+        let result = evaluate("(define-data-var something int 0 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn var_set_less_than_two_args() {
-        crosscheck_expect_failure("(define-data-var something int 1)(var-set something)");
+        let result = evaluate("(define-data-var something int 1)(var-set something)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]
     fn var_set_more_than_two_args() {
-        crosscheck_expect_failure("(define-data-var something int 1)(var-set something 1 2)");
+        let snippet = "(define-data-var something int 1)(var-set something 1 2)";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        crosscheck(snippet, expected);
     }
 
     #[test]
     fn var_get_less_than_one_arg() {
-        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
+        let result = evaluate("(var-get)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn var_get_more_than_one_arg() {
-        crosscheck_expect_failure("(define-data-var something int 1)(var-get something 1)");
+        let result = evaluate("(define-data-var something int 1)(var-get something 1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]

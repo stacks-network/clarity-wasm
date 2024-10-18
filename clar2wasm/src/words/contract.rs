@@ -191,26 +191,48 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck_expect_failure, TestEnvironment};
+    use crate::tools::{evaluate, TestEnvironment};
 
     #[test]
     fn as_contract_less_than_one_arg() {
-        crosscheck_expect_failure("(as-contract)");
+        let result = evaluate("(as-contract)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn as_contract_more_than_one_arg() {
-        crosscheck_expect_failure("(as-contract 1 2)");
+        let result = evaluate("(as-contract 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     #[test]
     fn contract_call_less_than_two_args() {
-        crosscheck_expect_failure("(contract-call? 1)");
-    }
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (no-args)
+    (ok u42)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+        let result =
+            env.init_contract_with_snippet("contract-caller", "(contract-call? .contract-callee)");
 
-    #[test]
-    fn contract_call_more_than_two_args() {
-        crosscheck_expect_failure("(contract-call? 1 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]

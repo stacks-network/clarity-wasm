@@ -314,7 +314,7 @@ mod tests {
     };
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_principal_of() {
@@ -359,22 +359,44 @@ mod tests {
     }
     #[test]
     fn principal_construct_less_than_two_args() {
-        crosscheck_expect_failure("(principal-construct? 0x1a)");
+        let result = evaluate("(principal-construct? 0x1a)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]
     fn principal_construct_more_than_three_args() {
-        crosscheck_expect_failure("(principal-construct? 21 21 21 21)");
+        let result = evaluate(
+            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo" "bar")"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting < 3 arguments, got 4"));
     }
 
     #[test]
     fn principal_of_no_args() {
-        crosscheck_expect_failure("(principal-of?)");
+        let result = evaluate("(principal-of?)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn principal_of_more_than_one_arg() {
-        crosscheck_expect_failure("(principal-of? 21 21)");
+        let result = evaluate("(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     //

@@ -86,7 +86,7 @@ mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn to_int_out_of_range() {
@@ -237,11 +237,21 @@ mod tests {
 
     #[test]
     fn test_contract_of_no_args() {
-        crosscheck_expect_failure("(contract-of)");
+        let result = evaluate("(contract-of)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
     }
 
     #[test]
     fn test_contract_of_more_than_one_arg() {
-        crosscheck_expect_failure("(contract-of 21 21)");
+        let result = evaluate("(contract-of 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

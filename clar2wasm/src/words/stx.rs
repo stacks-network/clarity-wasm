@@ -143,26 +143,46 @@ impl SimpleWord for StxGetAccount {
 
 #[cfg(test)]
 mod tests {
-    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn stx_transfer_less_than_three_args() {
-        crosscheck_expect_failure("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5)");
+        let result = evaluate("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
     }
 
     #[test]
     fn stx_transfer_more_than_three_args() {
-        crosscheck_expect_failure("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678 0x12345678)");
+        let result = evaluate("(stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
     }
 
     #[test]
     fn stx_transfer_memo_less_than_four_args() {
-        crosscheck_expect_failure("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)");
+        let result = evaluate("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 3"));
     }
 
     #[test]
     fn stx_transfer_memo_more_than_four_args() {
-        crosscheck_expect_failure("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678 0x12345678)");
+        let result = evaluate("(stx-transfer-memo? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x12345678 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 5"));
     }
 
     #[test]

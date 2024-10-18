@@ -1009,21 +1009,36 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn is_eq_less_than_one_arg() {
-        crosscheck_expect_failure("(is-eq)");
+        let result = evaluate("(is-eq)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
     fn index_of_list_less_than_two_args() {
-        crosscheck_expect_failure("(index-of (list 1 2 3))");
+        let result = evaluate("(index-of (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
     fn index_of_list_more_than_two_args() {
-        crosscheck_expect_failure("(index-of (list 1 2 3) 1 2)");
+        let result = evaluate("(index-of (list 1 2 3) 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
