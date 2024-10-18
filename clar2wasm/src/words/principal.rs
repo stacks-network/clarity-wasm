@@ -7,12 +7,29 @@ use clarity::{
     C32_ADDRESS_VERSION_TESTNET_MULTISIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
 };
 use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
-use walrus::{LocalId, ValType};
+use walrus::{GlobalId, LocalId, Module, ValType};
 
 use super::{ComplexWord, SimpleWord};
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
+
+fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
 
 #[derive(Debug)]
 pub struct IsStandard;
@@ -98,12 +115,31 @@ impl ComplexWord for Construct {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 && args.len() != 3 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "principal-construct? expected 2 or 3 arguments, got {}",
-                args.len()
-            )));
-        };
+        if args.len() < 2 {
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(2))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
+            builder
+                .i32_const(arg_name_offset_start as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountAtLeast as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
+        } else if args.len() > 3 {
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(3))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
+            builder
+                .i32_const(arg_name_offset_start as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountAtMost as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
+        }
 
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
@@ -280,10 +316,17 @@ impl ComplexWord for PrincipalOf {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 1 {
-            return Err(GeneratorError::ArgumentLengthError(format!(
-                "principal-of? expected 1 argument, got {}",
-                args.len()
-            )));
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(1))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
+            builder
+                .i32_const(arg_name_offset_start as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
         };
 
         // Traverse the public key

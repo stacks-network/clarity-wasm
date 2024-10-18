@@ -115,7 +115,6 @@ pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
     TypeError(String),
-    ArgumentLengthError(String),
 }
 
 pub enum FunctionKind {
@@ -130,7 +129,6 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::NotImplemented => "Not implemented".to_string(),
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
-            GeneratorError::ArgumentLengthError(msg) => format!("Invalid argument length: {}", msg),
         }
     }
 

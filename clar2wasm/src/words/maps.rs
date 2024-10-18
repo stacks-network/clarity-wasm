@@ -37,6 +37,20 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 3 {
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(3))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
+            builder
+                .i32_const(arg_name_offset_start as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
+        };
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -97,6 +111,20 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        if args.len() != 2 {
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(2))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
+            builder
+                .i32_const(arg_name_offset_start as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
+        };
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -175,17 +203,17 @@ impl ComplexWord for MapSet {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            let (arg_name_offset, arg_name_len) =
-                generator.add_string_literal(&format!("expected: {} got: {}", 3, args.len()))?;
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(3))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
             builder
-                .i32_const(arg_name_offset as i32)
+                .i32_const(arg_name_offset_start as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const(arg_name_len as i32)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
                 .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"))
-                // To avoid having to generate correct return values
-                .unreachable();
+                .call(generator.func_by_name("stdlib.runtime-error"));
         };
 
         let name = args.get_name(0)?;
@@ -269,18 +297,19 @@ impl ComplexWord for MapInsert {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 3 {
-            let (arg_name_offset, arg_name_len) =
-                generator.add_string_literal(&format!("expected: {} got: {}", 3, args.len()))?;
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(3))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
             builder
-                .i32_const(arg_name_offset as i32)
+                .i32_const(arg_name_offset_start as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const(arg_name_len as i32)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
                 .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"))
-                // To avoid having to generate correct return values
-                .unreachable();
+                .call(generator.func_by_name("stdlib.runtime-error"));
         }
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -362,20 +391,17 @@ impl ComplexWord for MapDelete {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         if args.len() != 2 {
-            // make global_set for arg_count and expected_arg_count
-            // builder.i32_const(args.len() as i32).global_set(get_global(&generator.module, "arg-count")?);
-            // builder.i32_const(2).global_set(get_global(&generator.module, "expected-arg-count")?);
-            let (arg_name_offset, arg_name_len) =
-                generator.add_string_literal(&format!("expected: {} got: {}", 2, args.len()))?;
+            let (arg_name_offset_start, arg_name_len_expected) =
+                generator.add_literal(&clarity::vm::Value::UInt(2))?;
+            let (_, arg_name_len_got) =
+                generator.add_literal(&clarity::vm::Value::UInt(args.len() as u128))?;
             builder
-                .i32_const(arg_name_offset as i32)
+                .i32_const(arg_name_offset_start as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-                .i32_const(arg_name_len as i32)
+                .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
                 .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
                 .i32_const(ErrorMap::ArgumentCountMismatch as i32)
-                .call(generator.func_by_name("stdlib.runtime-error"))
-                // To avoid having to generate correct return values
-                .unreachable();
+                .call(generator.func_by_name("stdlib.runtime-error"));
         };
 
         let name = args.get_name(0)?;
