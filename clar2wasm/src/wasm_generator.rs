@@ -1,3 +1,4 @@
+use core::panic;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
@@ -9,8 +10,8 @@ use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
-    ASCIIData, CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
-    StringSubtype, TypeSignature,
+    ASCIIData, CharType, FixedFunction, FunctionType, ListTypeData, PrincipalData, SequenceData,
+    SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -23,7 +24,9 @@ use walrus::{
 };
 
 use crate::error_mapping::ErrorMap;
-use crate::wasm_utils::{get_type_in_memory_size, get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    get_type_in_memory_size, get_type_size, is_in_memory_type, signature_from_string,
+};
 use crate::{debug_msg, words};
 
 // First free position after data directly defined in standard.wat
@@ -53,6 +56,8 @@ pub struct WasmGenerator {
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
     /// The types of (key, value) in defined maps
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
+    /// The type of defined NFTs
+    pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
@@ -321,6 +326,7 @@ impl WasmGenerator {
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
             local_pool: Rc::new(RefCell::new(HashMap::new())),
+            nft_types: HashMap::new(),
         })
     }
 
@@ -623,18 +629,143 @@ impl WasmGenerator {
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+    /// Handles early return scenarios in the code generation process.
+    ///
+    /// This function is responsible for managing early returns in the generated code,
+    /// used in the context of `try!`, `unwrap!`, `unwrap-err!` and `asserts!` functions.
+    /// It handles different types of runtime errors and generates appropriate
+    /// WebAssembly instructions for each case.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
+    ///               the WebAssembly instruction sequence.
+    /// * `expr` - A reference to the `SymbolicExpression` representing the expression
+    ///            that triggered the early return.
+    /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the early return is handled successfully, or a `GeneratorError`
+    /// if an error occurs during the process.
+    ///
+    /// # Behavior
+    ///
+    /// - If `early_return_block_id` is set, it will generate a branch instruction to that block.
+    /// - For `ShortReturnAssertionFailure`, `ShortReturnExpectedValue`, and `ShortReturnExpectedValueResponse`:
+    ///   - It generates code to create a local variable, write the value to memory,
+    ///     serialize the type, and set up global variables for the runtime error.
+    /// - For `ShortReturnExpectedValueOptional`, it directly calls the runtime error function.
+    /// - For any other error type, it returns an `InternalError`.
+    ///
+    pub fn return_early(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        runtime_error: ErrorMap,
+    ) -> Result<(), GeneratorError> {
         if let Some(block_id) = self.early_return_block_id {
             builder.instr(walrus::ir::Br { block: block_id });
-        } else {
-            // This must be from a top-leve statement, so it should cause a runtime error
-            builder
-                .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
-                .call(self.func_by_name("stdlib.runtime-error"));
-            builder.unreachable();
+            return Ok(());
         }
 
+        match runtime_error {
+            ErrorMap::ShortReturnAssertionFailure
+            | ErrorMap::ShortReturnExpectedValue
+            | ErrorMap::ShortReturnExpectedValueResponse => {
+                let ty = self
+                    .get_expr_type(expr)
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
+                    })?
+                    .clone();
+
+                let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
+                self.write_to_memory(builder, val_offset, 0, &ty)?;
+
+                let serialized_ty = self.type_for_serialization(&ty).to_string();
+
+                // Validate serialized type
+                signature_from_string(
+                    &serialized_ty,
+                    self.contract_analysis.clarity_version,
+                    self.contract_analysis.epoch,
+                )
+                .map_err(|e| {
+                    GeneratorError::TypeError(format!("type cannot be deserialized: {e:?}"))
+                })?;
+
+                let (type_ser_offset, type_ser_len) =
+                    self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                        data: serialized_ty.bytes().collect(),
+                    }))?;
+
+                // Set runtime error globals
+                builder
+                    .local_get(val_offset)
+                    .global_set(get_global(&self.module, "runtime-error-value-offset")?)
+                    .i32_const(type_ser_offset as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-offset")?)
+                    .i32_const(type_ser_len as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-len")?)
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            ErrorMap::ShortReturnExpectedValueOptional => {
+                // Simple case: just call runtime error
+                builder
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "Unhandled runtime error for try! function".to_owned(),
+                ))
+            }
+        }
+
+        builder.unreachable();
+
         Ok(())
+    }
+
+    /// Try to change `ty` for serialization/deserialization (as stringified signature)
+    /// In case of failure, clones the input `ty`
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn type_for_serialization(&self, ty: &TypeSignature) -> TypeSignature {
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            // NoType and BoolType have the same size (both type and inner)
+            NoType => BoolType,
+            // Avoid serialization like `(list 2 <S1G2081040G2081040G2081040G208105NK8PE5.my-trait.my-trait>)`
+            CallableType(CallableSubtype::Trait(_)) => PrincipalType,
+            // Recursive types
+            ResponseType(types) => ResponseType(Box::new((
+                self.type_for_serialization(&types.0),
+                self.type_for_serialization(&types.1),
+            ))),
+            OptionalType(value_ty) => OptionalType(Box::new(self.type_for_serialization(value_ty))),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => {
+                SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        self.type_for_serialization(list_ty.get_list_item_type()),
+                        list_ty.get_max_len(),
+                    )
+                    .unwrap_or_else(|_| list_ty.clone()),
+                ))
+            }
+            TupleType(tuple_ty) => TupleType(
+                TupleTypeSignature::try_from(
+                    tuple_ty
+                        .get_type_map()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), self.type_for_serialization(v)))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap_or_else(|_| tuple_ty.clone()),
+            ),
+            t => t.clone(),
+        }
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
