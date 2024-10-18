@@ -47,7 +47,7 @@ pub struct CompileResult {
 #[derive(Debug)]
 pub enum CompileError {
     Generic {
-        ast: ContractAST,
+        ast: Box<ContractAST>,
         diagnostics: Vec<Diagnostic>,
         cost_tracker: Box<LimitedCostTracker>,
     },
@@ -72,7 +72,7 @@ pub fn compile(
 
     if !success {
         return Err(CompileError::Generic {
-            ast,
+            ast: Box::new(ast),
             diagnostics,
             cost_tracker: Box::new(cost_tracker),
         });
@@ -93,7 +93,7 @@ pub fn compile(
         Err((e, cost_track)) => {
             diagnostics.push(Diagnostic::err(&e.err));
             return Err(CompileError::Generic {
-                ast,
+                ast: Box::new(ast),
                 diagnostics,
                 cost_tracker: Box::new(cost_track),
             });
@@ -108,7 +108,7 @@ pub fn compile(
     if let Err(e) = utils::concretize(&mut contract_analysis) {
         diagnostics.push(e.diagnostic);
         return Err(CompileError::Generic {
-            ast: ast.clone(),
+            ast: Box::new(ast),
             diagnostics: diagnostics.clone(),
             cost_tracker: Box::new(
                 contract_analysis
@@ -130,7 +130,7 @@ pub fn compile(
         Err(e) => {
             diagnostics.push(Diagnostic::err(&e));
             Err(CompileError::Generic {
-                ast,
+                ast: Box::new(ast),
                 diagnostics,
                 cost_tracker: Box::new(
                     contract_analysis
