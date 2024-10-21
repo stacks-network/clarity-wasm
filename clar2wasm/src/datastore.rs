@@ -484,9 +484,9 @@ impl HeadersDB for BurnDatastore {
     fn get_stacks_height_for_tenure_height(
         &self,
         _tip: &StacksBlockId,
-        _tenure_height: u32,
+        tenure_height: u32,
     ) -> Option<u32> {
-        None
+        Some(tenure_height)
     }
 }
 
