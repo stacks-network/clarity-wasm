@@ -1731,7 +1731,13 @@ impl WasmGenerator {
             match t {
                 ValType::I32 => self.debug_log_i32(builder),
                 ValType::I64 => self.debug_log_i64(builder),
-                _ => unimplemented!("unsupported stack dump type"),
+                _ => {
+                    // allow unimplemented in debug code
+                    #[allow(clippy::unimplemented)]
+                    {
+                        unimplemented!("unsupported stack dump type")
+                    }
+                }
             }
         }
         self.debug_msg(builder, "<stack dump end>");
