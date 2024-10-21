@@ -494,7 +494,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("expecting 3 arguments, got 1"));
+            .contains("expecting >= 3 arguments, got 1"));
     }
 
     #[test]
@@ -505,27 +505,41 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("expecting 3 arguments, got 1"));
+            .contains("expecting >= 3 arguments, got 1"));
     }
 
     #[test]
     fn map_delete_less_than_two_args() {
-        let result = evaluate("(map-delete some-map)");
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-delete some-map)";
+        let result = evaluate(snippet);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting 2 arguments, got 1"));
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting >= 2 arguments, got 1") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 1))
+            );
+        }
     }
 
     #[test]
     fn map_get_more_than_two_args() {
-        let result = evaluate("(map-get? some-map 21 21)");
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-get? some-map 21 21)";
+        let result = evaluate(snippet);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting 2 arguments, got 3"));
+        let err = &result.unwrap_err();
+        if !err.to_string().contains("expecting 2 arguments, got 3") {
+            assert_eq!(
+                *err,
+                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
+            );
+        }
     }
 
     #[test]
@@ -535,7 +549,7 @@ mod tests {
         let result = evaluate(snippet);
         assert!(result.is_err());
         let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting 3 arguments, got 4") {
+        if !err.to_string().contains("expecting >= 3 arguments, got 4") {
             assert_eq!(
                 *err,
                 Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
@@ -551,7 +565,7 @@ mod tests {
         let result = evaluate(snippet);
         assert!(result.is_err());
         let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting 3 arguments, got 4") {
+        if !err.to_string().contains("expecting >= 3 arguments, got 4") {
             assert_eq!(
                 *err,
                 Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
@@ -568,7 +582,7 @@ mod tests {
         let result = evaluate(snippet);
         assert!(result.is_err());
         let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting 2 arguments, got 3") {
+        if !err.to_string().contains("expecting >= 2 arguments, got 3") {
             assert_eq!(
                 *err,
                 Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
