@@ -1713,6 +1713,57 @@ impl WasmGenerator {
         builder.call(self.func_by_name("debug_msg"));
     }
 
+    /// Dump the top of the stack to debug messages
+    pub fn debug_dump_stack<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        expected_types: &[ValType],
+    ) {
+        self.debug_msg(builder, message);
+        self.debug_msg(builder, "<stack dump start>");
+        let mut locals = vec![];
+
+        for t in expected_types {
+            let l = self.borrow_local(*t);
+            builder.local_tee(*l);
+            locals.push(l);
+            match t {
+                ValType::I32 => self.debug_log_i32(builder),
+                ValType::I64 => self.debug_log_i64(builder),
+                _ => unimplemented!("unsupported stack dump type"),
+            }
+        }
+        self.debug_msg(builder, "<stack dump end>");
+
+        // restore the stack
+        while let Some(l) = locals.pop() {
+            builder.local_get(*l);
+        }
+    }
+
+    pub fn debug_log_local_i32<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        local_id: &LocalId,
+    ) {
+        self.debug_msg(builder, message);
+        builder.local_get(*local_id);
+        self.debug_log_i32(builder)
+    }
+
+    pub fn debug_log_local_i64<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        local_id: &LocalId,
+    ) {
+        self.debug_msg(builder, message);
+        builder.local_get(*local_id);
+        self.debug_log_i64(builder)
+    }
+
     #[allow(dead_code)]
     /// Log an i64 that is on top of the stack.
     pub fn debug_log_i64(&self, builder: &mut InstrSeqBuilder) {
