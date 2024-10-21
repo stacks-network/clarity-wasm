@@ -13,9 +13,7 @@ use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-use crate::wasm_utils::{
-    check_argument_count, check_argument_count_at_least, check_argument_count_at_most,
-};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct IsStandard;
@@ -101,8 +99,20 @@ impl ComplexWord for Construct {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count_at_least(generator, builder, 2, args.len())?;
-        check_argument_count_at_most(generator, builder, 3, args.len())?;
+        check_argument_count(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
+        check_argument_count(
+            generator,
+            builder,
+            3,
+            args.len(),
+            ArgumentCountCheck::AtMost,
+        )?;
 
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
@@ -278,7 +288,7 @@ impl ComplexWord for PrincipalOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;

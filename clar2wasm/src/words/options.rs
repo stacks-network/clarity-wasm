@@ -4,7 +4,7 @@ use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 pub fn traverse_optional(
     generator: &mut WasmGenerator,
@@ -51,7 +51,7 @@ impl ComplexWord for IsSome {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         traverse_optional(generator, builder, args)
     }
@@ -72,7 +72,7 @@ impl ComplexWord for IsNone {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         traverse_optional(generator, builder, args)?;
 

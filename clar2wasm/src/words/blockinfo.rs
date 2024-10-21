@@ -2,7 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct GetBlockInfo;
@@ -19,7 +19,7 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -73,7 +73,7 @@ impl ComplexWord for GetBurnBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -129,7 +129,7 @@ impl ComplexWord for AtBlock {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;

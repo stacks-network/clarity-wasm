@@ -4,7 +4,7 @@ use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 pub fn traverse_response(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -53,7 +53,7 @@ impl ComplexWord for IsOk {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         traverse_response(generator, builder, args)
     }
@@ -74,7 +74,7 @@ impl ComplexWord for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         traverse_response(generator, builder, args)?;
 

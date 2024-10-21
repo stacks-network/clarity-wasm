@@ -6,7 +6,7 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
 };
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct ToConsensusBuff;
@@ -23,7 +23,7 @@ impl ComplexWord for ToConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         generator.traverse_args(builder, args)?;
 
@@ -96,7 +96,7 @@ impl ComplexWord for FromConsensusBuff {
         _expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
         // Rather than parsing the type from args[0], we can just use the type
         // of this expression.
         let ty = generator

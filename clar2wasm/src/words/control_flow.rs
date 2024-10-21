@@ -5,7 +5,7 @@ use walrus::ir::{IfElse, UnaryOp};
 use super::ComplexWord;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct Begin;
@@ -22,7 +22,13 @@ impl ComplexWord for Begin {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count_at_least(generator, builder, 1, args.len())?;
+        check_argument_count(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
 
         generator.set_expr_type(
             args.last().ok_or_else(|| {
@@ -52,7 +58,7 @@ impl ComplexWord for UnwrapPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
@@ -190,7 +196,7 @@ impl ComplexWord for UnwrapErrPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

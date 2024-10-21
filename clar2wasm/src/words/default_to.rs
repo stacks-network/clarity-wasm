@@ -6,7 +6,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefaultTo;
@@ -23,7 +23,7 @@ impl ComplexWord for DefaultTo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))

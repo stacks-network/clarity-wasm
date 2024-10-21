@@ -8,7 +8,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -25,7 +25,13 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count_at_least(generator, builder, 1, args.len())?;
+        check_argument_count(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
 
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
@@ -116,7 +122,7 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;

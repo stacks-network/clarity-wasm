@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.
@@ -68,7 +68,7 @@ impl ComplexWord for ContractOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         generator.traverse_args(builder, args)?;
 

@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct MapDefinition;
@@ -20,7 +20,7 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -82,7 +82,7 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -161,7 +161,7 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -243,7 +243,7 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -325,7 +325,7 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn define_map_less_than_three_args() {
-        let result = evaluate("(define-map 21)");
+        let result = evaluate("(define-map some-map)");
         println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn define_map_more_than_three_args() {
-        let result = evaluate("(define-map map int 5 6)");
+        let result = evaluate("(define-map some-map int 5 6)");
         println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn map_get_less_than_two_args() {
-        let result = evaluate("(map-get? map)");
+        let result = evaluate("(map-get? some-map)");
         println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn map_set_less_than_two_args() {
-        let result = evaluate("(map-set map)");
+        let result = evaluate("(map-set some-map)");
         println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     fn map_insert_less_than_two_args() {
-        let result = evaluate("(map-insert map)");
+        let result = evaluate("(map-insert some-map)");
         println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn map_delete_less_than_two_args() {
-        let result = evaluate("(map-delete map)");
+        let result = evaluate("(map-delete some-map)");
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -520,7 +520,7 @@ mod tests {
 
     #[test]
     fn map_get_more_than_two_args() {
-        let result = evaluate("(map-get? map 21 21)");
+        let result = evaluate("(map-get? some-map 21 21)");
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

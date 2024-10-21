@@ -11,7 +11,7 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
@@ -85,7 +85,7 @@ impl ComplexWord for Fold {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -271,7 +271,7 @@ impl ComplexWord for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let ty = generator
             .get_expr_type(expr)
@@ -360,7 +360,7 @@ impl ComplexWord for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
@@ -462,7 +462,7 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let memory = generator.get_memory()?;
 
@@ -535,7 +535,13 @@ impl ComplexWord for Map {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count_at_least(generator, builder, 2, args.len())?;
+        check_argument_count(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
 
         let fname = args.get_name(0)?;
 
@@ -817,7 +823,7 @@ impl ComplexWord for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
@@ -899,7 +905,7 @@ impl ComplexWord for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
@@ -1080,7 +1086,7 @@ impl ComplexWord for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let seq = args.get_expr(0)?;
         let seq_ty = generator
@@ -1331,7 +1337,7 @@ impl ComplexWord for Slice {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let seq = args.get_expr(0)?;
 

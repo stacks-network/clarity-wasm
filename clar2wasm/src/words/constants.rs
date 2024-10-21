@@ -3,7 +3,9 @@ use walrus::{ActiveData, DataKind, ValType};
 
 use super::ComplexWord;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{check_argument_count, get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    check_argument_count, get_type_size, is_in_memory_type, ArgumentCountCheck,
+};
 
 #[derive(Debug)]
 pub struct DefineConstant;
@@ -20,7 +22,7 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         // Constant name
         let name = args.get_name(0)?;

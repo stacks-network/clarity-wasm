@@ -5,7 +5,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{check_argument_count, check_argument_count_at_least};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -22,7 +22,13 @@ impl ComplexWord for TupleCons {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count_at_least(generator, builder, 1, args.len())?;
+        check_argument_count(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
 
         let ty = generator
             .get_expr_type(expr)
@@ -105,7 +111,7 @@ impl ComplexWord for TupleGet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let target_field_name = args[0]
             .match_atom()
@@ -179,7 +185,7 @@ impl ComplexWord for TupleMerge {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len())?;
+        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])

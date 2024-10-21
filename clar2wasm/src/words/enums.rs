@@ -5,7 +5,7 @@ use super::ComplexWord;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct ClaritySome;
@@ -22,7 +22,7 @@ impl ComplexWord for ClaritySome {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
@@ -59,7 +59,7 @@ impl ComplexWord for ClarityOk {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         let value = args.get_expr(0)?;
 
@@ -106,7 +106,7 @@ impl ComplexWord for ClarityErr {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len())?;
+        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
 
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder

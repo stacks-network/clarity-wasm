@@ -1661,13 +1661,20 @@ pub fn get_global(module: &walrus::Module, name: &str) -> Result<GlobalId, Gener
         })
 }
 
+pub enum ArgumentCountCheck {
+    Exact,
+    AtLeast,
+    AtMost,
+}
+
 pub fn check_argument_count(
     generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     expected: usize,
     actual: usize,
+    check: ArgumentCountCheck,
 ) -> Result<(), GeneratorError> {
-    if expected != actual {
+    let mut handle_mismatch = |error_map: ErrorMap| -> Result<(), GeneratorError> {
         let (arg_name_offset_start, arg_name_len_expected) =
             generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
         let (_, arg_name_len_got) =
@@ -1677,52 +1684,27 @@ pub fn check_argument_count(
             .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
             .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
             .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-            .i32_const(ErrorMap::ArgumentCountMismatch as i32)
+            .i32_const(error_map as i32)
             .call(generator.func_by_name("stdlib.runtime-error"));
-    }
-    Ok(())
-}
+        Ok(())
+    };
 
-pub fn check_argument_count_at_least(
-    generator: &mut WasmGenerator,
-    builder: &mut InstrSeqBuilder,
-    expected: usize,
-    actual: usize,
-) -> Result<(), GeneratorError> {
-    if expected > actual {
-        let (arg_name_offset_start, arg_name_len_expected) =
-            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
-        let (_, arg_name_len_got) =
-            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
-        builder
-            .i32_const(arg_name_offset_start as i32)
-            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-            .i32_const(ErrorMap::ArgumentCountAtLeast as i32)
-            .call(generator.func_by_name("stdlib.runtime-error"));
-    }
-    Ok(())
-}
-
-pub fn check_argument_count_at_most(
-    generator: &mut WasmGenerator,
-    builder: &mut InstrSeqBuilder,
-    expected: usize,
-    actual: usize,
-) -> Result<(), GeneratorError> {
-    if expected < actual {
-        let (arg_name_offset_start, arg_name_len_expected) =
-            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
-        let (_, arg_name_len_got) =
-            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
-        builder
-            .i32_const(arg_name_offset_start as i32)
-            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
-            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
-            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
-            .i32_const(ErrorMap::ArgumentCountAtMost as i32)
-            .call(generator.func_by_name("stdlib.runtime-error"));
+    match check {
+        ArgumentCountCheck::Exact => {
+            if expected != actual {
+                handle_mismatch(ErrorMap::ArgumentCountMismatch)?;
+            }
+        }
+        ArgumentCountCheck::AtLeast => {
+            if expected > actual {
+                handle_mismatch(ErrorMap::ArgumentCountAtLeast)?;
+            }
+        }
+        ArgumentCountCheck::AtMost => {
+            if expected < actual {
+                handle_mismatch(ErrorMap::ArgumentCountAtMost)?;
+            }
+        }
     }
     Ok(())
 }

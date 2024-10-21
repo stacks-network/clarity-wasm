@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::check_argument_count;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct StxBurn;
@@ -63,7 +63,7 @@ impl ComplexWord for StxTransfer {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len())?;
+        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
 
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
@@ -95,7 +95,7 @@ impl ComplexWord for StxTransferMemo {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 4, args.len())?;
+        check_argument_count(generator, builder, 4, args.len(), ArgumentCountCheck::Exact)?;
 
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
