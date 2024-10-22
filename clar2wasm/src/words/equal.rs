@@ -1007,8 +1007,7 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate_at, TestEnvironment};
-    use crate::{ClarityVersion, StacksEpochId};
+    use crate::tools::{crosscheck, TestEnvironment};
 
     #[test]
     fn index_of_list_not_present() {
@@ -1267,14 +1266,11 @@ mod tests {
     }
 
     #[test]
-    fn index_of_complex_type_versions() {
-        let snippet = "(index-of
-               (list (list (err 7))
-                     (list (ok 3)))
-               (list (err 7)))";
-        let v1 = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::Clarity1);
-        let v2 = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::Clarity2);
-        assert_eq!(v1, v2);
+    fn index_of_complex_type() {
+        crosscheck(
+            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
+            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
+        );
     }
 
     //
@@ -1286,17 +1282,6 @@ mod tests {
     mod clarity_v2_v3 {
         use super::*;
         use crate::tools::crosscheck;
-
-        #[test]
-        // TODO: see issue #496.
-        // The test below should pass when running it in ClarityV1.
-        // It should be removed from this module when the issue is fixed.
-        fn index_of_complex_type() {
-            crosscheck(
-                "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
-                Ok(Some(Value::some(Value::UInt(2)).unwrap())),
-            );
-        }
 
         #[test]
         fn index_of_alias_list_zero_len() {
