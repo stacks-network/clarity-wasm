@@ -122,8 +122,7 @@ impl ComplexWord for IndexOf {
                 "index_of element must be typed".to_owned(),
             ))?
         {
-            let elem_ty = ltd.get_list_item_type().clone();
-            generator.set_expr_type(&elem_expr, elem_ty)?;
+            generator.set_expr_type(elem_expr, ltd.get_list_item_type().clone())?;
         }
 
         // Traverse the sequence, leaving its offset and size on the stack.
@@ -1005,11 +1004,11 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
-    use crate::{ClarityVersion, StacksEpochId};
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate_at, TestEnvironment};
+    use crate::{ClarityVersion, StacksEpochId};
 
     #[test]
     fn index_of_list_not_present() {
