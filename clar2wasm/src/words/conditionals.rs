@@ -957,7 +957,6 @@ mod tests {
     #[test]
     fn filter_more_than_two_args() {
         let result = evaluate("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -1408,7 +1407,6 @@ mod tests {
     fn try_more_than_one_arg() {
         let result =
             evaluate("(define-private (tryharder (x (optional int))) (some (+ (try! x 23) 10)))");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

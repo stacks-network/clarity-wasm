@@ -375,7 +375,6 @@ mod tests {
     #[test]
     fn get_burn_block_info_less_than_two_args() {
         let result = evaluate("(get-burn-block-info? id-header-hash)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

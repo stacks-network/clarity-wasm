@@ -456,7 +456,6 @@ mod tests {
     #[test]
     fn define_map_less_than_three_args() {
         let result = evaluate("(define-map some-map)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -467,7 +466,6 @@ mod tests {
     #[test]
     fn define_map_more_than_three_args() {
         let result = evaluate("(define-map some-map int 5 6)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -478,7 +476,6 @@ mod tests {
     #[test]
     fn map_get_less_than_two_args() {
         let result = evaluate("(map-get? some-map)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -489,7 +486,6 @@ mod tests {
     #[test]
     fn map_set_less_than_two_args() {
         let result = evaluate("(map-set some-map)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -500,7 +496,6 @@ mod tests {
     #[test]
     fn map_insert_less_than_two_args() {
         let result = evaluate("(map-insert some-map)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

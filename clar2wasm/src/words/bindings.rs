@@ -112,7 +112,6 @@ mod tests {
     #[test]
     fn let_less_than_two_args() {
         let result = evaluate("(let ((current-count (count u1))))");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

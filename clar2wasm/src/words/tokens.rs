@@ -700,7 +700,6 @@ mod tests {
     #[test]
     fn define_non_fungible_tokens_less_than_two_args() {
         let result = evaluate("(define-non-fungible-token)");
-        println!("{:#?}", result);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
