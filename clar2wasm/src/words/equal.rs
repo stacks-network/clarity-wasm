@@ -113,8 +113,16 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
+        // workaround to fix types in the case of elements that are themself Sequences
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) =
+            generator.get_expr_type(seq).cloned().unwrap()
+        {
+            let (elem_ty, _) = ltd.destruct();
+            generator.set_expr_type(&args[1], elem_ty)?;
+        }
+
+        // Traverse the sequence, leaving its offset and size on the stack.
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
@@ -993,10 +1001,11 @@ fn wasm_equal_list(
 
 #[cfg(test)]
 mod tests {
+    use crate::{ClarityVersion, StacksEpochId};
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate_at, TestEnvironment};
 
     #[test]
     fn index_of_list_not_present() {
@@ -1252,6 +1261,17 @@ mod tests {
         (define-data-var b (list 4 int) (list 1 2 3))
         (is-eq (var-get a) (var-get b))";
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn index_of_complex_type_versions() {
+        let snippet = "(index-of
+               (list (list (err 7))
+                     (list (ok 3)))
+               (list (err 7)))";
+        let v1 = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::Clarity1);
+        let v2 = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::Clarity2);
+        assert_eq!(v1, v2);
     }
 
     //
