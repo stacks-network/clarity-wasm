@@ -113,8 +113,19 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
+        let elem_expr = args.get_expr(1)?;
+        // workaround to fix types in the case of elements that are themself Sequences
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::TypeError(
+                "index_of element must be typed".to_owned(),
+            ))?
+        {
+            generator.set_expr_type(elem_expr, ltd.get_list_item_type().clone())?;
+        }
+
+        // Traverse the sequence, leaving its offset and size on the stack.
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
@@ -1254,6 +1265,14 @@ mod tests {
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
 
+    #[test]
+    fn index_of_complex_type() {
+        crosscheck(
+            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
+            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
+        );
+    }
+
     //
     // Module with tests that should only be executed
     // when running Clarity::V2 or Clarity::v3.
@@ -1263,17 +1282,6 @@ mod tests {
     mod clarity_v2_v3 {
         use super::*;
         use crate::tools::crosscheck;
-
-        #[test]
-        // TODO: see issue #496.
-        // The test below should pass when running it in ClarityV1.
-        // It should be removed from this module when the issue is fixed.
-        fn index_of_complex_type() {
-            crosscheck(
-                "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
-                Ok(Some(Value::some(Value::UInt(2)).unwrap())),
-            );
-        }
 
         #[test]
         fn index_of_alias_list_zero_len() {
