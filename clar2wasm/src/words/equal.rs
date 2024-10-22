@@ -114,12 +114,16 @@ impl ComplexWord for IndexOf {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         let seq = args.get_expr(0)?;
+        let elem_expr = args.get_expr(1)?;
         // workaround to fix types in the case of elements that are themself Sequences
-        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) =
-            generator.get_expr_type(seq).cloned().unwrap()
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::TypeError(
+                "index_of element must be typed".to_owned(),
+            ))?
         {
-            let (elem_ty, _) = ltd.destruct();
-            generator.set_expr_type(&args[1], elem_ty)?;
+            let elem_ty = ltd.get_list_item_type().clone();
+            generator.set_expr_type(&elem_expr, elem_ty)?;
         }
 
         // Traverse the sequence, leaving its offset and size on the stack.
