@@ -248,6 +248,12 @@ mod tests {
 
     #[test]
     fn get_block_info_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
         let mut env = TestEnvironment::default();
         env.advance_chain_tip(1);
         let snippet = "(get-block-info? burnchain-header-hash u0 u0)";

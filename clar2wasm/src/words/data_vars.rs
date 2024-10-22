@@ -292,6 +292,12 @@ mod tests {
 
     #[test]
     fn var_set_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies
         let snippet = "(define-data-var something int 1)(var-set something 1 2)";
         let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
         crosscheck(snippet, expected);

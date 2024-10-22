@@ -539,6 +539,12 @@ mod tests {
 
     #[test]
     fn map_set_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies
         let snippet = "(define-map some-map int {x: int})
         (map-set some-map 21 {x: 21} {x: 21})";
         let result = evaluate(snippet);
@@ -554,6 +560,12 @@ mod tests {
 
     #[test]
     fn map_insert_more_than_three_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies
         let snippet = "
         (define-map some-map int {x: int})
         (map-insert some-map 21 {x: 21} {x: 21})";
@@ -570,6 +582,12 @@ mod tests {
 
     #[test]
     fn map_delete_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies
         let snippet = "
         (define-map some-map int {x: int})
         (map-insert some-map 21 {x: 21})
