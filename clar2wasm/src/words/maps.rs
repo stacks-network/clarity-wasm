@@ -511,13 +511,10 @@ mod tests {
         (map-delete some-map)";
         let result = evaluate(snippet);
         assert!(result.is_err());
-        let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting >= 2 arguments, got 1") {
-            assert_eq!(
-                *err,
-                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 1))
-            );
-        }
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
     }
 
     #[test]
@@ -528,13 +525,10 @@ mod tests {
         (map-get? some-map 21 21)";
         let result = evaluate(snippet);
         assert!(result.is_err());
-        let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting 2 arguments, got 3") {
-            assert_eq!(
-                *err,
-                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
-            );
-        }
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -544,18 +538,14 @@ mod tests {
         // The runtime error below is being used as a workaround for a typechecker issue
         // where certain errors are not properly handled.
         // This test should be re-worked once the typechecker is fixed
-        // and can correctly detect all argument inconsistencies
+        // and can correctly detect all argument inconsistencies.
         let snippet = "(define-map some-map int {x: int})
         (map-set some-map 21 {x: 21} {x: 21})";
-        let result = evaluate(snippet);
-        assert!(result.is_err());
-        let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting >= 3 arguments, got 4") {
-            assert_eq!(
-                *err,
-                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
-            );
-        }
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
+        crosscheck(
+            snippet,
+            expected,
+        );
     }
 
     #[test]
@@ -565,19 +555,15 @@ mod tests {
         // The runtime error below is being used as a workaround for a typechecker issue
         // where certain errors are not properly handled.
         // This test should be re-worked once the typechecker is fixed
-        // and can correctly detect all argument inconsistencies
+        // and can correctly detect all argument inconsistencies.
         let snippet = "
         (define-map some-map int {x: int})
         (map-insert some-map 21 {x: 21} {x: 21})";
-        let result = evaluate(snippet);
-        assert!(result.is_err());
-        let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting >= 3 arguments, got 4") {
-            assert_eq!(
-                *err,
-                Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4))
-            );
-        }
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
+        crosscheck(
+            snippet,
+            expected,
+        );
     }
 
     #[test]
@@ -587,19 +573,15 @@ mod tests {
         // The runtime error below is being used as a workaround for a typechecker issue
         // where certain errors are not properly handled.
         // This test should be re-worked once the typechecker is fixed
-        // and can correctly detect all argument inconsistencies
+        // and can correctly detect all argument inconsistencies.
         let snippet = "
         (define-map some-map int {x: int})
         (map-insert some-map 21 {x: 21})
         (map-delete some-map 21 21)";
-        let result = evaluate(snippet);
-        assert!(result.is_err());
-        let err = &result.unwrap_err();
-        if !err.to_string().contains("expecting >= 2 arguments, got 3") {
-            assert_eq!(
-                *err,
-                Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3))
-            );
-        }
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        crosscheck(
+            snippet,
+            expected,
+        );
     }
 }

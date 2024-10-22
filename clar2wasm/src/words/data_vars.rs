@@ -297,8 +297,8 @@ mod tests {
         // The runtime error below is being used as a workaround for a typechecker issue
         // where certain errors are not properly handled.
         // This test should be re-worked once the typechecker is fixed
-        // and can correctly detect all argument inconsistencies
-        let snippet = "(define-data-var something int 1)(var-set something 1 2)";
+        // and can correctly detect all argument inconsistencies.
+        let snippet = "(define-data-var something int 1) (var-set something 1 2)";
         let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
         crosscheck(snippet, expected);
     }

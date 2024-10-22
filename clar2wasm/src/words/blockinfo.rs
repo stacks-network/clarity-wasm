@@ -209,6 +209,19 @@ mod tests {
                 StacksEpochId::Epoch24,
             )
         }
+
+        #[test]
+        fn get_block_info_more_than_two_args() {
+            // TODO: see issue #488
+            // The inconsistency in function arguments should have been caught by the typechecker.
+            // The runtime error below is being used as a workaround for a typechecker issue
+            // where certain errors are not properly handled.
+            // This test should be re-worked once the typechecker is fixed
+            // and can correctly detect all argument inconsistencies.
+            let snippet = "(get-block-info? burnchain-header-hash u0 u0)";
+            let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+            crosscheck_with_epoch(snippet, expected, StacksEpochId::Epoch24);
+        }
     }
 
     //
@@ -230,6 +243,28 @@ mod tests {
                 StacksEpochId::Epoch30,
             )
         }
+
+        #[test]
+        fn get_stacks_block_info_less_than_two_args() {
+            let result = evaluate("(get-stacks-block-info? id-header-hash)");
+            println!("{:?}", result);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 1"));
+        }
+
+        #[test]
+        fn get_stacks_block_info_more_than_two_args() {
+            let result = evaluate("(get-stacks-block-info? id-header-hash u0 u0)");
+            println!("{:?}", result);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 3"));
+        }
     }
 
     //- Block Info
@@ -244,22 +279,6 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("expecting >= 2 arguments, got 1"));
-    }
-
-    #[test]
-    fn get_block_info_more_than_two_args() {
-        // TODO: see issue #488
-        // The inconsistency in function arguments should have been caught by the typechecker.
-        // The runtime error below is being used as a workaround for a typechecker issue
-        // where certain errors are not properly handled.
-        // This test should be re-worked once the typechecker is fixed
-        // and can correctly detect all argument inconsistencies.
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-        let snippet = "(get-block-info? burnchain-header-hash u0 u0)";
-        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
-        let result = env.evaluate(snippet);
-        assert_eq!(result, expected);
     }
 
     #[test]
