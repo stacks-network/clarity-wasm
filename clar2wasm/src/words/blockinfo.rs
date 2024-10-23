@@ -247,7 +247,6 @@ mod tests {
         #[test]
         fn get_stacks_block_info_less_than_two_args() {
             let result = evaluate("(get-stacks-block-info? id-header-hash)");
-            println!("{:?}", result);
             assert!(result.is_err());
             assert!(result
                 .unwrap_err()
@@ -258,7 +257,6 @@ mod tests {
         #[test]
         fn get_stacks_block_info_more_than_two_args() {
             let result = evaluate("(get-stacks-block-info? id-header-hash u0 u0)");
-            println!("{:?}", result);
             assert!(result.is_err());
             assert!(result
                 .unwrap_err()
