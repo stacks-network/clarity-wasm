@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -21,7 +22,7 @@ impl ComplexWord for DefineDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -111,7 +112,7 @@ impl ComplexWord for SetDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
@@ -184,7 +185,7 @@ impl ComplexWord for GetDataVar {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let name = args.get_name(0)?;
 

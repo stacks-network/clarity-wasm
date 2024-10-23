@@ -1693,18 +1693,51 @@ pub fn check_argument_count(
         ArgumentCountCheck::Exact => {
             if expected != actual {
                 handle_mismatch(ErrorMap::ArgumentCountMismatch)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
             }
         }
         ArgumentCountCheck::AtLeast => {
             if expected > actual {
                 handle_mismatch(ErrorMap::ArgumentCountAtLeast)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
             }
         }
         ArgumentCountCheck::AtMost => {
             if expected < actual {
                 handle_mismatch(ErrorMap::ArgumentCountAtMost)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
             }
         }
     }
     Ok(())
+}
+
+#[macro_export]
+macro_rules! check_args {
+    ($generator:expr, $builder:expr, $expected:expr, $actual:expr, $check:expr,  $self:expr) => {
+        if check_argument_count($generator, $builder, $expected, $actual, $check).is_err() {
+            if let Some(self_ref) = $self {
+                // short cutting get-block-info? traverse function, it's expecting 3 i32 on stack
+                if self_ref.name() == clarity::vm::ClarityName::from("get-block-info?") {
+                    $builder.i32_const(-1);
+                    $builder.i32_const(-1);
+                    $builder.i32_const(-1);
+                    return Ok(());
+                }
+            }
+            // short cutting traverse functions
+            $builder.i32_const(-1);
+            return Ok(());
+        }
+    };
+    ($generator:expr, $builder:expr, $expected:expr, $actual:expr, $check:expr) => {
+        check_args!(
+            $generator,
+            $builder,
+            $expected,
+            $actual,
+            $check,
+            None::<&Self>
+        );
+    };
 }

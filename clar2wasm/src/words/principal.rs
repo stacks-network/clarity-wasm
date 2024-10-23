@@ -10,6 +10,7 @@ use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord};
+use crate::check_args;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -99,20 +100,20 @@ impl ComplexWord for Construct {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             2,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
-        check_argument_count(
+            ArgumentCountCheck::AtLeast
+        );
+        check_args!(
             generator,
             builder,
             3,
             args.len(),
-            ArgumentCountCheck::AtMost,
-        )?;
+            ArgumentCountCheck::AtMost
+        );
 
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
@@ -288,7 +289,7 @@ impl ComplexWord for PrincipalOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;

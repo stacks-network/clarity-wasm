@@ -115,6 +115,7 @@ pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
     TypeError(String),
+    ArgumentCountMismatch,
 }
 
 pub enum FunctionKind {
@@ -129,6 +130,7 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::NotImplemented => "Not implemented".to_string(),
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
+            GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
         }
     }
 

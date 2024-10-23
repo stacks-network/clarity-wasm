@@ -10,7 +10,7 @@ use crate::wasm_generator::{
     SequenceElementType, WasmGenerator,
 };
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
-use crate::words;
+use crate::{check_args, words};
 
 #[derive(Debug)]
 pub struct If;
@@ -27,7 +27,7 @@ impl ComplexWord for If {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
@@ -100,7 +100,7 @@ impl ComplexWord for Match {
 
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
-                check_argument_count(generator, builder, 4, args.len(), ArgumentCountCheck::Exact)?;
+                check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
 
                 let none_body = args.get_expr(3)?;
 
@@ -128,7 +128,7 @@ impl ComplexWord for Match {
                 Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
-                check_argument_count(generator, builder, 5, args.len(), ArgumentCountCheck::Exact)?;
+                check_args!(generator, builder, 5, args.len(), ArgumentCountCheck::Exact);
 
                 let (ok_ty, err_ty) = &*inner_types;
 
@@ -193,7 +193,8 @@ impl ComplexWord for Filter {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
 
@@ -417,13 +418,13 @@ impl ComplexWord for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             1,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         traverse_short_circuiting_list(generator, builder, args, false)
     }
@@ -466,13 +467,13 @@ impl ComplexWord for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             1,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         traverse_short_circuiting_list(generator, builder, args, true)
     }
@@ -515,7 +516,7 @@ impl ComplexWord for Unwrap {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -598,7 +599,7 @@ impl ComplexWord for UnwrapErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -689,7 +690,7 @@ impl ComplexWord for Asserts {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -766,7 +767,7 @@ impl ComplexWord for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

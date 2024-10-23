@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -19,7 +20,7 @@ impl ComplexWord for Recover {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         generator.traverse_expr(builder, args.get_expr(1)?)?;
@@ -68,7 +69,7 @@ impl ComplexWord for Verify {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         generator.traverse_expr(builder, args.get_expr(1)?)?;

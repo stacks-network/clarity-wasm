@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -20,20 +21,20 @@ impl ComplexWord for DefineFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             1,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
-        check_argument_count(
+            ArgumentCountCheck::AtLeast
+        );
+        check_args!(
             generator,
             builder,
             2,
             args.len(),
-            ArgumentCountCheck::AtMost,
-        )?;
+            ArgumentCountCheck::AtMost
+        );
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -83,7 +84,7 @@ impl ComplexWord for BurnFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -121,7 +122,7 @@ impl ComplexWord for TransferFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 4, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -161,7 +162,7 @@ impl ComplexWord for MintFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -198,7 +199,7 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
 
@@ -228,7 +229,7 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
@@ -266,7 +267,7 @@ impl ComplexWord for DefineNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
@@ -324,7 +325,7 @@ impl ComplexWord for BurnNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -378,7 +379,7 @@ impl ComplexWord for TransferNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 4, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -436,7 +437,7 @@ impl ComplexWord for MintNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 3, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
@@ -490,7 +491,7 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;

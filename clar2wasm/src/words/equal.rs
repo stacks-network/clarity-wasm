@@ -5,6 +5,7 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
@@ -25,13 +26,13 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             1,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
@@ -122,7 +123,7 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;

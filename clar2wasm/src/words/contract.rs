@@ -6,6 +6,7 @@ use walrus::ir::BinaryOp;
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -24,7 +25,7 @@ impl ComplexWord for AsContract {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let inner = args.get_expr(0)?;
 
@@ -56,13 +57,13 @@ impl ComplexWord for ContractCall {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             2,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;

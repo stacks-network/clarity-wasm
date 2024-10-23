@@ -2,6 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -22,7 +23,7 @@ impl ComplexWord for ClaritySome {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
@@ -59,7 +60,7 @@ impl ComplexWord for ClarityOk {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let value = args.get_expr(0)?;
 
@@ -106,7 +107,7 @@ impl ComplexWord for ClarityErr {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder

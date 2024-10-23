@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -19,7 +20,7 @@ impl ComplexWord for DefinePrivateFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
@@ -55,7 +56,7 @@ impl ComplexWord for DefineReadonlyFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
@@ -93,7 +94,7 @@ impl ComplexWord for DefinePublicFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);

@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -22,13 +23,13 @@ impl ComplexWord for Begin {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             1,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         generator.set_expr_type(
             args.last().ok_or_else(|| {
@@ -58,7 +59,7 @@ impl ComplexWord for UnwrapPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
@@ -196,7 +197,7 @@ impl ComplexWord for UnwrapErrPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

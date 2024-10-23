@@ -1,5 +1,6 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::ComplexWord;
@@ -19,13 +20,13 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
+        check_args!(
             generator,
             builder,
             2,
             args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+            ArgumentCountCheck::AtLeast
+        );
 
         let bindings = args.get_list(0)?;
 

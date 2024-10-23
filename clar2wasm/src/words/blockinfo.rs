@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -19,7 +20,14 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::Exact,
+            Some(self)
+        );
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -73,7 +81,7 @@ impl ComplexWord for GetBurnBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -129,7 +137,7 @@ impl ComplexWord for AtBlock {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
@@ -211,6 +219,18 @@ mod tests {
         }
 
         #[test]
+        fn get_block_info_less_than_two_args() {
+            let mut env = TestEnvironment::default();
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-block-info? id-header-hash)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting >= 2 arguments, got 1"));
+        }
+
+        #[test]
         fn get_block_info_more_than_two_args() {
             // TODO: see issue #488
             // The inconsistency in function arguments should have been caught by the typechecker.
@@ -218,7 +238,7 @@ mod tests {
             // where certain errors are not properly handled.
             // This test should be re-worked once the typechecker is fixed
             // and can correctly detect all argument inconsistencies.
-            let snippet = "(get-block-info? burnchain-header-hash u0 u0)";
+            let snippet = "(get-block-info? burnchain-header-hash u0 miner-address)";
             let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
             crosscheck_with_epoch(snippet, expected, StacksEpochId::Epoch24);
         }
@@ -266,18 +286,6 @@ mod tests {
     }
 
     //- Block Info
-
-    #[test]
-    fn get_block_info_less_than_two_args() {
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-        let result = env.evaluate("(get-block-info? id-header-hash)");
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expecting >= 2 arguments, got 1"));
-    }
 
     #[test]
     fn get_block_info_burnchain_header_hash() {

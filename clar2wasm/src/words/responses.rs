@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 pub fn traverse_response(
@@ -53,7 +54,7 @@ impl ComplexWord for IsOk {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         traverse_response(generator, builder, args)
     }
@@ -74,7 +75,7 @@ impl ComplexWord for IsErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(generator, builder, 1, args.len(), ArgumentCountCheck::Exact)?;
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
         traverse_response(generator, builder, args)?;
 
