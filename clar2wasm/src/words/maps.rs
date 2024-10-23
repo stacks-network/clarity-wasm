@@ -542,10 +542,7 @@ mod tests {
         let snippet = "(define-map some-map int {x: int})
         (map-set some-map 21 {x: 21} {x: 21})";
         let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
-        crosscheck(
-            snippet,
-            expected,
-        );
+        crosscheck(snippet, expected);
     }
 
     #[test]
@@ -560,10 +557,7 @@ mod tests {
         (define-map some-map int {x: int})
         (map-insert some-map 21 {x: 21} {x: 21})";
         let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
-        crosscheck(
-            snippet,
-            expected,
-        );
+        crosscheck(snippet, expected);
     }
 
     #[test]
@@ -579,9 +573,6 @@ mod tests {
         (map-insert some-map 21 {x: 21})
         (map-delete some-map 21 21)";
         let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
-        crosscheck(
-            snippet,
-            expected,
-        );
+        crosscheck(snippet, expected);
     }
 }
