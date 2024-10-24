@@ -3,9 +3,11 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::InstrSeqType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefaultTo;
@@ -22,6 +24,8 @@ impl ComplexWord for DefaultTo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))
         // i64              i64               i32        i64           i64
@@ -87,5 +91,30 @@ impl ComplexWord for DefaultTo {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn default_to_less_than_two_args() {
+        let result = evaluate("(default-to 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn default_to_more_than_two_args() {
+        let result = evaluate("(default-to 0 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

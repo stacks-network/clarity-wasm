@@ -69,6 +69,15 @@ pub enum ErrorMap {
     /// usually triggered by `(unwrap!...)` and `(unwrap-err!...)`.
     ShortReturnExpectedValue = 12,
 
+    /// Indicates an attempt to use a function with the wrong amount of arguments
+    ArgumentCountMismatch = 13,
+
+    /// Indicates an attempt to use a function with too few arguments
+    ArgumentCountAtLeast = 14,
+
+    /// Indicates an attempt to use a function with too many arguments
+    ArgumentCountAtMost = 15,
+
     /// A catch-all for errors that are not mapped to specific error codes.
     /// This might be used for unexpected or unclassified errors.
     NotMapped = 99,
@@ -91,6 +100,9 @@ impl From<i32> for ErrorMap {
             10 => ErrorMap::ShortReturnExpectedValueResponse,
             11 => ErrorMap::ShortReturnExpectedValueOptional,
             12 => ErrorMap::ShortReturnExpectedValue,
+            13 => ErrorMap::ArgumentCountMismatch,
+            14 => ErrorMap::ArgumentCountAtLeast,
+            15 => ErrorMap::ArgumentCountAtMost,
             _ => ErrorMap::NotMapped,
         }
     }
@@ -258,6 +270,18 @@ fn from_runtime_error_code(
             let clarity_val = short_return_value(&instance, &mut store, epoch_id, clarity_version);
             Error::ShortReturn(ShortReturnType::ExpectedValue(clarity_val))
         }
+        ErrorMap::ArgumentCountMismatch => {
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
+            Error::Unchecked(CheckErrors::IncorrectArgumentCount(expected, got))
+        }
+        ErrorMap::ArgumentCountAtLeast => {
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
+            Error::Unchecked(CheckErrors::RequiresAtLeastArguments(expected, got))
+        }
+        ErrorMap::ArgumentCountAtMost => {
+            let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
+            Error::Unchecked(CheckErrors::RequiresAtMostArguments(expected, got))
+        }
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }
 }
@@ -277,6 +301,30 @@ fn get_global_i32(instance: &Instance, store: &mut impl AsContextMut, name: &str
         .get_global(&mut *store, name)
         .and_then(|glob| glob.get(store).i32())
         .unwrap_or_else(|| panic!("Could not find ${} global with i32 value", name))
+}
+
+/// Retrieves the expected and actual argument counts from a byte-encoded string.
+///
+/// This function interprets a string as a sequence of bytes, where the first 4 bytes
+/// represent the expected number of arguments, and the bytes at positions 16 to 19
+/// represent the actual number of arguments received. It converts these byte sequences
+/// into `usize` values and returns them as a tuple.
+///
+/// # Returns
+///
+/// A tuple `(expected, got)` where:
+/// - `expected` is the number of arguments expected.
+/// - `got` is the number of arguments actually received.
+fn extract_expected_and_got(arg_lengths: &str) -> (usize, usize) {
+    let bytes = arg_lengths.as_bytes();
+
+    // Assuming the first 4 bytes represent the expected value
+    let expected = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+
+    // Assuming the next 4 bytes represent the got value
+    let got = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
+
+    (expected, got)
 }
 
 /// Retrieves and deserializes a Clarity value from WebAssembly memory in the context of a short return.
@@ -311,4 +359,33 @@ fn short_return_value(
 
     read_from_wasm_indirect(memory, store, &value_ty, val_offset, *epoch_id)
         .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {}", e))
+}
+
+/// Retrieves the argument lengths from the runtime error global variables.
+///
+/// This function reads the global variables `runtime-error-arg-offset` and `runtime-error-arg-len`
+/// from the WebAssembly instance and constructs a string representing the argument lengths.
+///
+/// # Returns
+///
+/// A string representing the argument lengths.
+fn get_runtime_error_arg_lengths(
+    instance: &Instance,
+    store: &mut impl AsContextMut,
+) -> (usize, usize) {
+    let runtime_error_arg_offset = get_global_i32(instance, store, "runtime-error-arg-offset");
+    let runtime_error_arg_len = get_global_i32(instance, store, "runtime-error-arg-len");
+
+    let memory = instance
+        .get_memory(&mut *store, "memory")
+        .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
+    let arg_lengths = read_identifier_from_wasm(
+        memory,
+        store,
+        runtime_error_arg_offset,
+        runtime_error_arg_len,
+    )
+    .unwrap_or_else(|e| panic!("Could not recover arg_lengths: {e}"));
+
+    extract_expected_and_got(&arg_lengths)
 }

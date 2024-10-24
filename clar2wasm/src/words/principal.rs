@@ -10,9 +10,11 @@ use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord};
+use crate::check_args;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct IsStandard;
@@ -98,6 +100,21 @@ impl ComplexWord for Construct {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+        check_args!(
+            generator,
+            builder,
+            3,
+            args.len(),
+            ArgumentCountCheck::AtMost
+        );
+
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         // [ version_offset, version_length ]
@@ -272,6 +289,8 @@ impl ComplexWord for PrincipalOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 
@@ -300,7 +319,7 @@ mod tests {
     };
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_principal_of() {
@@ -342,6 +361,47 @@ mod tests {
             "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7780000)",
             Ok(Some(Value::err_uint(1))),
         );
+    }
+    #[test]
+    fn principal_construct_less_than_two_args() {
+        let result = evaluate("(principal-construct? 0x1a)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn principal_construct_more_than_three_args() {
+        let result = evaluate(
+            r#"(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320 "foo" "bar")"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting < 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn principal_of_no_args() {
+        let result = evaluate("(principal-of?)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn principal_of_more_than_one_arg() {
+        let result = evaluate("(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 
     //

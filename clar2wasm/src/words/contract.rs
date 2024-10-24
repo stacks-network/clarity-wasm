@@ -6,7 +6,9 @@ use walrus::ir::BinaryOp;
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct AsContract;
@@ -23,6 +25,8 @@ impl ComplexWord for AsContract {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
@@ -53,6 +57,14 @@ impl ComplexWord for ContractCall {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;
         if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
@@ -177,7 +189,49 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::TestEnvironment;
+    use crate::tools::{evaluate, TestEnvironment};
+
+    #[test]
+    fn as_contract_less_than_one_arg() {
+        let result = evaluate("(as-contract)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn as_contract_more_than_one_arg() {
+        let result = evaluate("(as-contract 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn contract_call_less_than_two_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (no-args)
+    (ok u42)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+        let result =
+            env.init_contract_with_snippet("contract-caller", "(contract-call? .contract-callee)");
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
 
     #[test]
     fn static_no_args() {

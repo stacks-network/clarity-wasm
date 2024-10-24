@@ -2,7 +2,9 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
+use crate::check_args;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 // Functions below are considered no-op's because they are instructions that does nothing
 // or has no effect when executed.
@@ -67,6 +69,8 @@ impl ComplexWord for ContractOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         generator.traverse_args(builder, args)?;
 
         Ok(())
@@ -79,7 +83,7 @@ mod tests {
     use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
 
     #[test]
     fn to_int_out_of_range() {
@@ -226,5 +230,25 @@ mod tests {
     ",
             Ok(Some(Value::Int(170141183460469231731687303715884105727))),
         );
+    }
+
+    #[test]
+    fn test_contract_of_no_args() {
+        let result = evaluate("(contract-of)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn test_contract_of_more_than_one_arg() {
+        let result = evaluate("(contract-of 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

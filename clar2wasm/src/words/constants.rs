@@ -2,8 +2,11 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::{ActiveData, DataKind, ValType};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    check_argument_count, get_type_size, is_in_memory_type, ArgumentCountCheck,
+};
 
 #[derive(Debug)]
 pub struct DefineConstant;
@@ -20,6 +23,8 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Constant name
         let name = args.get_name(0)?;
 
@@ -136,6 +141,26 @@ mod tests {
                 StacksEpochId::Epoch20,
             );
         }
+    }
+
+    #[test]
+    fn define_constant_less_than_two_args() {
+        let result = evaluate("(define-constant one)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_constant_more_than_two_args() {
+        let result = evaluate("(define-constant two 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
