@@ -25,9 +25,10 @@ use walrus::{
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
-    get_type_in_memory_size, get_type_size, is_in_memory_type, signature_from_string,
+    check_argument_count, get_type_in_memory_size, get_type_size, is_in_memory_type,
+    signature_from_string, ArgumentCountCheck,
 };
-use crate::{debug_msg, words};
+use crate::{check_args, debug_msg, words};
 
 // First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 1352;
@@ -1671,11 +1672,18 @@ impl WasmGenerator {
         if let Some(FunctionType::Fixed(FixedFunction {
             args: function_args,
             ..
-        })) = self.get_function_type(name)
+        })) = self.get_function_type(name).cloned()
         {
+            check_args!(
+                self,
+                builder,
+                function_args.len(),
+                args.len(),
+                ArgumentCountCheck::Exact
+            );
             for (arg, signature) in args
                 .iter()
-                .zip(function_args.clone().into_iter().map(|a| a.signature))
+                .zip(function_args.into_iter().map(|a| a.signature))
             {
                 self.set_expr_type(arg, signature)?;
             }
@@ -1982,6 +1990,7 @@ mod tests {
     use clarity::vm::analysis::AnalysisDatabase;
     use clarity::vm::costs::LimitedCostTracker;
     use clarity::vm::database::MemoryBackingStore;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
     use clarity::vm::ClarityVersion;
     use walrus::Module;
@@ -2122,6 +2131,27 @@ mod tests {
   (ok true))
 ",
             evaluate("(ok true)"),
+        );
+    }
+
+    #[test]
+    fn function_has_correct_argument_count() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        crosscheck(
+            "
+(define-public (foo (arg int))
+  (ok true))
+(foo 1 2)
+(define-public (bar (arg int))
+  (ok true))
+(bar)
+",
+            Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(1, 2))),
         );
     }
 

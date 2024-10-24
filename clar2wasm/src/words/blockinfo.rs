@@ -20,14 +20,7 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_args!(
-            generator,
-            builder,
-            2,
-            args.len(),
-            ArgumentCountCheck::Exact,
-            Some(self)
-        );
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
