@@ -5,7 +5,7 @@ use clarity::vm::{ClarityVersion, Value};
 use wasmtime::{AsContextMut, Instance, Trap};
 
 use crate::wasm_utils::{
-    read_from_wasm_indirect, read_identifier_from_wasm, signature_from_string,
+    read_bytes_from_wasm, read_from_wasm_indirect, read_identifier_from_wasm, signature_from_string,
 };
 
 const LOG2_ERROR_MESSAGE: &str = "log2 must be passed a positive integer";
@@ -315,14 +315,12 @@ fn get_global_i32(instance: &Instance, store: &mut impl AsContextMut, name: &str
 /// A tuple `(expected, got)` where:
 /// - `expected` is the number of arguments expected.
 /// - `got` is the number of arguments actually received.
-fn extract_expected_and_got(arg_lengths: &str) -> (usize, usize) {
-    let bytes = arg_lengths.as_bytes();
-
+fn extract_expected_and_got(bytes: &[u8]) -> (usize, usize) {
     // Assuming the first 4 bytes represent the expected value
     let expected = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
 
     // Assuming the next 4 bytes represent the got value
-    let got = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
+    let got = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
 
     (expected, got)
 }
@@ -379,7 +377,7 @@ fn get_runtime_error_arg_lengths(
     let memory = instance
         .get_memory(&mut *store, "memory")
         .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
-    let arg_lengths = read_identifier_from_wasm(
+    let arg_lengths = read_bytes_from_wasm(
         memory,
         store,
         runtime_error_arg_offset,

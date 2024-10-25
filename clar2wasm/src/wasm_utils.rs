@@ -1674,11 +1674,12 @@ pub fn check_argument_count(
     actual: usize,
     check: ArgumentCountCheck,
 ) -> Result<(), GeneratorError> {
+    let expected = expected as u32;
+    let actual = actual as u32;
     let mut handle_mismatch = |error_map: ErrorMap| -> Result<(), GeneratorError> {
         let (arg_name_offset_start, arg_name_len_expected) =
-            generator.add_literal(&clarity::vm::Value::UInt(expected as u128))?;
-        let (_, arg_name_len_got) =
-            generator.add_literal(&clarity::vm::Value::UInt(actual as u128))?;
+            generator.add_bytes_literal(&expected.to_le_bytes())?;
+        let (_, arg_name_len_got) = generator.add_bytes_literal(&actual.to_le_bytes())?;
         builder
             .i32_const(arg_name_offset_start as i32)
             .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
