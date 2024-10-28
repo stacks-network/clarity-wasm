@@ -12,11 +12,13 @@ use clarity::vm::types::{
 };
 use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
+use walrus::{GlobalId, InstrSeqBuilder};
 use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
 
-use crate::error_mapping;
+use crate::error_mapping::{self, ErrorMap};
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[allow(non_snake_case)]
 pub enum MintAssetErrorCodes {
@@ -1641,4 +1643,83 @@ pub fn signature_from_string(
         expr,
         &mut (),
     )?)
+}
+
+pub fn get_global(module: &walrus::Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
+
+pub enum ArgumentCountCheck {
+    Exact,
+    AtLeast,
+    AtMost,
+}
+
+pub fn check_argument_count(
+    generator: &mut WasmGenerator,
+    builder: &mut InstrSeqBuilder,
+    expected: usize,
+    actual: usize,
+    check: ArgumentCountCheck,
+) -> Result<(), GeneratorError> {
+    let expected = expected as u32;
+    let actual = actual as u32;
+    let mut handle_mismatch = |error_map: ErrorMap| -> Result<(), GeneratorError> {
+        let (arg_name_offset_start, arg_name_len_expected) =
+            generator.add_bytes_literal(&expected.to_le_bytes())?;
+        let (_, arg_name_len_got) = generator.add_bytes_literal(&actual.to_le_bytes())?;
+        builder
+            .i32_const(arg_name_offset_start as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+            .i32_const((arg_name_len_expected + arg_name_len_got) as i32)
+            .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+            .i32_const(error_map as i32)
+            .call(generator.func_by_name("stdlib.runtime-error"));
+        Ok(())
+    };
+
+    match check {
+        ArgumentCountCheck::Exact => {
+            if expected != actual {
+                handle_mismatch(ErrorMap::ArgumentCountMismatch)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
+            }
+        }
+        ArgumentCountCheck::AtLeast => {
+            if expected > actual {
+                handle_mismatch(ErrorMap::ArgumentCountAtLeast)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
+            }
+        }
+        ArgumentCountCheck::AtMost => {
+            if expected < actual {
+                handle_mismatch(ErrorMap::ArgumentCountAtMost)?;
+                return Err(GeneratorError::ArgumentCountMismatch);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[macro_export]
+macro_rules! check_args {
+    ($generator:expr, $builder:expr, $expected:expr, $actual:expr, $check:expr) => {
+        if check_argument_count($generator, $builder, $expected, $actual, $check).is_err() {
+            // short cutting traverse functions
+            $builder.unreachable();
+            return Ok(());
+        }
+    };
 }
