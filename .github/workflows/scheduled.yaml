@@ -10,8 +10,12 @@ env:
 
 jobs:
   property-testing:
-    name: Property Testing
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        clarity_version: [1, 2, 3]
+    name: Clarity::V${{ matrix.clarity_version }} Property Tests
     env:
       PROPTEST_CASES: 100
     steps:
@@ -21,12 +25,19 @@ jobs:
       - name: Use Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run Tests
         run: |
           set +e
-          cargo test --test wasm-generation --test standard | tee output.log
+          cargo nextest run \
+          --features test-clarity-v${{ matrix.clarity_version }} \
+          --test wasm-generation \
+          --test standard 2>&1| tee output.log
           test_exit=${PIPESTATUS[0]}
-          grep -A 50 'Test failed: assertion' output.log >> failure_section.log
+          cat output.log | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\x0//g' > cleaned_output.log
+          sed -n '/Test failed: assertion/,/FAIL/p' cleaned_output.log >> failure_section.log
           echo "failure_section<<EOF" >> $GITHUB_ENV
           cat failure_section.log >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -42,7 +53,7 @@ jobs:
           label-name: "property-testing-failure"
           title-template: "Property testing failure"
           body-template: |
-            GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) failed.
+            GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) Clarity::V${{ matrix.clarity_version }} failed.
             ```log
             ${{ env.failure_section }}
             ```
@@ -59,7 +70,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "GitHub Actions workflow <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Property Testing #${{ github.run_number }}> failed."
+                    "text": "GitHub Actions workflow <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Property Testing #${{ github.run_number }}> Clarity::V${{ matrix.clarity_version }} failed."
                   }
                 }
               ]
