@@ -23,3 +23,29 @@ impl SimpleWord for Not {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::tools::{crosscheck, evaluate};
+
+    #[test]
+    fn test_not_true() {
+        crosscheck("(not true)", evaluate("false"));
+    }
+
+    #[test]
+    fn test_not_false() {
+        crosscheck("(not false)", evaluate("true"));
+    }
+
+    #[test]
+    fn test_not_not_false() {
+        crosscheck("(not (not false))", evaluate("false"));
+    }
+
+    #[test]
+    fn test_not_if_false() {
+        crosscheck("(not (if false true false))", evaluate("true"));
+    }
+}

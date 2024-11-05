@@ -16,7 +16,7 @@ use clarity::vm::types::{
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::ir::{
-    BinaryOp, IfElse, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp,
+    BinaryOp, ExtendedLoad, IfElse, InstrSeqId, InstrSeqType, LoadKind, MemArg, StoreKind, UnaryOp,
 };
 use walrus::{
     ActiveData, DataKind, FunctionBuilder, FunctionId, GlobalId, InstrSeqBuilder, LocalId,
@@ -1126,20 +1126,20 @@ impl WasmGenerator {
                 // Store the value to memory.
                 builder.local_get(offset_local).local_get(bool_val).store(
                     memory,
-                    StoreKind::I32 { atomic: false },
-                    MemArg { align: 4, offset },
+                    StoreKind::I32_8 { atomic: false },
+                    MemArg { align: 1, offset },
                 );
-                Ok(4)
+                Ok(1)
             }
             TypeSignature::NoType => {
                 // Data stack: TOP | (Place holder i32)
                 // We just have to drop the placeholder and write a i32
                 builder.drop().local_get(offset_local).i32_const(0).store(
                     memory,
-                    StoreKind::I32 { atomic: false },
-                    MemArg { align: 4, offset },
+                    StoreKind::I32_8 { atomic: false },
+                    MemArg { align: 1, offset },
                 );
-                Ok(4)
+                Ok(1)
             }
             TypeSignature::OptionalType(some_ty) => {
                 // Data stack: TOP | inner value | (some|none) variant
@@ -1334,19 +1334,30 @@ impl WasmGenerator {
             }
             // Unknown types just get a placeholder i32 value.
             TypeSignature::NoType => {
-                builder.i32_const(0);
-                Ok(4)
+                builder.local_get(offset).load(
+                    memory.id(),
+                    LoadKind::I32_8 {
+                        kind: ExtendedLoad::ZeroExtend,
+                    },
+                    MemArg {
+                        align: 1,
+                        offset: literal_offset,
+                    },
+                );
+                Ok(1)
             }
             TypeSignature::BoolType => {
                 builder.local_get(offset).load(
                     memory.id(),
-                    LoadKind::I32 { atomic: false },
+                    LoadKind::I32_8 {
+                        kind: ExtendedLoad::ZeroExtend,
+                    },
                     MemArg {
-                        align: 4,
+                        align: 1,
                         offset: literal_offset,
                     },
                 );
-                Ok(4)
+                Ok(1)
             }
             TypeSignature::ListUnionType(_) => Err(GeneratorError::TypeError(
                 "Not a valid value type: ListUnionType".to_owned(),
