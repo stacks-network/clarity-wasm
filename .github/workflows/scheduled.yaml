@@ -22,14 +22,47 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run
-        run: cargo test --test wasm-generation --test standard
+        run: |
+          set +e
+          cargo test --test wasm-generation --test standard | tee output.log
+          test_exit=${PIPESTATUS[0]}
+          grep -A 50 'Test failed: assertion' output.log >> failure_section.log
+          echo "failure_section<<EOF" >> $GITHUB_ENV
+          cat failure_section.log >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          if [ $test_exit -ne 0 ]; then
+            exit 101
+          fi
 
-      - name: Add link to the failure issue
+      - name: Create GitHub Issue on Failure
         uses: jayqi/failed-build-issue-action@v1
         if: ${{ failure() }}
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           label-name: "property-testing-failure"
-          title-template: "Property testing coverage has failed"
+          title-template: "Property testing failure"
           body-template: |
             GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) failed.
+            ```log
+            ${{ env.failure_section }}
+            ```
+
+      - name: Send message to Slack
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
+        if: ${{ failure() }}
+        with:
+          channel-id: ${{ secrets.CHANNEL_ID }}
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "GitHub Actions workflow <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Property Testing #${{ github.run_number }}> failed."
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
