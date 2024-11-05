@@ -4,11 +4,13 @@ use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
 use super::{ComplexWord, SimpleWord};
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     SequenceElementType, WasmGenerator,
 };
-use crate::words;
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
+use crate::{check_args, words};
 
 #[derive(Debug)]
 pub struct If;
@@ -25,6 +27,8 @@ impl ComplexWord for If {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
@@ -96,6 +100,8 @@ impl ComplexWord for Match {
 
         match generator.get_expr_type(match_on).cloned() {
             Some(TypeSignature::OptionalType(inner_type)) => {
+                check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
+
                 let none_body = args.get_expr(3)?;
 
                 // WORKAROUND: set type on none body
@@ -105,7 +111,8 @@ impl ComplexWord for Match {
 
                 generator
                     .bindings
-                    .insert(success_binding.as_str().into(), some_locals);
+                    .insert(success_binding.clone(), *inner_type, some_locals);
+
                 let some_block = generator.block_from_expr(builder, success_body)?;
 
                 // we can restore early, since the none branch does not bind anything
@@ -121,6 +128,8 @@ impl ComplexWord for Match {
                 Ok(())
             }
             Some(TypeSignature::ResponseType(inner_types)) => {
+                check_args!(generator, builder, 5, args.len(), ArgumentCountCheck::Exact);
+
                 let (ok_ty, err_ty) = &*inner_types;
 
                 let err_binding = args.get_name(3)?;
@@ -141,7 +150,7 @@ impl ComplexWord for Match {
 
                 generator
                     .bindings
-                    .insert(success_binding.as_str().into(), ok_locals);
+                    .insert(success_binding.clone(), ok_ty.clone(), ok_locals);
                 let ok_block = generator.block_from_expr(builder, success_body)?;
 
                 // restore named locals
@@ -150,7 +159,7 @@ impl ComplexWord for Match {
                 // bind err branch local
                 generator
                     .bindings
-                    .insert(err_binding.as_str().into(), err_locals);
+                    .insert(err_binding.clone(), err_ty.clone(), err_locals);
 
                 let err_block = generator.block_from_expr(builder, err_body)?;
 
@@ -181,11 +190,19 @@ impl ComplexWord for Filter {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
+
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("filter expression must be typed".to_owned()))?
+            .clone();
+        generator.set_expr_type(sequence, expr_ty)?;
 
         generator.traverse_expr(builder, sequence)?;
 
@@ -401,6 +418,14 @@ impl ComplexWord for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         traverse_short_circuiting_list(generator, builder, args, false)
     }
 }
@@ -442,6 +467,14 @@ impl ComplexWord for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         traverse_short_circuiting_list(generator, builder, args, true)
     }
 }
@@ -483,6 +516,8 @@ impl ComplexWord for Unwrap {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -518,11 +553,11 @@ impl ComplexWord for Unwrap {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -564,6 +599,8 @@ impl ComplexWord for UnwrapErr {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -601,11 +638,11 @@ impl ComplexWord for UnwrapErr {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -653,6 +690,8 @@ impl ComplexWord for Asserts {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -689,11 +728,16 @@ impl ComplexWord for Asserts {
         // expression, so we need to manually update it here. If the return
         // type is not set, then we are not in a function, and the type can't
         // be determined.
-        if let Some(return_ty) = &generator.return_type {
+        if let Some(return_ty) = generator.get_current_function_return_type() {
             generator.set_expr_type(throw, return_ty.clone())?;
         }
+
         generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch)?;
+        generator.return_early(
+            &mut throw_branch,
+            throw,
+            ErrorMap::ShortReturnAssertionFailure,
+        )?;
 
         let throw_branch_id = throw_branch.id();
 
@@ -723,6 +767,8 @@ impl ComplexWord for Try {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
 
@@ -741,7 +787,7 @@ impl ComplexWord for Try {
                 // In the case of throw, we need to re-push the discriminant,
                 // then add a placeholder for the some-type of the return type.
                 throw_branch.i32_const(0);
-                let placeholder_ty = match generator.return_type.as_ref() {
+                let placeholder_ty = match generator.get_current_function_return_type() {
                     Some(TypeSignature::OptionalType(inner_type)) => inner_type,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
@@ -752,7 +798,11 @@ impl ComplexWord for Try {
                     None => &TypeSignature::NoType,
                 };
                 add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
-                generator.return_early(&mut throw_branch)?;
+                generator.return_early(
+                    &mut throw_branch,
+                    _expr,
+                    ErrorMap::ShortReturnExpectedValueOptional,
+                )?;
 
                 let throw_branch_id = throw_branch.id();
 
@@ -790,7 +840,7 @@ impl ComplexWord for Try {
                 // then add a placeholder for the ok-type of the return type
                 // and restore the err value from the locals.
                 throw_branch.i32_const(0);
-                let placeholder_ty = match generator.return_type.as_ref() {
+                let placeholder_ty = match generator.get_current_function_return_type() {
                     Some(TypeSignature::ResponseType(inner_types)) => &inner_types.0,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
@@ -804,7 +854,11 @@ impl ComplexWord for Try {
                 for local in &err_locals {
                     throw_branch.local_get(*local);
                 }
-                generator.return_early(&mut throw_branch)?;
+                generator.return_early(
+                    &mut throw_branch,
+                    _expr,
+                    ErrorMap::ShortReturnExpectedValueResponse,
+                )?;
 
                 let throw_branch_id = throw_branch.id();
 
@@ -853,6 +907,26 @@ mod tests {
     }
 
     #[test]
+    fn if_less_than_three_args() {
+        let result = evaluate("(if true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn if_more_than_three_args() {
+        let result = evaluate("(if true true true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
     fn what_if() {
         crosscheck("(if true true false)", Ok(Some(Value::Bool(true))));
     }
@@ -869,6 +943,26 @@ mod tests {
             "(if (> 9001 9000) (+ 1 1) (+ 2 2))",
             Ok(Some(Value::Int(2))),
         );
+    }
+
+    #[test]
+    fn filter_less_than_two_args() {
+        let result = evaluate("(filter (x int))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn filter_more_than_two_args() {
+        let result = evaluate("(filter (x int) (list 1 2 3 4) (list 1 2 3 4))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -893,6 +987,44 @@ mod tests {
     }
 
     #[test]
+    fn filter_responses() {
+        let snippet = "
+(define-private (is-great (x (response int int)))
+  (match x
+    number (> number 2)
+    number (> number 2)))
+
+(filter is-great
+  (list
+    (ok 2)
+    (ok 3)
+    (err 4)
+    (err 0)
+    (ok -3)))";
+        crosscheck(snippet, evaluate("(list (ok 3) (err 4))"));
+    }
+
+    #[test]
+    #[ignore = "See issue #488"]
+    fn filter_result_read_only_double_workaround() {
+        let snippet = "
+(define-read-only (is-even? (x int))
+        (is-eq (* (/ x 2) 2) x))
+
+(define-private (grob (x (response int int)))
+  (match x
+    a (is-even? a)
+    b (not (is-even? b))))
+
+(default-to
+    (list)
+    (some (filter grob (list (err 1) (err 1))))
+)";
+
+        crosscheck(snippet, evaluate("(list (err 1) (err 1))"));
+    }
+
+    #[test]
     fn filter_buff() {
         crosscheck(
             "
@@ -902,6 +1034,26 @@ mod tests {
 (filter is-dash 0x612d62)",
             Ok(Some(Value::buff_from_byte(0x2d))),
         );
+    }
+
+    #[test]
+    fn nested_logical() {
+        crosscheck(
+            r#"
+ (begin (not (or (and true true true) (or true true false false))))
+                "#,
+            Ok(Some(Value::Bool(false))),
+        );
+    }
+
+    #[test]
+    fn and_less_than_one_arg() {
+        let result = evaluate("(and)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
     }
 
     #[test]
@@ -922,6 +1074,16 @@ mod tests {
     }
 
     #[test]
+    fn or_less_than_one_arg() {
+        let result = evaluate("(or)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
     fn or() {
         crosscheck(
             r#"
@@ -936,6 +1098,30 @@ mod tests {
 (var-get cursor)
                 "#,
             evaluate("8"),
+        );
+    }
+
+    #[test]
+    fn match_less_than_two_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+    ))",
+        );
+    }
+
+    #[test]
+    fn match_more_than_five_args() {
+        crosscheck_expect_failure(
+            "
+(define-private (add-10 (x (response int int)))
+ (match x
+   val (+ val 10)
+   error (+ error 107)
+   error2
+   ))",
         );
     }
 
@@ -982,6 +1168,27 @@ mod tests {
     }
 
     #[test]
+    fn match_optional_less_than_four_args() {
+        let result = evaluate("(define-private (add-10 (x (optional int))) (match x val val))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 3"));
+    }
+
+    #[test]
+    fn match_optional_more_than_four_args() {
+        let result =
+            evaluate("(define-private (add-10 (x (optional int))) (match x val val 1001 1010))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 5"));
+    }
+
+    #[test]
     fn clar_match_b() {
         const ADD_10: &str = "
 (define-private (add-10 (x (optional int)))
@@ -998,6 +1205,27 @@ mod tests {
             &format!("{ADD_10} (add-10 (some 10))"),
             Ok(Some(Value::Int(10))),
         );
+    }
+
+    #[test]
+    fn unwrap_less_than_two_args() {
+        let result = evaluate("(define-private (unwrapper (x (optional int))) (+ (unwrap! x) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn unwrap_more_than_two_args() {
+        let result =
+            evaluate("(define-private (unwrapper (x (optional int))) (+ (unwrap! x 23 23) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -1029,6 +1257,27 @@ mod tests {
             &format!("{FN} (unwrapper (ok 10))"),
             Ok(Some(Value::Int(20))),
         );
+    }
+
+    #[test]
+    fn unwrap_err_less_than_two_args() {
+        let result =
+            evaluate("(define-private (unwrapper (x (response int int))) (+ (unwrap-err! x) 10))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn unwrap_err_more_than_two_args() {
+        let result = evaluate(
+            "(define-private (unwrapper (x (response int int))) (+ (unwrap-err! x 23 23) 10))",
+        );
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -1144,6 +1393,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn try_less_than_one_arg() {
+        let result =
+            evaluate("(define-private (tryharder (x (optional int))) (some (+ (try!) 10)))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn try_more_than_one_arg() {
+        let result =
+            evaluate("(define-private (tryharder (x (optional int))) (some (+ (try! x 23) 10)))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
     const ASSERT: &str = "
       (define-private (is-even (x int))
         (is-eq (* (/ x 2) 2) x))
@@ -1175,7 +1446,6 @@ mod tests {
         crosscheck("(asserts! true (err u1))", Ok(Some(Value::Bool(true))));
     }
 
-    #[ignore = "see issue: #385"]
     #[test]
     fn asserts_top_level_false() {
         crosscheck(
@@ -1185,6 +1455,49 @@ mod tests {
                     committed: false,
                     data: Box::new(Value::UInt(1)),
                 }),
+            ))),
+        )
+    }
+
+    #[test]
+    fn asserts_less_than_two_args() {
+        let result = evaluate("(asserts! true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn asserts_more_than_two_args_false() {
+        let result = evaluate("(asserts! true true true)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn try_response_false() {
+        crosscheck(
+            "(try! (if false (ok u1) (err u42)))",
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(
+                Value::Response(ResponseData {
+                    committed: false,
+                    data: Box::new(Value::UInt(42)),
+                }),
+            ))),
+        )
+    }
+
+    #[test]
+    fn try_optional_false() {
+        crosscheck(
+            "(try! (if false (some u1) none))",
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(
+                Value::Optional(clarity::vm::types::OptionalData { data: None }),
             ))),
         )
     }

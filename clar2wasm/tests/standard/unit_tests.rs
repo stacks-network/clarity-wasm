@@ -1,5 +1,10 @@
 use clar2wasm::linker::load_stdlib;
 use clar2wasm::wasm_generator::END_OF_STANDARD_DATA;
+use clarity::vm::types::{
+    BuffData, PrincipalData, QualifiedContractIdentifier, ResponseData, SequenceData,
+    StandardPrincipalData, TupleData,
+};
+use clarity::vm::Value;
 use hex::FromHex;
 use wasmtime::Val;
 
@@ -4271,4 +4276,92 @@ fn bsearch_clarity_name() {
     check(&list_even, "concrete");
     check(&list_even, "elephant");
     check(&list_even, "leopard");
+}
+
+#[test]
+fn skip_functions() {
+    let (instance, mut store) = load_stdlib().unwrap();
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .expect("Could not find memory");
+
+    let skip = instance
+        .get_func(&mut store, "stdlib.skip-unknown-value")
+        .unwrap();
+
+    let mut result = vec![Val::I32(0)];
+
+    let mut check = |value: Value| {
+        let ser = value.serialize_to_vec().expect("could not serialize value");
+
+        let offset_beg = 3000;
+        let offset_end = offset_beg + ser.len() as i32;
+        memory
+            .write(&mut store, 3000, &ser)
+            .expect("could not write serialized value to memory");
+
+        skip.call(
+            &mut store,
+            &[offset_beg.into(), offset_end.into()],
+            &mut result,
+        )
+        .expect("could not call skipping function");
+
+        assert_eq!(result[0].unwrap_i32(), offset_end);
+    };
+
+    check(Value::Int(14568789521235));
+    check(Value::UInt(245879632154789));
+
+    check(Value::Sequence(SequenceData::Buffer(BuffData {
+        data: vec![],
+    })));
+    check(Value::Sequence(SequenceData::Buffer(BuffData {
+        data: vec![0, 1, 2, 3, 4],
+    })));
+    check(Value::Sequence(SequenceData::Buffer(BuffData {
+        data: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+    })));
+
+    check(Value::Bool(true));
+    check(Value::Bool(false));
+
+    check(Value::Principal(PrincipalData::Standard(
+        StandardPrincipalData(0, [0; 20]),
+    )));
+
+    check(Value::Principal(PrincipalData::Contract(
+        QualifiedContractIdentifier {
+            issuer: StandardPrincipalData(0, [0; 20]),
+            name: "abcd".into(),
+        },
+    )));
+
+    check(Value::Response(ResponseData {
+        committed: true,
+        data: Box::new(Value::Int(42)),
+    }));
+
+    check(Value::Response(ResponseData {
+        committed: false,
+        data: Box::new(Value::UInt(42)),
+    }));
+
+    check(Value::none());
+
+    check(Value::some(Value::UInt(42)).unwrap());
+
+    check(Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap());
+
+    check(Value::from(
+        TupleData::from_data(vec![
+            ("abcd".into(), Value::Int(42)),
+            ("defg".into(), Value::Bool(true)),
+        ])
+        .unwrap(),
+    ));
+
+    check(Value::string_ascii_from_bytes("hello, world!".bytes().collect()).unwrap());
+
+    check(Value::string_utf8_from_string_utf8_literal("hello, world!".to_owned()).unwrap());
 }

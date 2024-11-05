@@ -12,7 +12,6 @@ use walrus::{InstrSeqBuilder, LocalId, MemoryId, ValType};
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
 };
-use crate::wasm_utils::ordered_tuple_signature;
 
 impl WasmGenerator {
     /// Deserialize an integer (`int` or `uint`) from memory using consensus
@@ -993,7 +992,7 @@ impl WasmGenerator {
         // We will need to add all the keys to the data to be able to check if
         // they are part of the tuple and find their index. They will be stored as
         // [number of keys as u32 | key 1 offset as u32 | key 2 offset as u32 | key 1 len as u8 | key 2 len as u8 | ... | key 1 | key 2 | ...]
-        let tm = ordered_tuple_signature(tuple_ty);
+        let tm = tuple_ty.get_type_map();
         let (keys_offset, keys_len) = {
             let mut keys = (tm.len() as u32).to_le_bytes().to_vec();
             // add relative offsets
@@ -1111,6 +1110,9 @@ impl WasmGenerator {
                     let mut loop_ = done_block.dangling_instr_seq(None);
                     let loop_id = loop_.id();
 
+                    // variable for the field name size
+                    let name_size = self.module.locals.add(ValType::I32);
+
                     // Here are all the blocks needed for the switch-case
                     let switch_case_blocks: Vec<_> = (0..=tuple_ty.get_type_map().len())
                         .map(|_| loop_.dangling_instr_seq(None).id())
@@ -1135,7 +1137,6 @@ impl WasmGenerator {
                             .br_if(done_block_id);
 
                         // Load the number of bytes for the field name
-                        let name_size = self.module.locals.add(ValType::I32);
                         switch_block
                             .local_get(offset_local)
                             .load(
@@ -1186,7 +1187,7 @@ impl WasmGenerator {
                     }
 
                     // switch case for valid fields
-                    for (((&case, &field_ty), field_locals), case_idx) in switch_case_blocks[1..]
+                    for (((&case, field_ty), field_locals), case_idx) in switch_case_blocks[1..]
                         .iter()
                         .zip(tm.values())
                         .zip(values_locals.iter())
@@ -1249,9 +1250,33 @@ impl WasmGenerator {
                             .last()
                             .expect("blocks should always have the default block"),
                     });
-                    // TODO: remove (unreachable) and check for the validity of the field name and the value,
-                    //       then either skip bytes or fail.
-                    loop_.unreachable();
+
+                    // check for the validity of the field name
+                    loop_
+                        .local_get(offset_local)
+                        .local_get(name_size)
+                        .binop(BinaryOp::I32Sub)
+                        .local_get(name_size)
+                        .call(self.func_by_name("stdlib.check-clarity-name"))
+                        .unop(UnaryOp::I32Eqz)
+                        .br_if(done_block_id);
+
+                    // we check if the field value is correct and skip it
+                    loop_
+                        .local_get(offset_local)
+                        .local_get(end_local)
+                        .call(self.func_by_name("stdlib.skip-unknown-value"))
+                        .local_tee(offset_local)
+                        .unop(UnaryOp::I32Eqz)
+                        .br_if(done_block_id);
+
+                    // we loop if we still have fields to deserialize
+                    loop_
+                        .local_get(remaining_fields)
+                        .i32_const(1)
+                        .binop(BinaryOp::I32Sub)
+                        .local_tee(remaining_fields)
+                        .br_if(loop_id);
 
                     loop_id
                 };

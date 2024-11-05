@@ -1,7 +1,9 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefinePrivateFunction;
@@ -18,6 +20,8 @@ impl ComplexWord for DefinePrivateFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -52,6 +56,8 @@ impl ComplexWord for DefineReadonlyFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -88,6 +94,8 @@ impl ComplexWord for DefinePublicFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -111,11 +119,131 @@ impl ComplexWord for DefinePublicFunction {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, evaluate,
+    };
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_private_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-private (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-private (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+
+        #[test]
+        fn validate_define_public_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-public (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-public (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+
+        #[test]
+        fn validate_define_read_only_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-read-only (index-of?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_with_epoch(
+                "(define-read-only (element-at?) (ok u0))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
+
+    #[test]
+    fn define_private_less_than_two_args() {
+        let result = evaluate("(define-private 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_private_more_than_two_args() {
+        let result = evaluate("(define-private (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn define_read_only_less_than_two_args() {
+        let result = evaluate("(define-read-only 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_read_only_more_than_two_args() {
+        let result = evaluate("(define-read-only (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn define_public_less_than_two_args() {
+        let result = evaluate("(define-public 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_public_more_than_two_args() {
+        let result = evaluate("(define-public (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
     #[test]
     fn top_level_define_first() {
         crosscheck(
@@ -276,68 +404,43 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_private_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-private (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
+    fn reuse_arg_name() {
+        let snippet = "
+(define-private (foo (a int) (a int) (b int) (b int)) 1)
+(define-private (bar (c int) (d int) (e int) (d int)) 1)
+";
+        crosscheck(
+            &format!("{snippet} (foo 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "a".to_string(),
+            ))),
         );
-
-        crosscheck_with_epoch(
-            "(define-private (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
+        crosscheck(
+            &format!("{snippet} (bar 1 2 3 4)"),
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "d".to_string(),
+            ))),
         );
-
-        crosscheck_expect_failure("(define-private (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-private (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-private (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-private (element-at) (ok u0))");
     }
 
     #[test]
-    fn validate_define_public_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-public (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
+    fn reuse_arg_name_contrac_call() {
+        let first_contract_name = "callee".into();
+        let first_snippet = "
+(define-public (foo (a int) (a int) (b int) (b int)) (ok 1))
+";
+
+        let second_contract_name = "caller".into();
+        let second_snippet = format!(r#"(contract-call? .{first_contract_name} foo 1 2 3 4)"#);
+
+        crosscheck_multi_contract(
+            &[
+                (first_contract_name, first_snippet),
+                (second_contract_name, &second_snippet),
+            ],
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "a".to_string(),
+            ))),
         );
-
-        crosscheck_with_epoch(
-            "(define-public (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-public (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-public (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-public (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-public (element-at) (ok u0))");
-    }
-
-    #[test]
-    fn validate_define_read_only_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-read-only (index-of?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_with_epoch(
-            "(define-read-only (element-at?) (ok u0))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-read-only (index-of?) (ok u0))");
-        crosscheck_expect_failure("(define-read-only (index-of) (ok u0))");
-
-        crosscheck_expect_failure("(define-read-only (element-at?) (ok u0))");
-        crosscheck_expect_failure("(define-read-only (element-at) (ok u0))");
     }
 }

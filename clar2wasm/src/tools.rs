@@ -4,18 +4,21 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
-use clarity::consts::CHAIN_ID_TESTNET;
+use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
-use clarity::vm::contexts::GlobalContext;
+use clarity::vm::contexts::{EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{CheckErrors, Error, WasmError};
+use clarity::vm::events::{SmartContractEventData, StacksTransactionEvent};
 use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{eval_all, ClarityVersion, ContractContext, Value};
+use clarity::vm::{eval_all, ClarityVersion, ContractContext, ContractName, Value};
+use regex::Regex;
 
 use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
@@ -29,6 +32,8 @@ pub struct TestEnvironment {
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
+    events: Vec<EventBatch>,
+    network: Network,
 }
 
 impl TestEnvironment {
@@ -62,11 +67,23 @@ impl TestEnvironment {
             datastore,
             burn_datastore,
             cost_tracker,
+            events: vec![],
+            network: Network::Testnet,
         }
     }
 
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
         Self::new_with_amount(1_000_000_000, epoch, version)
+    }
+
+    pub fn new_with_network(
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: Network,
+    ) -> Self {
+        let mut env = Self::new(epoch, version);
+        env.network = network;
+        env
     }
 
     pub fn init_contract_with_snippet(
@@ -91,7 +108,7 @@ impl TestEnvironment {
                     self.epoch,
                     analysis_db,
                 )
-                .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
+                .map_err(|e| CheckErrors::Expects(format!("Compilation failure {:?}", e)))
             })
             .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
 
@@ -114,8 +131,14 @@ impl TestEnvironment {
             &self.burn_datastore,
             &self.burn_datastore,
         );
+
+        let (is_mainnet, chain_id) = match self.network {
+            Network::Mainnet => (true, CHAIN_ID_MAINNET),
+            Network::Testnet => (false, CHAIN_ID_TESTNET),
+        };
+
         let mut global_context =
-            GlobalContext::new(false, CHAIN_ID_TESTNET, conn, cost_tracker, self.epoch);
+            GlobalContext::new(is_mainnet, chain_id, conn, cost_tracker, self.epoch);
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -140,7 +163,10 @@ impl TestEnvironment {
             .set_contract_data_size(&contract_id, data_size)
             .expect("Failed to set contract data size.");
 
-        global_context.commit().unwrap();
+        let (_, events) = global_context.commit().unwrap();
+        if let Some(events) = events {
+            self.events.push(events);
+        }
         self.cost_tracker = global_context.cost_track;
 
         self.contract_contexts
@@ -155,6 +181,10 @@ impl TestEnvironment {
 
     pub fn get_contract_context(&self, contract_name: &str) -> Option<&ContractContext> {
         self.contract_contexts.get(contract_name)
+    }
+
+    pub fn get_events(&self) -> &Vec<EventBatch> {
+        &self.events
     }
 
     pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
@@ -200,6 +230,11 @@ impl TestEnvironment {
             .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
         })?;
 
+        self.datastore
+            .as_analysis_db()
+            .execute(|analysis_db| analysis_db.insert_contract(&contract_id, &contract_analysis))
+            .expect("Failed to insert contract analysis");
+
         let mut contract_context = ContractContext::new(contract_id.clone(), self.version);
 
         let conn = ClarityDatabase::new(
@@ -208,25 +243,53 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
+        let (is_mainnet, chain_id) = match self.network {
+            Network::Mainnet => (true, CHAIN_ID_MAINNET),
+            Network::Testnet => (false, CHAIN_ID_TESTNET),
+        };
+
         let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
+            is_mainnet,
+            chain_id,
             conn,
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
         );
-
         global_context.begin();
+
         global_context
-            .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
+            .database
+            .insert_contract_hash(&contract_id, snippet)
             .expect("Failed to insert contract hash.");
 
-        eval_all(
+        let result = eval_all(
             &contract_analysis.expressions,
             &mut contract_context,
             &mut global_context,
             None,
-        )
+        )?;
+
+        global_context.database.insert_contract(
+            &contract_id,
+            Contract {
+                contract_context: contract_context.clone(),
+            },
+        )?;
+        global_context
+            .database
+            .set_contract_data_size(&contract_id, contract_context.data_size)
+            .expect("Failed to set contract data size.");
+
+        let (_, events) = global_context.commit().unwrap();
+        if let Some(events) = events {
+            self.events.push(events);
+        }
+        self.cost_tracker = global_context.cost_track;
+
+        self.contract_contexts
+            .insert(contract_name.to_owned(), contract_context);
+
+        Ok(result)
     }
 
     pub fn interpret(&mut self, snippet: &str) -> Result<Option<Value>, Error> {
@@ -245,10 +308,7 @@ where
     F: FnOnce(&mut ClarityDatabase) -> std::result::Result<T, E>,
 {
     conn.begin();
-    let result = f(conn).map_err(|e| {
-        conn.roll_back().expect("Failed to roll back");
-        e
-    })?;
+    let result = f(conn).inspect_err(|_| conn.roll_back().expect("Failed to roll back"))?;
     conn.commit().expect("Failed to commit");
     Ok(result)
 }
@@ -279,7 +339,6 @@ pub fn evaluate_at_with_amount(
 
 /// Evaluate a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
 pub fn evaluate(snippet: &str) -> Result<Option<Value>, Error> {
     evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
@@ -310,85 +369,215 @@ pub fn interpret_at_with_amount(
 
 /// Interprets a Clarity snippet at the latest epoch and clarity version.
 /// Returns an optional value -- the result of the evaluation.
-#[allow(clippy::result_unit_err)]
 pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
+struct TestConfig;
+
+impl TestConfig {
+    /// Select a Clarity version based on enabled features.
+    pub fn clarity_version() -> ClarityVersion {
+        match () {
+            _ if cfg!(feature = "test-clarity-v1") => ClarityVersion::Clarity1,
+            _ if cfg!(feature = "test-clarity-v2") => ClarityVersion::Clarity2,
+            _ if cfg!(feature = "test-clarity-v3") => ClarityVersion::Clarity3,
+            _ => ClarityVersion::latest(),
+        }
+    }
+
+    /// Latest Stacks epoch.
+    pub fn latest_epoch() -> StacksEpochId {
+        StacksEpochId::latest()
+    }
+}
+
+struct CrossEvalResult {
+    env_interpreted: TestEnvironment,
+    interpreted: Result<Option<Value>, Error>,
+
+    env_compiled: TestEnvironment,
+    compiled: Result<Option<Value>, Error>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum KnownBug {
+    /// [https://github.com/stacks-network/stacks-core/issues/4622]
+    ListOfQualifiedPrincipal,
+}
+
+impl KnownBug {
+    fn check_for_known_bugs(
+        compiled: &Result<Option<Value>, Error>,
+        interpreted: &Result<Option<Value>, Error>,
+    ) -> Option<Self> {
+        let check_predicate = |pred: &dyn Fn(&Error) -> bool| {
+            interpreted.as_ref().is_err_and(pred) && compiled.as_ref().is_err_and(pred)
+        };
+
+        if check_predicate(&Self::has_list_of_qualified_principal_issue) {
+            Some(KnownBug::ListOfQualifiedPrincipal)
+        } else {
+            None
+        }
+    }
+
+    /// Allows to detect if an error suffers from this issue:
+    /// [https://github.com/stacks-network/stacks-core/issues/4622].
+    fn has_list_of_qualified_principal_issue(err: &Error) -> bool {
+        static RGX: LazyLock<Regex> = LazyLock::new(|| {
+            let regex = r#"expecting expression of type '.*(?:\(principal ([A-Z0-9]{41}\.[^\)]+)\)|principal).*', found '\(.*principal ([^\)]+).*\)'"#;
+            Regex::new(regex).unwrap()
+        });
+
+        if let Error::Wasm(WasmError::WasmGeneratorError(message)) = err {
+            RGX.captures(message).map_or(false, |caps| {
+                caps.get(1)
+                    .map_or(true, |cap1| cap1.as_str() == caps.get(2).unwrap().as_str())
+            })
+        } else {
+            false
+        }
+    }
+}
+
+impl CrossEvalResult {
+    fn compare(&self, snippet: &str) {
+        assert_eq!(
+            self.compiled, self.interpreted,
+            "Compiled and interpreted results diverge! {snippet}\ncompiled: {:?}\ninterpreted: {:?}",
+            self.compiled, self.interpreted
+        );
+        compare_events(
+            self.env_interpreted.get_events(),
+            self.env_compiled.get_events(),
+        );
+    }
+}
+
+fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, KnownBug> {
+    let mut env_interpreted = env.clone();
+    let interpreted = env_interpreted.interpret(snippet);
+
+    let mut env_compiled = env;
+    let compiled = env_compiled.evaluate(snippet);
+
+    match KnownBug::check_for_known_bugs(&compiled, &interpreted) {
+        Some(bug) => {
+            println!("KNOW BUG TRIGGERED <{bug:?}>:\n\t{snippet}");
+            Err(bug)
+        }
+        None => Ok(CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }),
+    }
+}
+
 pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
-    let interpreted = interpret(snippet);
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
 
     assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled, &interpreted
-    );
-
-    assert_eq!(
-        compiled, expected,
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
     );
 }
 
-pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, ()>) {
-    let compiled = evaluate_at_with_amount(
+pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, Error>) {
+    let eval = match crosseval(
         snippet,
-        amount,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
-    );
-    let interpreted = interpret_at_with_amount(
-        snippet,
-        amount,
-        StacksEpochId::latest(),
-        ClarityVersion::latest(),
-    );
+        TestEnvironment::new_with_amount(
+            amount,
+            TestConfig::latest_epoch(),
+            TestConfig::clarity_version(),
+        ),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
 
     assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        interpreted.as_ref().map_err(|_| &()),
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled,
-        &interpreted
-    );
-
-    assert_eq!(
-        compiled.as_ref().map_err(|_| &()),
-        expected.as_ref(),
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
     );
 }
 
 pub fn crosscheck_compare_only(snippet: &str) {
-    let compiled = evaluate(snippet);
-    let interpreted = interpret(snippet);
+    // to avoid false positives when both the compiled and interpreted fail,
+    // we don't allow failures in these tests
 
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
-    );
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    // Note that we interpret first, to catch logical errors early
+    assert!(eval.interpreted.is_ok(), "Interpreted snippet failed");
+    assert!(eval.compiled.is_ok(), "Compiled snippet failed");
+
+    eval.compare(snippet);
+}
+
+pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
+    snippet: &str,
+    expected: E,
+) {
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    if let Err(e) = &eval.compiled {
+        if !expected(e) {
+            panic!("Compiled snippet failed with unexpected error: {:?}", e);
+        }
+    }
+
+    eval.compare(snippet);
 }
 
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
 /// to assert the results of a contract snippet running against the compiler and the interpreter.
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
-    let mut compiler_env = TestEnvironment::new(StacksEpochId::latest(), ClarityVersion::latest());
-    compiler_env.advance_chain_tip(count);
+    let mut env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+    env.advance_chain_tip(count);
 
-    let mut interpreter_env = compiler_env.clone();
+    let eval = match crosseval(snippet, env) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
-    let compiled = compiler_env.evaluate(snippet).map_err(|_| ());
-    let interpreted = interpreter_env.interpret(snippet).map_err(|_| ());
-
-    assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
-    );
+    eval.compare(snippet);
 }
 
 pub fn crosscheck_with_epoch(
@@ -396,35 +585,104 @@ pub fn crosscheck_with_epoch(
     expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
-    let clarity_version = ClarityVersion::default_for_epoch(epoch);
-    let compiled = evaluate_at(snippet, epoch, clarity_version);
-    let interpreted = interpret_at(snippet, epoch, clarity_version);
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(epoch, TestConfig::clarity_version()),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
 
     assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge!\ncompiled: {:?}\ninterpreted: {:?}",
-        &compiled, &interpreted
-    );
-
-    assert_eq!(
-        compiled, expected,
+        eval.compiled, expected,
         "value is not the expected {:?}",
-        compiled
+        eval.compiled
+    );
+}
+
+pub fn crosscheck_with_clarity_version(
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+    version: ClarityVersion,
+) {
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), version),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
+
+    assert_eq!(
+        eval.compiled, expected,
+        "value is not the expected {:?}",
+        eval.compiled
     );
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let compiled = evaluate_at(snippet, StacksEpochId::latest(), ClarityVersion::latest());
-    let interpreted = interpret(snippet);
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
 
+    eval.compare(snippet);
+
+    let value = eval.compiled.unwrap().unwrap();
+    validator(value)
+}
+
+pub fn crosscheck_multi_contract(
+    contracts: &[(ContractName, &str)],
+    expected: Result<Option<Value>, Error>,
+) {
+    // compiled version
+    let mut compiled_env = TestEnvironment::default();
+    let compiled_results: Vec<_> = contracts
+        .iter()
+        .map(|(name, snippet)| compiled_env.init_contract_with_snippet(name, snippet))
+        .collect();
+
+    // interpreted version
+    let mut interpreted_env = TestEnvironment::default();
+    let interpreted_results: Vec<_> = contracts
+        .iter()
+        .map(|(name, snippet)| interpreted_env.interpret_contract_with_snippet(name, snippet))
+        .collect();
+
+    // compare results contract by contract
+    for ((cmp_res, int_res), (contract_name, _)) in compiled_results
+        .iter()
+        .zip(interpreted_results)
+        .zip(contracts)
+    {
+        assert_eq!(
+            cmp_res, &int_res,
+            "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
+        );
+    }
+
+    // compare with expected final value
+    let final_value = compiled_results.last().unwrap_or(&Ok(None));
     assert_eq!(
-        compiled, interpreted,
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
-        snippet, &compiled, &interpreted
+        final_value, &expected,
+        "final value is not the expected {final_value:?}"
     );
 
-    let value = compiled.unwrap().unwrap();
-    validator(value)
+    compare_events(interpreted_env.get_events(), compiled_env.get_events());
 }
 
 // TODO: This function is a temporary solution until issue #421 is addressed.
@@ -436,17 +694,229 @@ pub fn crosscheck_expect_failure(snippet: &str) {
     let compiled = evaluate(snippet);
     let interpreted = interpret(snippet);
 
-    assert_eq!(
-        compiled.is_err(),
+    assert!(
         interpreted.is_err(),
-        "Compiled and interpreted results diverge! {}\ncompiled: {:?}\ninterpreted: {:?}",
+        "Interpreted didn't err: {}\ninterpreted: {:?}",
+        snippet,
+        &interpreted,
+    );
+    assert!(
+        compiled.is_err(),
+        "Compiled didn't err: {}\ncompiled: {:?}",
         snippet,
         &compiled,
-        &interpreted
     );
 }
 
-#[test]
-fn test_evaluate_snippet() {
-    assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+fn compare_events(events_a: &[EventBatch], events_b: &[EventBatch]) {
+    // `SmartContractEvent` `value` could differ but resulting in the same serialized
+    // data (eg, serializing a `CallableContract` results in a contract principal)
+    assert_eq!(
+        events_a.len(),
+        events_b.len(),
+        "events batches size mismatch"
+    );
+    for (EventBatch { events: batch_a }, EventBatch { events: batch_b }) in
+        events_a.iter().zip(events_b.iter())
+    {
+        assert_eq!(batch_a.len(), batch_b.len(), "events batch size mismatch");
+        for (a, b) in batch_a.iter().zip(batch_b.iter()) {
+            if let (
+                StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+                    key: key_a,
+                    value: value_a,
+                }),
+                StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+                    key: key_b,
+                    value: value_b,
+                }),
+            ) = (a, b)
+            {
+                assert_eq!(key_a, key_b, "events key mismatch");
+
+                let mut value_a_ser = vec![];
+                value_a.serialize_write(&mut value_a_ser).unwrap();
+
+                let mut value_b_ser = vec![];
+                value_b.serialize_write(&mut value_b_ser).unwrap();
+
+                assert_eq!(value_a_ser, value_b_ser, "events serialized value mismatch");
+            } else {
+                assert_eq!(a, b, "events mismatch")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Network {
+    Mainnet,
+    Testnet,
+}
+
+pub fn crosscheck_with_network(
+    network: Network,
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+) {
+    let eval = match crosseval(
+        snippet,
+        TestEnvironment::new_with_network(
+            TestConfig::latest_epoch(),
+            TestConfig::clarity_version(),
+            network,
+        ),
+    ) {
+        Ok(result) => result,
+        Err(_bug) => {
+            return;
+        }
+    };
+
+    eval.compare(snippet);
+
+    assert_eq!(
+        eval.compiled, expected,
+        "value is not the expected {:?}",
+        eval.compiled
+    );
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_evaluate_snippet() {
+        assert_eq!(evaluate("(+ 1 2)"), Ok(Some(Value::Int(3))));
+    }
+
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[test]
+    fn test_compare_events() {
+        let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+        let mut env_interpreted = env.clone();
+        let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+        let mut env_compiled = env;
+        let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+        CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }
+        .compare("");
+    }
+
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[test]
+    #[should_panic(expected = "events mismatch")]
+    fn test_compare_events_mismatch() {
+        let env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
+
+        let mut env_interpreted = env.clone();
+        let interpreted = env_interpreted.interpret("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x010203)");
+
+        let mut env_compiled = env;
+        let compiled = env_compiled.evaluate("(stx-transfer-memo? u1 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM 0x0102FF)"); // different memo
+
+        CrossEvalResult {
+            env_interpreted,
+            env_compiled,
+            interpreted,
+            compiled,
+        }
+        .compare("");
+    }
+
+    #[test]
+    fn detect_list_of_qualified_principal_issue() {
+        let snippet_no_wrap = r#"(index-of (list 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb) 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)"#;
+
+        let e = interpret(snippet_no_wrap).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_no_wrap, Ok(None)); // we don't care about the expected result
+
+        let e = interpret_at(
+            snippet_no_wrap,
+            StacksEpochId::latest(),
+            ClarityVersion::Clarity1,
+        )
+        .expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_no_wrap, Ok(None)); // we don't care about the expected result
+
+        let snippet_simple = r#"(index-of (list (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb)) (some 'S53AR76V04QBY9CKZFQZ6FZF0730CEQS2AH761HTX.FoUtMZdXvouVYyvtvceMcRGotjQlzb))"#;
+
+        let e = interpret(snippet_simple).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        let e = interpret_at(
+            snippet_simple,
+            StacksEpochId::latest(),
+            ClarityVersion::Clarity1,
+        )
+        .expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        let snippet_no_rgx_2nd_match = r#"(index-of (list (ok 'S932CK89GTZ50W6ZHYT9FR8A625KMXTBN4FDHXFNW.a) (ok 'SH3MZSPN84M1NC77YFD2EV36NAS4EW9RNBXF4TGY3.A) (ok 'SME80C5G10ZJGHJA8Q1R4WH99ZV794GPH050DG87.A) (err u1409580484) (err u78298087165342409770641973297847909482) (ok 'ST1305A3CKDY8C2M3K9E7D8ZESND3W9RV4G7TSEAH.sSzXanZZmDqBadhzkhYweAFAdHVzWrlqToalG) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw) (ok 'S939MQP0630GPK1S5RRKWDEXT5X8DEBW5T5PHXBTA.pBvEuNMOoLNHAkBpAyWkOgMQRXsuqs) (err u130787449693949619415771523117179796343) (ok 'SZ1NX5BPB8JTT5FZ86FD4R2H2A4FRSZYYYADEZPVM.GNlVpg)) (ok 'S61F1MAGPTM4Y3WEYE757PTZEGRY5D3FV2BG53STB.VXSrEfeDQmDpUQpbLcpTcpHhytHKnXQnbLLhw))"#;
+
+        let e = interpret(snippet_no_rgx_2nd_match).expect_err("Snippet should err due to bug");
+        assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+        crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+        // Those tests below use `replace-at`, which didn't exist in Clarity 1
+        #[cfg(not(feature = "test-clarity-v1"))]
+        {
+            let e = interpret_at(
+                snippet_no_rgx_2nd_match,
+                StacksEpochId::latest(),
+                ClarityVersion::Clarity1,
+            )
+            .expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(dbg!(&e)));
+            crosscheck(snippet_simple, Ok(None)); // we don't care about the expected result
+
+            let snippet_wrapped = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        )"#;
+
+            let e = interpret(snippet_wrapped).expect_err("Snippet should err due to bug");
+            assert!(KnownBug::has_list_of_qualified_principal_issue(&e));
+            crosscheck(snippet_wrapped, Ok(None)); // we don't care about expected result
+
+            let working_snippet = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN)
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        )"#;
+            assert!(interpret(working_snippet).is_ok());
+
+            let snippet_different_err = r#"(replace-at?
+            (list
+                (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+                (ok 5)
+            )
+            u0
+            (err 'SX3M0F9YG3TS7YZDDV7B22H2C5J0BHG0WD0T3QSSN.DAHdSGMHgxMWaithtPBEqfuTWZGMqy)
+        "#;
+            let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
+            assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+        }
+    }
 }

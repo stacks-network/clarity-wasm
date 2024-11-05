@@ -5,10 +5,11 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -25,6 +26,14 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
@@ -114,8 +123,22 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
+        let elem_expr = args.get_expr(1)?;
+        // workaround to fix types in the case of elements that are themself Sequences
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::TypeError(
+                "index_of element must be typed".to_owned(),
+            ))?
+        {
+            generator.set_expr_type(elem_expr, ltd.get_list_item_type().clone())?;
+        }
+
+        // Traverse the sequence, leaving its offset and size on the stack.
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
@@ -332,10 +355,11 @@ fn assign_to_locals(
         }
         (TypeSignature::TupleType(t), TypeSignature::TupleType(s)) => {
             let mut remaining_locals = locals;
-            for (tt, ss) in ordered_tuple_signature(t)
+            for (tt, ss) in t
+                .get_type_map()
                 .values()
                 .rev()
-                .zip(ordered_tuple_signature(s).values().rev())
+                .zip(s.get_type_map().values().rev())
             {
                 let tt_size = clar2wasm_ty(tt).len();
                 let (rest, cur_locals) =
@@ -707,7 +731,7 @@ fn wasm_equal_tuple(
     // ```
     // we have to build the if sequence bottom-up
 
-    let field_types = owned_ordered_tuple_signature(tuple_ty);
+    let field_types = tuple_ty.get_type_map();
 
     // this is the number of elements in the tuple. Always >= 1 due to Clarity constraints.
     let mut depth = field_types.len();
@@ -728,7 +752,7 @@ fn wasm_equal_tuple(
     );
 
     // types for nth argument
-    let nth_type_map = ordered_tuple_signature(nth_tuple_ty);
+    let nth_type_map = nth_tuple_ty.get_type_map();
     let mut nth_types = nth_type_map.values().rev();
 
     // if this is a 1-tuple, we can just check for equality of element
@@ -996,20 +1020,47 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+
+    #[test]
+    fn is_eq_less_than_one_arg() {
+        let result = evaluate("(is-eq)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn index_of_list_less_than_two_args() {
+        let result = evaluate("(index-of (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn index_of_list_more_than_two_args() {
+        let result = evaluate("(index-of (list 1 2 3) 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
 
     #[test]
     fn index_of_list_not_present() {
-        crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 9)",
-            Ok(Some(Value::none())),
-        );
+        crosscheck("(index-of (list 1 2 3 4 5 6 7) 9)", Ok(Some(Value::none())));
     }
 
     #[test]
     fn index_of_list_first() {
         crosscheck(
-            "(index-of? (list 1 2 3 4) 1)",
+            "(index-of (list 1 2 3 4) 1)",
             Ok(Some(Value::some(Value::UInt(0)).unwrap())),
         );
     }
@@ -1017,7 +1068,7 @@ mod tests {
     #[test]
     fn index_of_list() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 3)",
+            "(index-of (list 1 2 3 4 5 6 7) 3)",
             Ok(Some(Value::some(Value::UInt(2)).unwrap())),
         );
     }
@@ -1025,7 +1076,7 @@ mod tests {
     #[test]
     fn index_of_list_last() {
         crosscheck(
-            "(index-of? (list 1 2 3 4 5 6 7) 7)",
+            "(index-of (list 1 2 3 4 5 6 7) 7)",
             Ok(Some(Value::some(Value::UInt(6)).unwrap())),
         );
     }
@@ -1052,7 +1103,7 @@ mod tests {
             "index_of",
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
-  (index-of? haystack needle))
+  (index-of haystack needle))
 (find-it? 6 (list))
 "#,
         );
@@ -1066,7 +1117,7 @@ mod tests {
         let val = env.evaluate(
             r#"
 (define-private (find-it? (needle int) (haystack (list 10 int)))
-  (is-eq (index-of? haystack needle) none))
+  (is-eq (index-of haystack needle) none))
 (asserts! (find-it? 6 (list 1 2 3)) (err u1))
 (list 4 5 6)
 "#,
@@ -1215,14 +1266,6 @@ mod tests {
     }
 
     #[test]
-    fn index_of_complex_type() {
-        crosscheck(
-            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
-            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
-        );
-    }
-
-    #[test]
     fn index_of_tuple_complex_type() {
         crosscheck("(index-of (list (tuple (id 42) (name \"Clarity\")) (tuple (id 133) (name \"Wasm\"))) (tuple (id 42) (name \"Wasm\")))",
             Ok(Some(Value::none()))
@@ -1263,5 +1306,47 @@ mod tests {
         (define-data-var b (list 4 int) (list 1 2 3))
         (is-eq (var-get a) (var-get b))";
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
+    }
+
+    #[test]
+    fn index_of_complex_type() {
+        crosscheck(
+            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
+            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
+        );
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+        use crate::tools::crosscheck;
+
+        #[test]
+        fn index_of_alias_list_zero_len() {
+            let mut env = TestEnvironment::default();
+            let val = env.init_contract_with_snippet(
+                "index_of",
+                r#"
+    (define-private (find-it? (needle int) (haystack (list 10 int)))
+      (index-of? haystack needle))
+    (find-it? 6 (list))
+    "#,
+            );
+
+            assert_eq!(val.unwrap(), Some(Value::none()));
+        }
+
+        #[test]
+        fn index_of_alias_first_optional_complex_type() {
+            crosscheck(
+                "(index-of? (list (some 42) none none none (some 15)) (some 42))",
+                Ok(Some(Value::some(Value::UInt(0)).unwrap())),
+            );
+        }
     }
 }

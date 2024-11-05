@@ -4,8 +4,9 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{ordered_tuple_signature, owned_ordered_tuple_signature};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct TupleCons;
@@ -22,13 +23,21 @@ impl ComplexWord for TupleCons {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_argument_count(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast,
+        )?;
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("tuple expression must be typed".to_string()))?
             .clone();
 
         let mut tuple_ty = match ty {
-            TypeSignature::TupleType(ref tuple) => ordered_tuple_signature(tuple),
+            TypeSignature::TupleType(ref tuple) => tuple.get_type_map().clone(),
             _ => return Err(GeneratorError::TypeError("expected tuple type".to_string())),
         };
 
@@ -69,7 +78,7 @@ impl ComplexWord for TupleCons {
             generator.set_expr_type(value, value_ty.clone())?;
 
             generator.traverse_expr(builder, value)?;
-            locals_map.insert(key, generator.save_to_locals(builder, value_ty, true));
+            locals_map.insert(key, generator.save_to_locals(builder, &value_ty, true));
         }
 
         // Make sure that all the tuples keys were defined
@@ -103,11 +112,7 @@ impl ComplexWord for TupleGet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple get".to_string(),
-            ));
-        }
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let target_field_name = args[0]
             .match_atom()
@@ -130,7 +135,7 @@ impl ComplexWord for TupleGet {
         generator.traverse_expr(builder, &args[1])?;
 
         // Determine the wasm types for each field of the tuple
-        let field_types = ordered_tuple_signature(&tuple_ty);
+        let field_types = tuple_ty.get_type_map();
 
         // Create locals for the target field
         let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or_else(|| {
@@ -145,7 +150,7 @@ impl ComplexWord for TupleGet {
         // Loop through the fields of the tuple, in reverse order. When we find
         // the target field, we'll store it in the locals we created above. All
         // other fields will be dropped.
-        for (field_name, field_ty) in field_types.into_iter().rev() {
+        for (field_name, field_ty) in field_types.iter().rev() {
             // If this is the target field, store it in the locals we created
             // above.
             if field_name == target_field_name {
@@ -181,11 +186,7 @@ impl ComplexWord for TupleMerge {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        if args.len() != 2 {
-            return Err(GeneratorError::InternalError(
-                "expected two arguments to tuple merge".to_string(),
-            ));
-        }
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         let lhs_tuple_ty = generator
             .get_expr_type(&args[0])
@@ -213,7 +214,7 @@ impl ComplexWord for TupleMerge {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
             })
-            .map(owned_ordered_tuple_signature)?
+            .map(|tuple| tuple.get_type_map().clone())?
             .into_iter()
             .map(|(name, ty_)| {
                 (
@@ -231,7 +232,7 @@ impl ComplexWord for TupleMerge {
 
         // We will copy the values from LHS into the result locals iff the key is not
         // present in RHS. Otherwise, we drop the values.
-        for (name, ty_) in ordered_tuple_signature(&lhs_tuple_ty).into_iter().rev() {
+        for (name, ty_) in lhs_tuple_ty.get_type_map().iter().rev() {
             if !rhs_tuple_ty.get_type_map().contains_key(name) {
                 result_locals
                     .get(name)
@@ -254,7 +255,7 @@ impl ComplexWord for TupleMerge {
         generator.traverse_expr(builder, &args[1])?;
 
         // We will copy all values of RHS into the result locals
-        for (name, _) in ordered_tuple_signature(&rhs_tuple_ty).into_iter().rev() {
+        for (name, _) in rhs_tuple_ty.get_type_map().iter().rev() {
             result_locals
                 .get(name)
                 .ok_or_else(|| {
@@ -279,11 +280,11 @@ impl ComplexWord for TupleMerge {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
 
     #[test]
     fn test_get_optional() {
@@ -354,24 +355,6 @@ mod test {
     }
 
     #[test]
-    fn merge_real_example() {
-        // issue #372
-        let snippet = r#"
-(define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
-    (ok {
-        value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
-        next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
-    }))
-
-(define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
-    (let ((cursor-bytes (try! (read-buff-1 cursor))))
-        (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
-            "#;
-
-        crosscheck(snippet, Ok(None));
-    }
-
-    #[test]
     fn tuple_check_evaluation_order() {
         let snippet = r#"
         (define-data-var foo int 1)
@@ -390,5 +373,82 @@ mod test {
         );
 
         crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        #[test]
+        fn merge_real_example() {
+            let snippet = r#"
+    (define-read-only (read-buff-1 (cursor { bytes: (buff 8192), pos: uint }))
+        (ok {
+            value: (unwrap! (as-max-len? (unwrap! (slice? (get bytes cursor) (get pos cursor) (+ (get pos cursor) u1)) (err u1)) u1) (err u1)),
+            next: { bytes: (get bytes cursor), pos: (+ (get pos cursor) u1) }
+        }))
+
+    (define-read-only (read-uint-8 (cursor { bytes: (buff 8192), pos: uint }))
+        (let ((cursor-bytes (try! (read-buff-1 cursor))))
+            (ok (merge cursor-bytes { value: (buff-to-uint-be (get value cursor-bytes)) }))))
+                "#;
+
+            crosscheck(snippet, Ok(None));
+        }
+    }
+
+    #[test]
+    fn tuple_less_than_one_arg() {
+        let result = evaluate("(tuple)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn get_less_than_two_args() {
+        let result = evaluate("(get id)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn get_more_than_two_args() {
+        let result = evaluate("(get id 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn merge_less_than_two_args() {
+        let result = evaluate("(merge)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 0"));
+    }
+
+    #[test]
+    fn merge_more_than_two_args() {
+        let result = evaluate("(merge {a: 1} {b: 2} {c: 3})");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 }

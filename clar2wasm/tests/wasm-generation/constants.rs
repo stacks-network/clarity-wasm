@@ -1,4 +1,7 @@
 use clar2wasm::tools::crosscheck;
+use clar2wasm::wasm_utils::signature_from_string;
+use clarity::types::StacksEpochId;
+use clarity::vm::ClarityVersion;
 use proptest::prelude::*;
 
 use crate::{
@@ -37,5 +40,13 @@ proptest! {
             (define-constant cst (foo)) cst
         "#);
         crosscheck(&snippet, Ok(Some(val.into())));
+    }
+
+    #[test]
+    fn define_constant_from_large_complex(val in PropValue::from_type(signature_from_string("(list 18 (list 31 (string-ascii 105)))", ClarityVersion::latest(), StacksEpochId::latest()).unwrap())) {
+        crosscheck(
+            &format!("(define-constant cst {val}) cst"),
+            Ok(Some(val.into())),
+        )
     }
 }

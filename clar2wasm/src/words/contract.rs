@@ -1,9 +1,14 @@
-use clarity::vm::types::PrincipalData;
+use clarity::vm::clarity_wasm::get_type_size;
+use clarity::vm::types::signatures::CallableSubtype;
+use clarity::vm::types::{PrincipalData, TraitIdentifier, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
+use walrus::ir::BinaryOp;
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct AsContract;
@@ -20,6 +25,8 @@ impl ComplexWord for AsContract {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let inner = args.get_expr(0)?;
 
         // Call the host interface function, `enter_as_contract`
@@ -50,6 +57,14 @@ impl ComplexWord for ContractCall {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         let function_name = args.get_name(1)?;
         let contract_expr = args.get_expr(0)?;
         if let SymbolicExpressionType::LiteralValue(Value::Principal(PrincipalData::Contract(
@@ -57,6 +72,8 @@ impl ComplexWord for ContractCall {
         ))) = contract_expr.expr
         {
             // This is a static contract call.
+            // Push an empty trait name first
+            builder.i32_const(0).i32_const(0);
             // Push the contract identifier onto the stack
             // TODO(#111): These should be tracked for reuse, similar to the string literals
             let (id_offset, id_length) =
@@ -66,6 +83,36 @@ impl ComplexWord for ContractCall {
                 .i32_const(id_length as i32);
         } else {
             // This is a dynamic contract call (via a trait).
+            // Push the trait name on the stack
+            let dynamic_arg = contract_expr.match_atom().ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "Dynamic contract-call? argument should be a name".to_owned(),
+                )
+            })?;
+            // Check if the name is in local bindings first, then in current function arguments.
+            let trait_name = generator
+                .bindings
+                .get_trait_name(dynamic_arg)
+                .or_else(|| {
+                    generator
+                        .get_current_function_arg_type(dynamic_arg)
+                        .and_then(|ty| match ty {
+                            TypeSignature::CallableType(CallableSubtype::Trait(
+                                TraitIdentifier { name, .. },
+                            )) => Some(name),
+                            _ => None,
+                        })
+                })
+                .ok_or_else(|| {
+                    GeneratorError::TypeError(
+                        "Dynamic argument of contract-call? should be a trait".to_owned(),
+                    )
+                })?;
+
+            let (offset, len) = generator.get_string_literal(trait_name).ok_or_else(|| {
+                GeneratorError::TypeError(format!("Usage of an unimported trait: {trait_name}"))
+            })?;
+            builder.i32_const(offset as i32).i32_const(len as i32);
             // Traversing the expression should load the contract identifier
             // onto the stack.
             generator.traverse_expr(builder, contract_expr)?;
@@ -73,6 +120,19 @@ impl ComplexWord for ContractCall {
 
         // shadow args
         let args = if args.len() >= 2 { &args[2..] } else { &[] };
+        let args_ty: Vec<_> = args
+            .iter()
+            .map(|arg| {
+                generator
+                    .get_expr_type(arg)
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError(
+                            "contract-call? argument must be typed".to_owned(),
+                        )
+                    })
+                    .cloned()
+            })
+            .collect::<Result<_, _>>()?;
 
         // Push the function name onto the stack
         let (fn_offset, fn_length) = generator.add_string_literal(function_name)?;
@@ -82,20 +142,18 @@ impl ComplexWord for ContractCall {
 
         // Write the arguments to the call stack, to be read by the host
         let arg_offset = generator.module.locals.add(ValType::I32);
+        let total_args_size = args_ty.iter().map(get_type_size).sum();
         builder
             .global_get(generator.stack_pointer)
-            .local_set(arg_offset);
+            .local_tee(arg_offset)
+            .i32_const(total_args_size)
+            .binop(BinaryOp::I32Add)
+            .global_set(generator.stack_pointer);
+
         let mut arg_length = 0;
-        for arg in args {
+        for (arg, arg_ty) in args.iter().zip(args_ty) {
             // Traverse the argument, pushing it onto the stack
             generator.traverse_expr(builder, arg)?;
-
-            let arg_ty = generator
-                .get_expr_type(arg)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("contract-call? argument must be typed".to_owned())
-                })?
-                .clone();
 
             arg_length += generator.write_to_memory(builder, arg_offset, arg_length, &arg_ty)?;
         }
@@ -131,7 +189,49 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::TestEnvironment;
+    use crate::tools::{evaluate, TestEnvironment};
+
+    #[test]
+    fn as_contract_less_than_one_arg() {
+        let result = evaluate("(as-contract)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn as_contract_more_than_one_arg() {
+        let result = evaluate("(as-contract 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn contract_call_less_than_two_args() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+(define-public (no-args)
+    (ok u42)
+)
+            "#,
+        )
+        .expect("Failed to init contract.");
+        let result =
+            env.init_contract_with_snippet("contract-caller", "(contract-call? .contract-callee)");
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
 
     #[test]
     fn static_no_args() {

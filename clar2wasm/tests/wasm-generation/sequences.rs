@@ -1,9 +1,11 @@
-use clar2wasm::tools::crosscheck;
-use clarity::vm::types::{CharType, ListData, ListTypeData, SequenceData, TypeSignature};
+use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
+use clarity::vm::types::{
+    ListData, ListTypeData, SequenceData, SequenceSubtype, TypeSignature, MAX_VALUE_SIZE,
+};
 use clarity::vm::Value;
 use proptest::prelude::*;
 
-use crate::{bool, int, prop_signature, type_string, PropValue, TypePrinter};
+use crate::{bool, buffer, int, list, prop_signature, PropValue};
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -54,7 +56,12 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn concat_crosscheck((seq1, seq2) in (0usize..=16).prop_flat_map(PropValue::any_sequence).prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))) {
+    fn concat_crosscheck(
+        (seq1, seq2) in (0usize..=16)
+            .prop_flat_map(PropValue::any_sequence)
+            .prop_ind_flat_map2(|seq1| PropValue::from_type(TypeSignature::type_of(&seq1.into()).expect("Could not get type signature")))
+            .prop_filter("skip large values", |(seq1, seq2)| seq1.inner().size().unwrap() + seq2.inner().size().unwrap() <= MAX_VALUE_SIZE)
+    ) {
         let snippet = format!("(concat {seq1} {seq2})");
 
         let expected = {
@@ -72,22 +79,6 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn element_at_crosscheck((seq, idx) in (1usize..=16).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
-        let snippet = format!("(element-at? {seq} u{idx})");
-
-        let expected = {
-            let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
-            seq_data.element_at(idx).expect("element_at failed").map_or_else(Value::none, |v| Value::some(v).unwrap())
-        };
-
-        crosscheck(&snippet, Ok(Some(expected)));
-    }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
-    #[test]
     fn len_crosscheck(seq in (1usize..=16).prop_flat_map(PropValue::any_sequence)) {
         let snippet = format!("(len {seq})");
 
@@ -95,47 +86,6 @@ proptest! {
             let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
             Value::UInt(seq_data.len() as u128)
         };
-
-        crosscheck(&snippet, Ok(Some(expected)));
-    }
-}
-
-proptest! {
-    #![proptest_config(super::runtime_config())]
-
-    #[test]
-    fn slice_crosscheck_valid_range(
-        (seq, lo, hi) in (1usize..=16)
-        .prop_flat_map(PropValue::any_sequence)
-        .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
-        .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
-        .prop_map(|((seq, lo), hi)| (seq, lo, hi))
-    )
-    {
-        let snippet = format!("(slice? {seq} u{lo} u{hi})");
-
-        let expected =
-            Value::some(
-                extract_sequence(seq)
-                .slice(&clarity::types::StacksEpochId::latest(), lo, hi)
-                .expect("Could not take a slice from sequence")
-            ).unwrap();
-
-        crosscheck(&snippet, Ok(Some(expected)));
-    }
-
-    #[test]
-    fn slice_crosscheck_invalid_range(
-        (seq, lo, hi) in (1usize..=16)
-        .prop_flat_map(PropValue::any_sequence)
-        .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
-        .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
-        .prop_map(|((seq, lo), hi)| (seq, lo, hi))
-    )
-    {
-        // always make sure hi is strictly larger than lo
-        let snippet = format!("(slice? {seq} (+ u{hi} u1) u{lo})");
-        let expected = Value::none();
 
         crosscheck(&snippet, Ok(Some(expected)));
     }
@@ -262,49 +212,119 @@ proptest! {
     }
 }
 
+fn extract_sequence(sequence: PropValue) -> SequenceData {
+    match Value::from(sequence) {
+        Value::Sequence(seq_data) => seq_data,
+        _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
+    }
+}
+
+const FOLD_PRELUDE: &str = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+         b1 (err (xor a1 b1))
+         b2 (ok  (xor a1 b2)))
+    a2 (match b
+         b1 (ok  (xor a2 b1))
+         b2 (err (xor a2 b2)))))";
+
 proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crosscheck_replace_at(
-        (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
-            (PropValue::any_sequence(seq_size),
-            // ranges from 0 to sequence_size - 1
-            // to not occur on operations out of boundaries.
-            (0usize..=seq_size - 1),
-            (0usize..=seq_size - 1))
-        }).no_shrink()
-    ) {
-        let list_ty = seq.type_string();
-
-        let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
-
-        let repl_ty = match &seq_data {
-            SequenceData::Buffer(_) => "(buff 1)".to_owned(),
-            SequenceData::String(CharType::ASCII(_)) => "(string-ascii 1)".to_owned(),
-            SequenceData::String(CharType::UTF8(_)) => "(string-utf8 1)".to_owned(),
-            SequenceData::List(ld) => type_string(ld.type_signature.get_list_item_type()),
-        };
-
-        let (expected, el) = {
-            // collect an element from the sequence at 'source' position.
-            let el = seq_data.clone().element_at(source).expect("element_at failed").map_or_else(Value::none, |value| value);
-            // replace the element at 'dest' position
-            // with the collected element from the 'source' position.
-            (seq_data.replace_at(
-                &clarity::types::StacksEpochId::latest(),
-                dest,
-                el.clone()
-            ).expect("replace_at failed"),
-            PropValue::from(el)) // returning that to be used by the 'replace-at' Clarity function.
-        };
-
-        // Workaround needed for https://github.com/stacks-network/stacks-core/issues/4622
-        let snippet = format!(r#"
-            (define-private (replace-at-workaround? (seq {list_ty}) (idx uint) (repl {repl_ty}))
-                (replace-at? seq idx repl)
+    fn crosscheck_fold_responses_short(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        2).unwrap()
+                )
             )
-            (replace-at-workaround? {seq} u{dest} {el})
+        )
+    ) {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
+            // Empty sequences fail in interpreter as well
+            if !ld.data.is_empty() {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn crosscheck_fold_responses_long(
+        seq in PropValue::from_type(
+            TypeSignature::SequenceType(
+                SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(
+                            Box::new((TypeSignature::IntType, TypeSignature::IntType))),
+                        100).unwrap()
+                )
+            )
+        )
+    ) {
+        if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
+            // Empty sequences fail in interpreter as well
+            if !ld.data.is_empty() {
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+
+                crosscheck_compare_only(
+                    &snippet,
+                );
+            }
+        }
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_ok_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::UIntType, TypeSignature::NoType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            if let SequenceData::List(data) = extract_sequence(seq.clone()) {
+                let v: Vec<Value> = data
+                    .data
+                    .iter()
+                    .map(|el| el.clone().expect_result_ok().unwrap())
+                    .collect();
+
+                    Value::Sequence(
+                        SequenceData::List(
+                            ListData {
+                                data: v.clone(),
+                                type_signature: ListTypeData::new_list(TypeSignature::UIntType, v.len() as u32).unwrap()
+                            }
+                        )
+                    )
+            } else {
+                panic!("Expected a list sequence");
+            }
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
         "#);
 
         crosscheck(
@@ -314,9 +334,227 @@ proptest! {
     }
 }
 
-fn extract_sequence(sequence: PropValue) -> SequenceData {
-    match Value::from(sequence) {
-        Value::Sequence(seq_data) => seq_data,
-        _ => panic!("Should only call this function on the result of PropValue::any_sequence"),
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_err_response(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::ResponseType(Box::new((TypeSignature::NoType, TypeSignature::UIntType))),
+                    10
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty", |el| !el.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (response uint uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_none_optional(
+        seq in (
+            list(
+                ListTypeData::new_list(
+                    TypeSignature::OptionalType(Box::new(TypeSignature::NoType)),
+                    5
+                )
+                .unwrap()
+            )
+        )
+        .prop_filter("filter empty list", |v| !v.clone().expect_list().unwrap().is_empty())
+        .prop_map(PropValue::from)
+    ) {
+        let expected = {
+            let seq_size = Value::from(seq.clone()).expect_list().unwrap().len();
+            Value::Sequence(
+                SequenceData::List(
+                    ListData {
+                        data: vec![Value::UInt(99); seq_size],
+                        type_signature: ListTypeData::new_list(TypeSignature::UIntType, seq_size as u32).unwrap()
+                    }
+                )
+            )
+        };
+
+        let snippet = format!(r#"
+          (define-private (foo (a (optional uint))) (unwrap! a u99))
+          (map foo {seq})
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(expected))
+        )
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn crosscheck_map_response_buff(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (map foo (list (ok {buf})))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
+        )
+    }
+
+    #[test]
+    fn crosscheck_map_response_buff_nested(buf in buffer(50)) {
+        let snippet = format!(r#"
+        (define-private (foo (a (response (buff 50) int))) (len (unwrap! a u0)))
+        (begin (map foo (list (ok {buf}))))
+        "#);
+
+        crosscheck(
+            &snippet,
+            Ok(Some(Value::cons_list_unsanitized(vec![Value::UInt(50)]).unwrap()))
+        )
+    }
+}
+
+//
+// Proptests that should only be executed
+// when running Clarity::V2 or Clarity::v3.
+//
+#[cfg(not(feature = "test-clarity-v1"))]
+mod clarity_v2_v3 {
+    use clarity::vm::types::CharType;
+
+    use super::*;
+    use crate::{runtime_config, type_string, TypePrinter};
+
+    proptest! {
+        #![proptest_config(runtime_config())]
+
+        #[test]
+        fn element_at_crosscheck((seq, idx) in (1usize..=16).prop_flat_map(|max_len| (PropValue::any_sequence(max_len), (0..max_len)))) {
+            let snippet = format!("(element-at? {seq} u{idx})");
+
+            let expected = {
+                let Value::Sequence(seq_data) = seq.into() else { unreachable!() };
+                seq_data.element_at(idx).expect("element_at failed").map_or_else(Value::none, |v| Value::some(v).unwrap())
+            };
+
+            crosscheck(&snippet, Ok(Some(expected)));
+        }
+
+        #[test]
+        fn crosscheck_replace_at(
+            (seq, source, dest) in (1usize..=20).prop_flat_map(|seq_size| {
+                (PropValue::any_sequence(seq_size),
+                // ranges from 0 to sequence_size - 1
+                // to not occur on operations out of boundaries.
+                (0usize..=seq_size - 1),
+                (0usize..=seq_size - 1))
+            }).no_shrink()
+        ) {
+            let list_ty = seq.type_string();
+
+            let Value::Sequence(seq_data) = seq.clone().into() else { unreachable!() };
+
+            let repl_ty = match &seq_data {
+                SequenceData::Buffer(_) => "(buff 1)".to_owned(),
+                SequenceData::String(CharType::ASCII(_)) => "(string-ascii 1)".to_owned(),
+                SequenceData::String(CharType::UTF8(_)) => "(string-utf8 1)".to_owned(),
+                SequenceData::List(ld) => type_string(ld.type_signature.get_list_item_type()),
+            };
+
+            let (expected, el) = {
+                // collect an element from the sequence at 'source' position.
+                let el = seq_data.clone().element_at(source).expect("element_at failed").map_or_else(Value::none, |value| value);
+                // replace the element at 'dest' position
+                // with the collected element from the 'source' position.
+                (seq_data.replace_at(
+                    &clarity::types::StacksEpochId::latest(),
+                    dest,
+                    el.clone()
+                ).expect("replace_at failed"),
+                PropValue::from(el)) // returning that to be used by the 'replace-at' Clarity function.
+            };
+
+            // Workaround needed for https://github.com/stacks-network/stacks-core/issues/4622
+            let snippet = format!(r#"
+            (define-private (replace-at-workaround? (seq {list_ty}) (idx uint) (repl {repl_ty}))
+                (replace-at? seq idx repl)
+            )
+            (replace-at-workaround? {seq} u{dest} {el})
+        "#);
+
+            crosscheck(
+                &snippet,
+                Ok(Some(expected))
+            )
+        }
+
+        #[test]
+        fn slice_crosscheck_invalid_range(
+            (seq, lo, hi) in (1usize..=16)
+            .prop_flat_map(PropValue::any_sequence)
+            .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
+            .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
+            .prop_map(|((seq, lo), hi)| (seq, lo, hi))
+        )
+        {
+            // always make sure hi is strictly larger than lo
+            let snippet = format!("(slice? {seq} (+ u{hi} u1) u{lo})");
+            let expected = Value::none();
+
+            crosscheck(&snippet, Ok(Some(expected)));
+        }
+
+        #[test]
+        fn slice_crosscheck_valid_range(
+            (seq, lo, hi) in (1usize..=16)
+            .prop_flat_map(PropValue::any_sequence)
+            .prop_ind_flat_map2(|seq| 0..extract_sequence(seq).len())
+            .prop_ind_flat_map2(|(seq, lo)| lo..extract_sequence(seq).len())
+            .prop_map(|((seq, lo), hi)| (seq, lo, hi))
+        )
+        {
+            let snippet = format!("(slice? {seq} u{lo} u{hi})");
+
+            let expected =
+                Value::some(
+                    extract_sequence(seq)
+                    .slice(&clarity::types::StacksEpochId::latest(), lo, hi)
+                    .expect("Could not take a slice from sequence")
+                ).unwrap();
+
+            crosscheck(&snippet, Ok(Some(expected)));
+        }
     }
 }

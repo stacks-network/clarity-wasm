@@ -1,7 +1,7 @@
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::callables::{DefineType, DefinedFunction};
 use clarity::vm::costs::{constants as cost_constants, CostTracker};
-use clarity::vm::database::STXBalance;
+use clarity::vm::database::{ClarityDatabase, STXBalance, StoreType};
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
 use clarity::vm::types::{
@@ -79,8 +79,10 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_principal_of_fn(linker)?;
     link_save_constant_fn(linker)?;
     link_load_constant_fn(linker)?;
+    link_skip_list(linker)?;
 
-    link_log(linker)
+    link_log(linker)?;
+    link_debug_msg(linker)
 }
 
 /// Link host interface function, `define_variable`, into the Wasm module.
@@ -617,21 +619,32 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .ok_or(CheckErrors::NoSuchDataVariable(var_name.to_string()))?
                     .clone();
 
-                let result = caller
-                    .data_mut()
-                    .global_context
-                    .database
-                    .lookup_variable_with_size(&contract, var_name.as_str(), &data_types, &epoch);
-
-                let _result_size = match &result {
-                    Ok(data) => data.serialized_byte_len,
-                    Err(_e) => data_types.value_type.size()? as u64,
-                };
+                // We would like to call `lookup_variable_with_size`, but since it
+                // returns `Ok(none)` even if the variable is missing, we have no way
+                // to distinguish between a valid `none` and a missing variable.
+                // So here we replicate `lookup_variable_with_size` impl.
+                let key = ClarityDatabase::make_key_for_trip(
+                    &contract,
+                    StoreType::Variable,
+                    var_name.as_str(),
+                );
+                let fetch_result = caller.data_mut().global_context.database.get_value(
+                    &key,
+                    &data_types.value_type,
+                    &epoch,
+                )?;
 
                 // TODO: Include this cost
+                // let _result_size = match &fetch_result {
+                //     Ok(data) => data.serialized_byte_len,
+                //     Err(_e) => data_types.value_type.size()? as u64,
+                // };
                 // runtime_cost(ClarityCostFunction::FetchVar, env, result_size)?;
 
-                let value = result.map(|data| data.value)?;
+                let value = fetch_result.map(|data| data.value).ok_or(Error::Unchecked(
+                    CheckErrors::NoSuchDataVariable(var_name.to_string()),
+                ))?;
+
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -3320,6 +3333,8 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
             "clarity",
             "contract_call",
             |mut caller: Caller<'_, ClarityWasmContext>,
+             trait_name_offset: i32,
+             trait_name_length: i32,
              contract_offset: i32,
              contract_length: i32,
              function_offset: i32,
@@ -3435,10 +3450,26 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 }?;
 
                 // Write the result to the return buffer
-                let return_ty = function
-                    .get_return_type()
-                    .as_ref()
-                    .ok_or(CheckErrors::DefineFunctionBadSignature)?;
+                let return_ty = if trait_name_length == 0 {
+                    // This is a direct call
+                    function.get_return_type().as_ref()
+                } else {
+                    // This is a dynamic call
+                    let trait_name = read_identifier_from_wasm(
+                        memory,
+                        &mut caller,
+                        trait_name_offset,
+                        trait_name_length,
+                    )?;
+                    contract
+                        .contract_context
+                        .defined_traits
+                        .get(trait_name.as_str())
+                        .and_then(|trait_functions| trait_functions.get(function_name.as_str()))
+                        .map(|f_ty| &f_ty.returns)
+                }
+                .ok_or(CheckErrors::DefineFunctionBadSignature)?;
+
                 let memory = caller
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
@@ -3451,7 +3482,7 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     return_offset,
                     return_offset + get_type_size(return_ty),
                     &result,
-                    true,
+                    false,
                 )?;
 
                 Ok(())
@@ -3560,7 +3591,11 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
         .func_wrap(
             "clarity",
             "print",
-            |mut caller: Caller<'_, ClarityWasmContext>, value_offset: i32, value_length: i32| {
+            |mut caller: Caller<'_, ClarityWasmContext>,
+             value_offset: i32,
+             _value_length: i32,
+             serialized_ty_offset: i32,
+             serialized_ty_length: i32| {
                 // runtime_cost(ClarityCostFunction::Print, env, input.size())?;
 
                 // Get the memory from the caller
@@ -3569,10 +3604,19 @@ fn link_print_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                // Read in the bytes from the Wasm memory
-                let bytes = read_bytes_from_wasm(memory, &mut caller, value_offset, value_length)?;
+                let serialized_ty = read_identifier_from_wasm(
+                    memory,
+                    &mut caller,
+                    serialized_ty_offset,
+                    serialized_ty_length,
+                )?;
 
-                let clarity_val = Value::deserialize_read(&mut bytes.as_slice(), None, false)?;
+                let epoch = caller.data().global_context.epoch_id;
+                let version = caller.data().contract_context().get_clarity_version();
+
+                let value_ty = signature_from_string(&serialized_ty, *version, epoch)?;
+                let clarity_val =
+                    read_from_wasm_indirect(memory, &mut caller, &value_ty, value_offset, epoch)?;
 
                 caller.data_mut().register_print_event(clarity_val)?;
 
@@ -3841,7 +3885,7 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
-                if sig_bytes.len() != 65 {
+                if sig_bytes.len() != 65 || sig_bytes[64] > 3 {
                     let result = Value::err_uint(2);
                     write_to_wasm(
                         caller,
@@ -3921,7 +3965,10 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
-                if sig_bytes.len() < 64 || sig_bytes.len() > 65 {
+                if sig_bytes.len() < 64
+                    || sig_bytes.len() > 65
+                    || sig_bytes.len() == 65 && sig_bytes[64] > 3
+                {
                     return Ok(0i32);
                 }
 
@@ -4143,6 +4190,44 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
         })
 }
 
+fn link_skip_list<T>(linker: &mut Linker<T>) -> Result<(), Error> {
+    linker
+        .func_wrap(
+            "clarity",
+            "skip_list",
+            |mut caller: Caller<'_, T>, offset_beg: i32, offset_end: i32| {
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                // we will read the remaining serialized buffer here, and start it with the list type prefix
+                let mut serialized_buffer = vec![0u8; (offset_end - offset_beg) as usize + 1];
+                serialized_buffer[0] = clarity::vm::types::serialization::TypePrefix::List as u8;
+                memory
+                    .read(
+                        &mut caller,
+                        offset_beg as usize,
+                        &mut serialized_buffer[1..],
+                    )
+                    .map_err(|e| Error::Wasm(WasmError::Runtime(e.into())))?;
+
+                match Value::deserialize_read_count(&mut serialized_buffer.as_slice(), None, false)
+                {
+                    Ok((_, bytes_read)) => Ok(offset_beg + bytes_read as i32 - 1),
+                    Err(_) => Ok(0),
+                }
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "skip_list".to_string(),
+                e,
+            ))
+        })
+}
+
 /// Link host-interface function, `log`, into the Wasm module.
 /// This function is used for debugging the Wasm, and should not be called in
 /// production.
@@ -4155,6 +4240,23 @@ fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
         .map_err(|e| Error::Wasm(WasmError::UnableToLinkHostFunction("log".to_string(), e)))
 }
 
+/// Link host-interface function, `debug_msg`, into the Wasm module.
+/// This function is used for debugging the Wasm, and should not be called in
+/// production.
+fn link_debug_msg<T>(linker: &mut Linker<T>) -> Result<(), Error> {
+    linker
+        .func_wrap("", "debug_msg", |_caller: Caller<'_, T>, param: i32| {
+            crate::debug_msg::recall(param, |s| println!("DEBUG: {}", s))
+        })
+        .map(|_| ())
+        .map_err(|e| {
+            Error::Wasm(WasmError::UnableToLinkHostFunction(
+                "debug_msg".to_string(),
+                e,
+            ))
+        })
+}
+
 /// the standard.wat file and link in all of the host interface functions.
 pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let standard_lib = include_str!("standard/standard.wat");
@@ -4162,6 +4264,8 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     let mut store = Store::new(&engine, ());
 
     let mut linker = Linker::new(&engine);
+
+    link_skip_list(&mut linker)?;
 
     // Link in the host interface functions.
     linker.func_wrap(
@@ -4243,7 +4347,10 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "print",
-        |_value_offset: i32, _value_length: i32| {
+        |_value_offset: i32,
+         _value_length: i32,
+         _serialized_ty_offset: i32,
+         _serialized_ty_length: i32| {
             println!("print");
         },
     )?;
@@ -4537,7 +4644,9 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
     linker.func_wrap(
         "clarity",
         "contract_call",
-        |_contract_offset: i32,
+        |_contract_trait_offset: i32,
+         _contract_trait_length: i32,
+         _contract_offset: i32,
          _contract_length: i32,
          _function_offset: i32,
          _function_length: i32,
@@ -4636,6 +4745,11 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
 
     // Create a log function for debugging.
     linker.func_wrap("", "log", |param: i64| {
+        println!("log: {param}");
+    })?;
+
+    // Create another log function for debugging.
+    linker.func_wrap("", "debug_msg", |param: i32| {
         println!("log: {param}");
     })?;
 

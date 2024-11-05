@@ -1,12 +1,17 @@
+use core::panic;
 use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
-use clarity::vm::types::signatures::{StringUTF8Length, BUFF_1};
+use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
-    CharType, FixedFunction, FunctionType, PrincipalData, SequenceData, SequenceSubtype,
-    StringSubtype, TypeSignature,
+    ASCIIData, CharType, FixedFunction, FunctionType, ListTypeData, PrincipalData, SequenceData,
+    SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -20,10 +25,10 @@ use walrus::{
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
-    get_type_in_memory_size, get_type_size, is_in_memory_type, ordered_tuple_signature,
-    owned_ordered_tuple_signature,
+    check_argument_count, get_type_in_memory_size, get_type_size, is_in_memory_type,
+    signature_from_string, ArgumentCountCheck,
 };
-use crate::words;
+use crate::{check_args, debug_msg, words};
 
 // First free position after data directly defined in standard.wat
 pub const END_OF_STANDARD_DATA: u32 = 1352;
@@ -46,17 +51,57 @@ pub struct WasmGenerator {
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
     early_return_block_id: Option<InstrSeqId>,
-    /// The return type of the current function.
-    pub(crate) return_type: Option<TypeSignature>,
+    /// The type of the current function.
+    pub(crate) current_function_type: Option<FixedFunction>,
     /// The types of defined data-vars
     pub(crate) datavars_types: HashMap<ClarityName, TypeSignature>,
     /// The types of (key, value) in defined maps
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
+    /// The type of defined NFTs
+    pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
 
     /// The locals for the current function.
-    pub(crate) bindings: HashMap<String, Vec<LocalId>>,
+    pub(crate) bindings: Bindings,
     /// Size of the current function's stack frame.
     frame_size: i32,
+    /// Size of the maximum extra work space required by the stdlib functions
+    /// to be available on the stack.
+    max_work_space: u32,
+    local_pool: Rc<RefCell<HashMap<ValType, Vec<LocalId>>>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Bindings(HashMap<ClarityName, InnerBindings>);
+
+#[derive(Debug, Clone)]
+struct InnerBindings {
+    locals: Vec<LocalId>,
+    ty: TypeSignature,
+}
+
+impl Bindings {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn insert(&mut self, name: ClarityName, ty: TypeSignature, locals: Vec<LocalId>) {
+        self.0.insert(name, InnerBindings { locals, ty });
+    }
+
+    pub(crate) fn contains(&mut self, name: &ClarityName) -> bool {
+        self.0.contains_key(name)
+    }
+
+    pub(crate) fn get_locals(&self, name: &ClarityName) -> Option<&[LocalId]> {
+        self.0.get(name).map(|b| b.locals.as_slice())
+    }
+
+    pub(crate) fn get_trait_name(&self, name: &ClarityName) -> Option<&ClarityName> {
+        self.0.get(name).and_then(|b| match &b.ty {
+            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(&t.name),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -71,6 +116,7 @@ pub enum GeneratorError {
     NotImplemented,
     InternalError(String),
     TypeError(String),
+    ArgumentCountMismatch,
 }
 
 pub enum FunctionKind {
@@ -85,6 +131,7 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::NotImplemented => "Not implemented".to_string(),
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
+            GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
         }
     }
 
@@ -176,7 +223,7 @@ pub(crate) fn clar2wasm_ty(ty: &TypeSignature) -> Vec<ValType> {
         }
         TypeSignature::TupleType(inner_types) => {
             let mut types = vec![];
-            for &inner_type in ordered_tuple_signature(inner_types).values() {
+            for inner_type in inner_types.get_type_map().values() {
                 types.extend(clar2wasm_ty(inner_type));
             }
             types
@@ -215,6 +262,46 @@ pub fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
     }
 }
 
+fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+    module
+        .globals
+        .iter()
+        .find(|global| {
+            global
+                .name
+                .as_ref()
+                .map_or(false, |other_name| name == other_name)
+        })
+        .map(|global| global.id())
+        .ok_or_else(|| {
+            GeneratorError::InternalError(format!("Expected to find a global named ${name}"))
+        })
+}
+
+pub(crate) struct BorrowedLocal {
+    id: LocalId,
+    ty: ValType,
+    pool: Rc<RefCell<HashMap<ValType, Vec<LocalId>>>>,
+}
+
+impl Drop for BorrowedLocal {
+    fn drop(&mut self) {
+        match (*self.pool).borrow_mut().entry(self.ty) {
+            Entry::Occupied(mut list) => list.get_mut().push(self.id),
+            Entry::Vacant(e) => {
+                e.insert(vec![self.id]);
+            }
+        }
+    }
+}
+
+impl Deref for BorrowedLocal {
+    type Target = LocalId;
+    fn deref(&self) -> &Self::Target {
+        &self.id
+    }
+}
+
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
         let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
@@ -223,22 +310,7 @@ impl WasmGenerator {
             GeneratorError::InternalError("failed to load standard library".to_owned())
         })?;
         // Get the stack-pointer global ID
-        let stack_pointer_name = "stack-pointer";
-        let global_id = module
-            .globals
-            .iter()
-            .find(|global| {
-                global
-                    .name
-                    .as_ref()
-                    .map_or(false, |name| name == stack_pointer_name)
-            })
-            .map(|global| global.id())
-            .ok_or_else(|| {
-                GeneratorError::InternalError(
-                    "Expected to find a global named $stack-pointer".to_owned(),
-                )
-            })?;
+        let global_id = get_global(&module, "stack-pointer")?;
 
         Ok(WasmGenerator {
             contract_analysis,
@@ -247,12 +319,15 @@ impl WasmGenerator {
             stack_pointer: global_id,
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
-            bindings: HashMap::new(),
+            bindings: Bindings::new(),
             early_return_block_id: None,
-            return_type: None,
+            current_function_type: None,
             frame_size: 0,
+            max_work_space: 0,
             datavars_types: HashMap::new(),
             maps_types: HashMap::new(),
+            local_pool: Rc::new(RefCell::new(HashMap::new())),
+            nft_types: HashMap::new(),
         })
     }
 
@@ -264,7 +339,8 @@ impl WasmGenerator {
             .next()
             .ok_or_else(|| GeneratorError::InternalError("No Memory found".to_owned()))?;
 
-        let total_memory_bytes = self.literal_memory_end + (self.frame_size as u32);
+        let total_memory_bytes =
+            self.literal_memory_end + (self.frame_size as u32) + self.max_work_space;
         let pages_required = total_memory_bytes / (64 * 1024);
         let remainder = total_memory_bytes % (64 * 1024);
 
@@ -445,7 +521,7 @@ impl WasmGenerator {
             }));
         };
 
-        self.return_type = Some(function_type.returns.clone());
+        self.current_function_type = Some(function_type.clone());
 
         // Call the host interface to save this function
         // Arguments are kind (already pushed) and name (offset, length)
@@ -457,12 +533,18 @@ impl WasmGenerator {
         // Call the host interface function, `define_function`
         builder.call(self.func_by_name("stdlib.define_function"));
 
-        let mut bindings = HashMap::new();
+        let mut bindings = Bindings::new();
 
         // Setup the parameters
         let mut param_locals = Vec::new();
         let mut params_types = Vec::new();
+        let mut reused_arg = None;
         for param in function_type.args.iter() {
+            // Interpreter returns the first reused arg as NameAlreadyUsed argument
+            if reused_arg.is_none() && bindings.contains(&param.name) {
+                reused_arg = Some(param.name.clone());
+            }
+
             let param_types = clar2wasm_ty(&param.signature);
             let mut plocals = Vec::with_capacity(param_types.len());
             for ty in param_types {
@@ -471,7 +553,7 @@ impl WasmGenerator {
                 plocals.push(local);
                 params_types.push(ty);
             }
-            bindings.insert(param.name.to_string(), plocals.clone());
+            bindings.insert(param.name.clone(), param.signature.clone(), plocals);
         }
 
         let results_types = clar2wasm_ty(&function_type.returns);
@@ -507,6 +589,28 @@ impl WasmGenerator {
         self.set_expr_type(body, function_type.returns.clone())?;
         self.traverse_expr(&mut block, body)?;
 
+        // If the same arg name is used multiple times, the interpreter throws an
+        // `Unchecked` error at runtime, so we do the same here
+        if let Some(arg_name) = reused_arg {
+            let (arg_name_offset, arg_name_len) =
+                self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                    data: arg_name.as_bytes().to_vec(),
+                }))?;
+
+            // Clear function body
+            block.instrs_mut().clear();
+
+            block
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&self.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&self.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::NameAlreadyUsed as i32)
+                .call(self.func_by_name("stdlib.runtime-error"))
+                // To avoid having to generate correct return values
+                .unreachable();
+        }
+
         // Insert the function body block into the function
         func_body.instr(walrus::ir::Block { seq: block_id });
 
@@ -520,24 +624,149 @@ impl WasmGenerator {
         self.bindings = top_level_locals;
 
         // Reset the return type and early block to None
-        self.return_type = None;
+        self.current_function_type = None;
         self.early_return_block_id = None;
 
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    pub fn return_early(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+    /// Handles early return scenarios in the code generation process.
+    ///
+    /// This function is responsible for managing early returns in the generated code,
+    /// used in the context of `try!`, `unwrap!`, `unwrap-err!` and `asserts!` functions.
+    /// It handles different types of runtime errors and generates appropriate
+    /// WebAssembly instructions for each case.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
+    ///               the WebAssembly instruction sequence.
+    /// * `expr` - A reference to the `SymbolicExpression` representing the expression
+    ///            that triggered the early return.
+    /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the early return is handled successfully, or a `GeneratorError`
+    /// if an error occurs during the process.
+    ///
+    /// # Behavior
+    ///
+    /// - If `early_return_block_id` is set, it will generate a branch instruction to that block.
+    /// - For `ShortReturnAssertionFailure`, `ShortReturnExpectedValue`, and `ShortReturnExpectedValueResponse`:
+    ///   - It generates code to create a local variable, write the value to memory,
+    ///     serialize the type, and set up global variables for the runtime error.
+    /// - For `ShortReturnExpectedValueOptional`, it directly calls the runtime error function.
+    /// - For any other error type, it returns an `InternalError`.
+    ///
+    pub fn return_early(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        runtime_error: ErrorMap,
+    ) -> Result<(), GeneratorError> {
         if let Some(block_id) = self.early_return_block_id {
             builder.instr(walrus::ir::Br { block: block_id });
-        } else {
-            // This must be from a top-leve statement, so it should cause a runtime error
-            builder
-                .i32_const(ErrorMap::ShortReturnAssertionFailure as i32)
-                .call(self.func_by_name("stdlib.runtime-error"));
-            builder.unreachable();
+            return Ok(());
         }
 
+        match runtime_error {
+            ErrorMap::ShortReturnAssertionFailure
+            | ErrorMap::ShortReturnExpectedValue
+            | ErrorMap::ShortReturnExpectedValueResponse => {
+                let ty = self
+                    .get_expr_type(expr)
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
+                    })?
+                    .clone();
+
+                let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
+                self.write_to_memory(builder, val_offset, 0, &ty)?;
+
+                let serialized_ty = self.type_for_serialization(&ty).to_string();
+
+                // Validate serialized type
+                signature_from_string(
+                    &serialized_ty,
+                    self.contract_analysis.clarity_version,
+                    self.contract_analysis.epoch,
+                )
+                .map_err(|e| {
+                    GeneratorError::TypeError(format!("type cannot be deserialized: {e:?}"))
+                })?;
+
+                let (type_ser_offset, type_ser_len) =
+                    self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                        data: serialized_ty.bytes().collect(),
+                    }))?;
+
+                // Set runtime error globals
+                builder
+                    .local_get(val_offset)
+                    .global_set(get_global(&self.module, "runtime-error-value-offset")?)
+                    .i32_const(type_ser_offset as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-offset")?)
+                    .i32_const(type_ser_len as i32)
+                    .global_set(get_global(&self.module, "runtime-error-type-ser-len")?)
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            ErrorMap::ShortReturnExpectedValueOptional => {
+                // Simple case: just call runtime error
+                builder
+                    .i32_const(runtime_error as i32)
+                    .call(self.func_by_name("stdlib.runtime-error"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(
+                    "Unhandled runtime error for try! function".to_owned(),
+                ))
+            }
+        }
+
+        builder.unreachable();
+
         Ok(())
+    }
+
+    /// Try to change `ty` for serialization/deserialization (as stringified signature)
+    /// In case of failure, clones the input `ty`
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn type_for_serialization(&self, ty: &TypeSignature) -> TypeSignature {
+        use clarity::vm::types::signatures::TypeSignature::*;
+        match ty {
+            // NoType and BoolType have the same size (both type and inner)
+            NoType => BoolType,
+            // Avoid serialization like `(list 2 <S1G2081040G2081040G2081040G208105NK8PE5.my-trait.my-trait>)`
+            CallableType(CallableSubtype::Trait(_)) => PrincipalType,
+            // Recursive types
+            ResponseType(types) => ResponseType(Box::new((
+                self.type_for_serialization(&types.0),
+                self.type_for_serialization(&types.1),
+            ))),
+            OptionalType(value_ty) => OptionalType(Box::new(self.type_for_serialization(value_ty))),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => {
+                SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        self.type_for_serialization(list_ty.get_list_item_type()),
+                        list_ty.get_max_len(),
+                    )
+                    .unwrap_or_else(|_| list_ty.clone()),
+                ))
+            }
+            TupleType(tuple_ty) => TupleType(
+                TupleTypeSignature::try_from(
+                    tuple_ty
+                        .get_type_map()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), self.type_for_serialization(v)))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap_or_else(|_| tuple_ty.clone()),
+            ),
+            t => t.clone(),
+        }
     }
 
     /// Gets the result type of the given `SymbolicExpression`.
@@ -668,6 +897,16 @@ impl WasmGenerator {
         self.literal_memory_offset.insert(entry, offset);
 
         Ok((offset, len))
+    }
+
+    pub(crate) fn get_string_literal(&self, name: &str) -> Option<(u32, u32)> {
+        if !name.is_ascii() {
+            return None;
+        }
+        let entry = LiteralMemoryEntry::Ascii(name.to_owned());
+        self.literal_memory_offset
+            .get(&entry)
+            .map(|offset| (*offset, name.len() as u32))
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
@@ -804,6 +1043,18 @@ impl WasmGenerator {
         (offset, size)
     }
 
+    pub(crate) fn borrow_local(&mut self, ty: ValType) -> BorrowedLocal {
+        let reuse = (*self.local_pool)
+            .borrow_mut()
+            .get_mut(&ty)
+            .and_then(Vec::pop);
+        BorrowedLocal {
+            id: reuse.unwrap_or_else(|| self.module.locals.add(ty)),
+            ty,
+            pool: self.local_pool.clone(),
+        }
+    }
+
     /// Write the value that is on the top of the data stack, which has type
     /// `ty`, to the memory, at offset stored in local variable,
     /// `offset_local`, plus constant offset `offset`. Returns the number of
@@ -820,17 +1071,17 @@ impl WasmGenerator {
             TypeSignature::IntType | TypeSignature::UIntType => {
                 // Data stack: TOP | High | Low | ...
                 // Save the high/low to locals.
-                let high = self.module.locals.add(ValType::I64);
-                let low = self.module.locals.add(ValType::I64);
-                builder.local_set(high).local_set(low);
+                let high = self.borrow_local(ValType::I64);
+                let low = self.borrow_local(ValType::I64);
+                builder.local_set(*high).local_set(*low);
 
                 // Store the high/low to memory.
-                builder.local_get(offset_local).local_get(low).store(
+                builder.local_get(offset_local).local_get(*low).store(
                     memory,
                     StoreKind::I64 { atomic: false },
                     MemArg { align: 8, offset },
                 );
-                builder.local_get(offset_local).local_get(high).store(
+                builder.local_get(offset_local).local_get(*high).store(
                     memory,
                     StoreKind::I64 { atomic: false },
                     MemArg {
@@ -945,9 +1196,7 @@ impl WasmGenerator {
                 // Data stack: TOP | last_value | value_before_last | ... | first_value
                 // we will write the values from last to first by setting the correct offset at which it's supposed to be written
                 let mut bytes_written = 0;
-                let types: Vec<_> = owned_ordered_tuple_signature(tuple_ty)
-                    .into_values()
-                    .collect();
+                let types: Vec<_> = tuple_ty.get_type_map().values().cloned().collect();
                 let offsets_delta: Vec<_> = std::iter::once(0u32)
                     .chain(
                         types
@@ -1076,7 +1325,7 @@ impl WasmGenerator {
             TypeSignature::TupleType(tuple) => {
                 // Memory: Offset -> | Value1 | Value2 | ... |
                 let mut offset_adjust = 0;
-                for &ty in ordered_tuple_signature(tuple).values() {
+                for ty in tuple.get_type_map().values() {
                     offset_adjust +=
                         self.read_from_memory(builder, offset, literal_offset + offset_adjust, ty)?
                             as u32;
@@ -1265,16 +1514,15 @@ impl WasmGenerator {
         name: &str,
         expr: &SymbolicExpression,
     ) -> Result<bool, GeneratorError> {
-        if let Some(offset) = self.constants.get(name) {
-            // Load the offset into a local variable
-            let offset_local = self.module.locals.add(ValType::I32);
-            builder.i32_const(*offset as i32).local_set(offset_local);
-
+        if self.constants.contains_key(name) {
             let ty = self
                 .get_expr_type(expr)
                 .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
                 .clone();
-            let value_length = get_type_size(&ty);
+
+            // Reserve stack space for the constant copy
+            let (result_local, result_size) =
+                self.create_call_stack_local(builder, &ty, true, true);
 
             let (name_offset, name_length) = self.add_string_literal(name)?;
 
@@ -1282,14 +1530,14 @@ impl WasmGenerator {
             builder
                 .i32_const(name_offset as i32)
                 .i32_const(name_length as i32)
-                .local_get(offset_local)
-                .i32_const(value_length);
+                .local_get(result_local)
+                .i32_const(result_size);
 
             // Call a host interface function to load
             // constant attributes from a data structure.
             builder.call(self.func_by_name("stdlib.load_constant"));
 
-            self.read_from_memory(builder, offset_local, 0, &ty)?;
+            self.read_from_memory(builder, result_local, 0, &ty)?;
 
             Ok(true)
         } else {
@@ -1399,7 +1647,7 @@ impl WasmGenerator {
         }
 
         // Handle parameters and local bindings
-        let values = self.bindings.get(atom.as_str()).ok_or_else(|| {
+        let values = self.bindings.get_locals(atom).ok_or_else(|| {
             GeneratorError::InternalError(format!("unable to find local for {}", atom.as_str()))
         })?;
 
@@ -1424,11 +1672,18 @@ impl WasmGenerator {
         if let Some(FunctionType::Fixed(FixedFunction {
             args: function_args,
             ..
-        })) = self.get_function_type(name)
+        })) = self.get_function_type(name).cloned()
         {
+            check_args!(
+                self,
+                builder,
+                function_args.len(),
+                args.len(),
+                ArgumentCountCheck::Exact
+            );
             for (arg, signature) in args
                 .iter()
-                .zip(function_args.clone().into_iter().map(|a| a.signature))
+                .zip(function_args.into_iter().map(|a| a.signature))
             {
                 self.set_expr_type(arg, signature)?;
             }
@@ -1593,6 +1848,69 @@ impl WasmGenerator {
         Ok(())
     }
 
+    pub fn debug_msg<M: Into<String>>(&mut self, builder: &mut InstrSeqBuilder, message: M) {
+        let id = debug_msg::register(message.into());
+        builder.i32_const(id);
+        builder.call(self.func_by_name("debug_msg"));
+    }
+
+    /// Dump the top of the stack to debug messages
+    pub fn debug_dump_stack<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        expected_types: &[ValType],
+    ) {
+        self.debug_msg(builder, message);
+        self.debug_msg(builder, "<stack dump start>");
+        let mut locals = vec![];
+
+        for t in expected_types {
+            let l = self.borrow_local(*t);
+            builder.local_tee(*l);
+            locals.push(l);
+            match t {
+                ValType::I32 => self.debug_log_i32(builder),
+                ValType::I64 => self.debug_log_i64(builder),
+                _ => {
+                    // allow unimplemented in debug code
+                    #[allow(clippy::unimplemented)]
+                    {
+                        unimplemented!("unsupported stack dump type")
+                    }
+                }
+            }
+        }
+        self.debug_msg(builder, "<stack dump end>");
+
+        // restore the stack
+        while let Some(l) = locals.pop() {
+            builder.local_get(*l);
+        }
+    }
+
+    pub fn debug_log_local_i32<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        local_id: &LocalId,
+    ) {
+        self.debug_msg(builder, message);
+        builder.local_get(*local_id);
+        self.debug_log_i32(builder)
+    }
+
+    pub fn debug_log_local_i64<M: Into<String>>(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        message: M,
+        local_id: &LocalId,
+    ) {
+        self.debug_msg(builder, message);
+        builder.local_get(*local_id);
+        self.debug_log_i64(builder)
+    }
+
     #[allow(dead_code)]
     /// Log an i64 that is on top of the stack.
     pub fn debug_log_i64(&self, builder: &mut InstrSeqBuilder) {
@@ -1640,32 +1958,49 @@ impl WasmGenerator {
             )),
         }
     }
+
+    /// Ensure enough work space is going to be available in memory
+    pub(crate) fn ensure_work_space(&mut self, bytes_len: u32) {
+        self.max_work_space = self.max_work_space.max(bytes_len);
+    }
+
+    pub(crate) fn get_current_function_return_type(&self) -> Option<&TypeSignature> {
+        self.current_function_type.as_ref().map(|f| &f.returns)
+    }
+
+    pub(crate) fn get_current_function_arg_type(
+        &self,
+        arg_name: &ClarityName,
+    ) -> Option<&TypeSignature> {
+        self.current_function_type
+            .as_ref()
+            .map(|f| &f.args)
+            .and_then(|args| {
+                args.iter()
+                    .find_map(|arg| (&arg.name == arg_name).then_some(&arg.signature))
+            })
+    }
 }
 
 #[cfg(test)]
-mod misc_tests {
+mod tests {
     use std::env;
 
+    use clarity::types::StacksEpochId;
+    use clarity::vm::analysis::AnalysisDatabase;
+    use clarity::vm::costs::LimitedCostTracker;
+    use clarity::vm::database::MemoryBackingStore;
+    use clarity::vm::errors::{CheckErrors, Error};
+    use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+    use clarity::vm::ClarityVersion;
     use walrus::Module;
 
     // Tests that don't relate to specific words
     use crate::{
+        compile,
         tools::{crosscheck, evaluate},
         wasm_generator::END_OF_STANDARD_DATA,
     };
-
-    #[test]
-    fn is_in_mainnet() {
-        crosscheck(
-            "
-(define-public (mainnet)
-  (ok is-in-mainnet))
-
-(mainnet)
-",
-            evaluate("(ok false)"),
-        );
-    }
 
     #[test]
     fn is_in_regtest() {
@@ -1690,6 +2025,41 @@ mod misc_tests {
 
         let snippet = format!("(is-eq u\"{}\" u\"{}\" u\"{}\" u\"{}\")", a, b, c, d);
         crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_work_space() {
+        let buff_len = 1048576;
+        let buff = "aa".repeat(buff_len);
+
+        let get_initial_memory = |snippet: String| {
+            let module = compile(
+                &snippet,
+                &QualifiedContractIdentifier::new(
+                    StandardPrincipalData::transient(),
+                    ("tmp").into(),
+                ),
+                LimitedCostTracker::new_free(),
+                ClarityVersion::Clarity2,
+                StacksEpochId::Epoch25,
+                &mut AnalysisDatabase::new(&mut MemoryBackingStore::new()),
+            )
+            .unwrap()
+            .module;
+            let mem = module.memories.iter().next().unwrap().initial;
+            mem
+        };
+        let prologue = format!("(let ((foo 0x{buff})) ");
+        // sha256 requires some extra work space, thus extra pages
+        assert!(
+            get_initial_memory(format!("{prologue} (len foo))"))
+                < get_initial_memory(format!("{prologue} (sha256 foo))"))
+        );
+        // but multiple calls do not cause more pages
+        assert_eq!(
+            get_initial_memory(format!("{prologue} (sha256 foo))")),
+            get_initial_memory(format!("{prologue} (sha256 foo) (sha256 foo))"))
+        );
     }
 
     #[test]
@@ -1762,5 +2132,49 @@ mod misc_tests {
 ",
             evaluate("(ok true)"),
         );
+    }
+
+    #[test]
+    fn function_has_correct_argument_count() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        crosscheck(
+            "
+(define-public (foo (arg int))
+  (ok true))
+(foo 1 2)
+(define-public (bar (arg int))
+  (ok true))
+(bar)
+",
+            Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(1, 2))),
+        );
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+
+        #[test]
+        fn is_in_mainnet() {
+            crosscheck(
+                "
+    (define-public (mainnet)
+      (ok is-in-mainnet))
+
+    (mainnet)
+    ",
+                evaluate("(ok false)"),
+            );
+        }
     }
 }

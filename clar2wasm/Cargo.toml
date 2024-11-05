@@ -23,6 +23,10 @@ wat = "1.0.74"
 [features]
 flamegraph = []
 pb = []
+# Test-specific features
+test-clarity-v1 = []
+test-clarity-v2 = []
+test-clarity-v3 = []
 
 [dev-dependencies]
 criterion = "0.5.1"

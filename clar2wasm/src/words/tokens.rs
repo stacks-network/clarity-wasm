@@ -2,7 +2,9 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefineFungibleToken;
@@ -19,6 +21,21 @@ impl ComplexWord for DefineFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtMost
+        );
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -67,6 +84,8 @@ impl ComplexWord for BurnFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -103,6 +122,8 @@ impl ComplexWord for TransferFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -141,6 +162,8 @@ impl ComplexWord for MintFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -176,6 +199,8 @@ impl ComplexWord for GetSupplyOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
 
         let (id_offset, id_length) = generator.add_string_literal(token)?;
@@ -204,6 +229,8 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
 
@@ -240,6 +267,8 @@ impl ComplexWord for DefineNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -249,7 +278,16 @@ impl ComplexWord for DefineNonFungibleToken {
             )));
         }
 
-        let _nft_type = args.get_expr(1)?;
+        // we will save the NFT type for reuse with the nft-x functions
+        // (a wrong NFT type is an issue only with Clarity1, but it doesn't
+        // hurt to use it with all Clarity versions)
+        let nft_type = TypeSignature::parse_type_repr(
+            generator.contract_analysis.epoch,
+            args.get_expr(1)?,
+            &mut (),
+        )
+        .map_err(|e| GeneratorError::TypeError(e.to_string()))?;
+        generator.nft_types.insert(name.clone(), nft_type);
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -287,6 +325,8 @@ impl ComplexWord for BurnNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -298,12 +338,11 @@ impl ComplexWord for BurnNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -340,6 +379,8 @@ impl ComplexWord for TransferNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -352,12 +393,11 @@ impl ComplexWord for TransferNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-transfer? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -397,6 +437,8 @@ impl ComplexWord for MintNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -408,12 +450,11 @@ impl ComplexWord for MintNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-mint? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -450,6 +491,8 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let token = args.get_name(0)?;
         let identifier = args.get_expr(1)?;
 
@@ -460,12 +503,11 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
             .i32_const(id_length as i32);
 
         // Push the identifier onto the stack
+        let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Usage of nft-get-owner? on an unknown nft token".to_owned())
+        })?;
+        generator.set_expr_type(identifier, identifier_ty.clone())?;
         generator.traverse_expr(builder, identifier)?;
-
-        let identifier_ty = generator
-            .get_expr_type(identifier)
-            .ok_or_else(|| GeneratorError::TypeError("NFT identifier must be typed".to_owned()))?
-            .clone();
 
         // Allocate space on the stack for the identifier
         let (id_offset, id_size) =
@@ -495,10 +537,266 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use clarity::vm::types::{PrincipalData, TupleData};
+    use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
 
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_fungible_tokens_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-fungible-token index-of? u100)",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_expect_failure("(define-fungible-token index-of? u100)");
+        }
+
+        #[test]
+        fn validate_define_non_fungible_tokens_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-non-fungible-token index-of? (buff 50))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+
+            crosscheck_expect_failure("(define-non-fungible-token index-of? (buff 50))");
+        }
+    }
+
+    #[test]
+    fn define_fungible_tokens_less_than_one_arg() {
+        let result = evaluate("(define-fungible-token)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn define_fungible_tokens_more_than_two_args() {
+        let result = evaluate("(define-fungible-token some-token u100 u1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 3"));
+    }
+
+    #[test]
+    fn ft_burn_less_than_three_args() {
+        let result = evaluate("(ft-burn? bar u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn ft_burn_more_than_three_args() {
+        let result = evaluate("(ft-burn? bar u100 tx-sender 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn ft_transfer_less_than_four_args() {
+        let result = evaluate("(ft-transfer? bar u100 tx-sender)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 3"));
+    }
+
+    #[test]
+    fn ft_transfer_more_than_four_args() {
+        let result = evaluate("(ft-transfer? bar u100 tx-sender tx-recipient 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 5"));
+    }
+
+    #[test]
+    fn ft_mint_less_than_three_args() {
+        let result = evaluate("(ft-mint? bar u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn ft_mint_more_than_three_args() {
+        let result = evaluate("(ft-mint? bar u100 tx-sender 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn ft_get_supply_less_than_one_arg() {
+        let result = evaluate("(ft-get-supply)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn ft_get_supply_more_than_one_arg() {
+        let result = evaluate("(ft-get-supply bar u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn ft_get_balance_less_than_two_args() {
+        let result = evaluate("(ft-get-balance bar)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn ft_get_balance_more_than_two_args() {
+        let result = evaluate("(ft-get-balance bar u100 tx-sender)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn define_non_fungible_tokens_less_than_two_args() {
+        let result = evaluate("(define-non-fungible-token)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 0"));
+    }
+
+    #[test]
+    fn define_non_fungible_tokens_more_than_two_args() {
+        let result = evaluate("(define-non-fungible-token bar (buff 50) u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn nft_burn_less_than_three_args() {
+        let result = evaluate("(nft-burn? bar u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn nft_burn_more_than_three_args() {
+        let result = evaluate("(nft-burn? bar u100 tx-sender 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn nft_transfer_less_than_four_args() {
+        let result = evaluate("(nft-transfer? bar u100 tx-sender)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 3"));
+    }
+
+    #[test]
+    fn nft_transfer_more_than_four_args() {
+        let result = evaluate("(nft-transfer? bar u100 tx-sender tx-recipient 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 4 arguments, got 5"));
+    }
+
+    #[test]
+    fn nft_mint_less_than_three_args() {
+        let result = evaluate("(nft-mint? bar u100)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn nft_mint_more_than_three_args() {
+        let result = evaluate("(nft-mint? bar u100 tx-sender 0x12345678)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn nft_get_owner_less_than_two_args() {
+        let result = evaluate("(nft-get-owner? bar)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn nft_get_owner_more_than_two_args() {
+        let result = evaluate("(nft-get-owner? bar u100 tx-sender)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
     #[test]
     fn bar_mint_too_many() {
         crosscheck_expect_failure("(ft-mint? bar u1000001 tx-sender)");
@@ -530,18 +828,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_fungible_tokens_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-fungible-token index-of? u100)",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-fungible-token index-of? u100)");
-    }
-
-    #[test]
     fn validate_define_non_fungible_tokens() {
         // Reserved keyword
         crosscheck_expect_failure("(define-non-fungible-token map (buff 50))");
@@ -556,14 +842,34 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_non_fungible_tokens_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-non-fungible-token index-of? (buff 50))",
-            Ok(None),
-            StacksEpochId::Epoch20,
+    fn validate_nft_functions_with_optionals() {
+        // from [issue #515](https://github.com/stacks-network/clarity-wasm/issues/515)
+        let snippet = r#"
+            (define-non-fungible-token stackaroo {JCJHgKArcQrz: (string-utf8 30),YMZJ: (optional (buff 25)),ev: (buff 48),ms: int,})
+            {
+                mint: (nft-mint? stackaroo (tuple (JCJHgKArcQrz u"h\u{FEFF}=q:Uc:\u{F9BBB}\u{9}B3'\u{70CED}\u{A}W%\u{202E}{:\u{6CEA1}'\u{3ACDD}\u{E7000}Ul$\u{FB}\u{468}R") (YMZJ none) (ev 0xfe6c9e104fbf8259c4d35cfc9047ebe3db0e4eccaa4eafad5959ccebc1b3730c463f778200fe3e87c25678322a073956) (ms -112969277120374636135691771896584435906)) 'SS5V2M24Z6WSK5PWMPTNQZNRKE15NKE5KV9PG69J),
+                owner: (nft-get-owner? stackaroo (tuple (JCJHgKArcQrz u"h\u{FEFF}=q:Uc:\u{F9BBB}\u{9}B3'\u{70CED}\u{A}W%\u{202E}{:\u{6CEA1}'\u{3ACDD}\u{E7000}Ul$\u{FB}\u{468}R") (YMZJ none) (ev 0xfe6c9e104fbf8259c4d35cfc9047ebe3db0e4eccaa4eafad5959ccebc1b3730c463f778200fe3e87c25678322a073956) (ms -112969277120374636135691771896584435906))),
+            }
+        "#;
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                ("mint".into(), Value::okay_true()),
+                (
+                    "owner".into(),
+                    Value::some(Value::Principal(
+                        PrincipalData::parse_standard_principal(
+                            "SS5V2M24Z6WSK5PWMPTNQZNRKE15NKE5KV9PG69J",
+                        )
+                        .unwrap()
+                        .into(),
+                    ))
+                    .unwrap(),
+                ),
+            ])
+            .unwrap(),
         );
 
-        crosscheck_expect_failure("(define-non-fungible-token index-of? (buff 50))");
+        crosscheck(snippet, Ok(Some(expected)));
     }
 }

@@ -1,8 +1,11 @@
+use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefineDataVar;
@@ -19,6 +22,8 @@ impl ComplexWord for DefineDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -28,8 +33,13 @@ impl ComplexWord for DefineDataVar {
             )));
         }
 
-        let _data_type = args.get_expr(1)?;
+        let data_type = args.get_expr(1)?;
+        let ty =
+            TypeSignature::parse_type_repr(generator.contract_analysis.epoch, data_type, &mut ())
+                .map_err(|e| GeneratorError::TypeError(e.to_string()))?;
+
         let initial = args.get_expr(2)?;
+        generator.set_expr_type(initial, ty.clone())?;
 
         // Store the identifier as a string literal in the memory
         let (name_offset, name_length) = generator.add_string_literal(name)?;
@@ -40,12 +50,6 @@ impl ComplexWord for DefineDataVar {
 
         // The initial value can be placed on the top of the memory, since at
         // the top-level, we have not set up the call stack yet.
-        let ty = generator
-            .get_expr_type(initial)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("initial value expression must be typed".to_owned())
-            })?
-            .clone();
         let offset = generator.module.locals.add(ValType::I32);
         builder
             .i32_const(generator.literal_memory_end as i32)
@@ -108,6 +112,8 @@ impl ComplexWord for SetDataVar {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         let value = args.get_expr(1)?;
 
@@ -179,6 +185,8 @@ impl ComplexWord for GetDataVar {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
 
         // Get the offset and length for this identifier in the literal memory
@@ -226,9 +234,95 @@ impl ComplexWord for GetDataVar {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
+    use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{
+        crosscheck, crosscheck_expect_failure, crosscheck_with_clarity_version, evaluate,
+    };
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_data_var_epoch() {
+            crosscheck_with_epoch(
+                "(define-data-var index-of? int 0)",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
+
+    #[test]
+    fn define_data_var_less_than_three_args() {
+        let result = evaluate("(define-data-var something int)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn define_data_var_more_than_three_args() {
+        let result = evaluate("(define-data-var something int 0 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn var_set_less_than_two_args() {
+        let result = evaluate("(define-data-var something int 1)(var-set something)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn var_set_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        let snippet = "(define-data-var something int 1) (var-set something 1 2)";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        crosscheck(snippet, expected);
+    }
+
+    #[test]
+    fn var_get_less_than_one_arg() {
+        let result = evaluate("(var-get)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn var_get_more_than_one_arg() {
+        let result = evaluate("(define-data-var something int 1)(var-get something 1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
 
     #[test]
     fn test_var_get() {
@@ -275,13 +369,18 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_data_var_epoch() {
-        crosscheck_with_epoch(
-            "(define-data-var index-of? int 0)",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
+    fn define_data_var_has_correct_type_with_clarity1() {
+        // https://github.com/stacks-network/clarity-wasm/issues/497
+        let snippet = "
+            (define-data-var v (optional uint) none)
+            (var-set v (some u171713071701372222108711587))
+            (var-get v)
+        ";
 
-        crosscheck_expect_failure("(define-data-var index-of? int 0)");
+        crosscheck_with_clarity_version(
+            snippet,
+            Ok(Value::some(Value::UInt(171713071701372222108711587)).ok()),
+            clarity::vm::ClarityVersion::Clarity1,
+        );
     }
 }

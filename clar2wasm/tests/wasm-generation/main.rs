@@ -5,18 +5,26 @@ pub mod bitwise;
 pub mod blockinfo;
 pub mod comparison;
 pub mod conditionals;
+pub mod consensus_buff;
 pub mod constants;
+pub mod contracts;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;
+pub mod functions;
+pub mod hashing;
 pub mod maps;
 pub mod noop;
 pub mod optional;
+pub mod principal;
+pub mod print;
 pub mod regression;
 pub mod response;
+pub mod secp256k1;
 pub mod sequences;
 pub mod stx;
 pub mod tokens;
+pub mod traits;
 pub mod tuple;
 pub mod values;
 
@@ -66,12 +74,12 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
                 1 => Just(TypeSignature::NoType),
                 9 => inner.clone(),
             ]
-            .prop_map(|t| TypeSignature::new_option(t).unwrap()),
+            .prop_map(|t| TypeSignature::new_option(t.clone()).unwrap_or(t)),
             // response type: 20% (NoType, any) + 20% (any, NoType) + 60% (any, any)
             prop_oneof![
-                1 => inner.clone().prop_map(|ok_ty| TypeSignature::new_response(ok_ty, TypeSignature::NoType).unwrap()),
-                1 => inner.clone().prop_map(|err_ty| TypeSignature::new_response(TypeSignature::NoType, err_ty).unwrap()),
-                3 => (inner.clone(), inner.clone()).prop_map(|(ok_ty, err_ty)| TypeSignature::new_response(ok_ty, err_ty).unwrap()),
+                1 => inner.clone().prop_map(|ok_ty| TypeSignature::new_response(ok_ty.clone(), TypeSignature::NoType).unwrap_or(ok_ty)),
+                1 => inner.clone().prop_map(|err_ty| TypeSignature::new_response(TypeSignature::NoType, err_ty.clone()).unwrap_or(err_ty)),
+                3 => (inner.clone(), inner.clone()).prop_map(|(ok_ty, err_ty)| TypeSignature::new_response(ok_ty.clone(), err_ty).unwrap_or(ok_ty)),
             ],
             // tuple type
             prop::collection::btree_map(
@@ -79,9 +87,12 @@ pub fn prop_signature() -> impl Strategy<Value = TypeSignature> {
                 inner.clone(),
                 1..8
             )
-            .prop_map(|btree| TypeSignature::TupleType(btree.try_into().unwrap())),
+            .prop_map(|btree| {
+                let fallback = btree.iter().next().unwrap().1.clone();
+                TupleTypeSignature::try_from(btree).map(TypeSignature::TupleType).unwrap_or(fallback)
+            }),
             // list type
-            (8u32..32, inner.clone()).prop_map(|(s, ty)| (ListTypeData::new_list(ty, s).unwrap()).into()),
+            (8u32..32, inner.clone()).prop_map(|(s, ty)| TypeSignature::list_of(ty.clone(), s).unwrap_or(ty)),
         ]
     })
 }
@@ -186,6 +197,9 @@ impl PropValue {
 
     pub fn any_sequence(size: usize) -> impl Strategy<Value = Self> {
         let any_list = prop_signature()
+            .prop_filter("skip too large", move |ty| {
+                TypeSignature::list_of(ty.clone(), size as u32).is_ok()
+            })
             .prop_ind_flat_map2(move |ty| prop::collection::vec(prop_value(ty), size))
             .prop_map(move |(ty, vec)| {
                 Value::Sequence(SequenceData::List(ListData {
@@ -203,6 +217,10 @@ impl PropValue {
             8 => any_list
         ]
         .prop_map_into()
+    }
+
+    pub fn inner(&self) -> &Value {
+        &self.0
     }
 }
 
@@ -501,7 +519,7 @@ pub fn type_string(ty: &TypeSignature) -> String {
             s.push('{');
             for (key, value) in tuple_ty {
                 s.push_str(key);
-                s.push(':');
+                s.push_str(": ");
                 s.push_str(&type_string(value));
                 s.push(',');
             }
@@ -619,7 +637,7 @@ mod tests {
                 .unwrap()
             )
             .type_string(),
-            "{a:int,b:uint,c:bool,}"
+            "{a: int,b: uint,c: bool,}"
         );
         assert_eq!(
             Value::from(

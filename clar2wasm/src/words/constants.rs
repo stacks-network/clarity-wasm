@@ -2,8 +2,11 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::{ActiveData, DataKind, ValType};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::{get_type_size, is_in_memory_type};
+use crate::wasm_utils::{
+    check_argument_count, get_type_size, is_in_memory_type, ArgumentCountCheck,
+};
 
 #[derive(Debug)]
 pub struct DefineConstant;
@@ -20,6 +23,8 @@ impl ComplexWord for DefineConstant {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Constant name
         let name = args.get_name(0)?;
 
@@ -111,10 +116,52 @@ impl ComplexWord for DefineConstant {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{ASCIIData, CharType, ListData, ListTypeData, SequenceData};
+    use clarity::vm::types::{
+        ASCIIData, CharType, ListData, ListTypeData, PrincipalData, SequenceData,
+    };
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch, evaluate};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate, TestEnvironment};
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_const_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(define-constant index-of? (+ 2 2))",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
+
+    #[test]
+    fn define_constant_less_than_two_args() {
+        let result = evaluate("(define-constant one)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_constant_more_than_two_args() {
+        let result = evaluate("(define-constant two 2 3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
 
     #[test]
     fn define_constant_const() {
@@ -222,18 +269,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_const_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(define-constant index-of? (+ 2 2))",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
-
-        crosscheck_expect_failure("(define-constant index-of? (+ 2 2))");
-    }
-
-    #[test]
     fn test_non_literal_string() {
         crosscheck(
             r#"(define-constant cst (concat "Hello," " World!")) cst"#,
@@ -243,5 +278,98 @@ mod tests {
                 }),
             )))),
         )
+    }
+
+    #[test]
+    fn test_large_buff() {
+        let buff = "aa".repeat(1 << 20);
+        crosscheck(
+            &format!("(define-constant cst 0x{}) cst", buff),
+            Ok(Some(Value::buff_from(hex::decode(buff).unwrap()).unwrap())),
+        )
+    }
+
+    #[test]
+    fn test_large_complex() {
+        let a = "aa".repeat(1 << 18);
+        let b = "bb".repeat(1 << 18);
+        crosscheck(
+            &format!("(define-constant cst (list 0x{a} 0x{b})) cst"),
+            Ok(Some(
+                Value::cons_list(
+                    vec![
+                        Value::buff_from(hex::decode(a).unwrap()).unwrap(),
+                        Value::buff_from(hex::decode(b).unwrap()).unwrap(),
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap(),
+            )),
+        )
+    }
+
+    #[test]
+    fn test_large_complex_via_contract_call() {
+        let a = "aa".repeat(1 << 18);
+        let b = "bb".repeat(1 << 18);
+
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            &format!(
+                r#"
+                (define-constant cst (list 0x{a} 0x{b}))
+                (define-public (return-cst)
+                    (ok cst)
+                )
+            "#
+            ),
+        )
+        .expect("Failed to init contract.");
+        let val = env
+            .init_contract_with_snippet(
+                "contract-caller",
+                r#"(contract-call? .contract-callee return-cst)"#,
+            )
+            .expect("Failed to init contract.");
+
+        assert_eq!(
+            val.unwrap(),
+            Value::okay(
+                Value::cons_list(
+                    vec![
+                        Value::buff_from(hex::decode(a).unwrap()).unwrap(),
+                        Value::buff_from(hex::decode(b).unwrap()).unwrap(),
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap()
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_concretize() {
+        crosscheck(
+            "(define-constant cst (list 'S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A 'SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a)) cst",
+            Ok(Some(
+                Value::cons_list(
+                    vec![Value::Principal(
+                            PrincipalData::parse_qualified_contract_principal(
+                                "S1169T4T08XBQR7N8F69R4FE00ESXD8QTD8XEKZ67.A",
+                            )
+                        .unwrap()),
+                        Value::Principal(
+                            PrincipalData::parse_qualified_contract_principal(
+                                "SH3Y7SXGEJD365K42XCJ21KSTSCB1Z4RA5XTJA2ZH.a",
+                            )
+                        .unwrap())
+                    ],
+                    &StacksEpochId::latest(),
+                )
+                .unwrap()
+            )),
+        );
     }
 }

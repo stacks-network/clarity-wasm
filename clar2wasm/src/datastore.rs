@@ -1,5 +1,6 @@
 //! The `datastore` module contains simple in-memory imnplementations of the
 //! various data storage traits used during program execution.
+//!
 //! It is intended for use in tooling and tests, but not intended to be used
 //! in production. The `datastore` module is only available when the
 //! `developer-mode` feature is enabled. Many of these methods are just
@@ -479,6 +480,13 @@ impl HeadersDB for BurnDatastore {
         _epoch_id: &StacksEpochId,
     ) -> Option<u128> {
         self.store.get(id_bhh).map(|id| id.tokens_earned_for_block)
+    }
+    fn get_stacks_height_for_tenure_height(
+        &self,
+        _tip: &StacksBlockId,
+        tenure_height: u32,
+    ) -> Option<u32> {
+        Some(tenure_height)
     }
 }
 

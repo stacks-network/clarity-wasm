@@ -6,11 +6,13 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
+use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
@@ -84,6 +86,8 @@ impl ComplexWord for Fold {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -268,6 +272,8 @@ impl ComplexWord for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
@@ -355,6 +361,8 @@ impl ComplexWord for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
         builder.i32_const(0).i32_const(1);
@@ -455,6 +463,8 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
@@ -526,7 +536,53 @@ impl ComplexWord for Map {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         let fname = args.get_name(0)?;
+
+        let seq_ty = generator
+            .get_expr_type(args.get_expr(1)?)
+            .ok_or_else(|| GeneratorError::TypeError("list expression must be typed".to_owned()))?
+            .clone();
+
+        // WORKAROUND: Get the type of the function being called, and set the
+        // type of the sequence value to match the functions parameter type.
+        // This is a workaround for the typechecker not being able to infer
+        // the complete type of initial value.
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) = &seq_ty {
+            let size = get_type_size(lt.get_list_item_type()) as u32;
+
+            if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(fname) {
+                let function_ty = fixed
+                    .args
+                    .first()
+                    .ok_or_else(|| {
+                        GeneratorError::TypeError("expected function with 2 arguments".into())
+                    })?
+                    .signature
+                    .clone();
+
+                match ListTypeData::new_list(function_ty, size) {
+                    Ok(list_type_data) => {
+                        generator.set_expr_type(
+                            args.get_expr(1)?,
+                            TypeSignature::SequenceType(SequenceSubtype::ListType(list_type_data)),
+                        )?;
+                    }
+                    Err(_) => {
+                        return Err(GeneratorError::TypeError(
+                            "Failed to workaround and create a list type".into(),
+                        ));
+                    }
+                }
+            }
+        }
 
         let ty = generator
             .get_expr_type(expr)
@@ -567,6 +623,7 @@ impl ComplexWord for Map {
                 TypeSignature::SequenceType(SequenceSubtype::ListType(lt)) => {
                     let element_ty = lt.get_list_item_type().clone();
                     let element_size = get_type_size(&element_ty);
+
                     (SequenceElementType::Other(element_ty), element_size)
                 }
                 TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
@@ -582,6 +639,7 @@ impl ComplexWord for Map {
                     ));
                 }
             };
+
             input_element_types.push(element_ty);
             input_element_sizes.push(element_size);
 
@@ -621,25 +679,12 @@ impl ComplexWord for Map {
             input_offsets.push(offset);
         }
 
+        // Allocate worst case size to ensure enough stack space is reserved at compile time
+        let (output_base, _) = generator.create_call_stack_local(builder, &ty, false, true);
+
         // Allocate space on the call stack for the output list.
-        let output_base = generator.module.locals.add(ValType::I32);
         let output_offset = generator.module.locals.add(ValType::I32);
-        builder.global_get(generator.stack_pointer);
-        // [ stack_pointer ]
-        builder.local_tee(output_base);
-        // [ stack_pointer ]
-        builder.local_tee(output_offset);
-        // [ stack_pointer ]
-        builder.local_get(min_num_elements);
-        // [ stack_pointer, min_num_elements ]
-        builder.i32_const(return_element_size);
-        // [ stack_pointer, min_num_elements, return_element_size ]
-        builder.binop(ir::BinaryOp::I32Mul);
-        // [ stack_pointer, output_size ]
-        builder.binop(ir::BinaryOp::I32Add);
-        // [ end_offset ]
-        builder.global_set(generator.stack_pointer);
-        // [ ]
+        builder.local_get(output_base).local_set(output_offset);
 
         // Create an index to count the number of elements to loop over.
         let index = generator.module.locals.add(ValType::I32);
@@ -779,6 +824,8 @@ impl ComplexWord for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -859,6 +906,8 @@ impl ComplexWord for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -1038,6 +1087,8 @@ impl ComplexWord for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
@@ -1154,7 +1205,7 @@ impl ComplexWord for ReplaceAt {
             builder.local_tee(repl_len).unop(UnaryOp::I32Eqz).if_else(
                 None,
                 |then| {
-                    then.i32_const(ErrorMap::Panic as i32)
+                    then.i32_const(ErrorMap::BadTypeConstruction as i32)
                         .call(generator.func_by_name("stdlib.runtime-error"));
                 },
                 |_| {},
@@ -1287,6 +1338,8 @@ impl ComplexWord for Slice {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let seq = args.get_expr(0)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
@@ -1534,7 +1587,177 @@ impl ComplexWord for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+
+    #[test]
+    fn fold_less_than_three_args() {
+        let result = evaluate("(fold + (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn fold_more_than_three_args() {
+        let result = evaluate("(fold + (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn append_less_than_two_args() {
+        let result = evaluate("(append (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn append_more_than_two_args() {
+        let result = evaluate("(append (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn as_max_len_less_than_two_args() {
+        let result = evaluate("(as-max-len? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn as_max_len_more_than_two_args() {
+        let result = evaluate("(as-max-len? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn concat_less_than_two_args() {
+        let result = evaluate("(concat (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn concat_more_than_two_args() {
+        let result = evaluate("(concat (list 1 2 3) (list 4 5) (list 6 7))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn map_less_than_two_args() {
+        let result = evaluate("(map +)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn len_less_than_one_arg() {
+        let result = evaluate("(len)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn len_more_than_one_arg() {
+        let result = evaluate("(len (list 1 2 3) (list 4 5))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn element_at_less_than_two_args() {
+        let result = evaluate("(element-at? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn element_at_more_than_two_args() {
+        let result = evaluate("(element-at? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn replace_at_less_than_three_args() {
+        let result = evaluate("(replace-at? (list 1 2 3) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn replace_at_more_than_three_args() {
+        let result = evaluate("(replace-at? (list 1 2 3) 1 4 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn slice_less_than_three_args() {
+        let result = evaluate("(slice? (list 1 2 3) u1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn slice_more_than_three_args() {
+        let result = evaluate("(slice? (list 1 2 3) u1 u2 u3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
 
     #[test]
     fn test_fold_sub() {
@@ -1756,50 +1979,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_mixed() {
-        crosscheck(
-            r#"
-(define-private (add-everything
-    (a int)
-    (b uint)
-    (c (string-ascii 1))
-    (d (string-utf8 1))
-    (e (buff 1))
-    )
-    (+
-        a
-        (to-int b)
-        (unwrap-panic (string-to-int? c))
-        (unwrap-panic (string-to-int? d))
-        (buff-to-int-be e)
-    )
-)
-(map add-everything
-    (list 1 2 3)
-    (list u1 u2 u3)
-    "123"
-    u"123"
-    0x010203
-)
-        "#,
-            Ok(Some(
-                Value::cons_list_unsanitized(vec![Value::Int(5), Value::Int(10), Value::Int(15)])
-                    .unwrap(),
-            )),
-        )
-    }
-
-    #[test]
-    fn test_builtin_string() {
-        let a = r#"
-(map >
-  "ab"
-  "ba"
-)"#;
-        crosscheck(a, evaluate("(list false true)"));
-    }
-
-    #[test]
     fn test_map() {
         const MAP_FNS: &str = "
 (define-private (addify-1 (a int))
@@ -1981,31 +2160,14 @@ mod tests {
     }
 
     #[test]
-    fn slice_right_lt_left() {
-        crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
-        crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
-    }
-
-    #[test]
-    fn slice_overflow() {
-        crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
-    }
-
-    #[test]
-    fn slice() {
-        crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
-    }
-
-    #[test]
-    fn slice_null() {
-        crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
-        crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
-        crosscheck("(slice? \"abc\" u2 u2)", evaluate("(some \"\")"));
-    }
-
-    #[test]
-    fn slice_full() {
-        crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
+    fn map_repeated() {
+        crosscheck(
+            &"(map + (list 1 2 3) (list 1 2 3) (list 1 2 3))".repeat(700),
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::Int(3), Value::Int(6), Value::Int(9)])
+                    .unwrap(),
+            )),
+        );
     }
 
     #[test]
@@ -2020,20 +2182,194 @@ mod tests {
     }
 
     #[test]
-    fn replace_element_cannot_be_empty_string_ascii() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? "abcd" u0 "")"#));
-        assert!(result.is_err());
+    fn unit_fold_repsonses_full_type() {
+        let snippet = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+      b1 (err (+ a1 b1))
+      b2 (ok  (- a1 b2)))
+    a2 (match b
+      b3 (ok  (+ a2 b3))
+      b4 (err (- a2 b4)))))
+
+(fold knus (list (ok 1)) (err 0))";
+
+        crosscheck_compare_only(snippet);
     }
 
     #[test]
-    fn replace_element_cannot_be_empty_string_utf8() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? u"abcd" u0 u"")"#));
-        assert!(result.is_err());
+    fn unit_fold_repsonses_partial_type() {
+        let snippet = "
+(define-private (knus (a (response int int))
+                      (b (response int int)))
+  (match a
+    a1 (match b
+      b1 (err (+ a1 b1))
+      b2 (ok  (- a1 b2)))
+    a2 (match b
+      b3 (ok  (+ a2 b3))
+      b4 (err (- a2 b4)))))
+
+(fold knus (list (err 1)) (err 0))";
+
+        crosscheck_compare_only(snippet);
     }
 
     #[test]
-    fn replace_element_cannot_be_empty_buff() {
-        let result = std::panic::catch_unwind(|| evaluate(r#"(replace-at? 0x12345678 u0 0x)"#));
-        assert!(result.is_err());
+    fn test_large_list() {
+        let n = 50000 / 2 + 1;
+        crosscheck_compare_only(&format!("(list {})", "9922 ".repeat(n)));
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use clarity::vm::errors::RuntimeErrorType;
+
+        use super::*;
+
+        #[test]
+        fn test_map_mixed() {
+            crosscheck(
+                r#"
+    (define-private (add-everything
+        (a int)
+        (b uint)
+        (c (string-ascii 1))
+        (d (string-utf8 1))
+        (e (buff 1))
+        )
+        (+
+            a
+            (to-int b)
+            (unwrap-panic (string-to-int? c))
+            (unwrap-panic (string-to-int? d))
+            (buff-to-int-be e)
+        )
+    )
+    (map add-everything
+        (list 1 2 3)
+        (list u1 u2 u3)
+        "123"
+        u"123"
+        0x010203
+    )
+            "#,
+                Ok(Some(
+                    Value::cons_list_unsanitized(vec![
+                        Value::Int(5),
+                        Value::Int(10),
+                        Value::Int(15),
+                    ])
+                    .unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_builtin_string() {
+            let a = r#"
+    (map >
+      "ab"
+      "ba"
+    )"#;
+            crosscheck(a, evaluate("(list false true)"));
+        }
+
+        #[test]
+        fn map_large_result() {
+            let n = 65535; // max legal `(list <size> uint)` size
+            let buf = (0..n)
+                .map(|i| format!("{:02x}", i % 256))
+                .collect::<Vec<_>>()
+                .join("");
+            let snippet = format!(
+                r#"
+            (define-private (foo (a (buff 1))) (buff-to-uint-be a))
+            (map foo 0x{buf})
+            "#
+            );
+
+            crosscheck(
+                &snippet,
+                Ok(Some(
+                    Value::cons_list_unsanitized((0..n).map(|c| Value::UInt(c % 256)).collect())
+                        .unwrap(),
+                )),
+            );
+        }
+
+        #[test]
+        fn slice_right_lt_left() {
+            crosscheck("(slice? \"abc\" u1 u0)", evaluate("none"));
+            crosscheck("(slice? \"abc\" u2 u1)", evaluate("none"));
+        }
+
+        #[test]
+        fn slice_overflow() {
+            crosscheck("(slice? \"abc\" u4 u5)", evaluate("none"));
+        }
+
+        #[test]
+        fn slice() {
+            crosscheck("(slice? \"abc\" u1 u2)", evaluate("(some \"b\")"));
+        }
+
+        #[test]
+        fn slice_null() {
+            crosscheck("(slice? \"abc\" u0 u0)", evaluate("(some \"\")"));
+            crosscheck("(slice? \"abc\" u1 u1)", evaluate("(some \"\")"));
+            crosscheck("(slice? \"abc\" u2 u2)", evaluate("(some \"\")"));
+        }
+
+        #[test]
+        fn slice_full() {
+            crosscheck("(slice? \"abc\" u0 u3)", evaluate("(some \"abc\")"));
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_buff() {
+            let snippet = r#"(replace-at? 0x12345678 u0 0x)"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_string_ascii() {
+            let snippet = r#"(replace-at? "abcd" u0 "")"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
+        }
+
+        #[test]
+        fn replace_element_cannot_be_empty_string_utf8() {
+            let snippet = r#"(replace-at? u"abcd" u0 u"")"#;
+
+            crosscheck(
+                snippet,
+                Err(clarity::vm::errors::Error::Runtime(
+                    RuntimeErrorType::BadTypeConstruction,
+                    Some(Vec::new()),
+                )),
+            )
+        }
     }
 }

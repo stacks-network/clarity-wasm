@@ -2,7 +2,9 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct MapDefinition;
@@ -19,6 +21,8 @@ impl ComplexWord for MapDefinition {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
@@ -79,6 +83,8 @@ impl ComplexWord for MapGet {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -156,6 +162,8 @@ impl ComplexWord for MapSet {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -236,6 +244,8 @@ impl ComplexWord for MapInsert {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
         let value = args.get_expr(2)?;
@@ -316,6 +326,8 @@ impl ComplexWord for MapDelete {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let name = args.get_name(0)?;
         let key = args.get_expr(1)?;
 
@@ -372,10 +384,33 @@ impl ComplexWord for MapDelete {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    // use clarity::vm::errors::{CheckErrors, Error};
+
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_expect_failure, crosscheck_with_epoch};
+    use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1.
+    //
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_define_map_epoch() {
+            // Epoch
+            crosscheck_with_epoch(
+                "(define-map index-of? {x: int} {square: int})",
+                Ok(None),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
 
     #[test]
     fn map_define_get() {
@@ -420,15 +455,125 @@ mod tests {
     }
 
     #[test]
-    fn validate_define_map_epoch() {
-        // Epoch
-        crosscheck_with_epoch(
-            "(define-map index-of? {x: int} {square: int})",
-            Ok(None),
-            StacksEpochId::Epoch20,
-        );
+    fn define_map_less_than_three_args() {
+        let result = evaluate("(define-map some-map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 1"));
+    }
 
-        crosscheck_expect_failure("(define-map index-of? {x: int} {square: int})");
-        crosscheck_expect_failure("(define-map index-of {x: int} {square: int})");
+    #[test]
+    fn define_map_more_than_three_args() {
+        let result = evaluate("(define-map some-map int 5 6)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn map_get_less_than_two_args() {
+        let result = evaluate("(map-get? some-map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_set_less_than_two_args() {
+        let result = evaluate("(map-set some-map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 3 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_insert_less_than_two_args() {
+        let result = evaluate("(map-insert some-map)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 3 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_delete_less_than_two_args() {
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-delete some-map)";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn map_get_more_than_two_args() {
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-get? some-map 21 21)";
+        let result = evaluate(snippet);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn map_set_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        let snippet = "(define-map some-map int {x: int})
+        (map-set some-map 21 {x: 21} {x: 21})";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
+        crosscheck(snippet, expected);
+    }
+
+    #[test]
+    fn map_insert_more_than_three_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21} {x: 21})";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(3, 4)));
+        crosscheck(snippet, expected);
+    }
+
+    #[test]
+    fn map_delete_more_than_two_args() {
+        // TODO: see issue #488
+        // The inconsistency in function arguments should have been caught by the typechecker.
+        // The runtime error below is being used as a workaround for a typechecker issue
+        // where certain errors are not properly handled.
+        // This test should be re-worked once the typechecker is fixed
+        // and can correctly detect all argument inconsistencies.
+        let snippet = "
+        (define-map some-map int {x: int})
+        (map-insert some-map 21 {x: 21})
+        (map-delete some-map 21 21)";
+        let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+        crosscheck(snippet, expected);
     }
 }

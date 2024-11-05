@@ -1,6 +1,8 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::ComplexWord;
 
 #[derive(Debug)]
@@ -18,6 +20,14 @@ impl ComplexWord for Let {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         let bindings = args.get_list(0)?;
 
         // Save the current named locals
@@ -49,7 +59,7 @@ impl ComplexWord for Let {
             let locals = generator.save_to_locals(builder, &ty, true);
 
             // Add these named locals to the map
-            generator.bindings.insert(name.to_string(), locals);
+            generator.bindings.insert(name.clone(), ty, locals);
         }
 
         // WORKAROUND: need to set the last statement type to the type of the let expression
@@ -78,12 +88,37 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
     use clarity::vm::Value;
 
-    use crate::tools::{
-        crosscheck, crosscheck_compare_only, crosscheck_expect_failure, crosscheck_with_epoch,
-    };
+    use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
+
+    #[cfg(feature = "test-clarity-v1")]
+    mod clarity_v1 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn validate_let_epoch() {
+            // Epoch20
+            crosscheck_with_epoch(
+                "(let ((index-of? 2)) (+ index-of? index-of?))",
+                Ok(Some(Value::Int(4))),
+                StacksEpochId::Epoch20,
+            );
+        }
+    }
+
+    #[test]
+    fn let_less_than_two_args() {
+        let result = evaluate("(let ((current-count (count u1))))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
 
     #[test]
     fn clar_let_disallow_builtin_names() {
@@ -133,19 +168,5 @@ mod tests {
 
         // Custom variable name duplicate
         crosscheck_expect_failure("(let ((a 2) (a 3)) (+ a a))");
-    }
-
-    #[test]
-    fn validate_let_epoch() {
-        // Epoch20
-        crosscheck_with_epoch(
-            "(let ((index-of? 2)) (+ index-of? index-of?))",
-            Ok(Some(Value::Int(4))),
-            StacksEpochId::Epoch20,
-        );
-
-        // Latest Epoch and Clarity Version
-        crosscheck_expect_failure("(let ((index-of 2)) 2)");
-        crosscheck_expect_failure("(let ((index-of? 2)) 2)");
     }
 }

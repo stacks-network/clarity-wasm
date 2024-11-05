@@ -3,7 +3,9 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 pub fn traverse_optional(
     generator: &mut WasmGenerator,
@@ -50,6 +52,8 @@ impl ComplexWord for IsSome {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         traverse_optional(generator, builder, args)
     }
 }
@@ -69,6 +73,8 @@ impl ComplexWord for IsNone {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         traverse_optional(generator, builder, args)?;
 
         // Add one to stack
@@ -78,5 +84,50 @@ impl ComplexWord for IsNone {
 
         // Xor'ed indicator is on stack.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn test_is_some_no_args() {
+        let result = evaluate("(is-some)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn test_is_some_more_than_one_arg() {
+        let result = evaluate("(is-some x y)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn test_is_none_no_args() {
+        let result = evaluate("(is-none)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn test_is_none_more_than_one_arg() {
+        let result = evaluate("(is-none x y)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }

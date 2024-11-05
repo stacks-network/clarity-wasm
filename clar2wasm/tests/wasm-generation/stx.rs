@@ -3,7 +3,9 @@ use clarity::vm::types::{TupleData, TypeSignature};
 use clarity::vm::{ClarityName, Value};
 use proptest::prelude::*;
 
-use crate::{buffer, PropValue};
+#[cfg(not(feature = "test-clarity-v1"))]
+use crate::buffer;
+use crate::PropValue;
 
 proptest! {
     #![proptest_config(super::runtime_config())]
@@ -78,6 +80,7 @@ proptest! {
         crosscheck_with_amount(&snippet, amount, Ok(Some(expected)));
     }
 
+    #[cfg(not(feature = "test-clarity-v1"))]
     #[test]
     fn stx_balance_transfermemo_balance(
         amount in any::<u128>(),
@@ -114,8 +117,6 @@ proptest! {
             ])
             .unwrap(),
         );
-
-        // TODO: check for the correct memo in the events (issue #398)
 
         crosscheck_with_amount(&snippet, amount, Ok(Some(expected)));
     }

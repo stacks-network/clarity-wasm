@@ -1,7 +1,9 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct GetBlockInfo;
@@ -18,6 +20,8 @@ impl ComplexWord for GetBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -70,6 +74,8 @@ impl ComplexWord for GetBurnBlockInfo {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -124,6 +130,8 @@ impl ComplexWord for AtBlock {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
 
@@ -145,22 +153,132 @@ impl ComplexWord for AtBlock {
 
 #[cfg(test)]
 mod tests {
-    use clarity::types::StacksEpochId;
+    use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_with_epoch, evaluate, TestEnvironment};
+    use crate::tools::{evaluate, TestEnvironment};
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V1 or Clarity::V2.
+    //
+    #[cfg(any(feature = "test-clarity-v1", feature = "test-clarity-v2"))]
+    #[cfg(test)]
+    mod clarity_v1_v2 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        #[test]
+        fn get_block_info_non_existent() {
+            crosscheck_with_epoch(
+                "(get-block-info? time u9999999)",
+                Ok(Some(Value::none())),
+                StacksEpochId::Epoch25,
+            );
+        }
+
+        #[test]
+        fn test_block_height() {
+            let snpt = "
+                (define-public (block)
+                (ok block-height))
+
+                (define-public (burn-block)
+                (ok burn-block-height))
+            ";
+
+            crosscheck_with_epoch(
+                &format!("{snpt} (block)"),
+                evaluate("(ok u0)"),
+                StacksEpochId::Epoch24,
+            );
+            crosscheck_with_epoch(
+                &format!("{snpt} (burn-block)"),
+                evaluate("(ok u0)"),
+                StacksEpochId::Epoch24,
+            );
+        }
+
+        #[test]
+        fn at_block() {
+            crosscheck_with_epoch(
+                "(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
+                Ok(Some(Value::UInt(0xFFFFFFFF))),
+                StacksEpochId::Epoch24,
+            )
+        }
+
+        #[test]
+        fn get_block_info_less_than_two_args() {
+            let mut env = TestEnvironment::default();
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-block-info? id-header-hash)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting >= 2 arguments, got 1"));
+        }
+
+        #[test]
+        fn get_block_info_more_than_two_args() {
+            // TODO: see issue #488
+            // The inconsistency in function arguments should have been caught by the typechecker.
+            // The runtime error below is being used as a workaround for a typechecker issue
+            // where certain errors are not properly handled.
+            // This test should be re-worked once the typechecker is fixed
+            // and can correctly detect all argument inconsistencies.
+            let snippet = "(get-block-info? burnchain-header-hash u0 miner-address)";
+            let expected = Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(2, 3)));
+            crosscheck_with_epoch(snippet, expected, StacksEpochId::Epoch24);
+        }
+    }
+
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V3.
+    //
+    #[cfg(feature = "test-clarity-v3")]
+    mod clarity_v3 {
+        use clarity::types::StacksEpochId;
+
+        use super::*;
+        use crate::tools::crosscheck_with_epoch;
+
+        //- At Block
+        #[test]
+        fn at_block_with_stacks_block_height() {
+            crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
+                Ok(Some(Value::UInt(0xFFFFFFFF))),
+                StacksEpochId::Epoch30,
+            )
+        }
+
+        #[test]
+        fn get_stacks_block_info_less_than_two_args() {
+            let result = evaluate("(get-stacks-block-info? id-header-hash)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 1"));
+        }
+
+        #[test]
+        fn get_stacks_block_info_more_than_two_args() {
+            let result = evaluate("(get-stacks-block-info? id-header-hash u0 u0)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 3"));
+        }
+    }
 
     //- Block Info
-
-    #[test]
-    fn get_block_info_non_existent() {
-        crosscheck_with_epoch(
-            "(get-block-info? time u9999999)",
-            Ok(Some(Value::none())),
-            StacksEpochId::Epoch25,
-        );
-    }
 
     #[test]
     fn get_block_info_burnchain_header_hash() {
@@ -278,25 +396,24 @@ mod tests {
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
 
-    //- Burn Block Info
     #[test]
-    fn get_burn_block_info_non_existent() {
-        crosscheck(
-            "(get-burn-block-info? header-hash u9999999)",
-            Ok(Some(
-                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
-            )),
-        )
+    fn get_burn_block_info_less_than_two_args() {
+        let result = evaluate("(get-burn-block-info? id-header-hash)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
     #[test]
-    fn get_burn_block_info_header_hash() {
-        crosscheck(
-            "(get-burn-block-info? header-hash u0)",
-            Ok(Some(
-                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
-            )),
-        )
+    fn get_burn_block_info_more_than_two_args() {
+        let result = evaluate("(get-burn-block-info? id-header-hash u0 u0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
     #[test]
@@ -334,75 +451,86 @@ mod tests {
         );
     }
 
-    //- At Block
     #[test]
-    fn at_block() {
-        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF))),
-            StacksEpochId::Epoch24,
-        )
+    fn at_block_less_than_two_args() {
+        let result = evaluate(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e)",
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
     }
 
-    //- At Block
     #[test]
-    fn at_block_with_stacks_block_height() {
-        crosscheck_with_epoch("(at-block 0x0000000000000000000000000000000000000000000000000000000000000000 stacks-block-height)",
-            Ok(Some(Value::UInt(0xFFFFFFFF))),
-            StacksEpochId::Epoch30,
-        )
+    fn at_block_more_than_two_args() {
+        let result = evaluate(
+            "(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e u0 u0)",
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
     }
 
-    #[ignore = "see issue: #381"]
     #[test]
     fn at_block_var() {
-        let mut env = TestEnvironment::default();
-        env.advance_chain_tip(1);
-        // Should error, since the data var is not yet defined in block 0
-        let e = env
-            .evaluate(
-                r#"
+        let e = evaluate(
+                "
 (define-data-var data int 1)
-(at-block (unwrap-panic (get-block-info? id-header-hash u0))
-    (var-get data)
-)
-"#,
+(at-block 0xb5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e (var-get data)) ;; block 0
+",
             )
             .unwrap_err();
-        println!("{:?}", e);
-    }
-
-    #[test]
-    fn test_block_height() {
-        let snpt = "
-(define-public (block)
-  (ok block-height))
-
-(define-public (burn-block)
-  (ok burn-block-height))
-";
-
-        crosscheck_with_epoch(
-            &format!("{snpt} (block)"),
-            evaluate("(ok u0)"),
-            StacksEpochId::Epoch24,
-        );
-        crosscheck_with_epoch(
-            &format!("{snpt} (burn-block)"),
-            evaluate("(ok u0)"),
-            StacksEpochId::Epoch24,
+        assert_eq!(
+            e,
+            Error::Unchecked(CheckErrors::NoSuchDataVariable("data".into()))
         );
     }
 
-    #[test]
-    fn test_chain_id() {
-        crosscheck(
-            "
+    //
+    // Module with tests that should only be executed
+    // when running Clarity::V2 or Clarity::v3.
+    //
+    #[cfg(not(feature = "test-clarity-v1"))]
+    #[cfg(test)]
+    mod clarity_v2_v3 {
+        use super::*;
+        use crate::tools::crosscheck;
+
+        #[test]
+        fn get_burn_block_info_non_existent() {
+            crosscheck(
+                "(get-burn-block-info? header-hash u9999999)",
+                Ok(Some(
+                    Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn get_burn_block_info_header_hash() {
+            crosscheck(
+                "(get-burn-block-info? header-hash u0)",
+                Ok(Some(
+                    Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+                )),
+            )
+        }
+
+        #[test]
+        fn test_chain_id() {
+            crosscheck(
+                "
 (define-public (get-chain-id)
   (ok chain-id))
 
 (get-chain-id)
 ",
-            evaluate("(ok u2147483648)"),
-        );
+                evaluate("(ok u2147483648)"),
+            );
+        }
     }
 }
