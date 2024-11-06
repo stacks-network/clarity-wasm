@@ -46,17 +46,17 @@ jobs:
           fi
 
       - name: Create GitHub Issue on Failure
-        uses: jayqi/failed-build-issue-action@v1
         if: ${{ failure() }}
-        with:
-          github-token: ${{ secrets.GH_TOKEN }}
-          label-name: "property-testing-failure"
-          title-template: "Property testing failure"
-          body-template: |
-            GitHub Actions workflow [{{workflow}} #{{runNumber}}](https://github.com/{{repo.owner}}/{{repo.repo}}/actions/runs/{{runId}}) Clarity::V${{ matrix.clarity_version }} failed.
-            ```log
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Failure [${GITHUB_WORKFLOW} #${GITHUB_RUN_NUMBER}] Clarity::V${{ matrix.clarity_version }}" \
+            --label "property-testing-failure" \
+            --body "GitHub Actions workflow [${GITHUB_WORKFLOW} #${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) Clarity::V${{ matrix.clarity_version }} failed.
+            \`\`\`log
             ${{ env.failure_section }}
-            ```
+            \`\`\`"
 
       - name: Send message to Slack
         uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
