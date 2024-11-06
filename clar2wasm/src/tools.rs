@@ -476,92 +476,85 @@ fn crosseval(snippet: &str, env: TestEnvironment) -> Result<CrossEvalResult, Kno
     }
 }
 
-pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
-    let eval = match crosseval(
-        snippet,
-        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    ) {
+fn execute_crosscheck(
+    env: TestEnvironment,
+    snippet: &str,
+    pre_compare: impl FnOnce(&CrossEvalResult),
+) -> Option<CrossEvalResult> {
+    let result = match crosseval(snippet, env) {
         Ok(result) => result,
         Err(_bug) => {
-            return;
+            return None;
         }
     };
 
-    eval.compare(snippet);
+    pre_compare(&result);
+    result.compare(snippet);
 
-    assert_eq!(
-        eval.compiled, expected,
-        "value is not the expected {:?}",
-        eval.compiled
-    );
+    Some(result)
+}
+
+pub fn crosscheck(snippet: &str, expected: Result<Option<Value>, Error>) {
+    if let Some(eval) = execute_crosscheck(
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+        snippet,
+        |_| {},
+    ) {
+        assert_eq!(
+            eval.compiled, expected,
+            "value is not the expected {:?}",
+            eval.compiled
+        );
+    }
 }
 
 pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Option<Value>, Error>) {
-    let eval = match crosseval(
-        snippet,
+    if let Some(eval) = execute_crosscheck(
         TestEnvironment::new_with_amount(
             amount,
             TestConfig::latest_epoch(),
             TestConfig::clarity_version(),
         ),
+        snippet,
+        |_| {},
     ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    eval.compare(snippet);
-
-    assert_eq!(
-        eval.compiled, expected,
-        "value is not the expected {:?}",
-        eval.compiled
-    );
+        assert_eq!(
+            eval.compiled, expected,
+            "value is not the expected {:?}",
+            eval.compiled
+        );
+    }
 }
 
 pub fn crosscheck_compare_only(snippet: &str) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
-
-    let eval = match crosseval(
-        snippet,
+    execute_crosscheck(
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    // Note that we interpret first, to catch logical errors early
-    assert!(eval.interpreted.is_ok(), "Interpreted snippet failed");
-    assert!(eval.compiled.is_ok(), "Compiled snippet failed");
-
-    eval.compare(snippet);
+        snippet,
+        |result| {
+            // Note that we interpret first, to catch logical errors early
+            assert!(result.interpreted.is_ok(), "Interpreted snippet failed");
+            assert!(result.compiled.is_ok(), "Compiled snippet failed");
+        },
+    );
 }
 
 pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
     snippet: &str,
     expected: E,
 ) {
-    let eval = match crosseval(
-        snippet,
+    execute_crosscheck(
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-    ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    if let Err(e) = &eval.compiled {
-        if !expected(e) {
-            panic!("Compiled snippet failed with unexpected error: {:?}", e);
-        }
-    }
-
-    eval.compare(snippet);
+        snippet,
+        |result| {
+            if let Err(e) = &result.compiled {
+                if !expected(e) {
+                    panic!("Compiled snippet failed with unexpected error: {:?}", e);
+                }
+            }
+        },
+    );
 }
 
 /// Advance the block height to `count`, and uses identical TestEnvironment copies
@@ -569,15 +562,7 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
 pub fn crosscheck_compare_only_advancing_tip(snippet: &str, count: u32) {
     let mut env = TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version());
     env.advance_chain_tip(count);
-
-    let eval = match crosseval(snippet, env) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    eval.compare(snippet);
+    execute_crosscheck(env, snippet, |_| {});
 }
 
 pub fn crosscheck_with_epoch(
@@ -585,23 +570,17 @@ pub fn crosscheck_with_epoch(
     expected: Result<Option<Value>, Error>,
     epoch: StacksEpochId,
 ) {
-    let eval = match crosseval(
-        snippet,
+    if let Some(eval) = execute_crosscheck(
         TestEnvironment::new(epoch, TestConfig::clarity_version()),
+        snippet,
+        |_| {},
     ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    eval.compare(snippet);
-
-    assert_eq!(
-        eval.compiled, expected,
-        "value is not the expected {:?}",
-        eval.compiled
-    );
+        assert_eq!(
+            eval.compiled, expected,
+            "value is not the expected {:?}",
+            eval.compiled
+        );
+    }
 }
 
 pub fn crosscheck_with_clarity_version(
@@ -609,40 +588,28 @@ pub fn crosscheck_with_clarity_version(
     expected: Result<Option<Value>, Error>,
     version: ClarityVersion,
 ) {
-    let eval = match crosseval(
-        snippet,
+    if let Some(eval) = execute_crosscheck(
         TestEnvironment::new(TestConfig::latest_epoch(), version),
+        snippet,
+        |_| {},
     ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    eval.compare(snippet);
-
-    assert_eq!(
-        eval.compiled, expected,
-        "value is not the expected {:?}",
-        eval.compiled
-    );
+        assert_eq!(
+            eval.compiled, expected,
+            "value is not the expected {:?}",
+            eval.compiled
+        );
+    }
 }
 
 pub fn crosscheck_validate<V: Fn(Value)>(snippet: &str, validator: V) {
-    let eval = match crosseval(
-        snippet,
+    if let Some(eval) = execute_crosscheck(
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
+        snippet,
+        |_| {},
     ) {
-        Ok(result) => result,
-        Err(_bug) => {
-            return;
-        }
-    };
-
-    eval.compare(snippet);
-
-    let value = eval.compiled.unwrap().unwrap();
-    validator(value)
+        let value = eval.compiled.unwrap().unwrap();
+        validator(value)
+    }
 }
 
 pub fn crosscheck_multi_contract(
