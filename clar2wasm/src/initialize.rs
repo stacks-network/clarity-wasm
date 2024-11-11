@@ -5,7 +5,7 @@ use clarity::vm::events::*;
 use clarity::vm::types::{AssetIdentifier, BuffData, PrincipalData, QualifiedContractIdentifier};
 use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
-use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime::{Linker, Module, Store};
 
 use crate::error_mapping;
 use crate::linker::link_host_functions;
@@ -326,6 +326,7 @@ pub fn initialize_contract(
     let mut call_stack = CallStack::new();
     let epoch = global_context.epoch_id;
     let clarity_version = *contract_context.get_clarity_version();
+    let engine = global_context.engine.clone();
     let init_context = ClarityWasmContext::new_init(
         global_context,
         contract_context,
@@ -335,7 +336,6 @@ pub fn initialize_contract(
         sponsor.clone(),
         Some(contract_analysis),
     );
-    let engine = Engine::default();
     let module = init_context
         .contract_context()
         .with_wasm_module(|wasm_module| {
