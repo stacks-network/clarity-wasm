@@ -13,7 +13,7 @@ use clarity::vm::types::{
 use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use walrus::{GlobalId, InstrSeqBuilder};
-use wasmtime::{AsContextMut, Engine, Linker, Memory, Module, Store, Val, ValType};
+use wasmtime::{AsContextMut, Linker, Memory, Module, Store, Val, ValType};
 
 use crate::error_mapping::{self, ErrorMap};
 use crate::initialize::ClarityWasmContext;
@@ -1247,6 +1247,7 @@ pub fn call_function<'a>(
 ) -> Result<Value, Error> {
     let epoch = global_context.epoch_id;
     let clarity_version = *contract_context.get_clarity_version();
+    let engine = global_context.engine.clone();
     let context = ClarityWasmContext::new_run(
         global_context,
         contract_context,
@@ -1261,7 +1262,6 @@ pub fn call_function<'a>(
         .contract_context()
         .lookup_function(function_name)
         .ok_or(CheckErrors::UndefinedFunction(function_name.to_string()))?;
-    let engine = Engine::default();
     let module = context
         .contract_context()
         .with_wasm_module(|wasm_module| unsafe {
