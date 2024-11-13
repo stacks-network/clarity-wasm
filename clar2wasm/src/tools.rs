@@ -533,9 +533,26 @@ pub fn crosscheck_compare_only(snippet: &str) {
         TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
         snippet,
         |result| {
-            // Note that we interpret first, to catch logical errors early
-            assert!(result.interpreted.is_ok(), "Interpreted snippet failed");
-            assert!(result.compiled.is_ok(), "Compiled snippet failed");
+            // If both interpreted and compiled results have errors, panic and
+            // show both errors.
+            // If only one fails, panic with the error from the failing one.
+            match (result.interpreted.as_ref(), result.compiled.as_ref()) {
+                (Err(interpreted_err), Err(compiled_err)) => {
+                    panic!(
+                        "Interpreted and compiled snippets failed: {:?}, {:?}",
+                        interpreted_err, compiled_err
+                    );
+                }
+                (Err(interpreted_err), Ok(_)) => {
+                    panic!("Interpreted snippet failed: {:?}", interpreted_err);
+                }
+                (Ok(_), Err(compiled_err)) => {
+                    panic!("Compiled snippet failed: {:?}", compiled_err);
+                }
+                _ => {
+                    // Both succeeded; no action needed.
+                }
+            }
         },
     );
 }
