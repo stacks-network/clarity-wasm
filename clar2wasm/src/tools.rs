@@ -526,35 +526,46 @@ pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Opti
     }
 }
 
-pub fn crosscheck_compare_only(snippet: &str) {
+fn crosscheck_compare_only_with_env(snippet: &str, env: TestEnvironment) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
-    execute_crosscheck(
-        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
-        snippet,
-        |result| {
-            // If both interpreted and compiled results have errors, panic and
-            // show both errors.
-            // If only one fails, panic with the error from the failing one.
-            match (result.interpreted.as_ref(), result.compiled.as_ref()) {
-                (Err(interpreted_err), Err(compiled_err)) => {
-                    panic!(
-                        "Interpreted and compiled snippets failed: {:?}, {:?}",
-                        interpreted_err, compiled_err
-                    );
-                }
-                (Err(interpreted_err), Ok(_)) => {
-                    panic!("Interpreted snippet failed: {:?}", interpreted_err);
-                }
-                (Ok(_), Err(compiled_err)) => {
-                    panic!("Compiled snippet failed: {:?}", compiled_err);
-                }
-                _ => {
-                    // Both succeeded; no action needed.
-                }
+    execute_crosscheck(env, snippet, |result| {
+        // If both interpreted and compiled results have errors, panic and
+        // show both errors.
+        // If only one fails, panic with the error from the failing one.
+        match (result.interpreted.as_ref(), result.compiled.as_ref()) {
+            (Err(interpreted_err), Err(compiled_err)) => {
+                panic!(
+                    "Interpreted and compiled snippets failed: {:?}, {:?}",
+                    interpreted_err, compiled_err
+                );
             }
-        },
+            (Err(interpreted_err), Ok(_)) => {
+                panic!("Interpreted snippet failed: {:?}", interpreted_err);
+            }
+            (Ok(_), Err(compiled_err)) => {
+                panic!("Compiled snippet failed: {:?}", compiled_err);
+            }
+            _ => {
+                // Both succeeded; no action needed.
+            }
+        }
+    });
+}
+
+pub fn crosscheck_compare_only(snippet: &str) {
+    crosscheck_compare_only_with_env(
+        snippet,
+        TestEnvironment::new(TestConfig::latest_epoch(), TestConfig::clarity_version()),
     );
+}
+
+pub fn crosscheck_compare_only_with_epoch_and_version(
+    snippet: &str,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) {
+    crosscheck_compare_only_with_env(snippet, TestEnvironment::new(epoch, version));
 }
 
 pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
