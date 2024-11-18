@@ -6,11 +6,13 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
+use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
@@ -84,6 +86,8 @@ impl ComplexWord for Fold {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
         let initial = args.get_expr(2)?;
@@ -268,6 +272,8 @@ impl ComplexWord for Append {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("append result must be typed".to_string()))?
@@ -355,6 +361,8 @@ impl ComplexWord for AsMaxLen {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
         builder.i32_const(0).i32_const(1);
@@ -455,6 +463,8 @@ impl ComplexWord for Concat {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
@@ -526,6 +536,14 @@ impl ComplexWord for Map {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            2,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         let fname = args.get_name(0)?;
 
         let seq_ty = generator
@@ -806,6 +824,8 @@ impl ComplexWord for Len {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -886,6 +906,8 @@ impl ComplexWord for ElementAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -1065,6 +1087,8 @@ impl ComplexWord for ReplaceAt {
         expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
@@ -1314,6 +1338,8 @@ impl ComplexWord for Slice {
         _expr: &SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
         let seq = args.get_expr(0)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
@@ -1562,6 +1588,176 @@ mod tests {
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+
+    #[test]
+    fn fold_less_than_three_args() {
+        let result = evaluate("(fold + (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn fold_more_than_three_args() {
+        let result = evaluate("(fold + (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn append_less_than_two_args() {
+        let result = evaluate("(append (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn append_more_than_two_args() {
+        let result = evaluate("(append (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn as_max_len_less_than_two_args() {
+        let result = evaluate("(as-max-len? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn as_max_len_more_than_two_args() {
+        let result = evaluate("(as-max-len? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn concat_less_than_two_args() {
+        let result = evaluate("(concat (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn concat_more_than_two_args() {
+        let result = evaluate("(concat (list 1 2 3) (list 4 5) (list 6 7))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn map_less_than_two_args() {
+        let result = evaluate("(map +)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn len_less_than_one_arg() {
+        let result = evaluate("(len)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn len_more_than_one_arg() {
+        let result = evaluate("(len (list 1 2 3) (list 4 5))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn element_at_less_than_two_args() {
+        let result = evaluate("(element-at? (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn element_at_more_than_two_args() {
+        let result = evaluate("(element-at? (list 1 2 3) 1 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn replace_at_less_than_three_args() {
+        let result = evaluate("(replace-at? (list 1 2 3) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn replace_at_more_than_three_args() {
+        let result = evaluate("(replace-at? (list 1 2 3) 1 4 0)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
+
+    #[test]
+    fn slice_less_than_three_args() {
+        let result = evaluate("(slice? (list 1 2 3) u1)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 2"));
+    }
+
+    #[test]
+    fn slice_more_than_three_args() {
+        let result = evaluate("(slice? (list 1 2 3) u1 u2 u3)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 3 arguments, got 4"));
+    }
 
     #[test]
     fn test_fold_sub() {

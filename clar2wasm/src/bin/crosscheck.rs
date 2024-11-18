@@ -1,7 +1,9 @@
+mod utils;
 use std::fs;
 
 use clap::Parser;
-use clar2wasm::tools::crosscheck_compare_only;
+use clar2wasm::tools::crosscheck_compare_only_with_epoch_and_version;
+use utils::*;
 
 /// crosscheck is a tool to compare the results of the compiled and interpreted
 /// versions of a Clarity snippet.
@@ -10,6 +12,12 @@ use clar2wasm::tools::crosscheck_compare_only;
 struct Args {
     /// Clarity source file to compile
     input: String,
+    /// Epoch of the stacks chain
+    #[arg(long)]
+    stacks_epoch: Option<WrappedEpochId>,
+    /// The clarity version to use
+    #[arg(long)]
+    clarity_version: Option<WrappedClarityVersion>,
 }
 
 fn main() {
@@ -30,5 +38,8 @@ fn main() {
         }
     };
 
-    crosscheck_compare_only(&source);
+    let epoch = args.stacks_epoch.unwrap_or_default().into();
+    let version = args.clarity_version.unwrap_or_default().into();
+
+    crosscheck_compare_only_with_epoch_and_version(&source, epoch, version);
 }

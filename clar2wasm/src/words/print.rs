@@ -1,53 +1,13 @@
-use clarity::vm::types::signatures::CallableSubtype;
-use clarity::vm::types::{
-    ASCIIData, CharType, ListTypeData, SequenceSubtype, TupleTypeSignature, TypeSignature,
-};
+use clarity::vm::types::{ASCIIData, CharType};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
-use crate::wasm_utils::signature_from_string;
+use crate::wasm_utils::{check_argument_count, signature_from_string, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct Print;
-
-/// Try to change `ty` for serialization/deserialization (as stringified signature)
-/// In case of failure, clones the input `ty`
-fn type_for_serialization(ty: &TypeSignature) -> TypeSignature {
-    use clarity::vm::types::signatures::TypeSignature::*;
-    match ty {
-        // NoType and BoolType have the same size (both type and inner)
-        NoType => BoolType,
-        // Avoid serialization like `(list 2 <S1G2081040G2081040G2081040G208105NK8PE5.my-trait.my-trait>)`
-        CallableType(CallableSubtype::Trait(_)) => PrincipalType,
-        // Recursive types
-        ResponseType(types) => ResponseType(Box::new((
-            type_for_serialization(&types.0),
-            type_for_serialization(&types.1),
-        ))),
-        OptionalType(value_ty) => OptionalType(Box::new(type_for_serialization(value_ty))),
-        SequenceType(SequenceSubtype::ListType(list_ty)) => {
-            SequenceType(SequenceSubtype::ListType(
-                ListTypeData::new_list(
-                    type_for_serialization(list_ty.get_list_item_type()),
-                    list_ty.get_max_len(),
-                )
-                .unwrap_or_else(|_| list_ty.clone()),
-            ))
-        }
-        TupleType(tuple_ty) => TupleType(
-            TupleTypeSignature::try_from(
-                tuple_ty
-                    .get_type_map()
-                    .iter()
-                    .map(|(k, v)| (k.clone(), type_for_serialization(v)))
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap_or_else(|_| tuple_ty.clone()),
-        ),
-        t => t.clone(),
-    }
-}
 
 impl ComplexWord for Print {
     fn name(&self) -> ClarityName {
@@ -61,6 +21,8 @@ impl ComplexWord for Print {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let value = args.get_expr(0)?;
 
         // Traverse the value, leaving it on the data stack
@@ -75,7 +37,7 @@ impl ComplexWord for Print {
             .clone();
         let val_locals = generator.save_to_locals(builder, &ty, true);
 
-        let ty_for_serde = type_for_serialization(&ty);
+        let ty_for_serde = generator.type_for_serialization(&ty);
         let serialized_ty = ty_for_serde.to_string();
         // Ensure (at compile time) type can be reconstructed
         signature_from_string(
@@ -128,7 +90,27 @@ mod tests {
     use clarity::vm::types::{ListTypeData, TupleData};
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, evaluate};
+
+    #[test]
+    fn print_no_args() {
+        let result = evaluate("(print)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn print_more_than_one_arg() {
+        let result = evaluate("(print 21 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
 
     #[test]
     fn test_simple() {

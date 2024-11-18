@@ -3,8 +3,10 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct Begin;
@@ -21,6 +23,14 @@ impl ComplexWord for Begin {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError("begin must have at least one arg".to_string())
@@ -49,6 +59,8 @@ impl ComplexWord for UnwrapPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // There must be either an `optional` or a `response` on the top of the
@@ -185,6 +197,8 @@ impl ComplexWord for UnwrapErrPanic {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
         // The input must be a `response` type. It uses an i32 indicator, where
@@ -267,6 +281,56 @@ mod tests {
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_expect_failure, evaluate};
+
+    #[test]
+    fn begin_less_than_one_arg() {
+        let result = evaluate("(begin)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn unwrap_panic_less_than_one_arg() {
+        let result = evaluate("(unwrap-panic)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn unwrap_panic_more_than_one_arg() {
+        let result = evaluate("(unwrap-panic (some 1) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn unwrap_err_panic_less_than_one_arg() {
+        let result = evaluate("(unwrap-err-panic)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn unwrap_err_panic_more_than_one_arg() {
+        let result = evaluate("(unwrap-err-panic (some x) 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
 
     #[test]
     fn test_unwrap_panic_some() {

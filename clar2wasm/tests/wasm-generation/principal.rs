@@ -16,7 +16,7 @@ mod clarity_v2_v3 {
     use clarity::{C32_ADDRESS_VERSION_MAINNET_SINGLESIG, C32_ADDRESS_VERSION_TESTNET_SINGLESIG};
     use proptest::prelude::{any, Just, Strategy};
     use proptest::string::string_regex;
-    use proptest::{option, prop_oneof, proptest};
+    use proptest::{option, prop_assume, prop_oneof, proptest};
 
     use crate::{buffer, qualified_principal, runtime_config, standard_principal, PropValue};
 
@@ -98,6 +98,19 @@ mod clarity_v2_v3 {
         .unwrap()
     }
 
+    // see issue: https://github.com/stacks-network/stacks-core/issues/5330
+    // contract principal cannot have numbers after an initial letter 'u'
+    // or it will be considered an uint.
+    // for instance, SN1FYF0DD8SB9539ZA90S266DT8MX1STNCSV9F6Z0.u7E0cd1
+    // should be a valid contract name.
+    fn valid_contract_principal_name(s: &str) -> bool {
+        if let Some(part) = s.split('.').nth(1) {
+            !(part.starts_with('u') && part.chars().nth(1).map_or(false, |c| c.is_ascii_digit()))
+        } else {
+            true
+        }
+    }
+
     proptest! {
         #![proptest_config(runtime_config())]
 
@@ -167,6 +180,10 @@ mod clarity_v2_v3 {
                 &hash_bytes.clone().expect_buff(20).unwrap(),
                 contract.as_deref()
             );
+
+            if let Some(ref name) = contract {
+                prop_assume!(!valid_contract_principal_name(name));
+            }
 
             let data = contract.map(|ctc| Box::new(
                 Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {

@@ -481,6 +481,13 @@ impl HeadersDB for BurnDatastore {
     ) -> Option<u128> {
         self.store.get(id_bhh).map(|id| id.tokens_earned_for_block)
     }
+    fn get_stacks_height_for_tenure_height(
+        &self,
+        _tip: &StacksBlockId,
+        tenure_height: u32,
+    ) -> Option<u32> {
+        Some(tenure_height)
+    }
 }
 
 impl BurnStateDB for BurnDatastore {

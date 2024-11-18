@@ -1,7 +1,9 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct DefinePrivateFunction;
@@ -18,6 +20,8 @@ impl ComplexWord for DefinePrivateFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -52,6 +56,8 @@ impl ComplexWord for DefineReadonlyFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -88,6 +94,8 @@ impl ComplexWord for DefinePublicFunction {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         let Some(signature) = args.get_expr(0)?.match_list() else {
             return Err(GeneratorError::NotImplemented);
         };
@@ -177,6 +185,65 @@ mod tests {
         }
     }
 
+    #[test]
+    fn define_private_less_than_two_args() {
+        let result = evaluate("(define-private 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_private_more_than_two_args() {
+        let result = evaluate("(define-private (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn define_read_only_less_than_two_args() {
+        let result = evaluate("(define-read-only 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_read_only_more_than_two_args() {
+        let result = evaluate("(define-read-only (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
+
+    #[test]
+    fn define_public_less_than_two_args() {
+        let result = evaluate("(define-public 21)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn define_public_more_than_two_args() {
+        let result = evaluate("(define-public (a b c) 21 4)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
     #[test]
     fn top_level_define_first() {
         crosscheck(

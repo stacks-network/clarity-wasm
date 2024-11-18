@@ -5,9 +5,11 @@ use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct IsEq;
@@ -24,6 +26,14 @@ impl ComplexWord for IsEq {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(
+            generator,
+            builder,
+            1,
+            args.len(),
+            ArgumentCountCheck::AtLeast
+        );
+
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
@@ -113,8 +123,22 @@ impl ComplexWord for IndexOf {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
         // Traverse the sequence, leaving its offset and size on the stack.
         let seq = args.get_expr(0)?;
+        let elem_expr = args.get_expr(1)?;
+        // workaround to fix types in the case of elements that are themself Sequences
+        if let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = generator
+            .get_expr_type(seq)
+            .ok_or(GeneratorError::TypeError(
+                "index_of element must be typed".to_owned(),
+            ))?
+        {
+            generator.set_expr_type(elem_expr, ltd.get_list_item_type().clone())?;
+        }
+
+        // Traverse the sequence, leaving its offset and size on the stack.
         generator.traverse_expr(builder, seq)?;
         // STACK: [offset, size]
 
@@ -996,7 +1020,37 @@ mod tests {
     use clarity::vm::types::{ListData, ListTypeData, SequenceData};
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, TestEnvironment};
+    use crate::tools::{crosscheck, evaluate, TestEnvironment};
+
+    #[test]
+    fn is_eq_less_than_one_arg() {
+        let result = evaluate("(is-eq)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting >= 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn index_of_list_less_than_two_args() {
+        let result = evaluate("(index-of (list 1 2 3))");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 1"));
+    }
+
+    #[test]
+    fn index_of_list_more_than_two_args() {
+        let result = evaluate("(index-of (list 1 2 3) 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 2 arguments, got 3"));
+    }
 
     #[test]
     fn index_of_list_not_present() {
@@ -1254,6 +1308,14 @@ mod tests {
         crosscheck(snippet, Ok(Some(clarity::vm::Value::Bool(true))));
     }
 
+    #[test]
+    fn index_of_complex_type() {
+        crosscheck(
+            "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
+            Ok(Some(Value::some(Value::UInt(2)).unwrap())),
+        );
+    }
+
     //
     // Module with tests that should only be executed
     // when running Clarity::V2 or Clarity::v3.
@@ -1263,17 +1325,6 @@ mod tests {
     mod clarity_v2_v3 {
         use super::*;
         use crate::tools::crosscheck;
-
-        #[test]
-        // TODO: see issue #496.
-        // The test below should pass when running it in ClarityV1.
-        // It should be removed from this module when the issue is fixed.
-        fn index_of_complex_type() {
-            crosscheck(
-                "(index-of (list (list (ok 2) (err 5)) (list (ok 42)) (list (err 7))) (list (err 7)))",
-                Ok(Some(Value::some(Value::UInt(2)).unwrap())),
-            );
-        }
 
         #[test]
         fn index_of_alias_list_zero_len() {

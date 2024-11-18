@@ -2,9 +2,11 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
+use crate::check_args;
 use crate::wasm_generator::{
     add_placeholder_for_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
 pub struct ClaritySome;
@@ -21,6 +23,8 @@ impl ComplexWord for ClaritySome {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let value = args.get_expr(0)?;
         // (some <val>) is represented by an i32 1, followed by the value
         builder.i32_const(1);
@@ -56,6 +60,8 @@ impl ComplexWord for ClarityOk {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let value = args.get_expr(0)?;
 
         let TypeSignature::ResponseType(inner_types) = generator
@@ -101,6 +107,8 @@ impl ComplexWord for ClarityErr {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
         let value = args.get_expr(0)?;
         // (err <val>) is represented by an i32 0, followed by a placeholder
         // for the ok value, followed by the err value
@@ -121,5 +129,70 @@ impl ComplexWord for ClarityErr {
             ));
         }
         generator.traverse_expr(builder, value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tools::evaluate;
+
+    #[test]
+    fn some_less_than_one_arg() {
+        let result = evaluate("(some)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn some_more_than_one_arg() {
+        let result = evaluate("(some 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn ok_less_than_one_arg() {
+        let result = evaluate("(ok)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn ok_more_than_one_arg() {
+        let result = evaluate("(ok 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
+    }
+
+    #[test]
+    fn err_less_than_one_arg() {
+        let result = evaluate("(err)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 0"));
+    }
+
+    #[test]
+    fn err_more_than_one_arg() {
+        let result = evaluate("(err 1 2)");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expecting 1 arguments, got 2"));
     }
 }
