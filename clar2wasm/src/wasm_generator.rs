@@ -1982,6 +1982,26 @@ impl WasmGenerator {
     }
 }
 
+/// Returns true if a composed type has an inner in-memory type.
+fn has_in_memory_type(ty: &TypeSignature) -> bool {
+    match ty {
+        TypeSignature::OptionalType(opt) => has_in_memory_type(opt),
+        TypeSignature::ResponseType(resp) => {
+            has_in_memory_type(&resp.0) || has_in_memory_type(&resp.1)
+        }
+        TypeSignature::TupleType(tup) => tup.get_type_map().values().any(has_in_memory_type),
+        TypeSignature::NoType
+        | TypeSignature::IntType
+        | TypeSignature::UIntType
+        | TypeSignature::BoolType => false,
+        TypeSignature::SequenceType(_)
+        | TypeSignature::PrincipalType
+        | TypeSignature::CallableType(_)
+        | TypeSignature::TraitReferenceType(_) => true,
+        TypeSignature::ListUnionType(_) => unreachable!("not a value type"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::env;
