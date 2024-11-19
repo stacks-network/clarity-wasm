@@ -1,12 +1,12 @@
+mod utils;
 use std::fs;
 
 use clap::Parser;
 use clar2wasm::CompileError;
-use clarity::types::StacksEpochId;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::MemoryBackingStore;
 use clarity::vm::types::QualifiedContractIdentifier;
-use clarity::vm::ClarityVersion;
+use utils::{WrappedClarityVersion, WrappedEpochId};
 
 /// clar2wasm is a compiler for generating WebAssembly from Clarity.
 #[derive(Parser)]
@@ -14,6 +14,12 @@ use clarity::vm::ClarityVersion;
 struct Args {
     /// Clarity source file to compile
     input: String,
+    /// Clarity version to use (1, 2 or 3)
+    #[arg(short, long)]
+    clarity_version: Option<WrappedClarityVersion>,
+    /// Stacks epoch to use (1.0, 2.0, 2.05, 2.1, 2.2, 2.3, 2.4, 2.5 or 3.0)
+    #[arg(short, long)]
+    stacks_epoch: Option<WrappedEpochId>,
     /// Output file to write compiled WebAssembly to
     #[arg(short, long)]
     output: Option<String>,
@@ -39,8 +45,8 @@ fn main() {
 
     // Define some settings
     let contract_id = QualifiedContractIdentifier::transient();
-    let clarity_version = ClarityVersion::Clarity2;
-    let epoch = StacksEpochId::Epoch25;
+    let clarity_version = args.clarity_version.unwrap_or_default().into();
+    let epoch = args.stacks_epoch.unwrap_or_default().into();
 
     // Setup a datastore and cost tracker
     let mut datastore = MemoryBackingStore::new();
