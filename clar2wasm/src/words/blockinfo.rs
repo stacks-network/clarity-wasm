@@ -25,27 +25,6 @@ impl ComplexWord for GetBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
-        // Parse the property name at compile time
-        let (name_length, return_size) = match prop_name.as_str() {
-            "time" => (4, 40), // uint (128-bit)
-            "header-hash" => (11, 56), // buff 32
-            "burnchain-header-hash" => (21, 56), // buff 32
-            "id-header-hash" => (14, 56), // buff 32
-            "miner-address" => (13, 174), // principal - max size it always takes
-            "block-reward" => (12, 40), // uint (128-bit)
-            "miner-spend-total" => (17, 40), // uint (128-bit)
-            "miner-spend-winner" => (18, 40), // uint (128-bit)
-            _ => {
-                return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
-                )))
-            }
-        };
-
-        let (id_offset, _) = generator.add_string_literal(prop_name)?;
-        builder.i32_const(id_offset as i32).i32_const(name_length);
-
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
 
@@ -57,17 +36,53 @@ impl ComplexWord for GetBlockInfo {
             })?
             .clone();
 
-        let (return_offset, _) =
-            generator.create_call_stack_local(builder, &return_ty, true, true);
+        let (return_offset, _) = generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
+        // Parse the property name at compile time
+        match prop_name.as_str() {
+            "time" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_time_property"));
+            }
+            "header-hash" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_header_hash_property"));
+            }
+            "burnchain-header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_burnchain_header_hash_property"),
+                );
+            }
+            "id-header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_identity_header_hash_property"),
+                );
+            }
+            "miner-address" => {
+                builder
+                    .call(generator.func_by_name("stdlib.get_block_info_miner_address_property"));
+            }
+            "block-reward" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_block_reward_property"));
+            }
+            "miner-spend-total" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_miner_spend_total_property"),
+                );
+            }
+            "miner-spend-winner" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_miner_spend_winner_property"),
+                );
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
 
-        // Call the host interface function, `get_block_info`
-        builder.call(generator.func_by_name("stdlib.get_block_info"));
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
         Ok(())
@@ -94,21 +109,6 @@ impl ComplexWord for GetBurnBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
-        let (name_length, return_size) = match prop_name.as_str() {
-            "header-hash" => (11, 56), // buff 32 - the default run before any modifications shows it takes 56 bites, not 32
-            "pox-addrs" => (9, 154),
-            _ => {
-                return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
-                )))
-            }
-        };
-
-        // Push the property name onto the stack
-        let (id_offset, _) = generator.add_string_literal(prop_name)?;
-        builder.i32_const(id_offset as i32).i32_const(name_length);
-
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
 
@@ -127,8 +127,23 @@ impl ComplexWord for GetBurnBlockInfo {
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
 
-        // Call the host interface function, `get_burn_block_info`
-        builder.call(generator.func_by_name("stdlib.get_burn_block_info"));
+        let (name_length, return_size) = match prop_name.as_str() {
+            "header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_burn_block_info_header_hash_property"),
+                );
+            }
+            "pox-addrs" => {
+                builder
+                    .call(generator.func_by_name("stdlib.get_burn_block_info_pox_addrs_property"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
