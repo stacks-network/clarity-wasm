@@ -2172,8 +2172,8 @@ mod tests {
     use clarity::vm::costs::LimitedCostTracker;
     use clarity::vm::database::MemoryBackingStore;
     use clarity::vm::errors::{CheckErrors, Error};
-    use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
-    use clarity::vm::ClarityVersion;
+    use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData, TupleData};
+    use clarity::vm::{ClarityVersion, Value};
     use walrus::Module;
 
     // Tests that don't relate to specific words
@@ -2334,6 +2334,41 @@ mod tests {
 ",
             Err(Error::Unchecked(CheckErrors::IncorrectArgumentCount(1, 2))),
         );
+    }
+
+    #[test]
+    fn function_result_dont_erase_previous() {
+        // from issue #475
+        let snippet = r#"
+        (define-map mymap int int)
+        (define-private (somefn)
+            (begin
+                (map-set mymap 0 99)
+                (err (list u"foo"))
+            )
+        )
+        { fn: (somefn), mymap: (map-get? mymap 0) }
+        "#;
+
+        let expected = Value::from(
+            TupleData::from_data(vec![
+                (
+                    "fn".into(),
+                    Value::error(
+                        Value::cons_list_unsanitized(vec![Value::string_utf8_from_bytes(
+                            b"foo".to_vec(),
+                        )
+                        .unwrap()])
+                        .unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                ("mymap".into(), Value::some(Value::Int(99)).unwrap()),
+            ])
+            .unwrap(),
+        );
+
+        crosscheck(snippet, Ok(Some(expected)));
     }
 
     //
