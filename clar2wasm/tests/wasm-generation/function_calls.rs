@@ -6,6 +6,8 @@ use proptest::prelude::*;
 use crate::PropValue;
 
 proptest! {
+    #![proptest_config(super::runtime_config())]
+
     #[test]
     fn subsequent_func_calls_dont_erase_previous_results(
         result1 in PropValue::any(),
