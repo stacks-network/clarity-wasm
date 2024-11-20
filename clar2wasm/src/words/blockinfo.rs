@@ -36,7 +36,8 @@ impl ComplexWord for GetBlockInfo {
             })?
             .clone();
 
-        let (return_offset, _) = generator.create_call_stack_local(builder, &return_ty, true, true);
+        let (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
@@ -122,12 +123,13 @@ impl ComplexWord for GetBurnBlockInfo {
             })?
             .clone();
 
-        let (return_offset, _) = generator.create_call_stack_local(builder, &return_ty, true, true);
+        let (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &return_ty, true, true);
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
 
-        let (name_length, return_size) = match prop_name.as_str() {
+        match prop_name.as_str() {
             "header-hash" => {
                 builder.call(
                     generator.func_by_name("stdlib.get_burn_block_info_header_hash_property"),

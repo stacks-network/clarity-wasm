@@ -5,13 +5,11 @@ use clarity::vm::database::{ClarityDatabase, STXBalance, StoreType};
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
 use clarity::vm::types::{
-    AssetIdentifier, BlockInfoProperty, BuffData, BufferLength, BurnBlockInfoProperty,
-    FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
-    StacksAddressExtensions, TraitIdentifier, TupleData, TupleTypeSignature, TypeSignature, BUFF_1,
-    BUFF_32, BUFF_33,
+    AssetIdentifier, BuffData, BufferLength, FunctionType, ListTypeData, PrincipalData,
+    SequenceData, SequenceSubtype, StacksAddressExtensions, TraitIdentifier, TupleData,
+    TupleTypeSignature, TypeSignature, BUFF_1, BUFF_32, BUFF_33,
 };
 use clarity::vm::{ClarityName, ClarityVersion, Environment, SymbolicExpression, Value};
-use sha2::digest::typenum::UInt;
 use stacks_common::types::chainstate::StacksBlockId;
 use stacks_common::util::hash::{Keccak256Hash, Sha512Sum, Sha512Trunc256Sum};
 use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp256k1PublicKey};
@@ -62,8 +60,17 @@ pub fn link_host_functions(linker: &mut Linker<ClarityWasmContext>) -> Result<()
     link_map_set_fn(linker)?;
     link_map_insert_fn(linker)?;
     link_map_delete_fn(linker)?;
-    link_get_block_info_fn(linker)?;
-    link_get_burn_block_info_fn(linker)?;
+    link_get_block_info_time_property_fn(linker)?;
+    link_get_block_info_vrf_seed_property_fn(linker)?;
+    link_get_block_info_header_hash_property_fn(linker)?;
+    link_get_block_info_burnchain_header_hash_property_fn(linker)?;
+    link_get_block_info_identity_header_hash_property_fn(linker)?;
+    link_get_block_info_miner_address_property_fn(linker)?;
+    link_get_block_info_miner_spend_winner_property_fn(linker)?;
+    link_get_block_info_miner_spend_total_property_fn(linker)?;
+    link_get_block_info_block_reward_property_fn(linker)?;
+    link_get_burn_block_info_header_hash_property_fn(linker)?;
+    link_get_burn_block_info_pox_addrs_property_fn(linker)?;
     link_contract_call_fn(linker)?;
     link_begin_public_call_fn(linker)?;
     link_begin_read_only_call_fn(linker)?;
@@ -2982,12 +2989,12 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
 
 fn check_height_valid(
     caller: &mut Caller<'_, ClarityWasmContext>,
-    memory: &Memory,
+    memory: Memory,
     height_lo: i64,
     height_hi: i64,
     return_offset: i32,
 ) -> Result<u32, Error> {
-    let height = (height_lo as u128) | ((height_hi as u128) << 64);
+    let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
 
     let height_value = match u32::try_from(height) {
         Ok(result) => result,
@@ -2995,7 +3002,7 @@ fn check_height_valid(
             // Write a 0 to the return buffer for `none`
             write_to_wasm(
                 caller,
-                *memory,
+                memory,
                 &TypeSignature::BoolType,
                 return_offset,
                 return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3015,7 +3022,7 @@ fn check_height_valid(
         // Write a 0 to the return buffer for `none`
         write_to_wasm(
             caller,
-            *memory,
+            memory,
             &TypeSignature::BoolType,
             return_offset,
             return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3046,20 +3053,21 @@ fn link_get_block_info_time_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let block_time = caller
                     .data_mut()
                     .global_context
                     .database
                     .get_block_time(height_value)?;
+                let (result, ty) = (Value::UInt(block_time as u128), TypeSignature::UIntType);
                 write_to_wasm(
                     &mut caller,
                     memory,
-                    &TypeSignature::UIntType,
+                    &ty,
                     return_offset,
-                    return_offset + get_type_size(&TypeSignature::UIntType),
-                    &Value::UInt(block_time as u128),
+                    return_offset + get_type_size(&ty),
+                    &Value::some(result)?,
                     true,
                 )?;
 
@@ -3095,7 +3103,7 @@ fn link_get_block_info_vrf_seed_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let vrf_seed = caller
                     .data_mut()
@@ -3152,7 +3160,7 @@ fn link_get_block_info_header_hash_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let header_hash = caller
                     .data_mut()
@@ -3209,7 +3217,7 @@ fn link_get_block_info_burnchain_header_hash_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let burnchain_header_hash = caller
                     .data_mut()
@@ -3266,7 +3274,7 @@ fn link_get_block_info_identity_header_hash_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let id_header_hash = caller
                     .data_mut()
@@ -3323,7 +3331,7 @@ fn link_get_block_info_miner_address_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let miner_address = caller
                     .data_mut()
@@ -3373,7 +3381,7 @@ fn link_get_block_info_miner_spend_winner_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let winner_spend = caller
                     .data_mut()
@@ -3423,7 +3431,7 @@ fn link_get_block_info_miner_spend_total_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let total_spend = caller
                     .data_mut()
@@ -3473,7 +3481,7 @@ fn link_get_block_info_block_reward_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let block_reward_opt = caller
                     .data_mut()
@@ -3541,7 +3549,7 @@ fn link_get_burn_block_info_header_hash_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let burnchain_header_hash_opt = caller
                     .data_mut()
@@ -3602,7 +3610,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height_value =
-                    check_height_valid(&mut caller, &memory, height_lo, height_hi, return_offset)?;
+                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?;
 
                 let pox_addrs_and_payout = caller
                     .data_mut()

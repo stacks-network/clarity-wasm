@@ -179,7 +179,7 @@
                                                              (param $height_hi i64)
                                                              (param $return_offset i32)
                                                              (param $return_length i32)))
-    (import "clarity" "get_block_info_miner_address_property" (func $stdlib.get_block_info_time_property (param $height_lo i64)
+    (import "clarity" "get_block_info_miner_address_property" (func $stdlib.get_block_info_miner_address_property (param $height_lo i64)
                                                              (param $height_hi i64)
                                                              (param $return_offset i32)
                                                              (param $return_length i32)))
