@@ -26,7 +26,7 @@ use walrus::{
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
-    ArgumentCountCheck,
+    ArgumentCountCheck, PRINCIPAL_BYTES_MAX,
 };
 use crate::{check_args, debug_msg, words};
 
@@ -1707,11 +1707,23 @@ impl WasmGenerator {
         return_ty: &TypeSignature,
         name: &ClarityName,
     ) -> Result<(), GeneratorError> {
-        // Reserve space to copy return value from function
-        // TODO: this is to much space allocated, we just need space
-        // for the parts written in memory (see issue #362)
-        let (return_offset, _len_offset) =
-            self.create_call_stack_local(builder, return_ty, true, true);
+        // this local contains the offset at which we will copy the each new element of the result
+        // if there is an in-memory type
+        let in_memory_offset =
+            has_in_memory_type(return_ty).then(|| self.module.locals.add(ValType::I32));
+
+        // in case there is an in-memory type to copy, we reserve some space in memory
+        if let Some(return_offset) = in_memory_offset {
+            let return_size = count_in_memory_space(return_ty) as i32;
+            self.frame_size += return_size;
+
+            builder
+                .global_get(self.stack_pointer)
+                .local_tee(return_offset)
+                .i32_const(return_size)
+                .binop(BinaryOp::I32Add)
+                .global_set(self.stack_pointer);
+        }
 
         if self
             .contract_analysis
@@ -1738,9 +1750,9 @@ impl WasmGenerator {
             )));
         }
 
-        // If an in-memory value is returned from a function, we need to copy
+        // If an in-memory value is returned from the function, we need to copy
         // it to our frame, from the callee's frame.
-        if has_in_memory_type(return_ty) {
+        if let Some(return_offset) = in_memory_offset {
             let locals = self.save_to_locals(builder, return_ty, true);
             self.copy_value(builder, return_ty, &locals, return_offset)?;
 
@@ -2159,6 +2171,37 @@ fn has_in_memory_type(ty: &TypeSignature) -> bool {
         | TypeSignature::PrincipalType
         | TypeSignature::CallableType(_)
         | TypeSignature::TraitReferenceType(_) => true,
+        TypeSignature::ListUnionType(_) => unreachable!("not a value type"),
+    }
+}
+
+/// Counts the amount of bytes needed in memory for a type.
+fn count_in_memory_space(ty: &TypeSignature) -> u32 {
+    match ty {
+        TypeSignature::BoolType
+        | TypeSignature::IntType
+        | TypeSignature::UIntType
+        | TypeSignature::NoType => 0,
+        TypeSignature::OptionalType(opt) => count_in_memory_space(opt),
+        TypeSignature::ResponseType(resp) => {
+            count_in_memory_space(&resp.0) + count_in_memory_space(&resp.1)
+        }
+        TypeSignature::PrincipalType
+        | TypeSignature::CallableType(_)
+        | TypeSignature::TraitReferenceType(_) => PRINCIPAL_BYTES_MAX as u32,
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(len))
+        | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(len))) => {
+            len.into()
+        }
+        TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(len))) => {
+            4 * u32::from(len)
+        }
+        TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+            ltd.get_max_len() * get_type_in_memory_size(ltd.get_list_item_type(), true) as u32
+        }
+        TypeSignature::TupleType(tup) => {
+            tup.get_type_map().values().map(count_in_memory_space).sum()
+        }
         TypeSignature::ListUnionType(_) => unreachable!("not a value type"),
     }
 }
