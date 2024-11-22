@@ -92,15 +92,23 @@ proptest! {
             type_string(&vty)
         );
 
+        let map_insert_result = Value::cons_list_unsanitized(expected_insert);
+        prop_assume!(map_insert_result.is_ok(), "Couldn't generate a valid list for map_insert");
+        let map_insert_result = map_insert_result.unwrap();
+
+        let map_get_result = Value::cons_list_unsanitized(expected_get);
+        prop_assume!(map_get_result.is_ok(), "Couldn't generate a valid list for map_get");
+        let map_get_result = map_get_result.unwrap();
+
         let expected = Value::from(
             TupleData::from_data(vec![
                 (
                     ClarityName::from("a"),
-                    Value::cons_list_unsanitized(expected_insert).unwrap(),
+                    map_insert_result
                 ),
                 (
                     ClarityName::from("b"),
-                    Value::cons_list_unsanitized(expected_get).unwrap(),
+                    map_get_result
                 ),
             ])
             .unwrap(),
