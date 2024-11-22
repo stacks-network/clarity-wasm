@@ -3643,7 +3643,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                    let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
+                let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
 
                 // Note: we assume that we will not have a height bigger than u32::MAX.
                 let height_value = match u32::try_from(height) {
