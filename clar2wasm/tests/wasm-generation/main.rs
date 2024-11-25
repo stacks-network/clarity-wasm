@@ -11,6 +11,7 @@ pub mod contracts;
 pub mod control_flow;
 pub mod default_to;
 pub mod equal;
+pub mod function_calls;
 pub mod functions;
 pub mod hashing;
 pub mod maps;
