@@ -1709,11 +1709,10 @@ impl WasmGenerator {
     ) -> Result<(), GeneratorError> {
         // this local contains the offset at which we will copy the each new element of the result
         // if there is an in-memory type
-        let in_memory_offset =
-            has_in_memory_type(return_ty).then(|| self.module.locals.add(ValType::I32));
+        let in_memory_offset = has_in_memory_type(return_ty).then(|| {
+            let return_offset = self.module.locals.add(ValType::I32);
 
-        // in case there is an in-memory type to copy, we reserve some space in memory
-        if let Some(return_offset) = in_memory_offset {
+            // in case there is an in-memory type to copy, we reserve some space in memory
             let return_size = count_in_memory_space(return_ty) as i32;
             self.frame_size += return_size;
 
@@ -1723,7 +1722,9 @@ impl WasmGenerator {
                 .i32_const(return_size)
                 .binop(BinaryOp::I32Add)
                 .global_set(self.stack_pointer);
-        }
+
+            return_offset
+        });
 
         if self
             .contract_analysis
