@@ -151,6 +151,145 @@ impl ComplexWord for AtBlock {
     }
 }
 
+#[derive(Debug)]
+pub struct GetStacksBlockInfo;
+
+impl ComplexWord for GetStacksBlockInfo {
+    fn name(&self) -> ClarityName {
+        "get-stacks-block-info?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        let prop_name = args.get_name(0)?;
+        let block = args.get_expr(1)?;
+
+        // Push the block number onto the stack
+        generator.traverse_expr(builder, block)?;
+
+        // Reserve space on the stack for the return value
+        let return_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "get-stacks-block-info? expression must be typed".to_owned(),
+                )
+            })?
+            .clone();
+
+        let (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &return_ty, true, true);
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+        // Parse the property name at compile time
+        match prop_name.as_str() {
+            "header-hash" => {
+                builder.call(generator.func_by_name("stdlib.get_stacks_block_info_header_hash_property"));
+            }
+            "id-header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_stacks_block_info_identity_header_hash_property"),
+                );
+            }
+            "time" => {
+                builder.call(generator.func_by_name("stdlib.get_stacks_block_info_time_property"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
+
+        generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct GetTenureInfo;
+
+impl ComplexWord for GetTenureInfo {
+    fn name(&self) -> ClarityName {
+        "get-tenure-info?".into()
+    }
+
+    fn traverse(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut walrus::InstrSeqBuilder,
+        expr: &SymbolicExpression,
+        args: &[SymbolicExpression],
+    ) -> Result<(), GeneratorError> {
+        check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+        
+        let prop_name = args.get_name(0)?;
+        let block = args.get_expr(1)?;
+
+        // Push the block number onto the stack
+        generator.traverse_expr(builder, block)?;
+
+        // Reserve space on the stack for the return value
+        let return_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("get-tenure-info? expression must be typed".to_owned())
+            })?
+            .clone();
+
+        let (return_offset, return_size) =
+            generator.create_call_stack_local(builder, &return_ty, true, true);
+
+        // Push the offset and size to the data stack
+        builder.local_get(return_offset).i32_const(return_size);
+        // Parse the property name at compile time
+        match prop_name.as_str() {
+            "time" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_time_property"));
+            }
+            "vrf-seed" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_vrf_seed_property"));
+            }
+            "burnchain-header-hash" => {
+                builder
+                    .call(generator.func_by_name("stdlib.get_tenure_info_burnchain_header_hash_property"));
+            }
+            "miner-address" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_address_property"));
+            }
+            "block-reward" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_block_reward_property"));
+            }
+            "miner-spend-total" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_spend_total_property"));
+            }
+            "miner-spend-winner" => {
+                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_spend_winner_property"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
+
+        generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clarity::vm::errors::{CheckErrors, Error};
@@ -243,7 +382,7 @@ mod tests {
     //
     #[cfg(feature = "test-clarity-v3")]
     mod clarity_v3 {
-        use clarity::types::StacksEpochId;
+        use clarity::{types::StacksEpochId, vm::ClarityVersion};
 
         use super::*;
         use crate::tools::crosscheck_with_epoch;
@@ -275,6 +414,154 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("expecting 2 arguments, got 3"));
+        }
+
+        #[test]
+        fn get_tenure_info_less_than_two_args() {
+            let result = evaluate("(get-tenure-info? id-header-hash)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 1"));
+        }
+
+        #[test]
+        fn get_tenure_info_more_than_two_args() {
+            let result = evaluate("(get-tenure-info? id-header-hash u0 u0)");
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("expecting 2 arguments, got 3"));
+        }
+
+        #[test]
+        fn get_stacks_block_info_id_header_hash() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-stacks-block-info? id-header-hash u0)").expect("Failed to init contract.");
+            let mut expected = [0u8; 32];
+            hex::decode_to_slice(
+                "b5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e",
+                &mut expected,
+            )
+            .unwrap();
+            assert_eq!(
+                result,
+                Some(Value::some(Value::buff_from(expected.to_vec()).unwrap()).unwrap())
+            );
+        }
+
+        #[test]
+        fn get_stacks_block_info_time() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-stacks-block-info? time u0)").expect("Failed to init contract.");
+            let block_time_val = match result {
+                Some(Value::Optional(OptionalData { data: Some(data) })) => *data,
+                _ => panic!("expected value"),
+            };
+            let block_time = match block_time_val {
+                Value::UInt(val) => val,
+                _ => panic!("expected uint"),
+            };
+            let now = chrono::Utc::now().timestamp() as u128;
+    
+            // The block time should be close to the current time, so let's give it
+            // a 10 second window, to be safe.
+            assert!(block_time >= now - 10);
+        }
+
+        #[test]
+        fn get_stacks_block_info_header_hash() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-stacks-block-info? header-hash u0)").expect("Failed to init contract.");
+            assert_eq!(
+                result,
+                Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
+            );
+        }
+
+        #[test]
+        fn get_tenure_info_time() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? time u0)").expect("Failed to init contract.");
+            let block_time_val = match result {
+                Some(Value::Optional(OptionalData { data: Some(data) })) => *data,
+                _ => panic!("expected value"),
+            };
+            let block_time = match block_time_val {
+                Value::UInt(val) => val,
+                _ => panic!("expected uint"),
+            };
+            let now = chrono::Utc::now().timestamp() as u128;
+    
+            // The block time should be close to the current time, so let's give it
+            // a 10 second window, to be safe.
+            assert!(block_time >= now - 10);
+        }
+
+        #[test]
+        fn get_tenure_info_header_hash() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? burnchain-header-hash u0)").expect("Failed to init contract.");
+            assert_eq!(
+                result,
+                Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
+            );
+        }
+
+        #[test]
+        fn get_tenure_info_miner_address() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? miner-address u0)").expect("Failed to init contract.");
+            assert_eq!(
+                result,
+                Some(
+                    Value::some(Value::Principal(
+                        PrincipalData::parse("ST000000000000000000002AMW42H").unwrap()
+                    ))
+                    .unwrap()
+                )
+            )
+        }
+
+        #[test]
+        #[ignore = "block-reward is not simulated in the test framework"]
+        fn get_tenure_info_block_reward() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? block-reward u0)").expect("Failed to init contract.");
+            assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
+        }
+
+        #[test]
+        fn get_tenure_info_miner_spend_total() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? miner-spend-total u0)").expect("Failed to init contract.");
+            assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
+        }
+
+        #[test]
+        fn get_tenure_info_miner_spend_winner() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? miner-spend-winner u0)").expect("Failed to init contract.");
+            assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
+        }
+
+        #[test]
+        fn get_tenure_info_vrf_seed() {
+            let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
+            env.advance_chain_tip(1);
+            let result = env.evaluate("(get-tenure-info? vrf-seed u0)").expect("Failed to init contract.");
+            assert_eq!(result, Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap()));
         }
     }
 

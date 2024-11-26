@@ -56,6 +56,8 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &blockinfo::AtBlock,
     &blockinfo::GetBlockInfo,
     &blockinfo::GetBurnBlockInfo,
+    &blockinfo::GetStacksBlockInfo,
+    &blockinfo::GetTenureInfo,
     &conditionals::And,
     &conditionals::Asserts,
     &conditionals::Filter,
