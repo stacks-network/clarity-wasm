@@ -25,12 +25,6 @@ impl ComplexWord for GetBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
-        // Push the property name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(prop_name)?;
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
 
@@ -47,12 +41,49 @@ impl ComplexWord for GetBlockInfo {
 
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
+        // Parse the property name at compile time
+        match prop_name.as_str() {
+            "time" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_time_property"));
+            }
+            "header-hash" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_header_hash_property"));
+            }
+            "burnchain-header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_burnchain_header_hash_property"),
+                );
+            }
+            "id-header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_identity_header_hash_property"),
+                );
+            }
+            "miner-address" => {
+                builder
+                    .call(generator.func_by_name("stdlib.get_block_info_miner_address_property"));
+            }
+            "block-reward" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_block_reward_property"));
+            }
+            "miner-spend-total" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_miner_spend_total_property"),
+                );
+            }
+            "miner-spend-winner" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_block_info_miner_spend_winner_property"),
+                );
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
 
-        // Call the host interface function, `get_block_info`
-        builder.call(generator.func_by_name("stdlib.get_block_info"));
-
-        // Host interface fills the result into the specified memory. Read it
-        // back out, and place the value on the data stack.
         generator.read_from_memory(builder, return_offset, 0, &return_ty)?;
 
         Ok(())
@@ -79,12 +110,6 @@ impl ComplexWord for GetBurnBlockInfo {
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
-        // Push the property name onto the stack
-        let (id_offset, id_length) = generator.add_string_literal(prop_name)?;
-        builder
-            .i32_const(id_offset as i32)
-            .i32_const(id_length as i32);
-
         // Push the block number onto the stack
         generator.traverse_expr(builder, block)?;
 
@@ -104,8 +129,23 @@ impl ComplexWord for GetBurnBlockInfo {
         // Push the offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
 
-        // Call the host interface function, `get_burn_block_info`
-        builder.call(generator.func_by_name("stdlib.get_burn_block_info"));
+        match prop_name.as_str() {
+            "header-hash" => {
+                builder.call(
+                    generator.func_by_name("stdlib.get_burn_block_info_header_hash_property"),
+                );
+            }
+            "pox-addrs" => {
+                builder
+                    .call(generator.func_by_name("stdlib.get_burn_block_info_pox_addrs_property"));
+            }
+            _ => {
+                return Err(GeneratorError::InternalError(format!(
+                    "{self:?} does not have a property of type {}",
+                    prop_name
+                )))
+            }
+        };
 
         // Host interface fills the result into the specified memory. Read it
         // back out, and place the value on the data stack.
