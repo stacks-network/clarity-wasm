@@ -3749,7 +3749,6 @@ fn link_get_stacks_block_info_time_property_fn(
                 if let Some(height_value) =
                     check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
                 {
-                    println!("height_value: {}", height_value);
                     let block_time = caller
                         .data_mut()
                         .global_context
