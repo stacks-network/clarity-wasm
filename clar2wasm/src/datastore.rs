@@ -225,6 +225,14 @@ impl ClarityBackingStore for Datastore {
         }
     }
 
+    // this is not meant to be used in the clarity vm
+    fn get_data_from_path(
+        &mut self,
+        _hash: &clarity::types::chainstate::TrieHash,
+    ) -> Result<Option<String>> {
+        unreachable!()
+    }
+
     fn has_entry(&mut self, key: &str) -> Result<bool> {
         Ok(self.get_data(key)?.is_some())
     }
@@ -292,6 +300,14 @@ impl ClarityBackingStore for Datastore {
 
     fn get_data_with_proof(&mut self, _key: &str) -> Result<Option<(String, Vec<u8>)>> {
         Ok(None)
+    }
+
+    // this is not meant to be used in the clarity vm
+    fn get_data_with_proof_from_path(
+        &mut self,
+        _hash: &clarity::types::chainstate::TrieHash,
+    ) -> Result<Option<(String, Vec<u8>)>> {
+        unreachable!()
     }
 
     fn get_contract_hash(
