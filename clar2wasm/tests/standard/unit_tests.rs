@@ -4149,10 +4149,14 @@ fn utf8_to_string_utf8_invalid() {
         // adapted from core::char::encode_utf8_raw
         let mut buff = [0; 4];
 
-        #[allow(clippy::transmute_int_to_char)]
-        // SAFETY: WRONG ON PURPOSE! We convert any u32 to a char!
-        let c: char = unsafe { std::mem::transmute(code) };
-        let len_utf8 = c.len_utf8();
+        // number of bytes needed in utf-8 to represent the code
+        // if it was a unicode char
+        let len_utf8 = match code {
+            c if c < 128 => 1,
+            c if c < 2048 => 2,
+            c if c < 65536 => 3,
+            _ => 4,
+        };
 
         match (len_utf8, &mut buff[..]) {
             (1, [a, ..]) => {
@@ -4173,7 +4177,7 @@ fn utf8_to_string_utf8_invalid() {
                 *c = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
                 *d = (code & 0x3F) as u8 | 0b1000_0000;
             }
-            _ => panic!("Cannot create a utf8 with more than 4 bytes"),
+            _ => unreachable!("Cannot create a utf8 with more than 4 bytes"),
         }
 
         buff[..len_utf8].to_vec()

@@ -152,7 +152,7 @@ In this diagram, the "frame pointer" is actually the frame pointer for both the 
 
 ### Standard Library
 
-Certain Clarity operations are implemented as functions in [_standard.wat_](src/standard/standard.wat). This text format is then used during the build process to generate _standard.wasm_ which gets loaded into `clar2wasm`. Any operations that are cleaner to implement as a function call instead of directly generating Wasm instructions go into this library. For example, you can find the Clarity-style implementation of arithmetic operations in this library. These need to be written out manually because WebAssembly only supports 64-bit integers. The library implements 128-bit arithmetic, with the overflow checks that Clarity requires.
+Certain Clarity operations are implemented as functions in [_standard.wat_](clar2wasm/src/standard/standard.wat). This text format is then used during the build process to generate _standard.wasm_ which gets loaded into `clar2wasm`. Any operations that are cleaner to implement as a function call instead of directly generating Wasm instructions go into this library. For example, you can find the Clarity-style implementation of arithmetic operations in this library. These need to be written out manually because WebAssembly only supports 64-bit integers. The library implements 128-bit arithmetic, with the overflow checks that Clarity requires.
 
 ### Host Interface
 
