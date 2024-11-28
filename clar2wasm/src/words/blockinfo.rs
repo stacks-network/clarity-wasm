@@ -232,12 +232,15 @@ impl ComplexWord for GetStacksBlockInfo {
         // Parse the property name at compile time
         match prop_name.as_str() {
             "header-hash" => {
-                builder.call(generator.func_by_name("stdlib.get_stacks_block_info_header_hash_property"));
+                builder.call(
+                    generator.func_by_name("stdlib.get_stacks_block_info_header_hash_property"),
+                );
             }
             "id-header-hash" => {
-                builder.call(
-                    generator.func_by_name("stdlib.get_stacks_block_info_identity_header_hash_property"),
-                );
+                builder
+                    .call(generator.func_by_name(
+                        "stdlib.get_stacks_block_info_identity_header_hash_property",
+                    ));
             }
             "time" => {
                 builder.call(generator.func_by_name("stdlib.get_stacks_block_info_time_property"));
@@ -272,7 +275,7 @@ impl ComplexWord for GetTenureInfo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
-        
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -301,20 +304,27 @@ impl ComplexWord for GetTenureInfo {
                 builder.call(generator.func_by_name("stdlib.get_tenure_info_vrf_seed_property"));
             }
             "burnchain-header-hash" => {
-                builder
-                    .call(generator.func_by_name("stdlib.get_tenure_info_burnchain_header_hash_property"));
+                builder.call(
+                    generator.func_by_name("stdlib.get_tenure_info_burnchain_header_hash_property"),
+                );
             }
             "miner-address" => {
-                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_address_property"));
+                builder
+                    .call(generator.func_by_name("stdlib.get_tenure_info_miner_address_property"));
             }
             "block-reward" => {
-                builder.call(generator.func_by_name("stdlib.get_tenure_info_block_reward_property"));
+                builder
+                    .call(generator.func_by_name("stdlib.get_tenure_info_block_reward_property"));
             }
             "miner-spend-total" => {
-                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_spend_total_property"));
+                builder.call(
+                    generator.func_by_name("stdlib.get_tenure_info_miner_spend_total_property"),
+                );
             }
             "miner-spend-winner" => {
-                builder.call(generator.func_by_name("stdlib.get_tenure_info_miner_spend_winner_property"));
+                builder.call(
+                    generator.func_by_name("stdlib.get_tenure_info_miner_spend_winner_property"),
+                );
             }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
@@ -422,7 +432,8 @@ mod tests {
     //
     #[cfg(feature = "test-clarity-v3")]
     mod clarity_v3 {
-        use clarity::{types::StacksEpochId, vm::ClarityVersion};
+        use clarity::types::StacksEpochId;
+        use clarity::vm::ClarityVersion;
 
         use super::*;
         use crate::tools::crosscheck_with_epoch;
@@ -480,7 +491,9 @@ mod tests {
         fn get_stacks_block_info_id_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-stacks-block-info? id-header-hash u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-stacks-block-info? id-header-hash u0)")
+                .expect("Failed to init contract.");
             let mut expected = [0u8; 32];
             hex::decode_to_slice(
                 "b5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e",
@@ -497,7 +510,9 @@ mod tests {
         fn get_stacks_block_info_time() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-stacks-block-info? time u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-stacks-block-info? time u0)")
+                .expect("Failed to init contract.");
             let block_time_val = match result {
                 Some(Value::Optional(OptionalData { data: Some(data) })) => *data,
                 _ => panic!("expected value"),
@@ -507,7 +522,7 @@ mod tests {
                 _ => panic!("expected uint"),
             };
             let now = chrono::Utc::now().timestamp() as u128;
-    
+
             // The block time should be close to the current time, so let's give it
             // a 10 second window, to be safe.
             assert!(block_time >= now - 10);
@@ -517,7 +532,9 @@ mod tests {
         fn get_stacks_block_info_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-stacks-block-info? header-hash u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-stacks-block-info? header-hash u0)")
+                .expect("Failed to init contract.");
             assert_eq!(
                 result,
                 Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
@@ -528,7 +545,9 @@ mod tests {
         fn get_tenure_info_time() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? time u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? time u0)")
+                .expect("Failed to init contract.");
             let block_time_val = match result {
                 Some(Value::Optional(OptionalData { data: Some(data) })) => *data,
                 _ => panic!("expected value"),
@@ -538,7 +557,7 @@ mod tests {
                 _ => panic!("expected uint"),
             };
             let now = chrono::Utc::now().timestamp() as u128;
-    
+
             // The block time should be close to the current time, so let's give it
             // a 10 second window, to be safe.
             assert!(block_time >= now - 10);
@@ -548,7 +567,9 @@ mod tests {
         fn get_tenure_info_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? burnchain-header-hash u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? burnchain-header-hash u0)")
+                .expect("Failed to init contract.");
             assert_eq!(
                 result,
                 Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
@@ -559,7 +580,9 @@ mod tests {
         fn get_tenure_info_miner_address() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? miner-address u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? miner-address u0)")
+                .expect("Failed to init contract.");
             assert_eq!(
                 result,
                 Some(
@@ -576,7 +599,9 @@ mod tests {
         fn get_tenure_info_block_reward() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? block-reward u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? block-reward u0)")
+                .expect("Failed to init contract.");
             assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
         }
 
@@ -584,7 +609,9 @@ mod tests {
         fn get_tenure_info_miner_spend_total() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? miner-spend-total u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? miner-spend-total u0)")
+                .expect("Failed to init contract.");
             assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
         }
 
@@ -592,7 +619,9 @@ mod tests {
         fn get_tenure_info_miner_spend_winner() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? miner-spend-winner u0)").expect("Failed to init contract.");
+            let result = env
+                .evaluate("(get-tenure-info? miner-spend-winner u0)")
+                .expect("Failed to init contract.");
             assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
         }
 
@@ -600,8 +629,13 @@ mod tests {
         fn get_tenure_info_vrf_seed() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let result = env.evaluate("(get-tenure-info? vrf-seed u0)").expect("Failed to init contract.");
-            assert_eq!(result, Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap()));
+            let result = env
+                .evaluate("(get-tenure-info? vrf-seed u0)")
+                .expect("Failed to init contract.");
+            assert_eq!(
+                result,
+                Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
+            );
         }
     }
 
