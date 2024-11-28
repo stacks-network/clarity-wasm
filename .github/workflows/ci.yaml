@@ -3,9 +3,6 @@ name: Continuous Integration
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "**.yml"
-      - "**.yaml"
   pull_request:
     types:
       - opened
@@ -13,9 +10,6 @@ on:
       - synchronize
       - ready_for_review
     branches: [main]
-    paths-ignore:
-      - "**.yml"
-      - "**.yaml"
   merge_group:
     types: [checks_requested]
 
