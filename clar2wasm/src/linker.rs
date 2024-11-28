@@ -5,9 +5,10 @@ use clarity::vm::database::{ClarityDatabase, STXBalance, StoreType};
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
 use clarity::vm::functions::crypto::{pubkey_to_address_v1, pubkey_to_address_v2};
 use clarity::vm::types::{
-    AssetIdentifier, BuffData, BufferLength, FunctionType, ListTypeData, PrincipalData,
-    SequenceData, SequenceSubtype, StacksAddressExtensions, TraitIdentifier, TupleData,
-    TupleTypeSignature, TypeSignature, BUFF_1, BUFF_32, BUFF_33,
+    AssetIdentifier, BuffData, BufferLength,
+    FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype,
+    StacksAddressExtensions, TraitIdentifier, TupleData, TupleTypeSignature, TypeSignature, BUFF_1,
+    BUFF_32, BUFF_33,
 };
 use clarity::vm::{ClarityName, ClarityVersion, Environment, SymbolicExpression, Value};
 use stacks_common::types::chainstate::StacksBlockId;
@@ -4295,7 +4296,6 @@ fn link_get_tenure_info_miner_spend_winner_property_fn(
             ))
         })
 }
-
 
 /// Link host interface function, `contract_call`, into the Wasm module.
 /// This function is called for `contract-call?`s.
