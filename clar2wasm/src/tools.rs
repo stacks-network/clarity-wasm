@@ -526,6 +526,20 @@ pub fn crosscheck_with_amount(snippet: &str, amount: u128, expected: Result<Opti
     }
 }
 
+pub fn crosscheck_with_env(
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+    env: TestEnvironment,
+) {
+    if let Some(eval) = execute_crosscheck(env, snippet, |_| {}) {
+        assert_eq!(
+            eval.compiled, expected,
+            "value is not the expected {:?}",
+            eval.compiled
+        );
+    }
+}
+
 fn crosscheck_compare_only_with_env(snippet: &str, env: TestEnvironment) {
     // to avoid false positives when both the compiled and interpreted fail,
     // we don't allow failures in these tests
