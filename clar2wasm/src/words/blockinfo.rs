@@ -504,7 +504,9 @@ mod tests {
             .unwrap();
             crosscheck_with_env(
                 "(get-stacks-block-info? id-header-hash u0)",
-                Ok(Some(Value::some(Value::buff_from(expected.to_vec()).unwrap()).unwrap())),
+                Ok(Some(
+                    Value::some(Value::buff_from(expected.to_vec()).unwrap()).unwrap(),
+                )),
                 env,
             );
         }
@@ -525,12 +527,10 @@ mod tests {
         fn get_stacks_block_info_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let expected = Ok(Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap()));
-            crosscheck_with_env(
-                "(get-stacks-block-info? header-hash u0)",
-                expected,
-                env,
-            );
+            let expected = Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            ));
+            crosscheck_with_env("(get-stacks-block-info? header-hash u0)", expected, env);
         }
 
         #[test]
@@ -549,12 +549,10 @@ mod tests {
         fn get_tenure_info_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let expected = Ok(Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? burnchain-header-hash u0)",
-                expected,
-                env,
-            );
+            let expected = Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            ));
+            crosscheck_with_env("(get-tenure-info? burnchain-header-hash u0)", expected, env);
         }
 
         // The principal here is taken from an older test for get-block-info?.
@@ -566,15 +564,13 @@ mod tests {
         fn get_tenure_info_miner_address() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let expected = Ok(Some(Value::some(Value::Principal(
-                PrincipalData::parse("ST000000000000000000002AMW42H").unwrap()
-            ))
-            .unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? miner-address u0)",
-                expected,
-                env,
-            );
+            let expected = Ok(Some(
+                Value::some(Value::Principal(
+                    PrincipalData::parse("ST000000000000000000002AMW42H").unwrap(),
+                ))
+                .unwrap(),
+            ));
+            crosscheck_with_env("(get-tenure-info? miner-address u0)", expected, env);
         }
 
         #[test]
@@ -583,11 +579,7 @@ mod tests {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
             let expected = Ok(Some(Value::some(Value::UInt(0)).unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? block-reward u0)",
-                expected,
-                env,
-            );
+            crosscheck_with_env("(get-tenure-info? block-reward u0)", expected, env);
         }
 
         #[test]
@@ -595,11 +587,7 @@ mod tests {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
             let expected = Ok(Some(Value::some(Value::UInt(0)).unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? miner-spend-total u0)",
-                expected,
-                env,
-            );
+            crosscheck_with_env("(get-tenure-info? miner-spend-total u0)", expected, env);
         }
 
         #[test]
@@ -607,23 +595,17 @@ mod tests {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
             let expected = Ok(Some(Value::some(Value::UInt(0)).unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? miner-spend-winner u0)",
-                expected,
-                env,
-            );
+            crosscheck_with_env("(get-tenure-info? miner-spend-winner u0)", expected, env);
         }
 
         #[test]
         fn get_tenure_info_vrf_seed() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
-            let expected = Ok(Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap()));
-            crosscheck_with_env(
-                "(get-tenure-info? vrf-seed u0)",
-                expected,
-                env,
-            );
+            let expected = Ok(Some(
+                Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap(),
+            ));
+            crosscheck_with_env("(get-tenure-info? vrf-seed u0)", expected, env);
         }
     }
 
