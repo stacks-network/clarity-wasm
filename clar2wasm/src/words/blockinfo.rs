@@ -487,16 +487,16 @@ mod tests {
                 .contains("expecting 2 arguments, got 3"));
         }
 
-        // The hash here is taken from an older test for get-block-info?.
-        // Because the logic behind get-stacks-block-info? id-header-hash and
-        // get-block-info? id-header-hash are the same and both use the
-        // get_index_block_header_hash function the return value should be the
-        // same.
         #[test]
         fn get_stacks_block_info_id_header_hash() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
             let mut expected = [0u8; 32];
+            // The hash here is taken from an older test for get-block-info?.
+            // Because the logic behind get-stacks-block-info? id-header-hash
+            // and get-block-info? id-header-hash are the same and both use the
+            // get_index_block_header_hash function the return value should be
+            // the same.
             hex::decode_to_slice(
                 "b5e076ab7609c7f8c763b5c571d07aea80b06b41452231b1437370f4964ed66e",
                 &mut expected,
@@ -555,15 +555,15 @@ mod tests {
             crosscheck_with_env("(get-tenure-info? burnchain-header-hash u0)", expected, env);
         }
 
-        // The principal here is taken from an older test for get-block-info?.
-        // Because the logic behind get-tenure-info? id-header-hash and
-        // get-block-info? id-header-hash are the same and both use the
-        // get_miner_address function the return value should be the
-        // same.
         #[test]
         fn get_tenure_info_miner_address() {
             let mut env = TestEnvironment::new(StacksEpochId::Epoch30, ClarityVersion::Clarity3);
             env.advance_chain_tip(1);
+            // The principal here is taken from an older test for
+            // get-block-info?.
+            // Because the logic behind get-tenure-info? id-header-hash and
+            // get-block-info? id-header-hash are the same and both use the
+            // get_miner_address function the return value should be the same.
             let expected = Ok(Some(
                 Value::some(Value::Principal(
                     PrincipalData::parse("ST000000000000000000002AMW42H").unwrap(),
