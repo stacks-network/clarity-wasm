@@ -173,9 +173,9 @@ Run the bench command with `--features flamegraph` and `--profile-time <seconds>
 
 For example:
 ```shell
-cargo bench --bench benchmark --features flamegraph -- --profile-time 10 "add: clarity"
+cargo bench --bench comparison --features flamegraph -- --profile-time 10 "wasm_add"
 ```
-Output `target/criterion/add_ clarity/profile/flamegraph.svg` preview:
+Output `target/criterion/wasm_add/profile/flamegraph.svg` preview:
 
 ![bench-flamegraph](docs/images/bench-flamegraph-example.png?raw=true)
 
@@ -185,8 +185,8 @@ Run the bench command with `--features pb` and `--profile-time <seconds>` flags.
 
 For example:
 ```shell
-cargo bench --bench benchmark --features pb -- --profile-time 10 "add: clarity"
-$GOPATH/bin/pprof -svg "target/criterion/add_ clarity/profile/profile.pb"
+cargo bench --bench comparison --features pb -- --profile-time 10 "wasm_add"
+$GOPATH/bin/pprof -svg "target/criterion/wasm_add/profile/profile.pb"
 ```
 Output `profile001.svg` preview:
 

@@ -29,11 +29,11 @@ test-clarity-v2 = []
 test-clarity-v3 = []
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion = "0.5"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
 hex = "0.4.3"
-pprof = { version = "0.13", features = [
+pprof = { version = "0.14", features = [
   "flamegraph",
   "protobuf-codec",
   "criterion",
@@ -43,6 +43,7 @@ assert_fs = "1.1.1"
 assert_cmd = "2.0.14"
 wasmparser = "0.207.0"
 predicates = "3.1.0"
+paste = "1"
 
 [lib]
 path = "src/lib.rs"
@@ -55,10 +56,11 @@ path = "src/bin/main.rs"
 name = "crosscheck"
 path = "src/bin/crosscheck.rs"
 
-[[bench]]
-name = "benchmark"
-harness = false
+# FIXME: fails with OoB memory access
+# [[bench]]
+# name = "benchmark2"
+# harness = false
 
 [[bench]]
-name = "benchmark2"
+name = "comparison"
 harness = false
