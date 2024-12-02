@@ -4142,7 +4142,6 @@ fn link_get_tenure_info_block_reward_property_fn(
                 if let Some(height_value) =
                     check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
                 {
-                    println!("got here");
                     let block_reward_opt = caller
                         .data_mut()
                         .global_context
