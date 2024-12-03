@@ -10,17 +10,19 @@ use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::types::{
-    BuffData, QualifiedContractIdentifier, SequenceData, StandardPrincipalData,
-};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{
     eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
 };
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::measurement::Measurement;
+use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion};
 use paste::paste;
 use pprof::criterion::{Output, PProfProfiler};
 
-fn interpreter(c: &mut Criterion, fn_name: &str, clarity: &str, args: &[Value]) {
+fn interpreter<M>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, args: &[Value])
+where
+    M: 'static + Measurement,
+{
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
         ContractName::from(format!("clarity-{}", fn_name).as_str()),
@@ -102,17 +104,18 @@ fn interpreter(c: &mut Criterion, fn_name: &str, clarity: &str, args: &[Value]) 
         None,
     );
 
-    c.bench_function(format!("intp_{}", fn_name).as_str(), |b| {
-        b.iter(|| {
-            env.execute_function_as_transaction(&func, args, None, false)
-                .expect("Function call failed");
-        })
+    b.iter(|| {
+        env.execute_function_as_transaction(&func, args, None, false)
+            .expect("Function call failed");
     });
 
     global_context.commit().unwrap();
 }
 
-fn wasm(c: &mut Criterion, fn_name: &str, clarity: &str, args: &[Value]) {
+fn webassembly<M>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, args: &[Value])
+where
+    M: 'static + Measurement,
+{
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
         ContractName::from(format!("clarity-{}", fn_name).as_str()),
@@ -178,47 +181,81 @@ fn wasm(c: &mut Criterion, fn_name: &str, clarity: &str, args: &[Value]) {
         None,
     );
 
-    c.bench_function(format!("wasm_{}", fn_name).as_str(), |b| {
-        b.iter(|| {
-            env.execute_function_as_transaction(&func, args, None, false)
-                .expect("Function call failed");
-        })
+    b.iter(|| {
+        env.execute_function_as_transaction(&func, args, None, false)
+            .expect("Function call failed");
     });
 
     global_context.commit().unwrap();
 }
 
+fn criterion_config() -> Criterion {
+    if cfg!(feature = "flamegraph") {
+        Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
+    } else if cfg!(feature = "pb") {
+        Criterion::default().with_profiler(PProfProfiler::new(100, Output::Protobuf))
+    } else {
+        Criterion::default()
+    }
+}
+
+/// Used to declare benchmarks of clarity contracts to be run on both the interpreter and the
+/// WebAssembly runtime.
+/// Each arm should only be matched once and declares a criterion group that can then be picked up
+/// by [`criterion_main!`].
 macro_rules! decl_benches {
+    // single
     ($(($fn_name:literal, $clarity:literal, [$($arg:expr),*])),* $(,)?) => {
         paste! {
             $(
                 #[allow(non_snake_case)]
-                fn [<interpreter _ $fn_name>](c: &mut Criterion) {
-                    interpreter(c, $fn_name, $clarity, &[$($arg),*])
-                }
-
-                #[allow(non_snake_case)]
-                fn [<wasm _ $fn_name>](c: &mut Criterion) {
-                    wasm(c, $fn_name, $clarity, &[$($arg),*])
+                fn [<single _ $fn_name>](c: &mut Criterion) {
+                    let mut group = c.benchmark_group($fn_name);
+                    group.bench_function("interpreter", |b| {
+                        interpreter(b, $fn_name, $clarity, &[$($arg),*]);
+                    });
+                    group.bench_function("webassembly", |b| {
+                        webassembly(b, $fn_name, $clarity, &[$($arg),*]);
+                    });
                 }
             )*
 
             criterion_group! {
-                name = comparison;
-                config = {
-                    if cfg!(feature = "flamegraph") {
-                        Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
-                    } else if cfg!(feature = "pb") {
-                        Criterion::default().with_profiler(PProfProfiler::new(100, Output::Protobuf))
-                    } else {
-                        Criterion::default()
-                    }
-                };
-                targets = $([<interpreter _ $fn_name>], [<wasm _ $fn_name>]),*
+                name = single;
+                config = criterion_config();
+                targets = $([<single _ $fn_name>]),*
             }
-            criterion_main!(comparison);
         }
     };
+    // range
+    ($(($fn_name:literal, $range:expr, $closure:expr)),* $(,)?) => {
+        paste! {
+            $(
+                #[allow(non_snake_case)]
+                fn [<range _ $fn_name>](c: &mut Criterion) {
+                    let mut group = c.benchmark_group($fn_name);
+
+                    let closure = $closure;
+
+                    for i in $range {
+                        let (clarity, args) = closure(i);
+                        group.bench_with_input(BenchmarkId::new("interpreter", i), &i, |b, _| {
+                            interpreter(b, $fn_name, &clarity, &args)
+                        });
+                        group.bench_with_input(BenchmarkId::new("webassembly", i), &i, |b, _| {
+                            webassembly(b, $fn_name, &clarity, &args)
+                        });
+                    }
+                }
+            )*
+
+            criterion_group! {
+                name = range;
+                config = criterion_config();
+                targets = $([<range _ $fn_name>]),*
+            }
+        }
+    }
 }
 
 decl_benches! {
@@ -231,116 +268,50 @@ decl_benches! {
         "#,
         [Value::Int(42), Value::Int(12345)]
     ),
-    (
-        "sub",
-        r#"
-         (define-read-only (sub (x int) (y int))
-             (- x y)
-         )
-        "#,
-        [Value::Int(12345), Value::Int(45)]
-    ),
-    (
-        "mul",
-        r#"
-         (define-read-only (mul (x int) (y int))
-             (* x y)
-         )
-        "#,
-        [Value::Int(42), Value::Int(24)]
-    ),
-    (
-        "div",
-        r#"
-         (define-read-only (div (x int) (y int))
-             (/ x y)
-         )
-        "#,
-        [Value::Int(42), Value::Int(3)]
-    ),
-    (
-        "bit_and",
-        r#"
-         (define-read-only (bit_and (x int) (y int))
-             (bit-and x y)
-         )
-        "#,
-        [Value::Int(42), Value::Int(3)]
-    ),
-    (
-        "bit_or",
-        r#"
-         (define-read-only (bit_or (x int) (y int))
-             (bit-or x y)
-         )
-        "#,
-        [Value::Int(42), Value::Int(3)]
-    ),
-    (
-        "bit_not",
-        r#"
-         (define-read-only (bit_not (x int))
-             (bit-not x)
-         )
-        "#,
-        [Value::Int(42)]
-    ),
-    (
-        "bit_shift_left",
-        r#"
-         (define-read-only (bit_shift_left (x int) (y uint))
-             (bit-shift-left x y)
-         )
-        "#,
-        [Value::Int(42), Value::UInt(3)]
-    ),
-    (
-        "bit_shift_right",
-        r#"
-         (define-read-only (bit_shift_right (x int) (y uint))
-             (bit-shift-right x y)
-         )
-        "#,
-        [Value::Int(42), Value::UInt(3)]
-    ),
-    (
-        "bit_xor",
-        r#"
-         (define-read-only (bit_xor (x int) (y int))
-             (bit-xor x y)
-         )
-        "#,
-        [Value::Int(42), Value::Int(3)]
-    ),
-    (
-        "SHA256",
-        r#"
-         (define-read-only (SHA256 (data (buff 1000)))
-             (sha256 data)
-         )
-        "#,
-        [Value::Sequence(SequenceData::Buffer(BuffData {data: vec![42; 1000] }))]
-    ),
-    (
-        "SHA512",
-        r#"
-         (define-read-only (SHA512 (data (buff 1000)))
-             (sha512 data)
-         )
-        "#,
-        [Value::Sequence(SequenceData::Buffer(BuffData {data: vec![42; 1000] }))]
-    ),
+}
+
+decl_benches! {
     (
         "fold_add_square",
-        r#"
-        (define-private (add_square (x int) (y int))
-            (+ (* x x) y)
-        )
+        (1..=1001).step_by(50),
+        |i| {
+            let clarity = format!(
+            r#"
+                (define-private (add_square (x int) (y int))
+                    (+ (* x x) y)
+                )
 
-        (define-public (fold_add_square (l (list 2048 int)) (init int))
-            (ok (fold add_square l init))
-        )
-        "#,
-        [Value::cons_list_unsanitized((1..=2048).map(Value::Int).collect()).unwrap(), Value::Int(1)]
+                (define-public (fold_add_square (l (list {i} int)) (init int))
+                    (ok (fold add_square l init))
+                )
+            "#);
+            let args = [Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap(), Value::Int(0)];
+            (clarity, args)
+        }
+    ),
+    (
+        "map_set_entries",
+        (1..=1001).step_by(50),
+        |i| {
+            let clarity = format!(
+            r#"
+                (define-map mymap int int)
+
+                (define-public (map_set_entries (l (list {i} int)))
+                    (begin
+                        (map set_entry l)
+                        (ok true)
+                    )
+                )
+
+                (define-private (set_entry (entry int))
+                    (map-set mymap entry entry)
+                )
+            "#);
+            let args = [Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap()];
+            (clarity, args)
+        }
     ),
 }
+
+criterion_main!(single, range);
