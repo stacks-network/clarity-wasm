@@ -70,16 +70,31 @@ mod clarity_v3 {
     use super::*;
     use crate::runtime_config;
 
-    const BLOCK_INFO_V2: [&str; 3] = ["block-reward", "miner-spend-total", "miner-spend-winner"];
+    const STACKS_BLOCK_INFO: [&str; 3] = ["id-header-hash", "header-hash", "time"];
+    const TENURE_INFO: [&str; 7] = [
+        "burnchain-header-hash",
+        "miner-address",
+        "time",
+        "vrf-seed",
+        "block-reward",
+        "miner-spend-total",
+        "miner-spend-winner",
+    ];
 
     proptest! {
         #![proptest_config(runtime_config())]
 
-        #[ignore = "see issue #428"]
         #[test]
-        fn crossprop_blockinfo_within_controlled_range(block_height in 1..=STACKS_BLOCK_HEIGHT_LIMIT, tip in 1..=80u32) {
-            for info in BLOCK_INFO_V1.iter().chain(BLOCK_INFO_V2.iter()) {
+        fn crossprop_stacksblockinfo_within_controlled_range(block_height in 1..=STACKS_BLOCK_HEIGHT_LIMIT, tip in 1..=80u32) {
+            for info in STACKS_BLOCK_INFO.iter() {
                 crosscheck_compare_only_advancing_tip(&format!("(get-stacks-block-info? {info} u{block_height})"), tip)
+            }
+        }
+
+        #[test]
+        fn crossprop_tenureinfo_within_controlled_range(block_height in 1..=STACKS_BLOCK_HEIGHT_LIMIT, tip in 1..=80u32) {
+            for info in TENURE_INFO.iter() {
+                crosscheck_compare_only_advancing_tip(&format!("(get-tenure-info? {info} u{block_height})"), tip)
             }
         }
 
