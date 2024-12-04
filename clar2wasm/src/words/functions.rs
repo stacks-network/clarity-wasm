@@ -1,8 +1,12 @@
+use clarity::vm::types::{ASCIIData, CharType};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::check_args;
-use crate::wasm_generator::{ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator};
+use crate::error_mapping::ErrorMap;
+use crate::wasm_generator::{
+    get_global, ArgumentsExt, FunctionKind, GeneratorError, LiteralMemoryEntry, WasmGenerator,
+};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
@@ -68,6 +72,27 @@ impl ComplexWord for DefineReadonlyFunction {
                 "Name already used {:?}",
                 name
             )));
+        }
+
+        // Handling function name collision.
+        // Detects duplicate names and generates
+        // appropriate WebAssembly instructions to report the error.
+        let entry = LiteralMemoryEntry::Ascii(name.to_string());
+        if generator.literal_memory_offset.contains_key(&entry) {
+            let (arg_name_offset, arg_name_len) =
+                generator.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
+                    data: name.as_bytes().to_vec(),
+                }))?;
+
+            builder
+                .i32_const(arg_name_offset as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-offset")?)
+                .i32_const(arg_name_len as i32)
+                .global_set(get_global(&generator.module, "runtime-error-arg-len")?)
+                .i32_const(ErrorMap::NameAlreadyUsed as i32)
+                .call(generator.func_by_name("stdlib.runtime-error"));
+
+            return Ok(());
         }
 
         let body = args.get_expr(1)?;
@@ -442,5 +467,21 @@ mod tests {
                 "a".to_string(),
             ))),
         );
+    }
+
+    #[test]
+    fn define_read_only_duplicated() {
+        crosscheck(
+            r#"
+(define-read-only (get-decimals) (ok u0))
+(define-read-only (get-name) (ok "Rocket Token"))
+(define-read-only (get-symbol) (ok "RKT"))
+(define-read-only (get-symbol) (ok "RKT"))
+(define-read-only (get-token-uri) (ok none))
+            "#,
+            Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
+                "get-symbol".to_string(),
+            ))),
+        )
     }
 }
