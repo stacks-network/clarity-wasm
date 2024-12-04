@@ -74,6 +74,9 @@ impl ComplexWord for DefineReadonlyFunction {
             )));
         }
 
+        // Handling function name collision.
+        // Detects duplicate names and generates
+        // appropriate WebAssembly instructions to report the error.
         let entry = LiteralMemoryEntry::Ascii(name.to_string());
         if generator.literal_memory_offset.contains_key(&entry) {
             let (arg_name_offset, arg_name_len) =
