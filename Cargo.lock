@@ -421,6 +421,7 @@ dependencies = [
  "pprof",
  "predicates",
  "proptest",
+ "rand",
  "regex",
  "rusqlite",
  "sha2",
