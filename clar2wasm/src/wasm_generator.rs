@@ -262,7 +262,7 @@ pub fn type_from_sequence_element(se: &SequenceElementType) -> TypeSignature {
     }
 }
 
-fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
+pub fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorError> {
     module
         .globals
         .iter()
