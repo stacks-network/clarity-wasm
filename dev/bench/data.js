@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1733357959663,
+  "lastUpdate": 1733776816922,
   "repoUrl": "https://github.com/stacks-network/clarity-wasm",
   "entries": {
     "Benchmark": [
@@ -527,6 +527,182 @@ window.BENCHMARK_DATA = {
             "name": "wasm_fold_add_square",
             "value": 413283,
             "range": "± 11787",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "stacks-network",
+            "username": "stacks-network"
+          },
+          "committer": {
+            "name": "stacks-network",
+            "username": "stacks-network"
+          },
+          "id": "299812bc2a08a8e043d6d7b7d7758a7cbce3339f",
+          "message": "Add benchmark workflow",
+          "timestamp": "2024-12-09T01:36:31Z",
+          "url": "https://github.com/stacks-network/clarity-wasm/pull/581/commits/299812bc2a08a8e043d6d7b7d7758a7cbce3339f"
+        },
+        "date": 1733776816081,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "intp_add",
+            "value": 1022,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_add",
+            "value": 297061,
+            "range": "± 4330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_sub",
+            "value": 1095,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_sub",
+            "value": 298376,
+            "range": "± 3990",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_mul",
+            "value": 1036,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_mul",
+            "value": 297214,
+            "range": "± 6142",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_div",
+            "value": 1027,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_div",
+            "value": 298651,
+            "range": "± 5126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_and",
+            "value": 1085,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_and",
+            "value": 299399,
+            "range": "± 5201",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_or",
+            "value": 1155,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_or",
+            "value": 297415,
+            "range": "± 4235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_not",
+            "value": 748,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_not",
+            "value": 297765,
+            "range": "± 7516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_shift_left",
+            "value": 1032,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_shift_left",
+            "value": 297921,
+            "range": "± 3127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_shift_right",
+            "value": 1088,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_shift_right",
+            "value": 297906,
+            "range": "± 1671",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_bit_xor",
+            "value": 1172,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_bit_xor",
+            "value": 297698,
+            "range": "± 3466",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_SHA256",
+            "value": 1465,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_SHA256",
+            "value": 327266,
+            "range": "± 3202",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_SHA512",
+            "value": 2919,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_SHA512",
+            "value": 326317,
+            "range": "± 3376",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "intp_fold_add_square",
+            "value": 3816107,
+            "range": "± 25463",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "wasm_fold_add_square",
+            "value": 415942,
+            "range": "± 2859",
             "unit": "ns/iter"
           }
         ]
