@@ -21,7 +21,7 @@ impl ComplexWord for ToConsensusBuff {
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &clarity::vm::SymbolicExpression,
+        expr: &clarity::vm::SymbolicExpression,
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
@@ -38,7 +38,7 @@ impl ComplexWord for ToConsensusBuff {
             .clone();
 
         let expr_ty = generator
-            .get_expr_type(_expr)
+            .get_expr_type(expr)
             .ok_or_else(|| {
                 GeneratorError::TypeError(
                     "to-consensus-buff? value expression must be typed".to_owned(),
