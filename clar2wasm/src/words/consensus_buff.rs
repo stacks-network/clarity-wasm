@@ -37,13 +37,17 @@ impl ComplexWord for ToConsensusBuff {
             })?
             .clone();
 
-        // Save the offset (current stack pointer) into a local.
-        // This is where we will serialize the value to.
-        let offset = generator.module.locals.add(walrus::ValType::I32);
+        let expr_ty = generator
+            .get_expr_type(_expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError(
+                    "to-consensus-buff? value expression must be typed".to_owned(),
+                )
+            })?
+            .clone();
+        let (offset, _) = generator.create_call_stack_local(builder, &expr_ty, false, true);
+
         let length = generator.module.locals.add(walrus::ValType::I32);
-        builder
-            .global_get(generator.stack_pointer)
-            .local_set(offset);
 
         // Write the serialized value to the top of the call stack
         generator.serialize_to_memory(builder, offset, 0, &ty)?;
