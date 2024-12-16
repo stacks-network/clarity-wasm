@@ -167,6 +167,12 @@ When executing the compiled Clarity code, it needs to interact with the host - f
 
 ## Benchmarking
 
+Benchmarks are run and their results published on a continuous basis using [github-action-benchmark].
+The results are published to GitHub pages and are available [here].
+
+[github-action-benchmark]: https://github.com/benchmark-action/github-action-benchmark
+[here]: https://stacks-network.github.io/clarity-wasm/dev/bench/
+
 #### Generate a flamegraph
 
 Run the bench command with `--features flamegraph` and `--profile-time <seconds>` flags. 
