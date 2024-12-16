@@ -8,6 +8,7 @@ use clarity::vm::errors::{CheckErrors, Error};
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::Value;
 
+#[allow(clippy::expect_used)]
 pub fn as_oom_check_snippet(snippet: &str) -> String {
     let version = TestConfig::clarity_version();
     let epoch = TestConfig::latest_epoch();
