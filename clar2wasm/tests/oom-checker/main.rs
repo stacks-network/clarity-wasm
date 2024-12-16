@@ -1,3 +1,5 @@
+pub mod unit_tests;
+
 use clar2wasm::compile;
 use clar2wasm::datastore::Datastore;
 use clar2wasm::tools::{crosscheck, TestConfig};
