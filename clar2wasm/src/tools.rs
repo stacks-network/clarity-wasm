@@ -373,7 +373,7 @@ pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
-struct TestConfig;
+pub struct TestConfig;
 
 impl TestConfig {
     /// Select a Clarity version based on enabled features.
