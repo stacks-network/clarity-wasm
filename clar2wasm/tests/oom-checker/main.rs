@@ -1,15 +1,17 @@
+#![cfg(test)]
 pub mod unit_tests;
 
 use clar2wasm::compile;
 use clar2wasm::datastore::Datastore;
 use clar2wasm::tools::{crosscheck, TestConfig};
+use clar2wasm::wasm_utils::get_type_in_memory_size;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::errors::{CheckErrors, Error};
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData, TypeSignature};
 use clarity::vm::Value;
 
 #[allow(clippy::expect_used)]
-pub fn as_oom_check_snippet(snippet: &str) -> String {
+pub fn as_oom_check_snippet(snippet: &str, args_types: &[TypeSignature]) -> String {
     let version = TestConfig::clarity_version();
     let epoch = TestConfig::latest_epoch();
 
@@ -51,20 +53,33 @@ pub fn as_oom_check_snippet(snippet: &str) -> String {
         _ => unreachable!("stack-pointer should be a locally declared global with a i32 value"),
     };
 
+    let args_space_needed = args_types
+        .iter()
+        .map(|ty| get_type_in_memory_size(ty, false))
+        .sum::<i32>() as usize;
+
     let free_space_on_memory_page = memory_pages * 65536 - stack_pointer_value;
 
-    dbg!(format!(
+    format!(
         "(define-constant ignore 0x{})\n{snippet}",
         "00".repeat({
             // we will need 8 bytes for the (offset, size) and 6 bytes for the name "ignore"
             free_space_on_memory_page
-                .checked_sub(14)
+                .checked_sub(14 + args_space_needed)
                 // we add a page if we don't have 14 remaining bytes
-                .unwrap_or(free_space_on_memory_page + 65536 - 8 - 6)
+                .unwrap_or(free_space_on_memory_page + 65536 - 14 - args_space_needed)
         })
-    ))
+    )
+}
+
+pub fn crosscheck_oom_with_non_literal_args(
+    snippet: &str,
+    args_types: &[TypeSignature],
+    expected: Result<Option<Value>, Error>,
+) {
+    crosscheck(&as_oom_check_snippet(snippet, args_types), expected);
 }
 
 pub fn crosscheck_oom(snippet: &str, expected: Result<Option<Value>, Error>) {
-    crosscheck(&as_oom_check_snippet(snippet), expected);
+    crosscheck_oom_with_non_literal_args(snippet, &[], expected)
 }
