@@ -431,6 +431,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         value_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -513,11 +514,17 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut some_block, offset_local, end_local, value_ty)?;
+        self.deserialize_from_memory(
+            &mut some_block,
+            offset_local,
+            end_local,
+            offset_result,
+            value_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
-        // - Check the inidicator now on top of the stack
+        // - Check the indicator now on top of the stack
         let inner_locals = self.save_to_locals(&mut some_block, value_ty, true);
         some_block.unop(UnaryOp::I32Eqz).if_else(
             None,
@@ -579,6 +586,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         ok_ty: &TypeSignature,
         err_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
@@ -638,7 +646,7 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut ok_block, offset_local, end_local, ok_ty)?;
+        self.deserialize_from_memory(&mut ok_block, offset_local, end_local, offset_result, ok_ty)?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
@@ -698,7 +706,13 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut err_block, offset_local, end_local, err_ty)?;
+        self.deserialize_from_memory(
+            &mut err_block,
+            offset_local,
+            end_local,
+            offset_result,
+            err_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
@@ -759,6 +773,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         list_ty: &ListTypeData,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -893,7 +908,13 @@ impl WasmGenerator {
 
         // Deserialize the element. Note, this will update the offset to point
         // to the next element.
-        self.deserialize_from_memory(&mut loop_block, offset_local, end_local, element_ty)?;
+        self.deserialize_from_memory(
+            &mut loop_block,
+            offset_local,
+            end_local,
+            offset_result,
+            element_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
@@ -960,6 +981,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         tuple_ty: &TupleTypeSignature,
     ) -> Result<(), GeneratorError> {
         // We need to be able to parse the keys coming in a random order, only one occurence of each key.
@@ -1214,6 +1236,7 @@ impl WasmGenerator {
                             &mut case_block,
                             offset_local,
                             end_local,
+                            offset_result,
                             field_ty,
                         )?;
                         for &l in field_locals.iter().rev() {
@@ -1629,6 +1652,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         string_utf8_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let max_len: u32 = match string_utf8_ty {
@@ -1694,9 +1718,7 @@ impl WasmGenerator {
                 then.if_else(
                     return_type,
                     |then| {
-                        let (offset_result, _len) =
-                            self.create_call_stack_local(then, string_utf8_ty, false, true);
-
+                        // convert utf8 to string-utf8
                         then.local_get(offset_local)
                             .local_get(string_length)
                             .local_get(offset_result)
@@ -1735,6 +1757,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let memory = self.get_memory()?;
@@ -1752,16 +1775,27 @@ impl WasmGenerator {
                 memory,
                 offset_local,
                 end_local,
+                offset_result,
                 &types.0,
                 &types.1,
             ),
             BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
-            OptionalType(value_ty) => {
-                self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
-            }
-            SequenceType(SequenceSubtype::ListType(list_ty)) => {
-                self.deserialize_list(builder, memory, offset_local, end_local, list_ty)
-            }
+            OptionalType(value_ty) => self.deserialize_optional(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                value_ty,
+            ),
+            SequenceType(SequenceSubtype::ListType(list_ty)) => self.deserialize_list(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                list_ty,
+            ),
             SequenceType(SequenceSubtype::BufferType(type_length)) => self.deserialize_buffer(
                 builder,
                 memory,
@@ -1777,12 +1811,23 @@ impl WasmGenerator {
                     end_local,
                     type_length.into(),
                 ),
-            utf8 @ SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                self.deserialize_string_utf8(builder, memory, offset_local, end_local, utf8)
-            }
-            TupleType(tuple_ty) => {
-                self.deserialize_tuple(builder, memory, offset_local, end_local, tuple_ty)
-            }
+            utf8 @ SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => self
+                .deserialize_string_utf8(
+                    builder,
+                    memory,
+                    offset_local,
+                    end_local,
+                    offset_result,
+                    utf8,
+                ),
+            TupleType(tuple_ty) => self.deserialize_tuple(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                tuple_ty,
+            ),
             NoType => unreachable!("NoType should not be deserialized"),
             ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
         }
