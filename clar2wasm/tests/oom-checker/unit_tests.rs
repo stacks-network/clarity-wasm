@@ -1,7 +1,7 @@
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::{ListTypeData, PrincipalData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
 
-use crate::crosscheck_oom;
+use crate::{crosscheck_oom, crosscheck_oom_with_non_literal_args, list_of};
 
 #[test]
 #[ignore = "issue #585"]
@@ -15,6 +15,82 @@ fn principal_of_oom() {
                     .into(),
             )
             .unwrap(),
+        )),
+    )
+}
+
+#[test]
+fn list_oom() {
+    crosscheck_oom(
+        "(list 1 2 3)",
+        Ok(Some(
+            Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                .unwrap(),
+        )),
+    );
+}
+
+#[test]
+fn append_oom() {
+    crosscheck_oom_with_non_literal_args(
+        "(append (list 1 2 3) 4)",
+        &[list_of(TypeSignature::IntType, 3)],
+        Ok(Some(
+            Value::cons_list_unsanitized(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+            ])
+            .unwrap(),
+        )),
+    );
+}
+
+#[test]
+fn concat_oom() {
+    crosscheck_oom_with_non_literal_args(
+        "(concat (list 1 2 3) (list 4 5))",
+        &[
+            list_of(TypeSignature::IntType, 3),
+            list_of(TypeSignature::IntType, 2),
+        ],
+        Ok(Some(
+            Value::cons_list_unsanitized(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+                Value::Int(5),
+            ])
+            .unwrap(),
+        )),
+    );
+}
+
+#[test]
+fn replace_at_oom() {
+    crosscheck_oom_with_non_literal_args(
+        "(replace-at? (list 1 2 3) u0 42)",
+        &[list_of(TypeSignature::IntType, 3)],
+        Ok(Some(
+            Value::some(
+                Value::cons_list_unsanitized(vec![Value::Int(42), Value::Int(2), Value::Int(3)])
+                    .unwrap(),
+            )
+            .unwrap(),
+        )),
+    );
+}
+
+#[test]
+fn map_oom() {
+    crosscheck_oom_with_non_literal_args(
+        "(define-private (foo (b bool)) u42) (map foo (list true true false))",
+        &[list_of(TypeSignature::BoolType, 3)],
+        Ok(Some(
+            Value::cons_list_unsanitized(vec![Value::UInt(42), Value::UInt(42), Value::UInt(42)])
+                .unwrap(),
         )),
     )
 }

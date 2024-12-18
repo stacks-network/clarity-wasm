@@ -7,7 +7,9 @@ use clar2wasm::tools::{crosscheck, TestConfig};
 use clar2wasm::wasm_utils::get_type_in_memory_size;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::errors::{CheckErrors, Error};
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData, TypeSignature};
+use clarity::vm::types::{
+    ListTypeData, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature,
+};
 use clarity::vm::Value;
 
 #[allow(clippy::expect_used)]
@@ -82,4 +84,10 @@ pub fn crosscheck_oom_with_non_literal_args(
 
 pub fn crosscheck_oom(snippet: &str, expected: Result<Option<Value>, Error>) {
     crosscheck_oom_with_non_literal_args(snippet, &[], expected)
+}
+
+pub(crate) fn list_of(elem: TypeSignature, max_len: u32) -> TypeSignature {
+    TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::ListType(
+        ListTypeData::new_list(elem, max_len).unwrap(),
+    ))
 }
