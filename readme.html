@@ -1,0 +1,155 @@
+<pre><code>   / / /     ▶ clarity-wasm
+  | | |        Compile Clarity to Wasm.
+   \ \ \       Generate WebAssembly from your Clarity code for fast and portable execution.
+</code></pre>
+<div align="center">
+<p><a href="#introduction"><img src="https://img.shields.io/badge/%23-%20Introduction%20-orange?labelColor=gray" alt="Introduction" /></a> <a href="#features"><img src="https://img.shields.io/badge/%23-Features-orange?labelColor=gray" alt="Features" /></a> <a href="#quick-start"><img src="https://img.shields.io/badge/%23-Quick%20Start-orange?labelColor=gray" alt="Quick Start" /></a> <a href="#documentation"><img src="https://img.shields.io/badge/%23-Documentation-orange?labelColor=gray" alt="Documentation" /></a> <a href="#contribute"><img src="https://img.shields.io/badge/%23-Contribute-orange?labelColor=gray" alt="Contribute" /></a> <a href="https://codecov.io/gh/stacks-network/clarity-wasm"><img src="https://codecov.io/gh/stacks-network/clarity-wasm/graph/badge.svg?token=WtR78mrRYT" alt="codecov" /></a></p>
+</div>
+<hr />
+<h2>Introduction</h2>
+<p><code>clar2wasm</code> is a compiler for generating <a href="https://webassembly.org/">WebAssembly</a> from <a href="https://github.com/clarity-lang/reference">Clarity</a>.</p>
+<h2>Features</h2>
+<h2>Quick-start</h2>
+<h3>Clone the repository</h3>
+<p>This repository includes the stacks-blockchain as a submodule, to keep in sync with the proper version of the clarity crate defined there. To clone this repo and its submodule, use:</p>
+<pre><code class="language-sh">git clone --recurse-submodules https://github.com/stacks-network/clarity-wasm.git
+</code></pre>
+<p>If you have cloned this repository without the <code>--recurse-submodules</code> flag, you can use:</p>
+<pre><code class="language-sh">git submodule update --init --recursive
+</code></pre>
+<h3>Command line tool</h3>
+<p>Install the command line tool, <code>clar2wasm</code> with:</p>
+<pre><code class="language-sh">cargo install --path clar2wasm
+</code></pre>
+<p>Once installed, try compiling one of our examples:</p>
+<pre><code class="language-sh">clar2wasm tests/contracts/define-read-only-0.clar
+</code></pre>
+<p>This will generate a wasm file, <code>tests/contracts/define-read-only-0.wasm</code>, from the Clarity source code.</p>
+<p>You can view the text format of the generated Wasm by using a tool like <a href="https://github.com/WebAssembly/wabt"><code>wasm2wat</code></a>:</p>
+<pre><code class="language-sh">wasm2wat tests/contracts/define-read-only-0.wasm
+</code></pre>
+<p>The output should contain the definition of the <code>simple</code> function:</p>
+<pre><code class="language-wasm">  (func $simple (type 2) (result i64 i64)
+    (local i32)
+    global.get 0
+    local.set 0
+    block (result i64 i64)  ;; label = @1
+      i64.const 42
+      i64.const 0
+    end
+    local.get 0
+    global.set 0)
+</code></pre>
+<h3>Crate</h3>
+<p><code>clar2wasm</code> is also available as a Rust library crate, to embed into other Rust projects.</p>
+<h2>Documentation</h2>
+<h3>Top-Level Expressions</h3>
+<p>Any top-level expressions from a Clarity contract are added into a <code>.top-level</code> function that is exported from the generated Wasm module. This function should be called only once, during contract deployment. This top-level code also includes calls to the host-interface functions to register definitions in the contract.</p>
+<h3>ABI</h3>
+<p>WebAssembly only supports basic number types, <code>i32</code>, <code>i64</code>, <code>f32</code>, and <code>f64</code>. We need to decide how to map Clarity types into these Wasm types.</p>
+<ul>
+<li><code>int</code>: pair of <code>i64</code>s (upper, lower)</li>
+<li><code>uint</code>: pair of <code>i64</code>s (upper, lower)</li>
+<li><code>bool</code>: <code>i32</code> (<code>0</code> for false, <code>1</code> for true)</li>
+<li><code>principal</code>: <code>i32</code> offset in call stack, <code>i32</code> length; call stack contains 21 bytes for standard principal (1 byte version, 20 byte Hash160) followed by 1 byte indicating the length of the contract name, which, if non-zero, is followed by the contract name string.</li>
+<li><code>buff</code>: <code>i32</code> offset in call stack, <code>i32</code> length</li>
+<li><code>string-ascii</code>: <code>i32</code> offset in call stack, <code>i32</code> length</li>
+<li><code>string-utf8</code>: <code>i32</code> offset in call stack, <code>i32</code> length; the string is represented as array of 4 byte (big-endian) Unicode scalars</li>
+<li><code>list</code>: <code>i32</code> offset in call stack, <code>i32</code> length</li>
+<li><code>tuple</code>: each value in the tuple concatenated</li>
+<li><code>optional</code>: <code>i32</code> indicator (<code>0</code> for <code>none</code>, <code>1</code> for <code>some</code>), followed by value for <code>some</code></li>
+<li><code>response</code>: <code>i32</code> indicator (<code>0</code> for <code>err</code>, <code>1</code> for <code>ok</code>) followed by ok value, then err value</li>
+<li>When a type is not known, for example, in a <code>response</code> where either the <code>ok</code> or the <code>err</code> are never used, the <code>NoType</code> is represented with an <code>i32</code> with a value of <code>0</code>.</li>
+</ul>
+<p>When the return value of a function requires memory space, this space should be allocated by the caller and the offset for that space should be passed to the callee, following the arguments. For example, we can look at the following function:</p>
+<pre><code class="language-clarity">(define-read-only (get-boolean-string (b bool))
+  (if b &quot;true&quot; &quot;false&quot;)
+)
+</code></pre>
+<p>This function takes a <code>bool</code> and returns a <code>(string-ascii 5)</code>. The generated Wasm function would take as arguments:</p>
+<ul>
+<li><code>I32</code> representing the boolean</li>
+<li><code>I32</code> representing the offset of the return value's memory space</li>
+<li><code>I32</code> representing the length of the return value's memory space</li>
+</ul>
+<p>For consistency with other types, the Wasm function would still return these two <code>I32</code>s for offset and length of the return value, even though that is not necessary for the caller.</p>
+<h3>Memory Management</h3>
+<p>Web Assembly provides a simple linear memory, accessible with load/store operations. This memory is also exported for access from the host. For the Clarity VM, at the base of this memory, starting at offset 0, we are storing literals that do not fit into the scalar types supported by Wasm, for example, string literals. When used in the code, the literals are loaded from a constant offset. During compilation, the top of the literal memory is tracked by the field <code>literal_memory_end</code> in the <code>WasmGenerator</code> structure.</p>
+<p>Constants defined in the contract (with <code>define-constant</code>) are also stored in this literal memory space. The values for the constants are written into the preallocated memory inside of the <code>.top-level</code> function.</p>
+<p>After the literals, space may be allocated for passing arguments into the contract being called. Simple arguments are passed directly to the function, but those that require stack space (see <a href="#abi">ABI</a>) will be written to this location. If the return value from the contract call requires stack space, then this will follow the arguments' space.</p>
+<p>After this argument space, we build a call stack, where function local values that do not fit into scalars are stored. A global variable is defined in the Wasm module to maintain a stack pointer. At the beginning of every function, we insert the function prologue, which saves the current stack pointer to a local variable, which we can call the frame pointer. The frame pointer is the base of the current function's frame, its space in the call stack, and the function's local values can be accessed via offsets from this frame pointer. The stack pointer is then incremented for any space that gets reserved for the current function. Every function also has a function epilogue, which must be called upon exit from the function. The epilogue pops the function's frame from the call stack, since its locals are no longer needed, by setting the stack pointer equal to its frame pointer.</p>
+<p>It may be helpful to clarify this with an example. Consider the following Clarity code:</p>
+<pre><code class="language-clarity">(define-private (do-concat (a (string-ascii 16)) (b (string-ascii 16)))
+  (len (concat a b))
+)
+
+(define-read-only (hello (to (string-ascii 16)))
+  (do-concat &quot;hello &quot; to)
+)
+</code></pre>
+<p>The <code>concat</code> expression in the <code>do-concat</code> function creates a new string by concatenating the two input strings. This new string needs to be stored in the call stack, in that function's frame. The type of this expression is <code>(string-ascii 32)</code>, so in this case, we need to allocate 32 bytes on the call stack for the result. Before exiting the <code>do-concat</code> function, our linear memory will look like this:</p>
+<pre><code>stack pointer -&gt;     +-------------------+
+                     |         .         |
+                     |  32 byte string   | &lt;- Frame for do-concat
+                     |         .         |
+frame pointer -&gt;     +-------------------+ &lt;- Frame for example (no space allocated)
+                     |         to        | &lt;- Argument memory
+                     +-------------------+
+                     |      &quot;hello &quot;     | &lt;- Literal memory
+0 -&gt;                 +-------------------+
+</code></pre>
+<p>In this diagram, the &quot;frame pointer&quot; is actually the frame pointer for both the <code>example</code> function and the <code>do-concat</code> function, because <code>example</code> does not require any space in its frame.</p>
+<h3>Standard Library</h3>
+<p>Certain Clarity operations are implemented as functions in <a href="clar2wasm/src/standard/standard.wat"><em>standard.wat</em></a>. This text format is then used during the build process to generate <em>standard.wasm</em> which gets loaded into <code>clar2wasm</code>. Any operations that are cleaner to implement as a function call instead of directly generating Wasm instructions go into this library. For example, you can find the Clarity-style implementation of arithmetic operations in this library. These need to be written out manually because WebAssembly only supports 64-bit integers. The library implements 128-bit arithmetic, with the overflow checks that Clarity requires.</p>
+<h3>Host Interface</h3>
+<p>When executing the compiled Clarity code, it needs to interact with the host - for example reading/writing to the MARF, emitting events, etc. We define a host interface that the generated Wasm code can call to perform these operations. Since these functions are type-agnostic, values are passed back and forth on the stack. The host function is responsible for marshalling/unmarshalling values to/from the Wasm format as needed (see ABI section above). These functions are imported by the standard library module, and it is the responsibility of the host to provide implementations of them.</p>
+<p>| Clarity Operation | Host Function | Inputs | Outputs |
+| --- | --- | --- | --- |
+| <code>var-get</code> | <code>get_variable</code> | - <code> var_name</code>: string (offset: i32, length: i32) | - |
+|  |  | - <code>result</code>: stack pointer (offset: i32, length: i32) |  |
+| <code>var-set</code> | <code>set_variable</code> | - <code>var_name</code>: string (offset: i32, length: i32) | - |
+|  |  | - <code>value</code>: stack pointer (offset: i32, length: i32) |  |</p>
+<h2>Benchmarking</h2>
+<p>Benchmarks are run and their results published on a continuous basis using <a href="https://github.com/benchmark-action/github-action-benchmark">github-action-benchmark</a>.
+The results are published to github pages and are available <a href="https://stacks-network.github.io/clarity-wasm/dev/bench/">here</a>.</p>
+<h4>Generate a flamegraph</h4>
+<p>Run the bench command with <code>--features flamegraph</code> and <code>--profile-time &lt;seconds&gt;</code> flags.</p>
+<p>For example:</p>
+<pre><code class="language-shell">cargo bench --bench comparison --features flamegraph -- --profile-time 10 &quot;wasm_add&quot;
+</code></pre>
+<p>Output <code>target/criterion/wasm_add/profile/flamegraph.svg</code> preview:</p>
+<p><img src="docs/images/bench-flamegraph-example.png?raw=true" alt="bench-flamegraph" /></p>
+<h4>Generate a protobuf and svg graph</h4>
+<p>Run the bench command with <code>--features pb</code> and <code>--profile-time &lt;seconds&gt;</code> flags. Then use <a href="https://github.com/google/pprof"><code>pprof</code></a> to generate a graph.</p>
+<p>For example:</p>
+<pre><code class="language-shell">cargo bench --bench comparison --features pb -- --profile-time 10 &quot;wasm_add&quot;
+$GOPATH/bin/pprof -svg &quot;target/criterion/wasm_add/profile/profile.pb&quot;
+</code></pre>
+<p>Output <code>profile001.svg</code> preview:</p>
+<p><img src="docs/images/bench-protobuf-graph-example.png?raw=true" alt="bench-protobuf-graph" /></p>
+<h2>Contribute</h2>
+<h3>Using local paths for dependencies</h3>
+<p>When modifying both the <code>clar2wasm</code> crate and the <code>stacks-core</code> crates, you can use the <code>[patch]</code> section in .cargo/config to specify local paths for these dependencies. This will allow you to test your changes to both crates together, without the need to first untested changes push to GitHub.</p>
+<p>Add the following to <em>clarity-wasm/.cargo/config</em></p>
+<pre><code class="language-toml">[patch.'https://github.com/stacks-network/stacks-core.git']
+clarity = { path = &quot;./stacks-core/clarity&quot; }
+</code></pre>
+<p>Similarly, in the stacks-core directory, you can add the following to <em>stacks-core/.cargo/config</em></p>
+<pre><code class="language-toml">[patch.'https://github.com/stacks-network/stacks-core.git']
+clarity = { path = &quot;clarity&quot; }
+stacks-common = { path = &quot;stacks-common&quot; }
+pox-locking = { path = &quot;pox-locking&quot; }
+libstackerdb = { path = &quot;libstackerdb&quot; }
+stx-genesis = { path = &quot;stx-genesis&quot;}
+stacks = { package = &quot;stackslib&quot;, path = &quot;stackslib&quot; }
+libsigner = { path = &quot;libsigner&quot; }
+stacks-signer = { path = &quot;stacks-signer&quot; }
+
+[patch.'https://github.com/stacks-network/clarity-wasm.git']
+clar2wasm = { package = &quot;clar2wasm&quot;, path = &quot;../clar2wasm/.&quot; }
+</code></pre>
+<p>Note that these patch configurations should not be checked into the repositories, because we want the default behavior to be to use the git repo paths.</p>
+<h3>Formatting</h3>
+<p>To standardize the formatting of the code, we use rustfmt. To format your changes using the standard options, run:</p>
+<pre><code class="language-sh">cargo +nightly fmt-stacks
+</code></pre>

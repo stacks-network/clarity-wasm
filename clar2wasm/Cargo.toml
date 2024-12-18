@@ -56,11 +56,6 @@ path = "src/bin/main.rs"
 name = "crosscheck"
 path = "src/bin/crosscheck.rs"
 
-# FIXME: fails with OoB memory access
-# [[bench]]
-# name = "benchmark2"
-# harness = false
-
 [[bench]]
 name = "comparison"
 harness = false

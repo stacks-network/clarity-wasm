@@ -30,6 +30,7 @@ impl ValueEnum for WrappedEpochId {
             WrappedEpochId(StacksEpochId::Epoch24),
             WrappedEpochId(StacksEpochId::Epoch25),
             WrappedEpochId(StacksEpochId::Epoch30),
+            WrappedEpochId(StacksEpochId::Epoch31),
         ]
     }
 
@@ -44,6 +45,7 @@ impl ValueEnum for WrappedEpochId {
             StacksEpochId::Epoch24 => Some(PossibleValue::new("2.4")),
             StacksEpochId::Epoch25 => Some(PossibleValue::new("2.5")),
             StacksEpochId::Epoch30 => Some(PossibleValue::new("3.0")),
+            StacksEpochId::Epoch31 => Some(PossibleValue::new("3.1")),
         }
     }
 }
