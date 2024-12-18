@@ -139,6 +139,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         memory: MemoryId,
         offset_local: LocalId,
+        offset_result: LocalId,
         end_local: LocalId,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -196,10 +197,10 @@ impl WasmGenerator {
 
                     // Allocate space for the principal on the call stack
                     let result_offset = self.module.locals.add(ValType::I32);
-                    then.global_get(self.stack_pointer).local_tee(result_offset);
+                    then.local_get(offset_result).local_tee(result_offset);
                     then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
                         .binop(BinaryOp::I32Add)
-                        .global_set(self.stack_pointer);
+                        .local_set(offset_result);
 
                     // Copy the principal to the destination
                     then.local_get(result_offset)
@@ -858,7 +859,7 @@ impl WasmGenerator {
         let result_offset = self.module.locals.add(ValType::I32);
         let element_size = get_type_size(element_ty);
         block
-            .global_get(self.stack_pointer)
+            .local_get(offset_result)
             .local_tee(result)
             .local_tee(result_offset);
         block
@@ -866,7 +867,7 @@ impl WasmGenerator {
             .i32_const(element_size)
             .binop(BinaryOp::I32Mul)
             .binop(BinaryOp::I32Add)
-            .global_set(self.stack_pointer);
+            .local_set(offset_result);
 
         // Update the offset to point to the first element
         block
@@ -1730,6 +1731,12 @@ impl WasmGenerator {
                             .local_get(string_length)
                             .binop(BinaryOp::I32Add)
                             .local_set(offset_local);
+
+                        // move offset-result to the end of the deserialized utf8 string
+                        then.local_get(offset_result)
+                            .i32_const(max_len as i32 * 4)
+                            .binop(BinaryOp::I32Add)
+                            .local_set(offset_result);
                     },
                     |else_| {
                         else_.i32_const(0).i32_const(0).i32_const(0);
@@ -1768,7 +1775,7 @@ impl WasmGenerator {
                 self.deserialize_integer(builder, memory, offset_local, end_local, ty == &IntType)
             }
             PrincipalType | CallableType(_) | TraitReferenceType(_) => {
-                self.deserialize_principal(builder, memory, offset_local, end_local)
+                self.deserialize_principal(builder, memory, offset_local, offset_result, end_local)
             }
             ResponseType(types) => self.deserialize_response(
                 builder,

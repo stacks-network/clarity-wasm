@@ -121,7 +121,8 @@ impl ComplexWord for FromConsensusBuff {
         // Traverse the input buffer, leaving the offset and length on the stack.
         generator.traverse_expr(builder, args.get_expr(1)?)?;
 
-        let (offset_result, _) = generator.create_call_stack_local(builder, &ty, false, true);
+        // TODO: true, true is too big; related issue: #362
+        let (offset_result, _len) = generator.create_call_stack_local(builder, &ty, true, true);
         let offset = generator.module.locals.add(walrus::ValType::I32);
         let end = generator.module.locals.add(walrus::ValType::I32);
         builder
@@ -165,7 +166,7 @@ mod tests {
     // Module with tests that should only be executed
     // when running Clarity::V2 or Clarity::V3.
     //
-    // #[cfg(any(feature = "test-clarity-v2", feature = "test-clarity-v3"))]
+    #[cfg(any(feature = "test-clarity-v2", feature = "test-clarity-v3"))]
     #[cfg(test)]
     mod clarity_v2_v3 {
 
