@@ -13,6 +13,11 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
 };
 
+struct ResponseTypePair<'a> {
+    ok_ty: &'a TypeSignature,
+    err_ty: &'a TypeSignature,
+}
+
 impl WasmGenerator {
     /// Deserialize an integer (`int` or `uint`) from memory using consensus
     /// serialization. Leaves an `(optional int|uint)` on the top of the stack.
@@ -139,6 +144,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         memory: MemoryId,
         offset_local: LocalId,
+        offset_result: LocalId,
         end_local: LocalId,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -195,14 +201,14 @@ impl WasmGenerator {
                     then.i32_const(1);
 
                     // Allocate space for the principal on the call stack
-                    let result_offset = self.module.locals.add(ValType::I32);
-                    then.global_get(self.stack_pointer).local_tee(result_offset);
+                    let principal_offset = self.module.locals.add(ValType::I32);
+                    then.local_get(offset_result).local_tee(principal_offset);
                     then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
                         .binop(BinaryOp::I32Add)
-                        .global_set(self.stack_pointer);
+                        .local_set(offset_result);
 
                     // Copy the principal to the destination
-                    then.local_get(result_offset)
+                    then.local_get(principal_offset)
                         .local_get(offset_local)
                         .i32_const(1)
                         .binop(BinaryOp::I32Add)
@@ -210,7 +216,7 @@ impl WasmGenerator {
                         .memory_copy(memory, memory);
 
                     // Write the contract name length (0)
-                    then.local_get(result_offset).i32_const(0).store(
+                    then.local_get(principal_offset).i32_const(0).store(
                         memory,
                         StoreKind::I32_8 { atomic: false },
                         MemArg {
@@ -227,7 +233,7 @@ impl WasmGenerator {
                         .local_set(offset_local);
 
                     // Push the offset and length onto the stack
-                    then.local_get(result_offset)
+                    then.local_get(principal_offset)
                         .i32_const(STANDARD_PRINCIPAL_BYTES as i32);
 
                     // Break out of the block
@@ -431,6 +437,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         value_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -513,11 +520,17 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut some_block, offset_local, end_local, value_ty)?;
+        self.deserialize_from_memory(
+            &mut some_block,
+            offset_local,
+            end_local,
+            offset_result,
+            value_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
-        // - Check the inidicator now on top of the stack
+        // - Check the indicator now on top of the stack
         let inner_locals = self.save_to_locals(&mut some_block, value_ty, true);
         some_block.unop(UnaryOp::I32Eqz).if_else(
             None,
@@ -579,16 +592,16 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
-        ok_ty: &TypeSignature,
-        err_ty: &TypeSignature,
+        offset_result: LocalId,
+        response_type: ResponseTypePair,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
         // early exit as needed.
         // These two I32's are the some indicator for the outer optional and
         // the ok/err indicator for the inner response.
         let mut wasm_val_ty = vec![ValType::I32, ValType::I32];
-        wasm_val_ty.append(&mut clar2wasm_ty(ok_ty));
-        wasm_val_ty.append(&mut clar2wasm_ty(err_ty));
+        wasm_val_ty.append(&mut clar2wasm_ty(response_type.ok_ty));
+        wasm_val_ty.append(&mut clar2wasm_ty(response_type.err_ty));
         let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
         let mut block = builder.dangling_instr_seq(block_ty);
         let block_id = block.id();
@@ -603,8 +616,8 @@ impl WasmGenerator {
                 |then| {
                     // Return none
                     then.i32_const(0).i32_const(0);
-                    add_placeholder_for_clarity_type(then, ok_ty);
-                    add_placeholder_for_clarity_type(then, err_ty);
+                    add_placeholder_for_clarity_type(then, response_type.ok_ty);
+                    add_placeholder_for_clarity_type(then, response_type.err_ty);
                     then.br(block_id);
                 },
                 |_| {},
@@ -638,19 +651,25 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut ok_block, offset_local, end_local, ok_ty)?;
+        self.deserialize_from_memory(
+            &mut ok_block,
+            offset_local,
+            end_local,
+            offset_result,
+            response_type.ok_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
         // - Check the inidicator now on top of the stack
-        let inner_locals = self.save_to_locals(&mut ok_block, ok_ty, true);
+        let inner_locals = self.save_to_locals(&mut ok_block, response_type.ok_ty, true);
         ok_block.unop(UnaryOp::I32Eqz).if_else(
             None,
             |then| {
                 // Return none
                 then.i32_const(0).i32_const(0);
-                add_placeholder_for_clarity_type(then, ok_ty);
-                add_placeholder_for_clarity_type(then, err_ty);
+                add_placeholder_for_clarity_type(then, response_type.ok_ty);
+                add_placeholder_for_clarity_type(then, response_type.err_ty);
                 then.br(block_id);
             },
             |_| {},
@@ -667,7 +686,7 @@ impl WasmGenerator {
         }
 
         // Push a placeholder for the err value
-        add_placeholder_for_clarity_type(&mut ok_block, err_ty);
+        add_placeholder_for_clarity_type(&mut ok_block, response_type.err_ty);
 
         // Build the block for the case where the prefix is `err`
         let mut err_block = block.dangling_instr_seq(block_ty);
@@ -683,8 +702,8 @@ impl WasmGenerator {
                 |then| {
                     // Return none, since this is not an 'ok' or 'err' prefix
                     then.i32_const(0).i32_const(0);
-                    add_placeholder_for_clarity_type(then, ok_ty);
-                    add_placeholder_for_clarity_type(then, err_ty);
+                    add_placeholder_for_clarity_type(then, response_type.ok_ty);
+                    add_placeholder_for_clarity_type(then, response_type.err_ty);
                     then.br(block_id);
                 },
                 |_| {},
@@ -698,19 +717,25 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(&mut err_block, offset_local, end_local, err_ty)?;
+        self.deserialize_from_memory(
+            &mut err_block,
+            offset_local,
+            end_local,
+            offset_result,
+            response_type.err_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
         // - Check the inidicator now on top of the stack
-        let inner_locals = self.save_to_locals(&mut err_block, err_ty, true);
+        let inner_locals = self.save_to_locals(&mut err_block, response_type.err_ty, true);
         err_block.unop(UnaryOp::I32Eqz).if_else(
             None,
             |then| {
                 // Return none
                 then.i32_const(0).i32_const(0);
-                add_placeholder_for_clarity_type(then, ok_ty);
-                add_placeholder_for_clarity_type(then, err_ty);
+                add_placeholder_for_clarity_type(then, response_type.ok_ty);
+                add_placeholder_for_clarity_type(then, response_type.err_ty);
                 then.br(block_id);
             },
             |_| {},
@@ -722,7 +747,7 @@ impl WasmGenerator {
         err_block.i32_const(1).i32_const(0);
 
         // Push a placeholder for the ok value
-        add_placeholder_for_clarity_type(&mut err_block, ok_ty);
+        add_placeholder_for_clarity_type(&mut err_block, response_type.ok_ty);
 
         // Push the inner value back onto the stack
         for local in inner_locals {
@@ -759,6 +784,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         list_ty: &ListTypeData,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
@@ -840,18 +866,18 @@ impl WasmGenerator {
         // Allocate space for the list on the call stack
         let element_ty = list_ty.get_list_item_type();
         let result = self.module.locals.add(ValType::I32);
-        let result_offset = self.module.locals.add(ValType::I32);
+        let element_offset = self.module.locals.add(ValType::I32);
         let element_size = get_type_size(element_ty);
         block
-            .global_get(self.stack_pointer)
+            .local_get(offset_result)
             .local_tee(result)
-            .local_tee(result_offset);
+            .local_tee(element_offset);
         block
             .local_get(length)
             .i32_const(element_size)
             .binop(BinaryOp::I32Mul)
             .binop(BinaryOp::I32Add)
-            .global_set(self.stack_pointer);
+            .local_set(offset_result);
 
         // Update the offset to point to the first element
         block
@@ -893,7 +919,13 @@ impl WasmGenerator {
 
         // Deserialize the element. Note, this will update the offset to point
         // to the next element.
-        self.deserialize_from_memory(&mut loop_block, offset_local, end_local, element_ty)?;
+        self.deserialize_from_memory(
+            &mut loop_block,
+            offset_local,
+            end_local,
+            offset_result,
+            element_ty,
+        )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
@@ -917,14 +949,14 @@ impl WasmGenerator {
         for local in inner_locals {
             loop_block.local_get(local);
         }
-        let bytes_written = self.write_to_memory(&mut loop_block, result_offset, 0, element_ty)?;
+        let bytes_written = self.write_to_memory(&mut loop_block, element_offset, 0, element_ty)?;
 
         // Increment the result offset by the number of bytes written
         loop_block
-            .local_get(result_offset)
+            .local_get(element_offset)
             .i32_const(bytes_written as i32)
             .binop(BinaryOp::I32Add)
-            .local_set(result_offset);
+            .local_set(element_offset);
 
         // Increment the index by 1
         loop_block
@@ -960,6 +992,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         tuple_ty: &TupleTypeSignature,
     ) -> Result<(), GeneratorError> {
         // We need to be able to parse the keys coming in a random order, only one occurence of each key.
@@ -1214,6 +1247,7 @@ impl WasmGenerator {
                             &mut case_block,
                             offset_local,
                             end_local,
+                            offset_result,
                             field_ty,
                         )?;
                         for &l in field_locals.iter().rev() {
@@ -1629,6 +1663,7 @@ impl WasmGenerator {
         memory: MemoryId,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         string_utf8_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let max_len: u32 = match string_utf8_ty {
@@ -1694,9 +1729,7 @@ impl WasmGenerator {
                 then.if_else(
                     return_type,
                     |then| {
-                        let (offset_result, _len) =
-                            self.create_call_stack_local(then, string_utf8_ty, false, true);
-
+                        // convert utf8 to string-utf8
                         then.local_get(offset_local)
                             .local_get(string_length)
                             .local_get(offset_result)
@@ -1708,6 +1741,12 @@ impl WasmGenerator {
                             .local_get(string_length)
                             .binop(BinaryOp::I32Add)
                             .local_set(offset_local);
+
+                        // move offset-result to the end of the deserialized utf8 string
+                        then.local_get(offset_result)
+                            .i32_const(max_len as i32 * 4)
+                            .binop(BinaryOp::I32Add)
+                            .local_set(offset_result);
                     },
                     |else_| {
                         else_.i32_const(0).i32_const(0).i32_const(0);
@@ -1735,6 +1774,7 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         offset_local: LocalId,
         end_local: LocalId,
+        offset_result: LocalId,
         ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let memory = self.get_memory()?;
@@ -1745,23 +1785,39 @@ impl WasmGenerator {
                 self.deserialize_integer(builder, memory, offset_local, end_local, ty == &IntType)
             }
             PrincipalType | CallableType(_) | TraitReferenceType(_) => {
-                self.deserialize_principal(builder, memory, offset_local, end_local)
+                self.deserialize_principal(builder, memory, offset_local, offset_result, end_local)
             }
-            ResponseType(types) => self.deserialize_response(
+            ResponseType(types) => {
+                let response_type = ResponseTypePair {
+                    ok_ty: &types.0,
+                    err_ty: &types.1,
+                };
+                self.deserialize_response(
+                    builder,
+                    memory,
+                    offset_local,
+                    end_local,
+                    offset_result,
+                    response_type,
+                )
+            }
+            BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
+            OptionalType(value_ty) => self.deserialize_optional(
                 builder,
                 memory,
                 offset_local,
                 end_local,
-                &types.0,
-                &types.1,
+                offset_result,
+                value_ty,
             ),
-            BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
-            OptionalType(value_ty) => {
-                self.deserialize_optional(builder, memory, offset_local, end_local, value_ty)
-            }
-            SequenceType(SequenceSubtype::ListType(list_ty)) => {
-                self.deserialize_list(builder, memory, offset_local, end_local, list_ty)
-            }
+            SequenceType(SequenceSubtype::ListType(list_ty)) => self.deserialize_list(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                list_ty,
+            ),
             SequenceType(SequenceSubtype::BufferType(type_length)) => self.deserialize_buffer(
                 builder,
                 memory,
@@ -1777,12 +1833,23 @@ impl WasmGenerator {
                     end_local,
                     type_length.into(),
                 ),
-            utf8 @ SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                self.deserialize_string_utf8(builder, memory, offset_local, end_local, utf8)
-            }
-            TupleType(tuple_ty) => {
-                self.deserialize_tuple(builder, memory, offset_local, end_local, tuple_ty)
-            }
+            utf8 @ SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => self
+                .deserialize_string_utf8(
+                    builder,
+                    memory,
+                    offset_local,
+                    end_local,
+                    offset_result,
+                    utf8,
+                ),
+            TupleType(tuple_ty) => self.deserialize_tuple(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                tuple_ty,
+            ),
             NoType => unreachable!("NoType should not be deserialized"),
             ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
         }
