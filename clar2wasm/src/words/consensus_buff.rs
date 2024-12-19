@@ -136,7 +136,7 @@ impl ComplexWord for FromConsensusBuff {
             .binop(BinaryOp::I32Add)
             .local_set(end);
 
-        // add parameter result_offset where we should write the deserialized value on the stack in deserialize_from_memory function
+        // Write the deserialized value on the stack at offset_result
         generator.deserialize_from_memory(builder, offset, end, offset_result, &value_ty)?;
 
         // If the entire buffer was not consumed, return none.

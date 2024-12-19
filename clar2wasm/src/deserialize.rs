@@ -201,14 +201,14 @@ impl WasmGenerator {
                     then.i32_const(1);
 
                     // Allocate space for the principal on the call stack
-                    let result_offset = self.module.locals.add(ValType::I32);
-                    then.local_get(offset_result).local_tee(result_offset);
+                    let principal_offset = self.module.locals.add(ValType::I32);
+                    then.local_get(offset_result).local_tee(principal_offset);
                     then.i32_const(STANDARD_PRINCIPAL_BYTES as i32)
                         .binop(BinaryOp::I32Add)
                         .local_set(offset_result);
 
                     // Copy the principal to the destination
-                    then.local_get(result_offset)
+                    then.local_get(principal_offset)
                         .local_get(offset_local)
                         .i32_const(1)
                         .binop(BinaryOp::I32Add)
@@ -216,7 +216,7 @@ impl WasmGenerator {
                         .memory_copy(memory, memory);
 
                     // Write the contract name length (0)
-                    then.local_get(result_offset).i32_const(0).store(
+                    then.local_get(principal_offset).i32_const(0).store(
                         memory,
                         StoreKind::I32_8 { atomic: false },
                         MemArg {
@@ -233,7 +233,7 @@ impl WasmGenerator {
                         .local_set(offset_local);
 
                     // Push the offset and length onto the stack
-                    then.local_get(result_offset)
+                    then.local_get(principal_offset)
                         .i32_const(STANDARD_PRINCIPAL_BYTES as i32);
 
                     // Break out of the block
@@ -866,12 +866,12 @@ impl WasmGenerator {
         // Allocate space for the list on the call stack
         let element_ty = list_ty.get_list_item_type();
         let result = self.module.locals.add(ValType::I32);
-        let result_offset = self.module.locals.add(ValType::I32);
+        let element_offset = self.module.locals.add(ValType::I32);
         let element_size = get_type_size(element_ty);
         block
             .local_get(offset_result)
             .local_tee(result)
-            .local_tee(result_offset);
+            .local_tee(element_offset);
         block
             .local_get(length)
             .i32_const(element_size)
@@ -949,14 +949,14 @@ impl WasmGenerator {
         for local in inner_locals {
             loop_block.local_get(local);
         }
-        let bytes_written = self.write_to_memory(&mut loop_block, result_offset, 0, element_ty)?;
+        let bytes_written = self.write_to_memory(&mut loop_block, element_offset, 0, element_ty)?;
 
         // Increment the result offset by the number of bytes written
         loop_block
-            .local_get(result_offset)
+            .local_get(element_offset)
             .i32_const(bytes_written as i32)
             .binop(BinaryOp::I32Add)
-            .local_set(result_offset);
+            .local_set(element_offset);
 
         // Increment the index by 1
         loop_block
