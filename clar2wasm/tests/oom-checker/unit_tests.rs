@@ -242,3 +242,23 @@ fn get_burn_block_info_pox_addrs_oom() {
         env,
     );
 }
+
+#[test]
+#[ignore = "issue #592"]
+fn int_to_ascii_oom() {
+    crosscheck_oom(
+        "(int-to-ascii 42)",
+        Ok(Some(
+            Value::string_ascii_from_bytes(b"42".to_vec()).unwrap(),
+        )),
+    );
+}
+
+#[test]
+#[ignore = "issue #592"]
+fn int_to_utf8_oom() {
+    crosscheck_oom(
+        "(int-to-utf8 42)",
+        Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
+    );
+}
