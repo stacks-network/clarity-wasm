@@ -27,8 +27,8 @@ use crate::initialize::initialize_contract;
 #[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
-    epoch: StacksEpochId,
-    version: ClarityVersion,
+    pub epoch: StacksEpochId,
+    pub version: ClarityVersion,
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,

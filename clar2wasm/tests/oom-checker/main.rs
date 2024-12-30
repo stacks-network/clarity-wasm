@@ -3,20 +3,23 @@ pub mod unit_tests;
 
 use clar2wasm::compile;
 use clar2wasm::datastore::Datastore;
-use clar2wasm::tools::{crosscheck, TestConfig};
+use clar2wasm::tools::{crosscheck, crosscheck_with_env, TestConfig, TestEnvironment};
 use clar2wasm::wasm_utils::get_type_in_memory_size;
+use clarity::types::StacksEpochId;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::errors::{CheckErrors, Error};
 use clarity::vm::types::{
     ListTypeData, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature,
 };
-use clarity::vm::Value;
+use clarity::vm::{ClarityVersion, Value};
 
 #[allow(clippy::expect_used)]
-pub fn as_oom_check_snippet(snippet: &str, args_types: &[TypeSignature]) -> String {
-    let version = TestConfig::clarity_version();
-    let epoch = TestConfig::latest_epoch();
-
+pub fn as_oom_check_snippet(
+    snippet: &str,
+    args_types: &[TypeSignature],
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+) -> String {
     let compiled_module = Datastore::new()
         .as_analysis_db()
         .execute(|analysis_db| {
@@ -79,11 +82,31 @@ pub fn crosscheck_oom_with_non_literal_args(
     args_types: &[TypeSignature],
     expected: Result<Option<Value>, Error>,
 ) {
-    crosscheck(&as_oom_check_snippet(snippet, args_types), expected);
+    crosscheck(
+        &as_oom_check_snippet(
+            snippet,
+            args_types,
+            TestConfig::latest_epoch(),
+            TestConfig::clarity_version(),
+        ),
+        expected,
+    );
 }
 
 pub fn crosscheck_oom(snippet: &str, expected: Result<Option<Value>, Error>) {
     crosscheck_oom_with_non_literal_args(snippet, &[], expected)
+}
+
+pub fn crosscheck_oom_with_env(
+    snippet: &str,
+    expected: Result<Option<Value>, Error>,
+    env: TestEnvironment,
+) {
+    crosscheck_with_env(
+        &as_oom_check_snippet(snippet, &[], env.epoch, env.version),
+        expected,
+        env,
+    );
 }
 
 pub(crate) fn list_of(elem: TypeSignature, max_len: u32) -> TypeSignature {
