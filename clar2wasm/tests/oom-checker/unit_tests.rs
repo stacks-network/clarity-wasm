@@ -274,3 +274,11 @@ fn data_var_oom() {
         Ok(Some(Value::buff_from_byte(0x42))),
     );
 }
+
+#[test]
+fn secp256k1_recover_oom() {
+    crosscheck_oom(
+        "(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)",
+        Ok(Some(Value::okay(Value::buff_from(vec![3, 173, 184, 222, 75, 251, 101, 219, 44, 253, 97, 32, 213, 92, 101, 38, 174, 156, 82, 230, 117, 219, 126, 71, 48, 134, 54, 83, 75, 167, 120, 97, 16]).unwrap()).unwrap())),
+    );
+}
