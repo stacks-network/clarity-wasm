@@ -1,7 +1,10 @@
+use clar2wasm::tools::TestEnvironment;
 use clarity::vm::types::{ListTypeData, PrincipalData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
 
-use crate::{crosscheck_oom, crosscheck_oom_with_non_literal_args, list_of};
+use crate::{
+    crosscheck_oom, crosscheck_oom_with_env, crosscheck_oom_with_non_literal_args, list_of,
+};
 
 #[test]
 #[ignore = "issue #585"]
@@ -103,4 +106,139 @@ fn fold_oom() {
 (fold concat-buff 0x010203 0x)
     "#;
     crosscheck_oom(snippet, Ok(Some(Value::buff_from(vec![3, 2, 1]).unwrap())));
+}
+
+#[test]
+fn get_block_info_burnchain_header_hash_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-block-info? burnchain-header-hash u0)",
+        Ok(Some(
+            Value::some(Value::buff_from(vec![0; 32]).unwrap()).unwrap(),
+        )),
+        env,
+    );
+}
+
+#[test]
+fn get_block_info_id_header_hash_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-block-info? id-header-hash u0)",
+        Ok(Some(
+            Value::some(
+                // same result as in get_block_info_header_hash() test
+                Value::buff_from(vec![
+                    181, 224, 118, 171, 118, 9, 199, 248, 199, 99, 181, 197, 113, 208, 122, 234,
+                    128, 176, 107, 65, 69, 34, 49, 177, 67, 115, 112, 244, 150, 78, 214, 110,
+                ])
+                .unwrap(),
+            )
+            .unwrap(),
+        )),
+        env,
+    );
+}
+
+#[test]
+fn get_block_info_header_hash_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-block-info? header-hash u0)",
+        Ok(Some(
+            Value::some(Value::buff_from(vec![0; 32]).unwrap()).unwrap(),
+        )),
+        env,
+    );
+}
+
+#[test]
+fn get_block_info_miner_address_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-block-info? miner-address u0)",
+        Ok(Some(
+            Value::some(Value::Principal(
+                PrincipalData::parse("ST000000000000000000002AMW42H").unwrap(),
+            ))
+            .unwrap(),
+        )),
+        env,
+    );
+}
+
+#[test]
+fn get_burn_block_info_header_hash_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-burn-block-info? header-hash u0)",
+        Ok(Some(
+            Value::some(Value::buff_from(vec![0; 32]).unwrap()).unwrap(),
+        )),
+        env,
+    );
+}
+
+#[test]
+fn get_burn_block_info_pox_addrs_oom() {
+    let mut env = TestEnvironment::new(
+        clarity::types::StacksEpochId::Epoch25,
+        clarity::vm::ClarityVersion::Clarity2,
+    );
+    env.advance_chain_tip(1);
+
+    crosscheck_oom_with_env(
+        "(get-burn-block-info? pox-addrs u0)",
+        Ok(Some(
+            Value::some(
+                clarity::vm::types::TupleData::from_data(vec![
+                    (
+                        "addrs".into(),
+                        Value::cons_list_unsanitized(vec![
+                            clarity::vm::types::TupleData::from_data(vec![
+                                (
+                                    "hashbytes".into(),
+                                    Value::buff_from([0; 32].to_vec()).unwrap(),
+                                ),
+                                ("version".into(), Value::buff_from_byte(0)),
+                            ])
+                            .unwrap()
+                            .into(),
+                        ])
+                        .unwrap(),
+                    ),
+                    ("payout".into(), Value::UInt(0)),
+                ])
+                .unwrap()
+                .into(),
+            )
+            .unwrap(),
+        )),
+        env,
+    );
 }
