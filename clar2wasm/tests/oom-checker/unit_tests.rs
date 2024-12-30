@@ -71,6 +71,7 @@ fn concat_oom() {
     );
 }
 
+#[cfg(not(feature = "test-clarity-v1"))]
 #[test]
 fn replace_at_oom() {
     crosscheck_oom_with_non_literal_args(
