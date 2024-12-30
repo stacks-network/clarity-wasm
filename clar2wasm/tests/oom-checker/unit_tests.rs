@@ -86,11 +86,21 @@ fn replace_at_oom() {
 #[test]
 fn map_oom() {
     crosscheck_oom_with_non_literal_args(
-        "(define-private (foo (b bool)) u42) (map foo (list true true false))",
+        "(define-private (foo (b bool)) (if b u1 u0)) (map foo (list true true false))",
         &[list_of(TypeSignature::BoolType, 3)],
         Ok(Some(
-            Value::cons_list_unsanitized(vec![Value::UInt(42), Value::UInt(42), Value::UInt(42)])
+            Value::cons_list_unsanitized(vec![Value::UInt(1), Value::UInt(1), Value::UInt(0)])
                 .unwrap(),
         )),
     )
+}
+
+#[test]
+fn fold_oom() {
+    let snippet = r#"
+(define-private (concat-buff (a (buff 1)) (b (buff 3)))
+  (unwrap-panic (as-max-len? (concat a b) u3)))
+(fold concat-buff 0x010203 0x)
+    "#;
+    crosscheck_oom(snippet, Ok(Some(Value::buff_from(vec![3, 2, 1]).unwrap())));
 }
