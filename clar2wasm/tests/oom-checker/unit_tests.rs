@@ -262,3 +262,15 @@ fn int_to_utf8_oom() {
         Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
     );
 }
+
+#[test]
+fn data_var_oom() {
+    crosscheck_oom(
+        r#"
+        (define-data-var n (buff 1) 0x)
+        (var-set n 0x42)
+        (var-get n)
+    "#,
+        Ok(Some(Value::buff_from_byte(0x42))),
+    );
+}
