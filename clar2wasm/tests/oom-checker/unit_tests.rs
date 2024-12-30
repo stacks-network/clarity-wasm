@@ -1,5 +1,5 @@
 use clar2wasm::tools::TestEnvironment;
-use clarity::vm::types::{ListTypeData, PrincipalData, SequenceSubtype, TypeSignature};
+use clarity::vm::types::{PrincipalData, TypeSignature};
 use clarity::vm::Value;
 
 use crate::{
