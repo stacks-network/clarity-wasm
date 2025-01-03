@@ -13,11 +13,6 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
 };
 
-struct ResponseTypePair<'a> {
-    ok_ty: &'a TypeSignature,
-    err_ty: &'a TypeSignature,
-}
-
 impl WasmGenerator {
     /// Deserialize an integer (`int` or `uint`) from memory using consensus
     /// serialization. Leaves an `(optional int|uint)` on the top of the stack.
@@ -586,6 +581,7 @@ impl WasmGenerator {
     ///    | 0x07 | serialized ok value |
     ///   Err:
     ///    | 0x08 | serialized err value |
+    #[allow(clippy::too_many_arguments)]
     fn deserialize_response(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -593,15 +589,16 @@ impl WasmGenerator {
         offset_local: LocalId,
         end_local: LocalId,
         offset_result: LocalId,
-        response_type: ResponseTypePair,
+        ok_ty: &TypeSignature,
+        err_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // Create a block for the body of this operation, so that we can
         // early exit as needed.
         // These two I32's are the some indicator for the outer optional and
         // the ok/err indicator for the inner response.
         let mut wasm_val_ty = vec![ValType::I32, ValType::I32];
-        wasm_val_ty.append(&mut clar2wasm_ty(response_type.ok_ty));
-        wasm_val_ty.append(&mut clar2wasm_ty(response_type.err_ty));
+        wasm_val_ty.append(&mut clar2wasm_ty(ok_ty));
+        wasm_val_ty.append(&mut clar2wasm_ty(err_ty));
         let block_ty = InstrSeqType::new(&mut self.module.types, &[], &wasm_val_ty);
         let mut block = builder.dangling_instr_seq(block_ty);
         let block_id = block.id();
@@ -616,8 +613,8 @@ impl WasmGenerator {
                 |then| {
                     // Return none
                     then.i32_const(0).i32_const(0);
-                    add_placeholder_for_clarity_type(then, response_type.ok_ty);
-                    add_placeholder_for_clarity_type(then, response_type.err_ty);
+                    add_placeholder_for_clarity_type(then, ok_ty);
+                    add_placeholder_for_clarity_type(then, err_ty);
                     then.br(block_id);
                 },
                 |_| {},
@@ -656,20 +653,20 @@ impl WasmGenerator {
             offset_local,
             end_local,
             offset_result,
-            response_type.ok_ty,
+            ok_ty,
         )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
         // - Check the inidicator now on top of the stack
-        let inner_locals = self.save_to_locals(&mut ok_block, response_type.ok_ty, true);
+        let inner_locals = self.save_to_locals(&mut ok_block, ok_ty, true);
         ok_block.unop(UnaryOp::I32Eqz).if_else(
             None,
             |then| {
                 // Return none
                 then.i32_const(0).i32_const(0);
-                add_placeholder_for_clarity_type(then, response_type.ok_ty);
-                add_placeholder_for_clarity_type(then, response_type.err_ty);
+                add_placeholder_for_clarity_type(then, ok_ty);
+                add_placeholder_for_clarity_type(then, err_ty);
                 then.br(block_id);
             },
             |_| {},
@@ -686,7 +683,7 @@ impl WasmGenerator {
         }
 
         // Push a placeholder for the err value
-        add_placeholder_for_clarity_type(&mut ok_block, response_type.err_ty);
+        add_placeholder_for_clarity_type(&mut ok_block, err_ty);
 
         // Build the block for the case where the prefix is `err`
         let mut err_block = block.dangling_instr_seq(block_ty);
@@ -702,8 +699,8 @@ impl WasmGenerator {
                 |then| {
                     // Return none, since this is not an 'ok' or 'err' prefix
                     then.i32_const(0).i32_const(0);
-                    add_placeholder_for_clarity_type(then, response_type.ok_ty);
-                    add_placeholder_for_clarity_type(then, response_type.err_ty);
+                    add_placeholder_for_clarity_type(then, ok_ty);
+                    add_placeholder_for_clarity_type(then, err_ty);
                     then.br(block_id);
                 },
                 |_| {},
@@ -722,20 +719,20 @@ impl WasmGenerator {
             offset_local,
             end_local,
             offset_result,
-            response_type.err_ty,
+            err_ty,
         )?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
         // - Check the inidicator now on top of the stack
-        let inner_locals = self.save_to_locals(&mut err_block, response_type.err_ty, true);
+        let inner_locals = self.save_to_locals(&mut err_block, err_ty, true);
         err_block.unop(UnaryOp::I32Eqz).if_else(
             None,
             |then| {
                 // Return none
                 then.i32_const(0).i32_const(0);
-                add_placeholder_for_clarity_type(then, response_type.ok_ty);
-                add_placeholder_for_clarity_type(then, response_type.err_ty);
+                add_placeholder_for_clarity_type(then, ok_ty);
+                add_placeholder_for_clarity_type(then, err_ty);
                 then.br(block_id);
             },
             |_| {},
@@ -747,7 +744,7 @@ impl WasmGenerator {
         err_block.i32_const(1).i32_const(0);
 
         // Push a placeholder for the ok value
-        add_placeholder_for_clarity_type(&mut err_block, response_type.ok_ty);
+        add_placeholder_for_clarity_type(&mut err_block, ok_ty);
 
         // Push the inner value back onto the stack
         for local in inner_locals {
@@ -1788,17 +1785,14 @@ impl WasmGenerator {
                 self.deserialize_principal(builder, memory, offset_local, offset_result, end_local)
             }
             ResponseType(types) => {
-                let response_type = ResponseTypePair {
-                    ok_ty: &types.0,
-                    err_ty: &types.1,
-                };
                 self.deserialize_response(
                     builder,
                     memory,
                     offset_local,
                     end_local,
                     offset_result,
-                    response_type,
+                    &types.0,
+                    &types.1,
                 )
             }
             BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
