@@ -648,13 +648,7 @@ impl WasmGenerator {
             .local_set(offset_local);
 
         // Deserialize the inner value
-        self.deserialize_from_memory(
-            &mut ok_block,
-            offset_local,
-            end_local,
-            offset_result,
-            ok_ty,
-        )?;
+        self.deserialize_from_memory(&mut ok_block, offset_local, end_local, offset_result, ok_ty)?;
 
         // Check if the deserialization failed:
         // - Store the value in locals
@@ -1784,17 +1778,15 @@ impl WasmGenerator {
             PrincipalType | CallableType(_) | TraitReferenceType(_) => {
                 self.deserialize_principal(builder, memory, offset_local, offset_result, end_local)
             }
-            ResponseType(types) => {
-                self.deserialize_response(
-                    builder,
-                    memory,
-                    offset_local,
-                    end_local,
-                    offset_result,
-                    &types.0,
-                    &types.1,
-                )
-            }
+            ResponseType(types) => self.deserialize_response(
+                builder,
+                memory,
+                offset_local,
+                end_local,
+                offset_result,
+                &types.0,
+                &types.1,
+            ),
             BoolType => self.deserialize_bool(builder, memory, offset_local, end_local),
             OptionalType(value_ty) => self.deserialize_optional(
                 builder,
