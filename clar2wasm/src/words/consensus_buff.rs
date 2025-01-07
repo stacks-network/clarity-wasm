@@ -125,6 +125,8 @@ impl ComplexWord for FromConsensusBuff {
         // Traverse the input buffer, leaving the offset and length on the stack.
         generator.traverse_expr(builder, args.get_expr(1)?)?;
 
+        // TODO: true, true is too big; see issue: #593
+        let (offset_result, _len) = generator.create_call_stack_local(builder, &ty, true, true);
         let offset = generator.module.locals.add(walrus::ValType::I32);
         let end = generator.module.locals.add(walrus::ValType::I32);
         builder
@@ -134,7 +136,8 @@ impl ComplexWord for FromConsensusBuff {
             .binop(BinaryOp::I32Add)
             .local_set(end);
 
-        generator.deserialize_from_memory(builder, offset, end, &value_ty)?;
+        // Write the deserialized value on the stack at offset_result
+        generator.deserialize_from_memory(builder, offset, end, offset_result, &value_ty)?;
 
         // If the entire buffer was not consumed, return none.
         builder
