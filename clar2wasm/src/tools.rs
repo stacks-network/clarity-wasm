@@ -27,8 +27,8 @@ use crate::initialize::initialize_contract;
 #[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
-    epoch: StacksEpochId,
-    version: ClarityVersion,
+    pub epoch: StacksEpochId,
+    pub version: ClarityVersion,
     datastore: Datastore,
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
@@ -373,7 +373,7 @@ pub fn interpret(snippet: &str) -> Result<Option<Value>, Error> {
     interpret_at(snippet, StacksEpochId::latest(), ClarityVersion::latest())
 }
 
-struct TestConfig;
+pub struct TestConfig;
 
 impl TestConfig {
     /// Select a Clarity version based on enabled features.
