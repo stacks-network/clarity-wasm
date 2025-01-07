@@ -13,8 +13,18 @@ use clarity::vm::types::{
 };
 use clarity::vm::{ClarityVersion, Value};
 
+/// Name of the buffer that will fill the empty space.
+const IGNORE_BUFFER_NAME: &str = "ignore";
+/// Size in memory for the buffer that will fill the empty space's (offset, len).
+const IGNORE_BUFFER_SIZE: usize = 8;
+/// Minimum size needed in memory to create a filling buffer
+const IGNORE_BUFFER_MIN_SIZE_NEEDED: usize = IGNORE_BUFFER_SIZE + IGNORE_BUFFER_NAME.len();
+
+/// Size of a page in Wasm
+const WASM_PAGE_SIZE: usize = 65536;
+
 #[allow(clippy::expect_used)]
-pub fn as_oom_check_snippet(
+fn as_oom_check_snippet(
     snippet: &str,
     args_types: &[TypeSignature],
     epoch: StacksEpochId,
@@ -39,12 +49,14 @@ pub fn as_oom_check_snippet(
         .expect("Could not compile snippet")
         .module;
 
+    // we look for the total number of pages that were allocated for the module.
     let memory_pages = compiled_module
         .memories
         .iter()
         .next()
         .expect("Couldn't find a memory")
         .initial as usize;
+    // we look for the first byte in memory which doesn't contain useful data.
     let stack_pointer_value = match compiled_module
         .globals
         .iter()
@@ -58,25 +70,29 @@ pub fn as_oom_check_snippet(
         _ => unreachable!("stack-pointer should be a locally declared global with a i32 value"),
     };
 
+    // WORKAROUND: this is to ignore arguments that are computed at runtime and should be removed after fixing
+    //             [issue #587](https://github.com/stacks-network/clarity-wasm/issues/587)
     let args_space_needed = args_types
         .iter()
         .map(|ty| get_type_in_memory_size(ty, false))
         .sum::<i32>() as usize;
 
-    let free_space_on_memory_page = memory_pages * 65536 - stack_pointer_value;
+    // the free space on the last page that we want to fill is the substraction of the total number of bytes
+    // for all the available pages and the last byte which will contain useful data.
+    let mut free_space_on_memory_page = memory_pages * WASM_PAGE_SIZE - stack_pointer_value;
+
+    let total_space_needed = IGNORE_BUFFER_MIN_SIZE_NEEDED + args_space_needed;
+    if free_space_on_memory_page < total_space_needed {
+        free_space_on_memory_page += WASM_PAGE_SIZE;
+    }
 
     format!(
-        "(define-constant ignore 0x{})\n{snippet}",
-        "00".repeat({
-            // we will need 8 bytes for the (offset, size) and 6 bytes for the name "ignore"
-            free_space_on_memory_page
-                .checked_sub(14 + args_space_needed)
-                // we add a page if we don't have 14 remaining bytes
-                .unwrap_or(free_space_on_memory_page + 65536 - 14 - args_space_needed)
-        })
+        "(define-constant {IGNORE_BUFFER_NAME} 0x{})\n{snippet}",
+        "00".repeat(free_space_on_memory_page - total_space_needed)
     )
 }
 
+// TODO: deprecate after fixing [issue #587](https://github.com/stacks-network/clarity-wasm/issues/587)
 pub fn crosscheck_oom_with_non_literal_args(
     snippet: &str,
     args_types: &[TypeSignature],
