@@ -1,4 +1,4 @@
-use clarity::vm::types::{SequenceSubtype, TypeSignature, BUFF_32};
+use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
@@ -6,15 +6,24 @@ use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
     name: &'static str,
-    mem_size: usize,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
     work_space: u32, // constant upper bound
 ) -> Result<(), GeneratorError> {
-    let offset_res = generator.literal_memory_end;
+    // Buffer type for the result based on the hash function
+    let buffer_size = match name {
+        "hash160" => 20,
+        "sha512" => 64,
+        _ => 32, // sha256
+    };
+    let return_ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        BufferLength::try_from(buffer_size as usize)
+            .map_err(|_| GeneratorError::InternalError("buffer size too large".to_string()))?,
+    ));
 
-    generator.literal_memory_end += mem_size as u32; // 5 u32
+    // Allocate space on the stack for the result
+    let (result_local, _) = generator.create_call_stack_local(builder, &return_ty, false, true);
 
     let hash_type = match arg_types[0] {
         TypeSignature::IntType | TypeSignature::UIntType => {
@@ -30,6 +39,7 @@ pub fn traverse_hash(
             return Err(GeneratorError::NotImplemented);
         }
     };
+
     let hash_func = generator
         .module
         .funcs
@@ -38,9 +48,7 @@ pub fn traverse_hash(
             GeneratorError::InternalError(format!("function not found: {name}-{hash_type}"))
         })?;
 
-    builder
-        .i32_const(offset_res as i32) // result offset
-        .call(hash_func);
+    builder.local_get(result_local).call(hash_func);
 
     Ok(())
 }
@@ -61,7 +69,7 @@ impl SimpleWord for Hash160 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from sha256, see `Sha256::visit`
-        traverse_hash("hash160", 160, generator, builder, arg_types, 64 + 8 + 289)
+        traverse_hash("hash160", generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -81,7 +89,7 @@ impl SimpleWord for Sha256 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
-        traverse_hash("sha256", 256, generator, builder, arg_types, 64 + 8 + 289)
+        traverse_hash("sha256", generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -156,7 +164,7 @@ impl SimpleWord for Sha512 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
-        traverse_hash("sha512", 512, generator, builder, arg_types, 128 + 16 + 705)
+        traverse_hash("sha512", generator, builder, arg_types, 128 + 16 + 705)
     }
 }
 
@@ -219,7 +227,31 @@ impl SimpleWord for Sha512_256 {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::crosscheck;
+    use crate::tools::{crosscheck, interpret};
+
+    #[test]
+    fn map_hash160() {
+        crosscheck(
+            "(map hash160 (list 1 2 3))",
+            interpret("(list 0x7c2d0e4bb1fdd9b98784c04a255e5991bcefb47f 0x3e3dfec3717972aad4735db5e32507a82ad66783 0xb2c1ebcf775ebf585f4dd70e9f2e6cd6a1dc02bf)"),
+        );
+    }
+
+    #[test]
+    fn map_sha256() {
+        crosscheck(
+            "(map sha256 (list 1 2 3))",
+            interpret("(list 0x4cbbd8ca5215b8d161aec181a74b694f4e24b001d5b081dc0030ed797a8973e0 0xb1535c7783ea8829b6b0cf67704539798b4d16c39bf0bfe09494c5d9f12eee30 0x59d5966c96af7ecad5c9d2918d6582d102b2c67f6b765ea28ac24371ab4f93be)"),
+        );
+    }
+
+    #[test]
+    fn map_sha512() {
+        crosscheck(
+            "(map sha512 (list 1 2 3))",
+            interpret("(list 0x6fcee9a7b7a7b821d241c03c82377928bc6882e7a08c78a4221199bfa220cdc55212273018ee613317c8293bb8d1ce08d1e017508e94e06ab85a734c99c7cc34 0x6e4821d2319c9b43fd8eaf4a79007d04572aa61f1de7c7161b569cf1e80a36b3ed33949c54fe9ff7d82b4a5aa570e1f57f266b70405ec09daf868ba8b6b09695 0x65a88e32b391d61b95c8c1d77067439edc52e54502e6fe5549b73b6609a89c77a629b7f4db5b34a590d3b36e32ad4c143180197185f9bc83a23a39f863e446e8)"),
+        );
+    }
 
     #[test]
     fn test_keccak256() {
