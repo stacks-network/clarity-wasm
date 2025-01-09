@@ -18,7 +18,8 @@ pub fn traverse_hash(
         _ => 32, // sha256
     };
     let return_ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
-        BufferLength::try_from(buffer_size as usize).unwrap(),
+        BufferLength::try_from(buffer_size as usize)
+            .map_err(|_| GeneratorError::InternalError("buffer size too large".to_string()))?,
     ));
 
     // Allocate space on the stack for the result
