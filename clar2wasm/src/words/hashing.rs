@@ -47,9 +47,7 @@ pub fn traverse_hash(
             GeneratorError::InternalError(format!("function not found: {name}-{hash_type}"))
         })?;
 
-    builder
-        .local_get(result_local)
-        .call(hash_func);
+    builder.local_get(result_local).call(hash_func);
 
     Ok(())
 }
