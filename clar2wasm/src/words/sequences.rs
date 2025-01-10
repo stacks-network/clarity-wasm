@@ -2143,7 +2143,10 @@ mod tests {
     #[test]
     fn map_principal_destruct() {
         let a = "(map principal-destruct? (list 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6))";
-        crosscheck(a, evaluate("
+        crosscheck(
+            a,
+            evaluate(
+                "
         (list 
             (ok 
                 (tuple 
@@ -2159,7 +2162,9 @@ mod tests {
                     (version 0x1a)
                 )
             )
-        )"));
+        )",
+            ),
+        );
     }
 
     #[test]
@@ -2239,7 +2244,7 @@ mod tests {
         let a = "(map * (list 1 2 3) (list 1 2 3))";
         crosscheck(a, evaluate("(list 1 4 9)"));
     }
-    
+
     #[test]
     fn map_not() {
         let a = "(map not (list true false true false))";
@@ -2253,14 +2258,19 @@ mod tests {
     }
 
     #[test]
-    fn map_sha512_256(){
+    fn map_sha512_256() {
         let a = "(map sha512/256 (list 1 2 3))";
-        crosscheck(a, evaluate("
+        crosscheck(
+            a,
+            evaluate(
+                "
         (list 
             0x515a7e92e7c60522db968d81ff70b80818fc17aeabbec36baf0dda2812e94a86
             0x541f557997791a762051eceb7c1069d9c903067d1d020bd38da294b10b0d680c
             0xe8107bb16a6b5f0cac737990336f93bc82bb678ba8a9cba86be3c3f818a34230
-        )"));
+        )",
+            ),
+        );
     }
 
     #[test]
@@ -2284,12 +2294,17 @@ mod tests {
     #[test]
     fn map_keccak256() {
         let a = "(map keccak256 (list 1 2 3))";
-        crosscheck(a, evaluate("
+        crosscheck(
+            a,
+            evaluate(
+                "
         (list 
             0x97550c84a9e30d01461a29ac1c54c29e82c1925ee78b2ee1776d9e20c0183334
             0xf74616ab34b70062ff83d0f3459bee08066c0b32ed44ed6f4c52723036ee295c
             0x48dd032f5ebe0286a7aae330fe25a2fbe8e8288814e8f7ccb149f024611e71b1
-        )"));
+        )",
+            ),
+        );
     }
 
     #[test]
