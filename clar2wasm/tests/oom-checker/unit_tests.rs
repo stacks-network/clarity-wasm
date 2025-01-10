@@ -7,7 +7,6 @@ use crate::{
 };
 
 #[test]
-#[ignore = "issue #585"]
 fn principal_of_oom() {
     crosscheck_oom(
         "(principal-of? 0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)",

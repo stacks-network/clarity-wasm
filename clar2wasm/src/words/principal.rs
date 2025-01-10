@@ -294,16 +294,20 @@ impl ComplexWord for PrincipalOf {
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;
 
-        // Reserve stack space for the host-function to write the principal
-        builder.global_get(generator.stack_pointer);
+        // Create space for (optional (response principal error))
+        let principal_type = TypeSignature::PrincipalType;
+        let response_type =
+            TypeSignature::ResponseType(Box::new((principal_type.clone(), TypeSignature::NoType)));
+        let optional_type = TypeSignature::OptionalType(Box::new(response_type));
 
-        // Adjust the stack pointer.
-        builder
-            .global_get(generator.stack_pointer)
-            .i32_const(STANDARD_PRINCIPAL_BYTES as i32)
-            .binop(BinaryOp::I32Add)
-            .global_set(generator.stack_pointer);
+        let (result_offset, _) = generator.create_call_stack_local(
+            builder,
+            &optional_type,
+            false, // include_repr
+            true,  // include_value
+        );
 
+        builder.local_get(result_offset);
         // Call the host interface function, `principal-of?`
         builder.call(generator.func_by_name("stdlib.principal_of"));
 
