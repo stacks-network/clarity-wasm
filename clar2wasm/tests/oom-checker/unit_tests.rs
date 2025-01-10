@@ -70,22 +70,6 @@ fn concat_oom() {
     );
 }
 
-#[cfg(not(feature = "test-clarity-v1"))]
-#[test]
-fn replace_at_oom() {
-    crosscheck_oom_with_non_literal_args(
-        "(replace-at? (list 1 2 3) u0 42)",
-        &[list_of(TypeSignature::IntType, 3)],
-        Ok(Some(
-            Value::some(
-                Value::cons_list_unsanitized(vec![Value::Int(42), Value::Int(2), Value::Int(3)])
-                    .unwrap(),
-            )
-            .unwrap(),
-        )),
-    );
-}
-
 #[test]
 fn map_oom() {
     crosscheck_oom_with_non_literal_args(
@@ -244,26 +228,6 @@ fn get_burn_block_info_pox_addrs_oom() {
 }
 
 #[test]
-#[ignore = "issue #592"]
-fn int_to_ascii_oom() {
-    crosscheck_oom(
-        "(int-to-ascii 42)",
-        Ok(Some(
-            Value::string_ascii_from_bytes(b"42".to_vec()).unwrap(),
-        )),
-    );
-}
-
-#[test]
-#[ignore = "issue #592"]
-fn int_to_utf8_oom() {
-    crosscheck_oom(
-        "(int-to-utf8 42)",
-        Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
-    );
-}
-
-#[test]
 fn data_var_oom() {
     crosscheck_oom(
         r#"
@@ -281,4 +245,88 @@ fn secp256k1_recover_oom() {
         "(secp256k1-recover? 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)",
         Ok(Some(Value::okay(Value::buff_from(vec![3, 173, 184, 222, 75, 251, 101, 219, 44, 253, 97, 32, 213, 92, 101, 38, 174, 156, 82, 230, 117, 219, 126, 71, 48, 134, 54, 83, 75, 167, 120, 97, 16]).unwrap()).unwrap())),
     );
+}
+
+#[cfg(not(feature = "test-clarity-v1"))]
+#[cfg(test)]
+mod clarity_v2_v3 {
+    use clarity::vm::types::TypeSignature;
+    use clarity::vm::Value;
+
+    use crate::{crosscheck_oom, crosscheck_oom_with_non_literal_args, list_of};
+
+    #[test]
+    fn replace_at_oom() {
+        crosscheck_oom_with_non_literal_args(
+            "(replace-at? (list 1 2 3) u0 42)",
+            &[list_of(TypeSignature::IntType, 3)],
+            Ok(Some(
+                Value::some(
+                    Value::cons_list_unsanitized(vec![
+                        Value::Int(42),
+                        Value::Int(2),
+                        Value::Int(3),
+                    ])
+                    .unwrap(),
+                )
+                .unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn int_to_ascii_oom_negative() {
+        crosscheck_oom(
+            "(int-to-ascii -42)",
+            Ok(Some(
+                Value::string_ascii_from_bytes(b"-42".to_vec()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn int_to_utf8_oom_negative() {
+        crosscheck_oom(
+            "(int-to-utf8 -42)",
+            Ok(Some(
+                Value::string_utf8_from_bytes(b"-42".to_vec()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn int_to_ascii_oom() {
+        crosscheck_oom(
+            "(int-to-ascii 42)",
+            Ok(Some(
+                Value::string_ascii_from_bytes(b"42".to_vec()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn int_to_utf8_oom() {
+        crosscheck_oom(
+            "(int-to-utf8 42)",
+            Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn unsigned_value_int_to_ascii_oom() {
+        crosscheck_oom(
+            "(int-to-ascii u42)",
+            Ok(Some(
+                Value::string_ascii_from_bytes(b"42".to_vec()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn unsigned_value_int_to_utf8_oom() {
+        crosscheck_oom(
+            "(int-to-utf8 u42)",
+            Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
+        );
+    }
 }
