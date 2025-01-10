@@ -1589,147 +1589,6 @@ mod tests {
 
     use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
 
-    #[cfg(any(feature = "test-clarity-v2", feature = "test-clarity-v3"))]
-    #[cfg(test)]
-    mod clarity_v2_v3 {
-        use crate::tools::{crosscheck, evaluate};
-
-        #[test]
-        fn map_bit_and() {
-            let a = "(map bit-and (list 1 2 3) (list 1 7 6) (list 1 15 15))";
-            crosscheck(a, evaluate("(list 1 2 2)"));
-        }
-
-        #[test]
-        fn map_bit_not() {
-            let a = "(map bit-not (list 1 2 3))";
-            crosscheck(a, evaluate("(list -2 -3 -4)"));
-        }
-
-        #[test]
-        fn map_bit_or() {
-            let a = "(map bit-or (list 1 2 3) (list 1 7 6) (list 1 15 15))";
-            crosscheck(a, evaluate("(list 1 15 15)"));
-        }
-
-        #[test]
-        fn map_bit_shift_left() {
-            let a = "(map bit-shift-left (list u1 u2 u3) (list u2 u3 u4))";
-            crosscheck(a, evaluate("(list u4 u16 u48)"));
-        }
-
-        #[test]
-        fn map_bit_shift_right() {
-            let a = "(map bit-shift-right (list u4 u16 u48) (list u2 u3 u4))";
-            crosscheck(a, evaluate("(list u1 u2 u3)"));
-        }
-
-        #[test]
-        fn map_bit_xor() {
-            let a = "(map bit-xor (list 4 16 48) (list 2 3 4) (list 3 4 5))";
-            crosscheck(a, evaluate("(list 5 23 49)"));
-        }
-
-        #[test]
-        fn map_buff_to_int_be() {
-            let a = "(map buff-to-int-be (list 0x010203 0x040506 0x070809))";
-            crosscheck(a, evaluate("(list 66051 263430 460809)"));
-        }
-
-        #[test]
-        fn map_buff_to_int_le() {
-            let a = "(map buff-to-int-le (list 0x010203 0x040506 0x070809))";
-            crosscheck(a, evaluate("(list 197121 394500 591879)"));
-        }
-
-        #[test]
-        fn map_buff_to_uint_be() {
-            let a = "(map buff-to-uint-be (list 0x010203 0x040506 0x070809))";
-            crosscheck(a, evaluate("(list u66051 u263430 u460809)"));
-        }
-
-        #[test]
-        fn map_buff_to_uint_le() {
-            let a = "(map buff-to-uint-le (list 0x010203 0x040506 0x070809))";
-            crosscheck(a, evaluate("(list u197121 u394500 u591879)"));
-        }
-        #[test]
-        fn map_is_standard() {
-            let a = "(map is-standard (list 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR))";
-            crosscheck(a, evaluate("(list true false)"));
-        }
-
-        #[test]
-        fn map_principal_construct() {
-            let snippet = "
-(define-data-var index-local uint u0)
-(define-data-var list-local (list 100 (buff 1)) (list ))
-(define-public (test-principal-construct)
-  (begin
-    (var-set list-local (list 0x1a 0x1a))
-    (ok (map test-principal-construct-inner (list 0xfa6bf38ed557fe417333710d6033e9419391a320 0x164247d6f2b425ac5771423ae6c80c754f7172b0)))
-  )
-)
-
-
-(define-private (test-principal-construct-inner (pub-key-hash (buff 20)))
-  (let
-    (
-      (index (var-get index-local))
-    )
-    (var-set index-local (+ u1 (var-get index-local)))
-    (principal-construct? (unwrap-panic (element-at? (var-get list-local) index)) pub-key-hash)
-  )
-)
-(test-principal-construct)";
-            crosscheck(snippet, evaluate("
-        (ok 
-            (list 
-                (ok 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK) (ok 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)
-            )
-        )"));
-        }
-
-        #[test]
-        fn map_principal_destruct() {
-            let a = "(map principal-destruct? (list 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6))";
-            crosscheck(
-                a,
-                evaluate(
-                    "
-        (list 
-            (ok 
-                (tuple 
-                    (hash-bytes 0xfa6bf38ed557fe417333710d6033e9419391a320) 
-                    (name none) 
-                    (version 0x1a)
-                )
-            ) 
-            (ok 
-                (tuple 
-                    (hash-bytes 0x164247d6f2b425ac5771423ae6c80c754f7172b0) 
-                    (name none) 
-                    (version 0x1a)
-                )
-            )
-        )",
-                ),
-            );
-        }
-
-        #[test]
-        fn map_string_to_int() {
-            let a = "(map string-to-int? (list \"1\" \"2\" \"3\"))";
-            crosscheck(a, evaluate("(list (some 1) (some 2) (some 3))"));
-        }
-
-        #[test]
-        fn map_string_to_uint() {
-            let a = "(map string-to-uint? (list \"1\" \"2\" \"3\"))";
-            crosscheck(a, evaluate("(list (some u1) (some u2) (some u3))"));
-        }
-    }
-
     #[test]
     fn fold_less_than_three_args() {
         let result = evaluate("(fold + (list 1 2 3))");
@@ -2185,12 +2044,6 @@ mod tests {
     }
 
     #[test]
-    fn map_int_to_ascii() {
-        let a = "(map int-to-ascii (list u1 u2 u3))";
-        crosscheck(a, evaluate("(list \"1\" \"2\" \"3\")"));
-    }
-
-    #[test]
     fn map_divide() {
         let a = "(map / (list 1 4 9) (list 1 2 3))";
         crosscheck(a, evaluate("(list 1 2 3)"));
@@ -2218,12 +2071,6 @@ mod tests {
     fn map_greater_than_or_equal() {
         let a = "(map >= (list 1 2 3) (list 1 3 3))";
         crosscheck(a, evaluate("(list true false true)"));
-    }
-
-    #[test]
-    fn map_int_to_utf8() {
-        let a = "(map int-to-utf8 (list u1 u2 u3))";
-        crosscheck(a, evaluate("(list u\"1\" u\"2\" u\"3\")"));
     }
 
     #[test]
@@ -2639,6 +2486,152 @@ mod tests {
                     Some(Vec::new()),
                 )),
             )
+        }
+        #[test]
+        fn map_bit_and() {
+            let a = "(map bit-and (list 1 2 3) (list 1 7 6) (list 1 15 15))";
+            crosscheck(a, evaluate("(list 1 2 2)"));
+        }
+
+        #[test]
+        fn map_bit_not() {
+            let a = "(map bit-not (list 1 2 3))";
+            crosscheck(a, evaluate("(list -2 -3 -4)"));
+        }
+
+        #[test]
+        fn map_bit_or() {
+            let a = "(map bit-or (list 1 2 3) (list 1 7 6) (list 1 15 15))";
+            crosscheck(a, evaluate("(list 1 15 15)"));
+        }
+
+        #[test]
+        fn map_bit_shift_left() {
+            let a = "(map bit-shift-left (list u1 u2 u3) (list u2 u3 u4))";
+            crosscheck(a, evaluate("(list u4 u16 u48)"));
+        }
+
+        #[test]
+        fn map_bit_shift_right() {
+            let a = "(map bit-shift-right (list u4 u16 u48) (list u2 u3 u4))";
+            crosscheck(a, evaluate("(list u1 u2 u3)"));
+        }
+
+        #[test]
+        fn map_bit_xor() {
+            let a = "(map bit-xor (list 4 16 48) (list 2 3 4) (list 3 4 5))";
+            crosscheck(a, evaluate("(list 5 23 49)"));
+        }
+
+        #[test]
+        fn map_buff_to_int_be() {
+            let a = "(map buff-to-int-be (list 0x010203 0x040506 0x070809))";
+            crosscheck(a, evaluate("(list 66051 263430 460809)"));
+        }
+
+        #[test]
+        fn map_buff_to_int_le() {
+            let a = "(map buff-to-int-le (list 0x010203 0x040506 0x070809))";
+            crosscheck(a, evaluate("(list 197121 394500 591879)"));
+        }
+
+        #[test]
+        fn map_buff_to_uint_be() {
+            let a = "(map buff-to-uint-be (list 0x010203 0x040506 0x070809))";
+            crosscheck(a, evaluate("(list u66051 u263430 u460809)"));
+        }
+
+        #[test]
+        fn map_buff_to_uint_le() {
+            let a = "(map buff-to-uint-le (list 0x010203 0x040506 0x070809))";
+            crosscheck(a, evaluate("(list u197121 u394500 u591879)"));
+        }
+        #[test]
+        fn map_is_standard() {
+            let a = "(map is-standard (list 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR))";
+            crosscheck(a, evaluate("(list true false)"));
+        }
+
+        #[test]
+        fn map_principal_construct() {
+            let snippet = "
+(define-data-var index-local uint u0)
+(define-data-var list-local (list 100 (buff 1)) (list ))
+(define-public (test-principal-construct)
+  (begin
+    (var-set list-local (list 0x1a 0x1a))
+    (ok (map test-principal-construct-inner (list 0xfa6bf38ed557fe417333710d6033e9419391a320 0x164247d6f2b425ac5771423ae6c80c754f7172b0)))
+  )
+)
+
+
+(define-private (test-principal-construct-inner (pub-key-hash (buff 20)))
+  (let
+    (
+      (index (var-get index-local))
+    )
+    (var-set index-local (+ u1 (var-get index-local)))
+    (principal-construct? (unwrap-panic (element-at? (var-get list-local) index)) pub-key-hash)
+  )
+)
+(test-principal-construct)";
+            crosscheck(snippet, evaluate("
+        (ok 
+            (list 
+                (ok 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK) (ok 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)
+            )
+        )"));
+        }
+
+        #[test]
+        fn map_principal_destruct() {
+            let a = "(map principal-destruct? (list 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6))";
+            crosscheck(
+                a,
+                evaluate(
+                    "
+        (list 
+            (ok 
+                (tuple 
+                    (hash-bytes 0xfa6bf38ed557fe417333710d6033e9419391a320) 
+                    (name none) 
+                    (version 0x1a)
+                )
+            ) 
+            (ok 
+                (tuple 
+                    (hash-bytes 0x164247d6f2b425ac5771423ae6c80c754f7172b0) 
+                    (name none) 
+                    (version 0x1a)
+                )
+            )
+        )",
+                ),
+            );
+        }
+
+        #[test]
+        fn map_string_to_int() {
+            let a = "(map string-to-int? (list \"1\" \"2\" \"3\"))";
+            crosscheck(a, evaluate("(list (some 1) (some 2) (some 3))"));
+        }
+
+        #[test]
+        fn map_string_to_uint() {
+            let a = "(map string-to-uint? (list \"1\" \"2\" \"3\"))";
+            crosscheck(a, evaluate("(list (some u1) (some u2) (some u3))"));
+        }
+
+        #[test]
+        fn map_int_to_ascii() {
+            let a = "(map int-to-ascii (list u1 u2 u3))";
+            crosscheck(a, evaluate("(list \"1\" \"2\" \"3\")"));
+        }
+
+        #[test]
+        fn map_int_to_utf8() {
+            let a = "(map int-to-utf8 (list u1 u2 u3))";
+            crosscheck(a, evaluate("(list u\"1\" u\"2\" u\"3\")"));
         }
     }
 }
