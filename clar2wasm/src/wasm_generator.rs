@@ -270,7 +270,7 @@ pub fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorErro
             global
                 .name
                 .as_ref()
-                .map_or(false, |other_name| name == other_name)
+                .is_some_and(|other_name| name == other_name)
         })
         .map(|global| global.id())
         .ok_or_else(|| {
