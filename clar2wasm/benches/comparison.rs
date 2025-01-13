@@ -4,24 +4,28 @@ use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clar2wasm::initialize::initialize_contract;
 use clarity::consts::CHAIN_ID_TESTNET;
-use clarity::types::StacksEpochId;
+use clarity::types::{PrivateKey, StacksEpochId};
+use clarity::util::hash::Keccak256Hash;
+use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase};
 use clarity::vm::ast::build_ast_with_diagnostics;
 use clarity::vm::contexts::GlobalContext;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
+use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData, TupleData};
 use clarity::vm::{
-    eval_all, CallStack, ClarityVersion, ContractContext, ContractName, Environment, Value,
+    eval_all, CallStack, ClarityName, ClarityVersion, ContractContext, ContractName, Environment,
+    Value,
 };
 use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion};
 use paste::paste;
 use pprof::criterion::{Output, PProfProfiler};
 
-fn interpreter<M>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, args: &[Value])
+fn interpreter<M, F>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, init: F)
 where
     M: 'static + Measurement,
+    F: FnOnce(&mut Environment) -> Vec<Value>,
 {
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
@@ -104,17 +108,20 @@ where
         None,
     );
 
+    let args = init(&mut env);
+
     b.iter(|| {
-        env.execute_function_as_transaction(&func, args, None, false)
+        env.execute_function_as_transaction(&func, &args, None, false)
             .expect("Function call failed");
     });
 
     global_context.commit().unwrap();
 }
 
-fn webassembly<M>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, args: &[Value])
+fn webassembly<M, F>(b: &mut Bencher<M>, fn_name: &str, clarity: &str, init: F)
 where
     M: 'static + Measurement,
+    F: FnOnce(&mut Environment) -> Vec<Value>,
 {
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
@@ -181,8 +188,10 @@ where
         None,
     );
 
+    let args = init(&mut env);
+
     b.iter(|| {
-        env.execute_function_as_transaction(&func, args, None, false)
+        env.execute_function_as_transaction(&func, &args, None, false)
             .expect("Function call failed");
     });
 
@@ -212,10 +221,10 @@ macro_rules! decl_benches {
                 fn [<single _ $fn_name>](c: &mut Criterion) {
                     let mut group = c.benchmark_group($fn_name);
                     group.bench_function("interpreter", |b| {
-                        interpreter(b, $fn_name, $clarity, &[$($arg),*]);
+                        interpreter(b, $fn_name, $clarity, |_| vec![$($arg),*]);
                     });
                     group.bench_function("webassembly", |b| {
-                        webassembly(b, $fn_name, $clarity, &[$($arg),*]);
+                        webassembly(b, $fn_name, $clarity, |_| vec![$($arg),*]);
                     });
                 }
             )*
@@ -228,22 +237,22 @@ macro_rules! decl_benches {
         }
     };
     // range
-    ($(($fn_name:literal, $range:expr, $closure:expr)),* $(,)?) => {
+    ($(($fn_name:literal, $range:expr, $produce_clarity:expr, $init:expr)),* $(,)?) => {
         paste! {
             $(
                 #[allow(non_snake_case)]
                 fn [<range _ $fn_name>](c: &mut Criterion) {
                     let mut group = c.benchmark_group($fn_name);
 
-                    let closure = $closure;
+                    let produce_clarity = $produce_clarity;
 
                     for i in $range {
-                        let (clarity, args) = closure(i);
+                        let clarity = produce_clarity(i);
                         group.bench_with_input(BenchmarkId::new("interpreter", i), &i, |b, _| {
-                            interpreter(b, $fn_name, &clarity, &args)
+                            interpreter(b, $fn_name, &clarity, |env| { $init(i, env) })
                         });
                         group.bench_with_input(BenchmarkId::new("webassembly", i), &i, |b, _| {
-                            webassembly(b, $fn_name, &clarity, &args)
+                            webassembly(b, $fn_name, &clarity, |env| { $init(i, env) })
                         });
                     }
                 }
@@ -274,44 +283,176 @@ decl_benches! {
     (
         "fold_add_square",
         (1..=1001).step_by(50),
-        |i| {
-            let clarity = format!(
-            r#"
-                (define-private (add_square (x int) (y int))
-                    (+ (* x x) y)
-                )
+        |i| format!(r#"
+        (define-private (add_square (x int) (y int))
+            (+ (* x x) y)
+        )
 
-                (define-public (fold_add_square (l (list {i} int)) (init int))
-                    (ok (fold add_square l init))
-                )
-            "#);
-            let args = [Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap(), Value::Int(0)];
-            (clarity, args)
-        }
+        (define-public (fold_add_square (l (list {i} int)) (init int))
+            (ok (fold add_square l init))
+        )
+        "#),
+        |i, _: &mut Environment| vec![Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap(), Value::Int(0)]
     ),
     (
         "map_set_entries",
         (1..=1001).step_by(50),
-        |i| {
-            let clarity = format!(
-            r#"
-                (define-map mymap int int)
+        |i| format!(r#"
+        (define-map mymap int int)
 
-                (define-public (map_set_entries (l (list {i} int)))
-                    (begin
-                        (map set_entry l)
-                        (ok true)
-                    )
-                )
+        (define-public (map_set_entries (l (list {i} int)))
+            (begin
+                (map set_entry l)
+                (ok true)
+            )
+        )
 
-                (define-private (set_entry (entry int))
-                    (map-set mymap entry entry)
-                )
-            "#);
-            let args = [Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap()];
-            (clarity, args)
-        }
+        (define-private (set_entry (entry int))
+            (map-set mymap entry entry)
+        )
+        "#),
+        |i, _: &mut Environment| vec![Value::cons_list_unsanitized((1..=i).map(Value::Int).collect()).unwrap()]
     ),
+    (
+        "add_prices",
+        (1..401).step_by(50),
+        |_i| r"
+        (define-map oracle_data
+            { source: uint, symbol: uint }
+            { amount: uint }
+        )
+
+        (define-map oracle_sources
+            { source: uint }
+            { key: (buff 33) }
+        )
+
+        (define-read-only (slice-16 (b (buff 48)) (start uint))
+            (unwrap-panic (as-max-len? (unwrap-panic (slice? b start (+ start u16))) u16))
+        )
+
+        (define-read-only (extract-source (msg (buff 48)))
+            (buff-to-uint-le (slice-16 msg u0))
+        )
+
+        (define-read-only (extract-symbol (msg (buff 48)))
+            (buff-to-uint-le (slice-16 msg u16))
+        )
+
+        (define-read-only (extract-amount (msg (buff 48)))
+            (buff-to-uint-le (slice-16 msg u32))
+        )
+
+        (define-read-only (verify-signature (msg (buff 48)) (sig (buff 65)) (key (buff 33)))
+            (is-eq (unwrap-panic (secp256k1-recover? (keccak256 msg) sig)) key)
+        )
+
+        (define-private (add-price (msg (buff 48)) (sig (buff 65)))
+            (let ((source (extract-source msg)))
+                (if (verify-signature msg sig (get key (unwrap-panic (map-get? oracle_sources {source: source}))))
+                    (let ((symbol (extract-symbol msg)) (amount (extract-amount msg)) (data-opt (map-get? oracle_data {source: source, symbol: symbol})))
+                        (if (is-some data-opt)
+                            (let ((data (unwrap-panic data-opt)))
+                                (begin
+                                    (map-set oracle_data {source: source, symbol: symbol} {amount: amount})
+                                    (ok true)
+                                )
+                            )
+                            (begin
+                                (map-set oracle_data {source: source, symbol: symbol} {amount: amount})
+                                (ok true)
+                            )
+                        )
+                    )
+                    (err u62)
+                )
+            )
+        )
+
+        (define-private (call-add-price (price {msg: (buff 48), sig: (buff 65)}))
+            (unwrap-panic (add-price (get msg price) (get sig price)))
+        )
+
+        (define-public (add_source (source uint) (key (buff 33)))
+            (begin
+                (map-set oracle_sources { source: source } { key: key })
+                (ok true)
+            )
+        )
+
+        (define-public (add_prices (prices (list 1001 {msg: (buff 48), sig: (buff 65)})))
+            (begin
+                (map call-add-price prices)
+                (ok true)
+            )
+        )
+        ".to_string(),
+        |i, env: &mut Environment| vec![add_prices_init(i, env)]
+    ),
+}
+
+fn add_prices_init(n: usize, env: &mut Environment) -> Value {
+    let mut prices = Vec::with_capacity(n);
+
+    let sk = Secp256k1PrivateKey::from_hex(
+        "9bf49a6a0755f953811fce125f2683d50429c3bb49e074147e0089a52eae155f01",
+    )
+    .unwrap();
+    let pk = Secp256k1PublicKey::from_private(&sk);
+
+    let source = 1u128;
+    let symbol = 2u128;
+    let amount = 3u128;
+
+    let mut msg = [0; 48];
+    msg[0..16].copy_from_slice(&source.to_le_bytes());
+    msg[16..32].copy_from_slice(&symbol.to_le_bytes());
+    msg[32..48].copy_from_slice(&amount.to_le_bytes());
+    let msg_hash = Keccak256Hash::from_data(&msg);
+
+    // NOTE: the way we have to construct the signature here would be better handled closer to
+    //       the upstream types themselves.
+    let sig = sk.sign(msg_hash.as_bytes()).unwrap();
+    let sig = sig.to_secp256k1_recoverable().unwrap();
+    let (recovery_id, compact) = sig.serialize_compact();
+
+    let mut sig_bytes = [0u8; 65];
+    sig_bytes[..64].copy_from_slice(&compact);
+    sig_bytes[64] = recovery_id.to_i32() as u8;
+
+    for _ in 0..n {
+        prices.push(Value::Tuple(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("msg"),
+                    Value::buff_from(msg.to_vec()).unwrap(),
+                ),
+                (
+                    ClarityName::from("sig"),
+                    Value::buff_from(sig_bytes.to_vec()).unwrap(),
+                ),
+            ])
+            .unwrap(),
+        ));
+    }
+
+    let func = env
+        .contract_context
+        .lookup_function("add_source")
+        .expect("failed to lookup function");
+
+    env.execute_function_as_transaction(
+        &func,
+        &[
+            Value::UInt(source),
+            Value::buff_from(pk.to_bytes_compressed()).unwrap(),
+        ],
+        None,
+        false,
+    )
+    .expect("Adding source should succeed");
+
+    Value::cons_list_unsanitized(prices).unwrap()
 }
 
 criterion_main!(single, range);
