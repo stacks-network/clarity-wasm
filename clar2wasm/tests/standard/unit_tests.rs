@@ -3631,15 +3631,15 @@ fn uint_to_string() {
 
         let expected = num.to_string();
 
-        // This algo needs space on the stack,
-        // we move the initial value of $stack-pointer
-        // to a random one where it wouldn't matter
-        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
-        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+        let res_offset = 1500;
 
-        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
-            .expect("call to uint-to-string failed");
-        assert_eq!(result[0].unwrap_i32(), 1500);
+        conv.call(
+            &mut store,
+            &[lo.into(), hi.into(), res_offset.into()],
+            &mut result,
+        )
+        .expect("call to uint-to-string failed");
+        assert_eq!(result[0].unwrap_i32(), res_offset);
         assert_eq!(result[1].unwrap_i32(), expected.len() as i32);
 
         let mut buffer = vec![0u8; expected.len()];
@@ -3693,15 +3693,17 @@ fn int_to_string() {
         let lo = num as i64;
         let hi = (num >> 64) as i64;
 
-        // This algo needs space on the stack,
-        // we move the initial value of $stack-pointer
-        // to a random one where it wouldn't matter
-        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
-        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+        // Use a safe offset in memory where we know we have space
+        let res_offset = 1500;
 
-        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
-            .expect("call to uint-to-string failed");
-        assert_eq!(result[0].unwrap_i32(), 1500);
+        conv.call(
+            &mut store,
+            &[lo.into(), hi.into(), res_offset.into()],
+            &mut result,
+        )
+        .expect("call to int-to-string failed");
+
+        assert_eq!(result[0].unwrap_i32(), res_offset); // Should return the same offset
         assert_eq!(result[1].unwrap_i32(), expected.len() as i32);
 
         let mut buffer = vec![0u8; expected.len()];
@@ -3758,15 +3760,15 @@ fn uint_to_utf8() {
         let expected = num.to_string();
         let expected_len = 4 * expected.len();
 
-        // This algo needs space on the stack,
-        // we move the initial value of $stack-pointer
-        // to a random one where it wouldn't matter
-        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
-        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+        let res_offset = 1500;
 
-        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
-            .expect("call to uint-to-string failed");
-        assert_eq!(result[0].unwrap_i32(), 1500);
+        conv.call(
+            &mut store,
+            &[lo.into(), hi.into(), res_offset.into()],
+            &mut result,
+        )
+        .expect("call to uint-to-string failed");
+        assert_eq!(result[0].unwrap_i32(), res_offset);
         assert_eq!(result[1].unwrap_i32(), expected_len as i32);
 
         let mut buffer = vec![0u8; expected_len];
@@ -3825,15 +3827,15 @@ fn int_to_utf8() {
         let lo = num as i64;
         let hi = (num >> 64) as i64;
 
-        // This algo needs space on the stack,
-        // we move the initial value of $stack-pointer
-        // to a random one where it wouldn't matter
-        let stack_pointer = instance.get_global(&mut store, "stack-pointer").unwrap();
-        stack_pointer.set(&mut store, Val::I32(1500)).unwrap();
+        let res_offset = 1500;
 
-        conv.call(&mut store, &[lo.into(), hi.into()], &mut result)
-            .expect("call to uint-to-string failed");
-        assert_eq!(result[0].unwrap_i32(), 1500);
+        conv.call(
+            &mut store,
+            &[lo.into(), hi.into(), res_offset.into()],
+            &mut result,
+        )
+        .expect("call to uint-to-string failed");
+        assert_eq!(result[0].unwrap_i32(), res_offset);
         assert_eq!(result[1].unwrap_i32(), expected_len as i32);
 
         let mut buffer = vec![0u8; expected_len];

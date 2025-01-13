@@ -101,7 +101,9 @@ impl SimpleWord for IntToAscii {
             }
         };
 
-        generator.create_call_stack_local(builder, return_type, false, true);
+        let (result_offset, _) =
+            generator.create_call_stack_local(builder, return_type, false, true);
+        builder.local_get(result_offset);
 
         let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-string"));
 
@@ -136,7 +138,9 @@ impl SimpleWord for IntToUtf8 {
             }
         };
 
-        generator.create_call_stack_local(builder, return_type, false, true);
+        let (result_offset, _) =
+            generator.create_call_stack_local(builder, return_type, false, true);
+        builder.local_get(result_offset);
 
         let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-utf8"));
 
