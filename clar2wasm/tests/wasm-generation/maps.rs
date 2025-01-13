@@ -171,15 +171,23 @@ proptest! {
             type_string(&vty)
         );
 
+        let expected_set = Value::cons_list_unsanitized(expected_set);
+        prop_assume!(expected_set.is_ok(), "Couldn't generate a valid list");
+        let expected_set = expected_set.unwrap();
+
+        let expected_get = Value::cons_list_unsanitized(expected_get);
+        prop_assume!(expected_get.is_ok(), "Couldn't generate a valid list");
+        let expected_get = expected_get.unwrap();
+
         let expected = Value::from(
             TupleData::from_data(vec![
                 (
                     ClarityName::from("a"),
-                    Value::cons_list_unsanitized(expected_set).unwrap(),
+                    expected_set,
                 ),
                 (
                     ClarityName::from("b"),
-                    Value::cons_list_unsanitized(expected_get).unwrap(),
+                    expected_get,
                 ),
             ])
             .unwrap(),
