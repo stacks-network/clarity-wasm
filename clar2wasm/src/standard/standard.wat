@@ -2653,28 +2653,6 @@
         (local $i i32) (local $j i32)
         (local.set $j (local.tee $i (global.get $stack-pointer)))
 
-        ;; Check if we need more memory (40 bytes is max needed for uint128)
-        (if (i32.gt_u 
-            (i32.add (local.get $i) (i32.const 40))
-            (i32.mul (memory.size) (i32.const 65536)))
-            (then
-                ;; Calculate needed pages (64KB per page)
-                (memory.grow 
-                    (i32.add
-                        (i32.div_u
-                            (i32.sub
-                                (i32.add (local.get $i) (i32.const 40))
-                                (i32.mul (memory.size) (i32.const 65536))
-                            )
-                            (i32.const 65536)
-                        )
-                        (i32.const 1)  ;; Add one extra page for safety
-                    )
-                )
-                drop  ;; Drop the previous memory size returned by memory.grow
-            )
-        )
-
         ;; slow loop while $hi > 0
         (if (i64.ne (local.get $hi) (i64.const 0))
             (then
@@ -2747,28 +2725,6 @@
 
     (func $stdlib.int-to-string (param $lo i64) (param $hi i64) (result i32 i32)
         (local $negative i32) (local $len i32)
-
-        ;; Grow memory if needed (41 bytes: 40 for digits + 1 for minus sign)
-        (if (i32.gt_u
-            (i32.add (global.get $stack-pointer) (i32.const 41))
-            (i32.mul (memory.size) (i32.const 65536))) ;; 0x10000 = memory size of a page
-            (then
-                (memory.grow
-                    (i32.add
-                        (i32.shr_u
-                            (i32.sub
-                                (i32.add (global.get $stack-pointer) (i32.const 41))
-                                (i32.mul (memory.size) (i32.const 65536))
-                            )
-                            (i32.const 16) ;; 2^16 = 65536
-                        )
-                        (i32.const 1) ;; Extra page for safety
-                    )
-                )
-                drop
-            )
-        )
-
         (local.set $negative (i64.lt_s (local.get $hi) (i64.const 0)))
         ;; add a '-' if n < 0
         (if (local.get $negative)
@@ -2805,28 +2761,6 @@
     (func $stdlib.uint-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
         (local $i i32) (local $j i32)
         (local.set $j (local.tee $i (global.get $stack-pointer)))
-
-        ;; Check if we need more memory (40 bytes is max needed for uint128)
-        (if (i32.gt_u 
-            (i32.add (local.get $i) (i32.const 40))
-            (i32.mul (memory.size) (i32.const 65536))) ;; 0x10000 = memory size of a page
-            (then
-                ;; Calculate needed pages (64KB per page)
-                (memory.grow
-                    (i32.add
-                        (i32.div_u
-                            (i32.sub
-                                (i32.add (local.get $i) (i32.const 40))
-                                (i32.mul (memory.size) (i32.const 65536))
-                            )
-                            (i32.const 65536)
-                        )
-                        (i32.const 1) ;; Add one extra page for safety
-                    )
-                )
-                drop ;; Drop the previous memory size returned by memory.grow
-            )
-        )
 
         ;; slow loop while $hi > 0
         (if (i64.ne (local.get $hi) (i64.const 0))
@@ -2903,29 +2837,6 @@
 
     (func $stdlib.int-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
         (local $negative i32) (local $len i32)
-
-        ;; Grow memory if needed (44 bytes: 40 for digits + 4 for UTF-8 minus sign)
-        (if (i32.gt_u 
-            (i32.add (global.get $stack-pointer) (i32.const 44))
-            (i32.mul (memory.size) (i32.const 65536))
-        )
-            (then
-                (memory.grow 
-                    (i32.add
-                        (i32.shr_u  ;; Use shift instead of division
-                            (i32.sub
-                                (i32.add (global.get $stack-pointer) (i32.const 44))
-                                (i32.mul (memory.size) (i32.const 65536))
-                            )
-                            (i32.const 16)  ;; 2^16 = 65536
-                        )
-                        (i32.const 1)  ;; Extra page for safety
-                    )
-                )
-                drop
-            )
-        )
-
         (local.set $negative (i32.shl (i64.lt_s (local.get $hi) (i64.const 0)) (i32.const 2)))
         ;; add a '-' if n < 0
         (if (local.get $negative)

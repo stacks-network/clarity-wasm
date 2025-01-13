@@ -89,7 +89,7 @@ impl SimpleWord for IntToAscii {
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
-        _return_type: &TypeSignature,
+        return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
@@ -100,6 +100,8 @@ impl SimpleWord for IntToAscii {
                 ));
             }
         };
+
+        generator.create_call_stack_local(builder, return_type, false, true);
 
         let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-string"));
 
@@ -122,7 +124,7 @@ impl SimpleWord for IntToUtf8 {
         generator: &mut crate::wasm_generator::WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
-        _return_type: &TypeSignature,
+        return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
@@ -133,6 +135,8 @@ impl SimpleWord for IntToUtf8 {
                 ));
             }
         };
+
+        generator.create_call_stack_local(builder, return_type, false, true);
 
         let func = generator.func_by_name(&format!("stdlib.{type_prefix}-to-utf8"));
 
