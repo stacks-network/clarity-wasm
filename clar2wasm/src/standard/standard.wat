@@ -2649,9 +2649,9 @@
         )
     )
 
-    (func $stdlib.uint-to-string (param $lo i64) (param $hi i64) (result i32 i32)
+    (func $stdlib.uint-to-string (param $lo i64) (param $hi i64) (param $result_offset i32) (result i32 i32)
         (local $i i32) (local $j i32)
-        (local.set $j (local.tee $i (global.get $stack-pointer)))
+        (local.set $j (local.tee $i (local.get $result_offset)))
 
         ;; slow loop while $hi > 0
         (if (i64.ne (local.get $hi) (i64.const 0))
@@ -2697,8 +2697,8 @@
         ;; final result offset and length on the stack
         (local.get $j)
         (i32.sub (local.get $i) (local.get $j))
-        ;; update stack-pointer
-        (global.set $stack-pointer (local.get $i))
+        ;; update result_offset
+        (local.set $result_offset (local.get $i))
 
         ;; reverse answer in memory
         (local.set $i (i32.sub (local.get $i) (i32.const 1)))
@@ -2723,14 +2723,14 @@
         ;; final result is already on the stack
     )
 
-    (func $stdlib.int-to-string (param $lo i64) (param $hi i64) (result i32 i32)
+    (func $stdlib.int-to-string (param $lo i64) (param $hi i64) (param $result_offset i32) (result i32 i32)
         (local $negative i32) (local $len i32)
         (local.set $negative (i64.lt_s (local.get $hi) (i64.const 0)))
         ;; add a '-' if n < 0
         (if (local.get $negative)
             (then
-                (i32.store8 (global.get $stack-pointer) (i32.const 45))
-                (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const 1)))
+                (i32.store8 (local.get $result_offset) (i32.const 45))
+                (local.set $result_offset (i32.add (local.get $result_offset) (i32.const 1)))
             )
         )
 
@@ -2741,11 +2741,12 @@
                 (i64.ge_s (local.get $hi) (i64.const 0))
                 (i64.eq (local.get $hi) (i64.const 0x8000000000000000))
             )
-            (then (call $stdlib.uint-to-string (local.get $lo) (local.get $hi)))
+            (then (call $stdlib.uint-to-string (local.get $lo) (local.get $hi) (local.get $result_offset)))
             (else
                 (call $stdlib.uint-to-string
                     (i64.sub (i64.const 0) (local.get $lo))
                     (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+                    (local.get $result_offset)
                 )
             )
         )
@@ -2758,9 +2759,9 @@
         (local.get $len)
     )
 
-    (func $stdlib.uint-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
+    (func $stdlib.uint-to-utf8 (param $lo i64) (param $hi i64) (param $result_offset i32) (result i32 i32)
         (local $i i32) (local $j i32)
-        (local.set $j (local.tee $i (global.get $stack-pointer)))
+        (local.set $j (local.tee $i (local.get $result_offset)))
 
         ;; slow loop while $hi > 0
         (if (i64.ne (local.get $hi) (i64.const 0))
@@ -2809,8 +2810,8 @@
         ;; final result offset and length on the stack
         (local.get $j)
         (i32.sub (local.get $i) (local.get $j))
-        ;; update stack-pointer
-        (global.set $stack-pointer (local.get $i))
+        ;; update result_offset
+        (local.set $result_offset (local.get $i))
 
         ;; reverse answer in memory
         (local.set $i (i32.sub (local.get $i) (i32.const 4)))
@@ -2835,15 +2836,15 @@
         ;; final result is already on the stack
     )
 
-    (func $stdlib.int-to-utf8 (param $lo i64) (param $hi i64) (result i32 i32)
+    (func $stdlib.int-to-utf8 (param $lo i64) (param $hi i64) (param $result_offset i32) (result i32 i32)
         (local $negative i32) (local $len i32)
         (local.set $negative (i32.shl (i64.lt_s (local.get $hi) (i64.const 0)) (i32.const 2)))
         ;; add a '-' if n < 0
         (if (local.get $negative)
             (then
                 ;; store "-" in big-endian
-                (i32.store (global.get $stack-pointer) (i32.const 754974720))
-                (global.set $stack-pointer (i32.add (global.get $stack-pointer) (i32.const 4)))
+                (i32.store (local.get $result_offset) (i32.const 754974720))
+                (local.set $result_offset (i32.add (local.get $result_offset) (i32.const 4)))
             )
         )
 
@@ -2854,11 +2855,12 @@
                 (i64.ge_s (local.get $hi) (i64.const 0))
                 (i64.eq (local.get $hi) (i64.const 0x8000000000000000))
             )
-            (then (call $stdlib.uint-to-utf8 (local.get $lo) (local.get $hi)))
+            (then (call $stdlib.uint-to-utf8 (local.get $lo) (local.get $hi) (local.get $result_offset)))
             (else
                 (call $stdlib.uint-to-utf8
                     (i64.sub (i64.const 0) (local.get $lo))
                     (i64.sub (i64.const 0) (i64.add (local.get $hi) (i64.extend_i32_u (i64.ne (local.get $lo) (i64.const 0)))))
+                    (local.get $result_offset)
                 )
             )
         )
