@@ -1,5 +1,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
+use std::hint::black_box;
+
 use clar2wasm::compile;
 use clar2wasm::datastore::{BurnDatastore, Datastore, StacksConstants};
 use clar2wasm::initialize::initialize_contract;
@@ -221,10 +223,20 @@ macro_rules! decl_benches {
                 fn [<single _ $fn_name>](c: &mut Criterion) {
                     let mut group = c.benchmark_group($fn_name);
                     group.bench_function("interpreter", |b| {
-                        interpreter(b, $fn_name, $clarity, |_| vec![$($arg),*]);
+                        interpreter(
+                            b,
+                            black_box($fn_name),
+                            black_box($clarity),
+                            |_| vec![$(black_box($arg)),*]
+                        );
                     });
                     group.bench_function("webassembly", |b| {
-                        webassembly(b, $fn_name, $clarity, |_| vec![$($arg),*]);
+                        webassembly(
+                            b,
+                            black_box($fn_name),
+                            black_box($clarity),
+                            |_| vec![$(black_box($arg)),*]
+                        );
                     });
                 }
             )*
@@ -249,10 +261,20 @@ macro_rules! decl_benches {
                     for i in $range {
                         let clarity = produce_clarity(i);
                         group.bench_with_input(BenchmarkId::new("interpreter", i), &i, |b, _| {
-                            interpreter(b, $fn_name, &clarity, |env| { $init(i, env) })
+                            interpreter(
+                                b,
+                                black_box($fn_name),
+                                black_box(&clarity),
+                                |env| { $init(i, env) }
+                            )
                         });
                         group.bench_with_input(BenchmarkId::new("webassembly", i), &i, |b, _| {
-                            webassembly(b, $fn_name, &clarity, |env| { $init(i, env) })
+                            webassembly(
+                                b,
+                                black_box($fn_name),
+                                black_box(&clarity),
+                                |env| { $init(i, env) }
+                            )
                         });
                     }
                 }
