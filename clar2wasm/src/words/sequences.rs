@@ -1,8 +1,9 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::{
-    FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
+    FunctionType, ListTypeData, PrincipalData, SequenceData, SequenceSubtype, StringSubtype,
+    TypeSignature,
 };
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{ClarityName, SymbolicExpression, Value};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
@@ -43,29 +44,81 @@ impl ComplexWord for ListCons {
                     ty
                 )));
             };
+        // Check if all elements are literals
+        let all_literals = list.iter().all(|expr| {
+            matches!(
+                expr.match_literal_value(),
+                Some(Value::Int(_))
+                    | Some(Value::UInt(_))
+                    | Some(Value::Bool(_))
+                    | Some(Value::Sequence(SequenceData::String(_)))
+                    | Some(Value::Sequence(SequenceData::Buffer(_)))
+                    | Some(Value::Principal(_))
+            )
+        });
 
-        // Allocate space on the data stack for the entire list
-        let (offset, _size) = generator.create_call_stack_local(builder, &ty, false, true);
+        if all_literals {
+            let mut literal_data = Vec::new();
 
-        // Loop through the expressions in the list and store them onto the
-        // data stack.
-        let mut total_size = 0;
-        for expr in list.iter() {
-            // WORKAROUND: if you have a list like `(list (some 1) none)`, even if the list elements have type
-            // `optional int`, the typechecker will give NoType to `none`.
-            // This means that the placeholder will be represented with a different number of `ValType`, and will
-            // cause errors (example: function called with wrong number of arguments).
-            // While we wait for a real fix in the typechecker, here is a workaround to set all the elements types.
-            generator.set_expr_type(expr, elem_ty.clone())?;
+            for expr in list.iter() {
+                match expr.match_literal_value() {
+                    Some(Value::Int(i)) => literal_data.extend_from_slice(&i.to_le_bytes()),
+                    Some(Value::UInt(u)) => literal_data.extend_from_slice(&u.to_le_bytes()),
+                    Some(Value::Bool(b)) => literal_data.extend_from_slice(&[*b as u8]),
+                    Some(Value::Sequence(SequenceData::String(string_data))) => {
+                        let (offset, len) = generator.add_clarity_string_literal(string_data)?;
+                        literal_data.extend_from_slice(&offset.to_le_bytes());
+                        literal_data.extend_from_slice(&len.to_le_bytes());
+                    }
+                    Some(Value::Sequence(SequenceData::Buffer(buffer))) => {
+                        let (offset, len) = generator
+                            .add_literal(&Value::Sequence(SequenceData::Buffer(buffer.clone())))?;
+                        literal_data.extend_from_slice(&offset.to_le_bytes());
+                        literal_data.extend_from_slice(&len.to_le_bytes());
+                    }
+                    Some(Value::Principal(PrincipalData::Standard(standard))) => {
+                        let (offset, len) = generator.add_literal(&Value::Principal(
+                            PrincipalData::Standard(standard.clone()),
+                        ))?;
+                        literal_data.extend_from_slice(&offset.to_le_bytes());
+                        literal_data.extend_from_slice(&len.to_le_bytes());
+                    }
+                    Some(Value::Principal(PrincipalData::Contract(contract))) => {
+                        let (offset, len) = generator.add_literal(&Value::Principal(
+                            PrincipalData::Contract(contract.clone()),
+                        ))?;
+                        literal_data.extend_from_slice(&offset.to_le_bytes());
+                        literal_data.extend_from_slice(&len.to_le_bytes());
+                    }
+                    _ => {
+                        return Err(GeneratorError::TypeError(
+                            "Unsupported literal type in list".to_owned(),
+                        ))
+                    }
+                }
+            }
+            let (offset, len) = generator.add_bytes_literal(&literal_data)?;
+            builder.i32_const(offset as i32).i32_const(len as i32);
+        } else {
+            let (offset, _size) = generator.create_call_stack_local(builder, &ty, false, true);
+            // Loop through the expressions in the list and store them onto the
+            // data stack.
+            let mut total_size = 0;
+            for expr in list.iter() {
+                // WORKAROUND: if you have a list like `(list (some 1) none)`, even if the list elements have type
+                // `optional int`, the typechecker will give NoType to `none`.
+                // This means that the placeholder will be represented with a different number of `ValType`, and will
+                // cause errors (example: function called with wrong number of arguments).
+                // While we wait for a real fix in the typechecker, here is a workaround to set all the elements types.
+                generator.set_expr_type(expr, elem_ty.clone())?;
 
-            generator.traverse_expr(builder, expr)?;
-            // Write this element to memory
-            let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty)?;
-            total_size += elem_size;
+                generator.traverse_expr(builder, expr)?;
+                // Write this element to memory
+                let elem_size = generator.write_to_memory(builder, offset, total_size, elem_ty)?;
+                total_size += elem_size;
+            }
+            builder.local_get(offset).i32_const(total_size as i32);
         }
-
-        // Push the offset and size to the data stack
-        builder.local_get(offset).i32_const(total_size as i32);
 
         Ok(())
     }
