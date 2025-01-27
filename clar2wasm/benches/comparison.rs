@@ -411,6 +411,20 @@ decl_benches! {
         ".to_string(),
         |i, env: &mut Environment| vec![add_prices_init(i, env)]
     ),
+    (
+        "poc2",
+        (1..123).step_by(3),
+        |i| format!(r#"
+            (define-public (poc2 (v int))
+                (begin
+                    (let ((a {{a: {{a: {{b: 1,c: 1,d: 1,e: 1,f: 1,g: 1,h: 1,i: 1,j: 1,k: 1,l: 1,m: 1,n: 1,o: 1,p: 1,q: 1,r: 1,s: 1,t: 1,u-: 1,v: 1,w: 1,x: 1,y: 1,z: 1,A: 1,B: 1,C: 1,D: 1,E: 1,F: 1,G: 1,H: 1,I: 1,J: 1,K: 1,L: 1,M: 1,N: 1,O: 1,P: 1,Q: 1,R: 1,S: 1,T: 1,U: 1,V: 1,W: 1,X: 1,Y: 1,Z: 1,ba: 1,bb: 1,bc: 1,bd: 1,be: 1,bf: 1,bg: 1,bh: 1,bi: 1,bj: 1,bk: 1,bl: 1,bm: 1,bn: 1,bo: 1,bp: 1,bq: 1,br: 1,bs: 1,bt: 1,bu: 1,bv: 1,bw: 1,bx: 1,by: 1,bz: 1,bA: 1,bB: 1,bC: 1,bD: 1,bE: 1,bF: 1,bG: 1,bH: 1,bI: 1,bJ: 1,bK: 1,bL: 1,bM: 1,bN: 1,bO: 1,bP: 1,bQ: 1,bR: 1,bS: 1,bT: 1,bU: 1,bV: 1,bW: 1,bX: 1,bY: 1,bZ: 1,ca: 1,cb: 1,cc: 1,cd: 1,ce: 1,cf: 1,cg: 1,ch: 1,ci: 1,cj: 1,ck: 1,cl: 1,cm: 1,cn: 1,co: 1,cp: 1,cq: 1,cr: 1,cs: 1,ct: 1,cu: 1,cv: 1,cw: 1,cx: 1,cy: 1,cz: 1,cA: 1,cB: 1,cC: 1,cD: 1,cE: 1,cF: 1,cG: 1,cH: 1,cI: 1,cJ: 1,cK: 1,cL: 1,cM: 1,cN: 1,cO: 1,cP: 1,cQ: 1,cR: 1,cS: 1,cT: 1,cU: 1,cV: 1,cW: 1,cX: 1,cY: 1,cZ: 1,da: 1,db: 1,dc: 1,dd: 1,de: 1,df: 1,dg: 1,dh: 1,di: 1,dj: 1,dk: 1,dl: 1,dm: 1,dn: 1,do: 1,dp: 1,dq: 1,dr: 1,ds: 1,dt: 1,du: 1,dv: 1,dw: 1,dx: 1,dy: 1,dz: 1,dA: 1,dB: 1,dC: 1,dD: 1,dE: 1,dF: 1,dG: 1,dH: 1,dI: 1,dJ: 1,dK: 1,dL: 1,dM: 1,dN: 1,dO: 1,dP: 1,dQ: 1,dR: 1,dS: 1,dT: 1,dU: 1,dV: 1,dW: 1,dX: 1,dY: 1,dZ: 1,ea: 1,eb: 1,ec: 1,ed: 1,ee: 1,ef: 1,eg: 1,eh: 1,ei: 1,ej: 1,ek: 1,el: 1,em: 1,en: 1,eo: 1,ep: 1,eq: 1,er: 1,es: 1,et: 1,eu: 1,ev: 1,ew: 1,ex: 1,ey: 1,ez: 1,eA: 1,eB: 1,eC: 1,eD: 1,eE: 1,eF: 1,eG: 1,eH: 1,eI: 1,eJ: 1,eK: 1,eL: 1,eM: 1,eN: 1,eO: 1}}}}}}) (b (list{} ))) b)
+                    (ok (+ 1 1))
+                )
+            )"#,
+            " a".repeat(i)
+        ),
+        |_, _: &mut Environment| vec![Value::Int(42)]
+    ),
 }
 
 fn add_prices_init(n: usize, env: &mut Environment) -> Value {
