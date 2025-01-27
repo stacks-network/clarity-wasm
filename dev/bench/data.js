@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1737651280061,
+  "lastUpdate": 1737978619563,
   "repoUrl": "https://github.com/stacks-network/clarity-wasm",
   "entries": {
     "Benchmark": [
@@ -9505,6 +9505,846 @@ window.BENCHMARK_DATA = {
             "name": "add_prices/webassembly/351",
             "value": 23911979,
             "range": "± 78399",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "eduardols@protonmail.com",
+            "name": "Eduardo Leegwater Simões",
+            "username": "ureeves"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b1a701a18c0358e5221088fd9ced89329dfe569f",
+          "message": "Merge pull request #603 from stacks-network/benches/add_prices_resolution\n\nbenches: improve resolution of `add_prices`",
+          "timestamp": "2025-01-27T10:46:44Z",
+          "tree_id": "3000e3fbbd290c70d7876aab576a89ce1650e2d2",
+          "url": "https://github.com/stacks-network/clarity-wasm/commit/b1a701a18c0358e5221088fd9ced89329dfe569f"
+        },
+        "date": 1737978619110,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add/interpreter",
+            "value": 1073,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add/webassembly",
+            "value": 310033,
+            "range": "± 7399",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/1",
+            "value": 4380,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/1",
+            "value": 337361,
+            "range": "± 5566",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/51",
+            "value": 104294,
+            "range": "± 2020",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/51",
+            "value": 343047,
+            "range": "± 5763",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/101",
+            "value": 203228,
+            "range": "± 3406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/101",
+            "value": 342985,
+            "range": "± 6148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/151",
+            "value": 301820,
+            "range": "± 5604",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/151",
+            "value": 344911,
+            "range": "± 8505",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/201",
+            "value": 399461,
+            "range": "± 7235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/201",
+            "value": 349153,
+            "range": "± 8038",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/251",
+            "value": 502352,
+            "range": "± 9009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/251",
+            "value": 352894,
+            "range": "± 6148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/301",
+            "value": 604187,
+            "range": "± 13313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/301",
+            "value": 355026,
+            "range": "± 15039",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/351",
+            "value": 700663,
+            "range": "± 17206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/351",
+            "value": 356801,
+            "range": "± 10884",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/401",
+            "value": 791471,
+            "range": "± 15047",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/401",
+            "value": 358923,
+            "range": "± 6659",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/451",
+            "value": 895125,
+            "range": "± 16336",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/451",
+            "value": 361483,
+            "range": "± 6485",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/501",
+            "value": 996972,
+            "range": "± 17999",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/501",
+            "value": 364816,
+            "range": "± 7105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/551",
+            "value": 1099174,
+            "range": "± 22861",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/551",
+            "value": 366931,
+            "range": "± 6284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/601",
+            "value": 1201544,
+            "range": "± 28726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/601",
+            "value": 367631,
+            "range": "± 13927",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/651",
+            "value": 1305049,
+            "range": "± 23975",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/651",
+            "value": 369741,
+            "range": "± 8506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/701",
+            "value": 1393485,
+            "range": "± 42032",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/701",
+            "value": 373618,
+            "range": "± 6930",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/751",
+            "value": 1494008,
+            "range": "± 34006",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/751",
+            "value": 373726,
+            "range": "± 6132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/801",
+            "value": 1595062,
+            "range": "± 30049",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/801",
+            "value": 377529,
+            "range": "± 7064",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/851",
+            "value": 1696058,
+            "range": "± 34492",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/851",
+            "value": 377668,
+            "range": "± 5843",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/901",
+            "value": 1789270,
+            "range": "± 32447",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/901",
+            "value": 381025,
+            "range": "± 5205",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/951",
+            "value": 1892855,
+            "range": "± 33121",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/951",
+            "value": 384099,
+            "range": "± 5855",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/1001",
+            "value": 1980142,
+            "range": "± 30180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/1001",
+            "value": 385965,
+            "range": "± 5298",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/1",
+            "value": 7500,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/1",
+            "value": 351264,
+            "range": "± 9624",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/51",
+            "value": 230313,
+            "range": "± 12597",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/51",
+            "value": 522417,
+            "range": "± 8582",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/101",
+            "value": 451809,
+            "range": "± 3033",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/101",
+            "value": 684082,
+            "range": "± 8958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/151",
+            "value": 671774,
+            "range": "± 5715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/151",
+            "value": 847791,
+            "range": "± 9411",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/201",
+            "value": 891446,
+            "range": "± 5657",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/201",
+            "value": 1009601,
+            "range": "± 18480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/251",
+            "value": 1109352,
+            "range": "± 13328",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/251",
+            "value": 1166883,
+            "range": "± 19344",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/301",
+            "value": 1323473,
+            "range": "± 93895",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/301",
+            "value": 1321719,
+            "range": "± 14679",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/351",
+            "value": 1541207,
+            "range": "± 16545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/351",
+            "value": 1472927,
+            "range": "± 18716",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/401",
+            "value": 1762926,
+            "range": "± 49672",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/401",
+            "value": 1642062,
+            "range": "± 17918",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/451",
+            "value": 1977453,
+            "range": "± 18903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/451",
+            "value": 1799821,
+            "range": "± 22164",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/501",
+            "value": 2205874,
+            "range": "± 60658",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/501",
+            "value": 1954268,
+            "range": "± 15714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/551",
+            "value": 2411712,
+            "range": "± 14161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/551",
+            "value": 2120925,
+            "range": "± 12592",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/601",
+            "value": 2632206,
+            "range": "± 13303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/601",
+            "value": 2276339,
+            "range": "± 35095",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/651",
+            "value": 2862625,
+            "range": "± 23550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/651",
+            "value": 2432732,
+            "range": "± 21546",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/701",
+            "value": 3063777,
+            "range": "± 19960",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/701",
+            "value": 2595777,
+            "range": "± 22517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/751",
+            "value": 3271148,
+            "range": "± 21985",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/751",
+            "value": 2760283,
+            "range": "± 17331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/801",
+            "value": 3490925,
+            "range": "± 19687",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/801",
+            "value": 2914617,
+            "range": "± 13481",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/851",
+            "value": 3725958,
+            "range": "± 27192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/851",
+            "value": 3064637,
+            "range": "± 14543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/901",
+            "value": 3949227,
+            "range": "± 19358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/901",
+            "value": 3217494,
+            "range": "± 28494",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/951",
+            "value": 4151361,
+            "range": "± 180738",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/951",
+            "value": 3384181,
+            "range": "± 84740",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/1001",
+            "value": 4348098,
+            "range": "± 46076",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/1001",
+            "value": 3548200,
+            "range": "± 57721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/1",
+            "value": 126514,
+            "range": "± 2061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/1",
+            "value": 449644,
+            "range": "± 9054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/3",
+            "value": 368058,
+            "range": "± 6241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/3",
+            "value": 594001,
+            "range": "± 9722",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/5",
+            "value": 608011,
+            "range": "± 9750",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/5",
+            "value": 726565,
+            "range": "± 10218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/7",
+            "value": 848267,
+            "range": "± 9674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/7",
+            "value": 865850,
+            "range": "± 8209",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/9",
+            "value": 1091816,
+            "range": "± 15247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/9",
+            "value": 999611,
+            "range": "± 8000",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/11",
+            "value": 1332944,
+            "range": "± 24013",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/11",
+            "value": 1141224,
+            "range": "± 8581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/13",
+            "value": 1565911,
+            "range": "± 35419",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/13",
+            "value": 1274959,
+            "range": "± 26279",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/15",
+            "value": 1800376,
+            "range": "± 29742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/15",
+            "value": 1410645,
+            "range": "± 10154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/17",
+            "value": 2051460,
+            "range": "± 14681",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/17",
+            "value": 1541852,
+            "range": "± 8159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/19",
+            "value": 2294404,
+            "range": "± 6908",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/19",
+            "value": 1682381,
+            "range": "± 74383",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/21",
+            "value": 2532790,
+            "range": "± 16495",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/21",
+            "value": 1808773,
+            "range": "± 14128",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/23",
+            "value": 2765248,
+            "range": "± 45295",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/23",
+            "value": 1943339,
+            "range": "± 12314",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/25",
+            "value": 3008941,
+            "range": "± 18415",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/25",
+            "value": 2077051,
+            "range": "± 10821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/27",
+            "value": 3246742,
+            "range": "± 20117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/27",
+            "value": 2212394,
+            "range": "± 16561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/29",
+            "value": 3490117,
+            "range": "± 33356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/29",
+            "value": 2344141,
+            "range": "± 6958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/31",
+            "value": 3730241,
+            "range": "± 17798",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/31",
+            "value": 2480114,
+            "range": "± 9575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/33",
+            "value": 3972631,
+            "range": "± 21294",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/33",
+            "value": 2615793,
+            "range": "± 49899",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/35",
+            "value": 4208479,
+            "range": "± 25771",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/35",
+            "value": 2747442,
+            "range": "± 15649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/37",
+            "value": 4463495,
+            "range": "± 27896",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/37",
+            "value": 2882857,
+            "range": "± 15877",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/39",
+            "value": 4696783,
+            "range": "± 60754",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/39",
+            "value": 3017165,
+            "range": "± 14532",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/41",
+            "value": 4933019,
+            "range": "± 22805",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/41",
+            "value": 3147279,
+            "range": "± 12806",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/43",
+            "value": 5171920,
+            "range": "± 25999",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/43",
+            "value": 3279196,
+            "range": "± 43504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/45",
+            "value": 5415425,
+            "range": "± 15167",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/45",
+            "value": 3412863,
+            "range": "± 16066",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/47",
+            "value": 5648400,
+            "range": "± 36664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/47",
+            "value": 3547925,
+            "range": "± 20432",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/49",
+            "value": 5882816,
+            "range": "± 25766",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/49",
+            "value": 3679877,
+            "range": "± 13133",
             "unit": "ns/iter"
           }
         ]
