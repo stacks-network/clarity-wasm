@@ -668,9 +668,10 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &data_types.value_type,
                     return_offset,
                     return_offset + get_type_size(&data_types.value_type),
@@ -791,9 +792,10 @@ fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 let (_, bytes_written) = write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &TypeSignature::PrincipalType,
                     return_offset,
                     return_offset,
@@ -834,9 +836,10 @@ fn link_contract_caller_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 let (_, bytes_written) = write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &TypeSignature::PrincipalType,
                     return_offset,
                     return_offset,
@@ -873,9 +876,10 @@ fn link_tx_sponsor_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                         .and_then(|export| export.into_memory())
                         .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                    let mut writer = (caller, memory);
+
                     let (_, bytes_written) = write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &TypeSignature::PrincipalType,
                         return_offset,
                         return_offset,
@@ -2127,9 +2131,10 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                             .and_then(|export| export.into_memory())
                             .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                        let mut writer = (caller, memory);
+
                         let (_, bytes_written) = write_to_wasm(
-                            caller,
-                            memory,
+                            &mut writer,
                             &TypeSignature::PrincipalType,
                             return_offset,
                             return_offset,
@@ -2663,9 +2668,9 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let ty = TypeSignature::OptionalType(Box::new(data_types.value_type));
+                let mut writer = (caller, memory);
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &ty,
                     return_offset,
                     return_offset + get_type_size(&ty),
@@ -2998,8 +3003,7 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
 }
 
 fn check_height_valid(
-    caller: &mut Caller<'_, ClarityWasmContext>,
-    memory: Memory,
+    writer: &mut (Caller<'_, ClarityWasmContext>, Memory),
     height_lo: i64,
     height_hi: i64,
     return_offset: i32,
@@ -3011,8 +3015,7 @@ fn check_height_valid(
         _ => {
             // Write a 0 to the return buffer for `none`
             write_to_wasm(
-                caller,
-                memory,
+                writer,
                 &TypeSignature::BoolType,
                 return_offset,
                 return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3023,7 +3026,8 @@ fn check_height_valid(
         }
     };
 
-    let current_block_height = caller
+    let current_block_height = writer
+        .get_store()
         .data_mut()
         .global_context
         .database
@@ -3031,8 +3035,7 @@ fn check_height_valid(
     if height_value >= current_block_height {
         // Write a 0 to the return buffer for `none`
         write_to_wasm(
-            caller,
-            memory,
+            writer,
             &TypeSignature::BoolType,
             return_offset,
             return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3063,10 +3066,13 @@ fn link_get_block_info_time_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let block_time = caller
+                    let block_time = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3075,8 +3081,7 @@ fn link_get_block_info_time_property_fn(
                         (Value::UInt(block_time as u128), TypeSignature::UIntType);
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3115,10 +3120,13 @@ fn link_get_block_info_vrf_seed_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let vrf_seed = caller
+                    let vrf_seed = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3134,8 +3142,7 @@ fn link_get_block_info_vrf_seed_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3174,10 +3181,13 @@ fn link_get_block_info_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let header_hash = caller
+                    let header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3193,8 +3203,7 @@ fn link_get_block_info_header_hash_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3233,10 +3242,13 @@ fn link_get_block_info_burnchain_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let burnchain_header_hash = caller
+                    let burnchain_header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3252,8 +3264,7 @@ fn link_get_block_info_burnchain_header_hash_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3292,10 +3303,13 @@ fn link_get_block_info_identity_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let id_header_hash = caller
+                    let id_header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3311,8 +3325,7 @@ fn link_get_block_info_identity_header_hash_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3351,10 +3364,13 @@ fn link_get_block_info_miner_address_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let miner_address = caller
+                    let miner_address = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3364,8 +3380,7 @@ fn link_get_block_info_miner_address_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3404,10 +3419,13 @@ fn link_get_block_info_miner_spend_winner_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let winner_spend = caller
+                    let winner_spend = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3416,8 +3434,7 @@ fn link_get_block_info_miner_spend_winner_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3456,10 +3473,13 @@ fn link_get_block_info_miner_spend_total_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let total_spend = caller
+                    let total_spend = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3468,8 +3488,7 @@ fn link_get_block_info_miner_spend_total_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3508,10 +3527,13 @@ fn link_get_block_info_block_reward_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let block_reward_opt = caller
+                    let block_reward_opt = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3522,8 +3544,7 @@ fn link_get_block_info_block_reward_property_fn(
                             None => {
                                 // Write a 0 to the return buffer for `none`
                                 write_to_wasm(
-                                    &mut caller,
-                                    memory,
+                                    &mut writer,
                                     &TypeSignature::BoolType,
                                     return_offset,
                                     return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3538,8 +3559,7 @@ fn link_get_block_info_block_reward_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3578,15 +3598,14 @@ fn link_get_burn_block_info_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
                 let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
-
+                let mut writer = (caller, memory);
                 // Note: we assume that we will not have a height bigger than u32::MAX.
                 let height_value = match u32::try_from(height) {
                     Ok(result) => result,
                     _ => {
                         // Write a 0 to the return buffer for `none`
                         write_to_wasm(
-                            &mut caller,
-                            memory,
+                            &mut writer,
                             &TypeSignature::BoolType,
                             return_offset,
                             return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3596,7 +3615,8 @@ fn link_get_burn_block_info_header_hash_property_fn(
                         return Ok(());
                     }
                 };
-                let burnchain_header_hash_opt = caller
+                let burnchain_header_hash_opt = writer
+                    .get_store()
                     .data_mut()
                     .global_context
                     .database
@@ -3614,8 +3634,7 @@ fn link_get_burn_block_info_header_hash_property_fn(
                 );
 
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &result_ty,
                     return_offset,
                     return_offset + get_type_size(&result_ty),
@@ -3654,6 +3673,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
                 let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
+                let mut writer = (caller, memory);
 
                 // Note: we assume that we will not have a height bigger than u32::MAX.
                 let height_value = match u32::try_from(height) {
@@ -3661,8 +3681,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     _ => {
                         // Write a 0 to the return buffer for `none`
                         write_to_wasm(
-                            &mut caller,
-                            memory,
+                            &mut writer,
                             &TypeSignature::BoolType,
                             return_offset,
                             return_offset + get_type_size(&TypeSignature::BoolType),
@@ -3673,7 +3692,8 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     }
                 };
 
-                let pox_addrs_and_payout = caller
+                let pox_addrs_and_payout = writer
+                    .get_store()
                     .data_mut()
                     .global_context
                     .database
@@ -3694,7 +3714,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                             (
                                 "addrs".into(),
                                 Value::list_with_type(
-                                    &caller.data_mut().global_context.epoch_id,
+                                    &writer.get_store().data_mut().global_context.epoch_id,
                                     addrs.into_iter().map(Value::Tuple).collect(),
                                     ListTypeData::new_list(addr_ty, 2)?,
                                 )?,
@@ -3707,8 +3727,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                 let ty = TypeSignature::OptionalType(Box::new(tuple_ty.into()));
 
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &ty,
                     return_offset,
                     return_offset + get_type_size(&ty),
@@ -3745,11 +3764,15 @@ fn link_get_stacks_block_info_time_property_fn(
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let mut writer = (caller, memory);
+
                 // Get the memory from the caller
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let block_time = caller
+                    let block_time = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3758,8 +3781,7 @@ fn link_get_stacks_block_info_time_property_fn(
                         (Value::UInt(block_time as u128), TypeSignature::UIntType);
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3798,11 +3820,14 @@ fn link_get_stacks_block_info_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 // Get the memory from the caller
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let header_hash = caller
+                    let header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3817,8 +3842,7 @@ fn link_get_stacks_block_info_header_hash_property_fn(
                     );
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3857,10 +3881,13 @@ fn link_get_stacks_block_info_identity_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let id_header_hash = caller
+                    let id_header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3876,8 +3903,7 @@ fn link_get_stacks_block_info_identity_header_hash_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3916,10 +3942,13 @@ fn link_get_tenure_info_burnchain_header_hash_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let burnchain_header_hash = caller
+                    let burnchain_header_hash = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3935,8 +3964,7 @@ fn link_get_tenure_info_burnchain_header_hash_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -3975,10 +4003,13 @@ fn link_get_tenure_info_miner_address_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let miner_address = caller
+                    let miner_address = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -3988,8 +4019,7 @@ fn link_get_tenure_info_miner_address_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4028,10 +4058,13 @@ fn link_get_tenure_info_time_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let block_time = caller
+                    let block_time = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -4040,8 +4073,7 @@ fn link_get_tenure_info_time_property_fn(
                         (Value::UInt(block_time as u128), TypeSignature::UIntType);
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4080,10 +4112,13 @@ fn link_get_tenure_info_vrf_seed_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let vrf_seed = caller
+                    let vrf_seed = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -4099,8 +4134,7 @@ fn link_get_tenure_info_vrf_seed_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4139,10 +4173,13 @@ fn link_get_tenure_info_block_reward_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let block_reward_opt = caller
+                    let block_reward_opt = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -4153,8 +4190,7 @@ fn link_get_tenure_info_block_reward_property_fn(
                             None => {
                                 // Write a 0 to the return buffer for `none`
                                 write_to_wasm(
-                                    &mut caller,
-                                    memory,
+                                    &mut writer,
                                     &TypeSignature::BoolType,
                                     return_offset,
                                     return_offset + get_type_size(&TypeSignature::BoolType),
@@ -4169,8 +4205,7 @@ fn link_get_tenure_info_block_reward_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4209,10 +4244,13 @@ fn link_get_tenure_info_miner_spend_total_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let total_spend = caller
+                    let total_spend = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -4221,8 +4259,7 @@ fn link_get_tenure_info_miner_spend_total_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4261,10 +4298,13 @@ fn link_get_tenure_info_miner_spend_winner_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 if let Some(height_value) =
-                    check_height_valid(&mut caller, memory, height_lo, height_hi, return_offset)?
+                    check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
-                    let winner_spend = caller
+                    let winner_spend = writer
+                        .get_store()
                         .data_mut()
                         .global_context
                         .database
@@ -4273,8 +4313,7 @@ fn link_get_tenure_info_miner_spend_winner_property_fn(
                     let ty = TypeSignature::OptionalType(Box::new(result_ty));
 
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &ty,
                         return_offset,
                         return_offset + get_type_size(&ty),
@@ -4444,9 +4483,10 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     return_ty,
                     return_offset,
                     return_offset + get_type_size(return_ty),
@@ -4854,11 +4894,11 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
+                let mut writer = (caller, memory);
                 if sig_bytes.len() != 65 || sig_bytes[64] > 3 {
                     let result = Value::err_uint(2);
                     write_to_wasm(
-                        caller,
-                        memory,
+                        &mut writer,
                         &ret_ty,
                         return_offset,
                         return_offset + repr_size,
@@ -4875,8 +4915,7 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
 
                 // Write the result to the return buffer
                 write_to_wasm(
-                    caller,
-                    memory,
+                    &mut writer,
                     &ret_ty,
                     return_offset,
                     return_offset + repr_size,
@@ -5020,10 +5059,11 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     };
                     let principal = addr.to_account_principal();
 
+                    let mut writer = (caller, memory);
+
                     // Write the principal to the return buffer
                     write_to_wasm(
-                        &mut caller,
-                        memory,
+                        &mut writer,
                         &TypeSignature::PrincipalType,
                         principal_offset,
                         principal_offset,
@@ -5137,9 +5177,10 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 // Constant value type
                 let ty = TypeSignature::type_of(&value)?;
 
+                let mut writer = (caller, memory);
+
                 write_to_wasm(
-                    &mut caller,
-                    memory,
+                    &mut writer,
                     &ty,
                     value_offset,
                     value_offset + get_type_size(&ty),
