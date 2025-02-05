@@ -722,18 +722,17 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
 }
 
 pub trait WasmWriter {
-    type Store: AsContextMut;
-    fn get_store(&mut self) -> &mut Self::Store;
-    fn get_memory(&self) -> Memory;
+    type Error;
+    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error>;
 }
 
 impl<Store: AsContextMut> WasmWriter for (Store, Memory) {
-    type Store = Store;
-    fn get_store(&mut self) -> &mut Store {
-        &mut self.0
-    }
-    fn get_memory(&self) -> Memory {
+    type Error = Error;
+
+    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Error> {
         self.1
+            .write(self.0, offset as usize, buffer)
+            .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))
     }
 }
 
@@ -745,7 +744,7 @@ impl<Store: AsContextMut> WasmWriter for (Store, Memory) {
 /// and length of the value will be written to the memory at `offset`.
 /// Returns the number of bytes written at `offset` and at `in_mem_offset`.
 pub fn write_to_wasm(
-    writer: &mut (impl AsContextMut, Memory),
+    writer: impl WasmWriter,
     ty: &TypeSignature,
     offset: i32,
     in_mem_offset: i32,
@@ -759,10 +758,7 @@ pub fn write_to_wasm(
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
-            writer
-                .get_memory()
-                .write(writer.get_store(), offset as usize, &buffer)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &buffer)?;
             buffer.copy_from_slice(&high.to_le_bytes());
             writer
                 .get_memory()

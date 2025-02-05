@@ -771,6 +771,14 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         })
 }
 
+impl WasmWriter for Caller<'_, ClarityWasmContext> {
+    type Error = Error;
+
+    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Error> {
+        todo!()
+    }
+}
+
 /// Link host interface function, `tx_sender`, into the Wasm module.
 /// This function is called for use of the builtin variable, `tx-sender`.
 fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {

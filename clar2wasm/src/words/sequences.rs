@@ -4,7 +4,7 @@ use clarity::vm::types::{
 };
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
-use walrus::ValType;
+use walrus::{ActiveData, DataKind, ValType};
 
 use crate::check_args;
 use crate::error_mapping::ErrorMap;
@@ -12,11 +12,29 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck, WasmWriter};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
 pub struct ListCons;
+
+impl WasmWriter for &mut WasmGenerator {
+    type Error = GeneratorError;
+
+    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error> {
+        let memory = self.get_memory()?;
+
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory,
+                location: walrus::ActiveDataLocation::Absolute(offset as u32),
+            }),
+            buffer.to_vec(),
+        );
+
+        Ok(())
+    }
+}
 
 impl ComplexWord for ListCons {
     fn name(&self) -> ClarityName {
