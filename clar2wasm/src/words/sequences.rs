@@ -1,8 +1,9 @@
 use clarity::vm::clarity_wasm::get_type_size;
+use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::{
     FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
 };
-use clarity::vm::{ClarityName, SymbolicExpression};
+use clarity::vm::{ClarityName, SymbolicExpression, Value};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{ActiveData, DataKind, ValType};
 
@@ -12,16 +13,29 @@ use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
-use crate::wasm_utils::{check_argument_count, ArgumentCountCheck, WasmWriter};
+use crate::wasm_utils::{check_argument_count, ArgumentCountCheck, WasmWriter, WriteResult};
 use crate::words::{self, ComplexWord};
 
 #[derive(Debug)]
 pub struct ListCons;
 
+impl From<GeneratorError> for Error {
+    fn from(e: GeneratorError) -> Self {
+        Error::Wasm(WasmError::UnableToWriteMemory(wasmtime::Error::msg(
+            format!("{:?}", e),
+        )))
+    }
+}
+
 impl WasmWriter for &mut WasmGenerator {
     type Error = GeneratorError;
-
-    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn write_to_wasm_memory(
+        &mut self,
+        offset: i32,
+        buffer: &[u8],
+        _ty: Option<&TypeSignature>,
+        _value: Option<&Value>,
+    ) -> Result<WriteResult, Self::Error> {
         let memory = self.get_memory()?;
 
         self.module.data.add(
@@ -32,7 +46,7 @@ impl WasmWriter for &mut WasmGenerator {
             buffer.to_vec(),
         );
 
-        Ok(())
+        Ok(WriteResult::NoOp)
     }
 }
 

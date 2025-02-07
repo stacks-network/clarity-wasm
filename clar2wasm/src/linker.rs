@@ -771,11 +771,32 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         })
 }
 
-impl WasmWriter for Caller<'_, ClarityWasmContext> {
+impl WasmWriter for Caller<'_, ClarityWasmContext<'_, '_>> {
     type Error = Error;
+    fn write_to_wasm_memory(
+        &mut self,
+        offset: i32,
+        _buffer: &[u8],
+        ty: Option<&TypeSignature>,
+        value: Option<&Value>,
+    ) -> Result<WriteResult, Self::Error> {
+        let memory = self
+            .get_export("memory")
+            .and_then(|export| export.into_memory())
+            .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-    fn write_to_wasm_memory(self, offset: i32, buffer: &[u8]) -> Result<(), Error> {
-        todo!()
+        let mut writer = (self, memory);
+
+        let (return_offset, bytes_written) = write_to_wasm(
+            &mut writer,
+            ty.unwrap(),
+            offset,
+            offset,
+            value.unwrap(),
+            false,
+        )?;
+
+        Ok(WriteResult::OffsetAndBytes(return_offset, bytes_written))
     }
 }
 
@@ -795,23 +816,16 @@ fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     .clone()
                     .ok_or(Error::Runtime(RuntimeErrorType::NoSenderInContext, None))?;
 
-                let memory = caller
-                    .get_export("memory")
-                    .and_then(|export| export.into_memory())
-                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
-
-                let mut writer = (caller, memory);
-
-                let (_, bytes_written) = write_to_wasm(
-                    &mut writer,
-                    &TypeSignature::PrincipalType,
+                let result = caller.write_to_wasm_memory(
                     return_offset,
-                    return_offset,
-                    &Value::Principal(sender),
-                    false,
+                    &[],
+                    Some(&TypeSignature::PrincipalType),
+                    Some(&Value::Principal(sender)),
                 )?;
-
-                Ok((return_offset, bytes_written))
+                match result {
+                    WriteResult::OffsetAndBytes(_, bytes) => Ok((return_offset, bytes)),
+                    WriteResult::NoOp => Ok((return_offset, 0)),
+                }
             },
         )
         .map(|_| ())
@@ -3035,7 +3049,7 @@ fn check_height_valid(
     };
 
     let current_block_height = writer
-        .get_store()
+        .0
         .data_mut()
         .global_context
         .database
@@ -3080,7 +3094,7 @@ fn link_get_block_info_time_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let block_time = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3134,7 +3148,7 @@ fn link_get_block_info_vrf_seed_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let vrf_seed = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3195,7 +3209,7 @@ fn link_get_block_info_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3256,7 +3270,7 @@ fn link_get_block_info_burnchain_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let burnchain_header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3317,7 +3331,7 @@ fn link_get_block_info_identity_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let id_header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3378,7 +3392,7 @@ fn link_get_block_info_miner_address_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let miner_address = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3433,7 +3447,7 @@ fn link_get_block_info_miner_spend_winner_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let winner_spend = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3487,7 +3501,7 @@ fn link_get_block_info_miner_spend_total_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let total_spend = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3541,7 +3555,7 @@ fn link_get_block_info_block_reward_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let block_reward_opt = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3624,7 +3638,7 @@ fn link_get_burn_block_info_header_hash_property_fn(
                     }
                 };
                 let burnchain_header_hash_opt = writer
-                    .get_store()
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -3701,7 +3715,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                 };
 
                 let pox_addrs_and_payout = writer
-                    .get_store()
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -3722,7 +3736,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                             (
                                 "addrs".into(),
                                 Value::list_with_type(
-                                    &writer.get_store().data_mut().global_context.epoch_id,
+                                    &writer.0.data_mut().global_context.epoch_id,
                                     addrs.into_iter().map(Value::Tuple).collect(),
                                     ListTypeData::new_list(addr_ty, 2)?,
                                 )?,
@@ -3780,7 +3794,7 @@ fn link_get_stacks_block_info_time_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let block_time = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3835,7 +3849,7 @@ fn link_get_stacks_block_info_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3895,7 +3909,7 @@ fn link_get_stacks_block_info_identity_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let id_header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -3956,7 +3970,7 @@ fn link_get_tenure_info_burnchain_header_hash_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let burnchain_header_hash = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4017,7 +4031,7 @@ fn link_get_tenure_info_miner_address_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let miner_address = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4072,7 +4086,7 @@ fn link_get_tenure_info_time_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let block_time = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4126,7 +4140,7 @@ fn link_get_tenure_info_vrf_seed_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let vrf_seed = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4187,7 +4201,7 @@ fn link_get_tenure_info_block_reward_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let block_reward_opt = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4258,7 +4272,7 @@ fn link_get_tenure_info_miner_spend_total_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let total_spend = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -4312,7 +4326,7 @@ fn link_get_tenure_info_miner_spend_winner_property_fn(
                     check_height_valid(&mut writer, height_lo, height_hi, return_offset)?
                 {
                     let winner_spend = writer
-                        .get_store()
+                        .0
                         .data_mut()
                         .global_context
                         .database
