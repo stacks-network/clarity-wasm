@@ -124,14 +124,16 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the variable name string from the memory
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
                 // Retrieve the type of this variable
-                let value_type = caller
+                let value_type = writer
+                    .0
                     .data()
                     .contract_analysis
                     .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
@@ -139,49 +141,52 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .ok_or(Error::Unchecked(CheckErrors::DefineVariableBadSignature))?
                     .clone();
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
 
                 // Read the initial value from the memory
                 if is_in_memory_type(&value_type) {
                     (value_offset, value_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, value_offset)?;
                 }
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &value_type,
                     value_offset,
                     value_length,
                     epoch,
                 )?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .persisted_names
                     .insert(ClarityName::try_from(name.clone())?);
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(value_type.type_size()? as u64)
                     .map_err(Error::from)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(value.size()? as u64)
                     .map_err(Error::from)?;
 
                 // Create the variable in the global context
-                let data_types = caller.data_mut().global_context.database.create_variable(
+                let data_types = writer.0.data_mut().global_context.database.create_variable(
                     &contract,
                     name.as_str(),
                     value_type,
                 )?;
 
                 // Store the variable in the global context
-                caller.data_mut().global_context.database.set_variable(
+                writer.0.data_mut().global_context.database.set_variable(
                     &contract,
                     name.as_str(),
                     value,
@@ -190,7 +195,8 @@ fn link_define_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                 )?;
 
                 // Save the metadata for this variable in the contract context
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .meta_data_var
@@ -227,14 +233,16 @@ fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let contract_identifier = caller
+                let mut writer = (caller, memory);
+                let contract_identifier = writer
+                    .0
                     .data_mut()
                     .contract_context()
                     .contract_identifier
                     .clone();
 
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let cname = ClarityName::try_from(name.clone())?;
 
                 let total_supply = if supply_indicator == 1 {
@@ -243,24 +251,28 @@ fn link_define_ft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     None
                 };
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .persisted_names
                     .insert(cname.clone());
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.type_size()? as u64)
                     .map_err(Error::from)?;
-                let data_type = caller
+                let data_type = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
                     .create_fungible_token(&contract_identifier, &name, &total_supply)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .meta_ft
@@ -292,18 +304,21 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let contract_identifier = caller
+                let mut writer = (caller, memory);
+                let contract_identifier = writer
+                    .0
                     .data_mut()
                     .contract_context()
                     .contract_identifier
                     .clone();
 
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let cname = ClarityName::try_from(name.clone())?;
 
                 // Get the type of this NFT from the contract analysis
-                let asset_type = caller
+                let asset_type = writer
+                    .0
                     .data()
                     .contract_analysis
                     .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
@@ -311,25 +326,29 @@ fn link_define_nft_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .get(&cname)
                     .ok_or(Error::Unchecked(CheckErrors::DefineNFTBadSignature))?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .persisted_names
                     .insert(cname.clone());
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(asset_type.type_size()? as u64)
                     .map_err(Error::from)?;
 
-                let data_type = caller
+                let data_type = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
                     .create_non_fungible_token(&contract_identifier, &name, asset_type)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .meta_nft
@@ -365,48 +384,55 @@ fn link_define_map_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let contract_identifier = caller
+                let mut writer = (caller, memory);
+                let contract_identifier = writer
+                    .0
                     .data_mut()
                     .contract_context()
                     .contract_identifier
                     .clone();
 
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let cname = ClarityName::try_from(name.clone())?;
 
-                let (key_type, value_type) = caller
+                let (key_type, value_type) = writer
+                    .0
                     .data()
                     .contract_analysis
                     .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
                     .get_map_type(&name)
                     .ok_or(Error::Unchecked(CheckErrors::BadMapTypeDefinition))?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .persisted_names
                     .insert(cname.clone());
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(key_type.type_size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(value_type.type_size()? as u64)
                     .map_err(Error::from)?;
 
-                let data_type = caller.data_mut().global_context.database.create_map(
+                let data_type = writer.0.data_mut().global_context.database.create_map(
                     &contract_identifier,
                     &name,
                     key_type.clone(),
                     value_type.clone(),
                 )?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .meta_data_map
@@ -441,16 +467,18 @@ fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read the variable name string from the memory
                 let function_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let function_cname = ClarityName::try_from(function_name.clone())?;
 
                 // Retrieve the kind of function
                 let (define_type, function_type) = match kind {
                     0 => (
                         DefineType::ReadOnly,
-                        caller
+                        writer
+                            .0
                             .data()
                             .contract_analysis
                             .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
@@ -461,7 +489,8 @@ fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     ),
                     1 => (
                         DefineType::Public,
-                        caller
+                        writer
+                            .0
                             .data()
                             .contract_analysis
                             .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
@@ -472,7 +501,8 @@ fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     ),
                     2 => (
                         DefineType::Private,
-                        caller
+                        writer
+                            .0
                             .data()
                             .contract_analysis
                             .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
@@ -501,7 +531,8 @@ fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     SymbolicExpression::literal_value(Value::Int(0)),
                     define_type,
                     &function_cname,
-                    &caller
+                    &writer
+                        .0
                         .data()
                         .contract_context()
                         .contract_identifier
@@ -510,7 +541,8 @@ fn link_define_function_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                 );
 
                 // Insert this function into the context
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .functions
@@ -540,18 +572,21 @@ fn link_define_trait_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let cname = ClarityName::try_from(name.clone())?;
 
-                let trait_def = caller
+                let trait_def = writer
+                    .0
                     .data()
                     .contract_analysis
                     .ok_or(Error::Wasm(WasmError::DefineFunctionCalledInRunMode))?
                     .get_defined_trait(name.as_str())
                     .ok_or(Error::Unchecked(CheckErrors::DefineTraitBadSignature))?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .defined_traits
@@ -581,11 +616,13 @@ fn link_impl_trait_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let trait_id_string =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let trait_id = TraitIdentifier::parse_fully_qualified(trait_id_string.as_str())?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .implemented_traits
@@ -621,15 +658,17 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Retrieve the variable name for this identifier
                 let var_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the metadata for this variable
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_var
@@ -646,7 +685,7 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     StoreType::Variable,
                     var_name.as_str(),
                 );
-                let fetch_result = caller.data_mut().global_context.database.get_value(
+                let fetch_result = writer.0.data_mut().global_context.database.get_value(
                     &key,
                     &data_types.value_type,
                     &epoch,
@@ -663,13 +702,12 @@ fn link_get_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     CheckErrors::NoSuchDataVariable(var_name.to_string()),
                 ))?;
 
-                let memory = caller
+                let memory = writer.0
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let mut writer = (caller, memory);
-
+                writer.1 = memory;
                 write_to_wasm(
                     &mut writer,
                     &data_types.value_type,
@@ -709,15 +747,17 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the variable name for this identifier
                 let var_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
 
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_var
@@ -737,11 +777,11 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // Read in the value from the Wasm memory
                 if is_in_memory_type(&data_types.value_type) {
                     (value_offset, value_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, value_offset)?;
                 }
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.value_type,
                     value_offset,
                     value_length,
@@ -752,7 +792,8 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // env.add_memory(value.get_memory_use())?;
 
                 // Store the variable in the global context
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -771,35 +812,6 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
         })
 }
 
-impl WasmWriter for Caller<'_, ClarityWasmContext<'_, '_>> {
-    type Error = Error;
-    fn write_to_wasm_memory(
-        &mut self,
-        offset: i32,
-        _buffer: &[u8],
-        ty: Option<&TypeSignature>,
-        value: Option<&Value>,
-    ) -> Result<WriteResult, Self::Error> {
-        let memory = self
-            .get_export("memory")
-            .and_then(|export| export.into_memory())
-            .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
-
-        let mut writer = (self, memory);
-
-        let (return_offset, bytes_written) = write_to_wasm(
-            &mut writer,
-            ty.unwrap(),
-            offset,
-            offset,
-            value.unwrap(),
-            false,
-        )?;
-
-        Ok(WriteResult::OffsetAndBytes(return_offset, bytes_written))
-    }
-}
-
 /// Link host interface function, `tx_sender`, into the Wasm module.
 /// This function is called for use of the builtin variable, `tx-sender`.
 fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> {
@@ -816,16 +828,21 @@ fn link_tx_sender_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     .clone()
                     .ok_or(Error::Runtime(RuntimeErrorType::NoSenderInContext, None))?;
 
-                let result = caller.write_to_wasm_memory(
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(|export| export.into_memory())
+                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+
+                let (_, bytes_written) = write_to_wasm(
+                    &mut (caller, memory),
+                    &TypeSignature::PrincipalType,
                     return_offset,
-                    &[],
-                    Some(&TypeSignature::PrincipalType),
-                    Some(&Value::Principal(sender)),
+                    return_offset,
+                    &Value::Principal(sender),
+                    false,
                 )?;
-                match result {
-                    WriteResult::OffsetAndBytes(_, bytes) => Ok((return_offset, bytes)),
-                    WriteResult::NoOp => Ok((return_offset, 0)),
-                }
+
+                Ok((return_offset, bytes_written))
             },
         )
         .map(|_| ())
@@ -858,10 +875,8 @@ fn link_contract_caller_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let mut writer = (caller, memory);
-
                 let (_, bytes_written) = write_to_wasm(
-                    &mut writer,
+                    &mut (caller, memory),
                     &TypeSignature::PrincipalType,
                     return_offset,
                     return_offset,
@@ -898,10 +913,8 @@ fn link_tx_sponsor_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                         .and_then(|export| export.into_memory())
                         .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                    let mut writer = (caller, memory);
-
                     let (_, bytes_written) = write_to_wasm(
-                        &mut writer,
+                        &mut (caller, memory),
                         &TypeSignature::PrincipalType,
                         return_offset,
                         return_offset,
@@ -1192,12 +1205,13 @@ fn link_stx_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     principal_offset,
                     principal_length,
@@ -1206,7 +1220,8 @@ fn link_stx_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<()
                 let principal = value_as_principal(&value)?;
 
                 let balance = {
-                    let mut snapshot = caller
+                    let mut snapshot = writer
+                        .0
                         .data_mut()
                         .global_context
                         .database
@@ -1243,12 +1258,13 @@ fn link_stx_account_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     principal_offset,
                     principal_length,
@@ -1257,24 +1273,28 @@ fn link_stx_account_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                 let principal = value_as_principal(&value)?;
 
                 let account = {
-                    let mut snapshot = caller
+                    let mut snapshot = writer
+                        .0
                         .data_mut()
                         .global_context
                         .database
                         .get_stx_balance_snapshot(principal)?;
                     snapshot.canonical_balance_repr()?
                 };
-                let v1_unlock_ht = caller
+                let v1_unlock_ht = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
                     .get_v1_unlock_height();
-                let v2_unlock_ht = caller
+                let v2_unlock_ht = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
                     .get_v2_unlock_height()?;
-                let v3_unlock_ht = caller
+                let v3_unlock_ht = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -1327,12 +1347,13 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     principal_offset,
                     principal_length,
@@ -1344,7 +1365,7 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     return Ok((0i32, 0i32, StxErrorCodes::NON_POSITIVE_AMOUNT as i64, 0i64));
                 }
 
-                if Some(from) != caller.data().sender.as_ref() {
+                if Some(from) != writer.0.data().sender.as_ref() {
                     return Ok((
                         0i32,
                         0i32,
@@ -1353,18 +1374,21 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     ));
                 }
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
                     .map_err(Error::from)?;
 
-                let mut burner_snapshot = caller
+                let mut burner_snapshot = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -1376,17 +1400,20 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 burner_snapshot.debit(amount)?;
                 burner_snapshot.save()?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
                     .decrement_ustx_liquid_supply(amount)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .log_stx_burn(from, amount)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .register_stx_burn_event(from.clone(), amount)?;
 
@@ -1425,12 +1452,14 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -1440,8 +1469,8 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
 
                 // Read the to principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     recipient_offset,
                     recipient_length,
@@ -1452,8 +1481,8 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // Read the memo from the Wasm memory
                 let memo = if memo_length > 0 {
                     let value = read_from_wasm(
-                        memory,
-                        &mut caller,
+                        writer.1,
+                        &mut writer.0,
                         &TypeSignature::SequenceType(SequenceSubtype::BufferType(
                             BufferLength::try_from(memo_length as u32)?,
                         )),
@@ -1474,7 +1503,7 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     return Ok((0i32, 0i32, StxErrorCodes::SENDER_IS_RECIPIENT as i64, 0i64));
                 }
 
-                if Some(sender) != caller.data().sender.as_ref() {
+                if Some(sender) != writer.0.data().sender.as_ref() {
                     return Ok((
                         0i32,
                         0i32,
@@ -1484,12 +1513,12 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 }
 
                 // loading sender/recipient principals and balances
-                caller
+                writer.0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer.0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
@@ -1497,18 +1526,18 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // loading sender's locked amount and height
                 // TODO: this does not count the inner stacks block header load, but arguably,
                 // this could be optimized away, so it shouldn't penalize the caller.
-                caller
+                writer.0
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
                     .map_err(Error::from)?;
-                caller
+                writer.0
                     .data_mut()
                     .global_context
                     .add_memory(STXBalance::unlocked_and_v1_size as u64)
                     .map_err(Error::from)?;
 
-                let mut sender_snapshot = caller
+                let mut sender_snapshot = writer.0
                     .data_mut()
                     .global_context
                     .database
@@ -1519,11 +1548,11 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
 
                 sender_snapshot.transfer_to(recipient, amount)?;
 
-                caller
+                writer.0
                     .data_mut()
                     .global_context
                     .log_stx_transfer(sender, amount)?;
-                caller.data_mut().register_stx_transfer_event(
+                writer.0.data_mut().register_stx_transfer_event(
                     sender.clone(),
                     recipient.clone(),
                     amount,
@@ -1560,11 +1589,13 @@ fn link_ft_get_supply_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Retrieve the token name
                 let token_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let supply = caller
+                let supply = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -1602,19 +1633,20 @@ fn link_ft_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                    writer.0.data().contract_context().contract_identifier.clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the owner principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     owner_offset,
                     owner_length,
@@ -1622,7 +1654,8 @@ fn link_ft_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
                 )?;
                 let owner = value_as_principal(&value)?;
 
-                let ft_info = caller
+                let ft_info = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_ft
@@ -1630,7 +1663,7 @@ fn link_ft_get_balance_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(),
                     .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
                     .clone();
 
-                let balance = caller.data_mut().global_context.database.get_ft_balance(
+                let balance = writer.0.data_mut().global_context.database.get_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     owner,
@@ -1671,13 +1704,14 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                    writer.0.data().contract_context().contract_identifier.clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
@@ -1685,8 +1719,8 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -1703,7 +1737,7 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     ));
                 }
 
-                let burner_bal = caller.data_mut().global_context.database.get_ft_balance(
+                let burner_bal = writer.0.data_mut().global_context.database.get_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     burner,
@@ -1719,7 +1753,8 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     ));
                 }
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -1731,7 +1766,7 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
 
                 let final_burner_bal = burner_bal - amount;
 
-                caller.data_mut().global_context.database.set_ft_balance(
+                writer.0.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     burner,
@@ -1742,24 +1777,26 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     contract_identifier: contract_identifier.clone(),
                     asset_name: token_name.clone(),
                 };
-                caller.data_mut().register_ft_burn_event(
+                writer.0.data_mut().register_ft_burn_event(
                     burner.clone(),
                     amount,
                     asset_identifier,
                 )?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.log_token_transfer(
+                writer.0.data_mut().global_context.log_token_transfer(
                     burner,
                     &contract_identifier,
                     &token_name,
@@ -1799,13 +1836,14 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                    writer.0.data().contract_context().contract_identifier.clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
@@ -1813,8 +1851,8 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -1831,7 +1869,8 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     ));
                 }
 
-                let ft_info = caller
+                let ft_info = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_ft
@@ -1839,7 +1878,8 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
                     .clone();
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -1850,7 +1890,7 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                         &ft_info,
                     )?;
 
-                let to_bal = caller.data_mut().global_context.database.get_ft_balance(
+                let to_bal = writer.0.data_mut().global_context.database.get_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     to_principal,
@@ -1861,18 +1901,20 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .checked_add(amount)
                     .ok_or(Error::Runtime(RuntimeErrorType::ArithmeticOverflow, None))?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.database.set_ft_balance(
+                writer.0.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     to_principal,
@@ -1883,7 +1925,7 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     contract_identifier: contract_identifier.clone(),
                     asset_name: token_name.clone(),
                 };
-                caller.data_mut().register_ft_mint_event(
+                writer.0.data_mut().register_ft_mint_event(
                     to_principal.clone(),
                     amount,
                     asset_identifier,
@@ -1924,14 +1966,15 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
+                    writer.0.data().contract_context().contract_identifier.clone();
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
@@ -1939,8 +1982,8 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -1950,8 +1993,8 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
 
                 // Read the recipient principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     recipient_offset,
                     recipient_length,
@@ -1977,7 +2020,8 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     ));
                 }
 
-                let ft_info = caller
+                let ft_info = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_ft
@@ -1985,7 +2029,7 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     .ok_or(CheckErrors::NoSuchFT(token_name.to_string()))?
                     .clone();
 
-                let from_bal = caller.data_mut().global_context.database.get_ft_balance(
+                let from_bal = writer.0.data_mut().global_context.database.get_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     from_principal,
@@ -2003,7 +2047,7 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
 
                 let final_from_bal = from_bal - amount;
 
-                let to_bal = caller.data_mut().global_context.database.get_ft_balance(
+                let to_bal = writer.0.data_mut().global_context.database.get_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     to_principal,
@@ -2014,41 +2058,45 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     .checked_add(amount)
                     .ok_or(RuntimeErrorType::ArithmeticOverflow)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::UIntType.size()? as u64)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.database.set_ft_balance(
+                writer.0.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
                     &token_name,
                     from_principal,
                     final_from_bal,
                 )?;
-                caller.data_mut().global_context.database.set_ft_balance(
+                writer.0.data_mut().global_context.database.set_ft_balance(
                     &contract_identifier,
                     token_name.as_str(),
                     to_principal,
                     final_to_bal,
                 )?;
 
-                caller.data_mut().global_context.log_token_transfer(
+                writer.0.data_mut().global_context.log_token_transfer(
                     from_principal,
                     &contract_identifier,
                     &token_name,
@@ -2059,7 +2107,7 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                     contract_identifier: contract_identifier.clone(),
                     asset_name: token_name.clone(),
                 };
-                caller.data_mut().register_ft_transfer_event(
+                writer.0.data_mut().register_ft_transfer_event(
                     from_principal.clone(),
                     to_principal.clone(),
                     amount,
@@ -2097,16 +2145,23 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+
+                let contract_identifier = writer
+                    .0
+                    .data()
+                    .contract_context()
+                    .contract_identifier
+                    .clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(memory, &mut writer.0, name_offset, name_length)?;
                 let asset_name = ClarityName::try_from(name.clone())?;
 
-                let nft_metadata = caller
+                let nft_metadata = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_nft
@@ -2119,11 +2174,11 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 // Read in the NFT identifier from the Wasm memory
                 if is_in_memory_type(expected_asset_type) {
                     (asset_offset, asset_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                        read_indirect_offset_and_length(memory, &mut writer.0, asset_offset)?;
                 }
                 let asset = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     expected_asset_type,
                     asset_offset,
                     asset_length,
@@ -2134,13 +2189,13 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
 
                 // runtime_cost(ClarityCostFunction::NftOwner, env, asset_size)?;
 
-                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                if !expected_asset_type.admits(&writer.0.data().global_context.epoch_id, &asset)? {
                     return Err(
                         CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
                     );
                 }
 
-                match caller.data_mut().global_context.database.get_nft_owner(
+                match writer.0.data_mut().global_context.database.get_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2148,13 +2203,13 @@ fn link_nft_get_owner_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 ) {
                     Ok(owner) => {
                         // Write the principal to the return buffer
-                        let memory = caller
+                        let memory = writer
+                            .0
                             .get_export("memory")
                             .and_then(|export| export.into_memory())
                             .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                        let mut writer = (caller, memory);
-
+                        writer.1 = memory;
                         let (_, bytes_written) = write_to_wasm(
                             &mut writer,
                             &TypeSignature::PrincipalType,
@@ -2198,17 +2253,19 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
+                    writer.0.data().contract_context().contract_identifier.clone();
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let asset_name = ClarityName::try_from(name.clone())?;
 
-                let nft_metadata = caller
+                let nft_metadata = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_nft
@@ -2221,11 +2278,11 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 // Read in the NFT identifier from the Wasm memory
                 if is_in_memory_type(expected_asset_type) {
                     (asset_offset, asset_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, asset_offset)?;
                 }
                 let asset = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     expected_asset_type,
                     asset_offset,
                     asset_length,
@@ -2234,8 +2291,8 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -2247,13 +2304,13 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
 
                 // runtime_cost(ClarityCostFunction::NftBurn, env, asset_size)?;
 
-                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                if !expected_asset_type.admits(&writer.0.data().global_context.epoch_id, &asset)? {
                     return Err(
                         CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
                     );
                 }
 
-                let owner = match caller.data_mut().global_context.database.get_nft_owner(
+                let owner = match writer.0.data_mut().global_context.database.get_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2270,18 +2327,20 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     return Ok((0i32, 0i32, BurnAssetErrorCodes::NOT_OWNED_BY as i64, 0i64));
                 }
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.database.burn_nft(
+                writer.0.data_mut().global_context.database.burn_nft(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2289,7 +2348,7 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     &epoch,
                 )?;
 
-                caller.data_mut().global_context.log_asset_transfer(
+                writer.0.data_mut().global_context.log_asset_transfer(
                     sender_principal,
                     &contract_identifier,
                     &asset_name,
@@ -2300,7 +2359,7 @@ fn link_nft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     contract_identifier,
                     asset_name: asset_name.clone(),
                 };
-                caller.data_mut().register_nft_burn_event(
+                writer.0.data_mut().register_nft_burn_event(
                     sender_principal.clone(),
                     asset,
                     asset_identifier,
@@ -2337,17 +2396,19 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
+                    writer.0.data().contract_context().contract_identifier.clone();
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let asset_name = ClarityName::try_from(name.clone())?;
 
-                let nft_metadata = caller
+                let nft_metadata = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_nft
@@ -2360,11 +2421,11 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 // Read in the NFT identifier from the Wasm memory
                 if is_in_memory_type(expected_asset_type) {
                     (asset_offset, asset_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, asset_offset)?;
                 }
                 let asset = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     expected_asset_type,
                     asset_offset,
                     asset_length,
@@ -2373,8 +2434,8 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
 
                 // Read the recipient principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     recipient_offset,
                     recipient_length,
@@ -2385,13 +2446,13 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                 let asset_size = asset.serialized_size()? as u64;
                 // runtime_cost(ClarityCostFunction::NftMint, env, asset_size)?;
 
-                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                if !expected_asset_type.admits(&writer.0.data().global_context.epoch_id, &asset)? {
                     return Err(
                         CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
                     );
                 }
 
-                match caller.data_mut().global_context.database.get_nft_owner(
+                match writer.0.data_mut().global_context.database.get_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2404,18 +2465,20 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     Err(e) => Err(e),
                 }?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.database.set_nft_owner(
+                writer.0.data_mut().global_context.database.set_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2428,7 +2491,7 @@ fn link_nft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
                     contract_identifier,
                     asset_name: asset_name.clone(),
                 };
-                caller.data_mut().register_nft_mint_event(
+                writer.0.data_mut().register_nft_mint_event(
                     to_principal.clone(),
                     asset,
                     asset_identifier,
@@ -2467,17 +2530,19 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let contract_identifier =
-                    caller.data().contract_context().contract_identifier.clone();
+                    writer.0.data().contract_context().contract_identifier.clone();
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the token name
                 let name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let asset_name = ClarityName::try_from(name.clone())?;
 
-                let nft_metadata = caller
+                let nft_metadata = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_nft
@@ -2490,11 +2555,11 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // Read in the NFT identifier from the Wasm memory
                 if is_in_memory_type(expected_asset_type) {
                     (asset_offset, asset_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, asset_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, asset_offset)?;
                 }
                 let asset = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     expected_asset_type,
                     asset_offset,
                     asset_length,
@@ -2503,8 +2568,8 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     sender_offset,
                     sender_length,
@@ -2514,8 +2579,8 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
 
                 // Read the recipient principal from the Wasm memory
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     recipient_offset,
                     recipient_length,
@@ -2526,7 +2591,7 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 let asset_size = asset.serialized_size()? as u64;
                 // runtime_cost(ClarityCostFunction::NftTransfer, env, asset_size)?;
 
-                if !expected_asset_type.admits(&caller.data().global_context.epoch_id, &asset)? {
+                if !expected_asset_type.admits(&writer.0.data().global_context.epoch_id, &asset)? {
                     return Err(
                         CheckErrors::TypeValueError(expected_asset_type.clone(), asset).into(),
                     );
@@ -2541,7 +2606,7 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     ));
                 }
 
-                let current_owner = match caller.data_mut().global_context.database.get_nft_owner(
+                let current_owner = match writer.0.data_mut().global_context.database.get_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2568,18 +2633,20 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     ));
                 }
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(TypeSignature::PrincipalType.size()? as u64)
                     .map_err(Error::from)?;
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(asset_size)
                     .map_err(Error::from)?;
 
-                caller.data_mut().global_context.database.set_nft_owner(
+                writer.0.data_mut().global_context.database.set_nft_owner(
                     &contract_identifier,
                     asset_name.as_str(),
                     &asset,
@@ -2588,7 +2655,7 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     &epoch,
                 )?;
 
-                caller.data_mut().global_context.log_asset_transfer(
+                writer.0.data_mut().global_context.log_asset_transfer(
                     from_principal,
                     &contract_identifier,
                     &asset_name,
@@ -2599,7 +2666,7 @@ fn link_nft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     contract_identifier,
                     asset_name,
                 };
-                caller.data_mut().register_nft_transfer_event(
+                writer.0.data_mut().register_nft_transfer_event(
                     from_principal.clone(),
                     to_principal.clone(),
                     asset,
@@ -2639,15 +2706,23 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
+
                 // Retrieve the map name
                 let map_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(memory, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let contract = writer
+                    .0
+                    .data()
+                    .contract_context()
+                    .contract_identifier
+                    .clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the metadata for this map
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_map
@@ -2658,18 +2733,19 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 // Read in the key from the Wasm memory
                 if is_in_memory_type(&data_types.key_type) {
                     (key_offset, key_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                        read_indirect_offset_and_length(memory, &mut writer.0, key_offset)?;
                 }
                 let key = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.key_type,
                     key_offset,
                     key_length,
                     epoch,
                 )?;
 
-                let result = caller
+                let result = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -2684,13 +2760,14 @@ fn link_map_get_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
 
                 let value = result.map(|data| data.value)?;
 
-                let memory = caller
+                let memory = writer
+                    .0
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                writer.1 = memory;
                 let ty = TypeSignature::OptionalType(Box::new(data_types.value_type));
-                let mut writer = (caller, memory);
                 write_to_wasm(
                     &mut writer,
                     &ty,
@@ -2736,15 +2813,17 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the map name
                 let map_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
 
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_map
@@ -2757,11 +2836,11 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 // Read in the key from the Wasm memory
                 if is_in_memory_type(&data_types.key_type) {
                     (key_offset, key_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, key_offset)?;
                 }
                 let key = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.key_type,
                     key_offset,
                     key_length,
@@ -2771,11 +2850,11 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 // Read in the value from the Wasm memory
                 if is_in_memory_type(&data_types.value_type) {
                     (value_offset, value_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, value_offset)?;
                 }
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.value_type,
                     value_offset,
                     value_length,
@@ -2783,7 +2862,7 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 )?;
 
                 // Store the value in the map in the global context
-                let result = caller.data_mut().global_context.database.set_entry(
+                let result = writer.0.data_mut().global_context.database.set_entry(
                     &contract,
                     map_name.as_str(),
                     key,
@@ -2799,7 +2878,8 @@ fn link_map_set_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
@@ -2846,15 +2926,17 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Retrieve the map name
                 let map_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
 
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_map
@@ -2867,11 +2949,11 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 // Read in the key from the Wasm memory
                 if is_in_memory_type(&data_types.key_type) {
                     (key_offset, key_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, key_offset)?;
                 }
                 let key = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.key_type,
                     key_offset,
                     key_length,
@@ -2881,11 +2963,11 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 // Read in the value from the Wasm memory
                 if is_in_memory_type(&data_types.value_type) {
                     (value_offset, value_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, value_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, value_offset)?;
                 }
                 let value = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.value_type,
                     value_offset,
                     value_length,
@@ -2893,7 +2975,7 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 )?;
 
                 // Insert the value into the map
-                let result = caller.data_mut().global_context.database.insert_entry(
+                let result = writer.0.data_mut().global_context.database.insert_entry(
                     &contract,
                     map_name.as_str(),
                     key,
@@ -2909,7 +2991,8 @@ fn link_map_insert_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
@@ -2954,14 +3037,16 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Retrieve the map name
                 let map_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
-                let contract = caller.data().contract_context().contract_identifier.clone();
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let contract = writer.0.data().contract_context().contract_identifier.clone();
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
-                let data_types = caller
+                let data_types = writer
+                    .0
                     .data()
                     .contract_context()
                     .meta_data_map
@@ -2974,11 +3059,11 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 // Read in the key from the Wasm memory
                 if is_in_memory_type(&data_types.key_type) {
                     (key_offset, key_length) =
-                        read_indirect_offset_and_length(memory, &mut caller, key_offset)?;
+                        read_indirect_offset_and_length(writer.1, &mut writer.0, key_offset)?;
                 }
                 let key = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &data_types.key_type,
                     key_offset,
                     key_length,
@@ -2986,7 +3071,7 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                 )?;
 
                 // Delete the key from the map in the global context
-                let result = caller.data_mut().global_context.database.delete_entry(
+                let result = writer.0.data_mut().global_context.database.delete_entry(
                     &contract,
                     map_name.as_str(),
                     &key,
@@ -3001,7 +3086,8 @@ fn link_map_delete_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
 
                 // runtime_cost(ClarityCostFunction::SetEntry, env, result_size)?;
 
-                caller
+                writer
+                    .0
                     .data_mut()
                     .global_context
                     .add_memory(result_size)
@@ -4383,13 +4469,13 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
-
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the contract identifier from the Wasm memory
                 let contract_val = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &TypeSignature::PrincipalType,
                     contract_offset,
                     contract_length,
@@ -4404,14 +4490,15 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
 
                 // Read the function name from the Wasm memory
                 let function_name = read_identifier_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     function_offset,
                     function_length,
                 )?;
 
                 // Retrieve the contract context for the contract we're calling
-                let contract = caller
+                let contract = writer
+                    .0
                     .data_mut()
                     .global_context
                     .database
@@ -4433,26 +4520,28 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 // Read the arguments from the Wasm memory
                 for arg_ty in function.get_arg_types() {
                     let arg =
-                        read_from_wasm_indirect(memory, &mut caller, arg_ty, arg_offset, epoch)?;
+                        read_from_wasm_indirect(writer.1, &mut writer.0, arg_ty, arg_offset, epoch)?;
                     args_sizes.push(arg.size()? as u64);
                     args.push(arg);
 
                     arg_offset += get_type_size(arg_ty);
                 }
 
-                let caller_contract: PrincipalData = caller
+                let caller_contract: PrincipalData = writer
+                    .0
                     .data()
                     .contract_context()
                     .contract_identifier
                     .clone()
                     .into();
-                caller.data_mut().push_caller(caller_contract.clone());
+                writer.0.data_mut().push_caller(caller_contract.clone());
 
-                let mut call_stack = caller.data().call_stack.clone();
-                let sender = caller.data().sender.clone();
-                let sponsor = caller.data().sponsor.clone();
+                let mut call_stack = writer.0.data().call_stack.clone();
+                let sender = writer.0.data().sender.clone();
+                let sponsor = writer.0.data().sponsor.clone();
 
-                let short_circuit_cost = caller
+                let short_circuit_cost = writer
+                    .0
                     .data_mut()
                     .global_context
                     .cost_track
@@ -4463,7 +4552,7 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     )?;
 
                 let mut env = Environment {
-                    global_context: caller.data_mut().global_context,
+                    global_context: writer.0.data_mut().global_context,
                     contract_context: &contract.contract_context,
                     call_stack: &mut call_stack,
                     sender,
@@ -4486,8 +4575,8 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 } else {
                     // This is a dynamic call
                     let trait_name = read_identifier_from_wasm(
-                        memory,
-                        &mut caller,
+                        writer.1,
+                        &mut writer.0,
                         trait_name_offset,
                         trait_name_length,
                     )?;
@@ -4500,13 +4589,13 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 }
                 .ok_or(CheckErrors::DefineFunctionBadSignature)?;
 
-                let memory = caller
+                let memory = writer
+                    .0
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let mut writer = (caller, memory);
-
+                writer.1 = memory;
                 write_to_wasm(
                     &mut writer,
                     return_ty,
@@ -4781,14 +4870,15 @@ fn link_keccak256_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Erro
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read the bytes from the memory
                 let bytes =
-                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+                    read_bytes_from_wasm(writer.1, &mut writer.0, buffer_offset, buffer_length)?;
 
                 let hash = Keccak256Hash::from_data(&bytes);
 
                 // Write the hash to the return buffer
-                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+                writer.1.write(&mut writer.0, return_offset as usize, hash.as_bytes())?;
 
                 Ok((return_offset, return_length))
             },
@@ -4820,14 +4910,15 @@ fn link_sha512_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error> 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read the bytes from the memory
                 let bytes =
-                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+                    read_bytes_from_wasm(writer.1, &mut writer.0, buffer_offset, buffer_length)?;
 
                 let hash = Sha512Sum::from_data(&bytes);
 
                 // Write the hash to the return buffer
-                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+                writer.1.write(&mut writer.0, return_offset as usize, hash.as_bytes())?;
 
                 Ok((return_offset, return_length))
             },
@@ -4854,14 +4945,15 @@ fn link_sha512_256_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Err
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read the bytes from the memory
                 let bytes =
-                    read_bytes_from_wasm(memory, &mut caller, buffer_offset, buffer_length)?;
+                    read_bytes_from_wasm(writer.1, &mut writer.0, buffer_offset, buffer_length)?;
 
                 let hash = Sha512Trunc256Sum::from_data(&bytes);
 
                 // Write the hash to the return buffer
-                memory.write(&mut caller, return_offset as usize, hash.as_bytes())?;
+                writer.1.write(&mut writer.0, return_offset as usize, hash.as_bytes())?;
 
                 Ok((return_offset, return_length))
             },
@@ -4897,11 +4989,12 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 let ret_ty = TypeSignature::new_response(BUFF_33.clone(), TypeSignature::UIntType)?;
                 let repr_size = get_type_size(&ret_ty);
 
                 // Read the message bytes from the memory
-                let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+                let msg_bytes = read_bytes_from_wasm(writer.1, &mut writer.0, msg_offset, msg_length)?;
                 // To match the interpreter behavior, if the message is the
                 // wrong length, throw a runtime type error.
                 if msg_bytes.len() != 32 {
@@ -4913,10 +5006,9 @@ fn link_secp256k1_recover_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<
                 }
 
                 // Read the signature bytes from the memory
-                let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+                let sig_bytes = read_bytes_from_wasm(writer.1, &mut writer.0, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
-                let mut writer = (caller, memory);
                 if sig_bytes.len() != 65 || sig_bytes[64] > 3 {
                     let result = Value::err_uint(2);
                     write_to_wasm(
@@ -4979,8 +5071,9 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read the message bytes from the memory
-                let msg_bytes = read_bytes_from_wasm(memory, &mut caller, msg_offset, msg_length)?;
+                let msg_bytes = read_bytes_from_wasm(writer.1, &mut writer.0, msg_offset, msg_length)?;
                 // To match the interpreter behavior, if the message is the
                 // wrong length, throw a runtime type error.
                 if msg_bytes.len() != 32 {
@@ -4992,7 +5085,7 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
                 }
 
                 // Read the signature bytes from the memory
-                let sig_bytes = read_bytes_from_wasm(memory, &mut caller, sig_offset, sig_length)?;
+                let sig_bytes = read_bytes_from_wasm(writer.1, &mut writer.0, sig_offset, sig_length)?;
                 // To match the interpreter behavior, if the signature is the
                 // wrong length, return a Clarity error.
                 if sig_bytes.len() < 64
@@ -5003,7 +5096,7 @@ fn link_secp256k1_verify_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(
                 }
 
                 // Read the public-key bytes from the memory
-                let pk_bytes = read_bytes_from_wasm(memory, &mut caller, pk_offset, pk_length)?;
+                let pk_bytes = read_bytes_from_wasm(writer.1, &mut writer.0, pk_offset, pk_length)?;
                 // To match the interpreter behavior, if the public key is the
                 // wrong length, throw a runtime type error.
                 if pk_bytes.len() != 33 {
@@ -5045,12 +5138,13 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Read the public key from the memory
                 let key_val = read_from_wasm(
-                    memory,
-                    &mut caller,
+                    writer.1,
+                    &mut writer.0,
                     &BUFF_33.clone(),
                     key_offset,
                     key_length,
@@ -5072,16 +5166,14 @@ fn link_principal_of_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 if let Ok(pub_key) = Secp256k1PublicKey::from_slice(pub_key) {
                     // Note: Clarity1 had a bug in how the address is computed (issues/2619).
                     // We want to preserve the old behavior unless the version is greater.
-                    let addr = if *caller.data().contract_context().get_clarity_version()
+                    let addr = if *writer.0.data().contract_context().get_clarity_version()
                         > ClarityVersion::Clarity1
                     {
-                        pubkey_to_address_v2(pub_key, caller.data().global_context.mainnet)?
+                        pubkey_to_address_v2(pub_key, writer.0.data().global_context.mainnet)?
                     } else {
                         pubkey_to_address_v1(pub_key)?
                     };
                     let principal = addr.to_account_principal();
-
-                    let mut writer = (caller, memory);
 
                     // Write the principal to the return buffer
                     write_to_wasm(
@@ -5131,15 +5223,17 @@ fn link_save_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let epoch = caller.data_mut().global_context.epoch_id;
+                let mut writer = (caller, memory);
+                let epoch = writer.0.data_mut().global_context.epoch_id;
 
                 // Get constant name from the memory.
                 let const_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
                 let cname = ClarityName::from(const_name.as_str());
 
                 // Get constant value type.
-                let value_ty = caller
+                let value_ty = writer
+                    .0
                     .data()
                     .contract_analysis
                     .ok_or(Error::Wasm(WasmError::DefinesNotFound))?
@@ -5147,10 +5241,11 @@ fn link_save_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .ok_or(Error::Wasm(WasmError::DefinesNotFound))?;
 
                 let value =
-                    read_from_wasm_indirect(memory, &mut caller, value_ty, value_offset, epoch)?;
+                    read_from_wasm_indirect(writer.1, &mut writer.0, value_ty, value_offset, epoch)?;
 
                 // Insert constant name and expression value into a persistent data structure.
-                caller
+                writer
+                    .0
                     .data_mut()
                     .contract_context_mut()?
                     .variables
@@ -5183,12 +5278,14 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+                let mut writer = (caller, memory);
                 // Read constant name from the memory.
                 let const_name =
-                    read_identifier_from_wasm(memory, &mut caller, name_offset, name_length)?;
+                    read_identifier_from_wasm(writer.1, &mut writer.0, name_offset, name_length)?;
 
                 // Constant value
-                let value = caller
+                let value = writer
+                    .0
                     .data()
                     .contract_context()
                     .variables
@@ -5198,8 +5295,6 @@ fn link_load_constant_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
 
                 // Constant value type
                 let ty = TypeSignature::type_of(&value)?;
-
-                let mut writer = (caller, memory);
 
                 write_to_wasm(
                     &mut writer,

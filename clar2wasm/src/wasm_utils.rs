@@ -721,35 +721,18 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
     }
 }
 
-pub enum WriteResult {
-    NoOp,
-    OffsetAndBytes(i32, i32),
-}
-
 pub trait WasmWriter {
     type Error: Into<Error>;
-    fn write_to_wasm_memory(
-        &mut self,
-        offset: i32,
-        buffer: &[u8],
-        ty: Option<&TypeSignature>,
-        value: Option<&Value>,
-    ) -> Result<WriteResult, Self::Error>;
+    fn write_to_wasm_memory(&mut self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error>;
 }
 
 impl<Store: AsContextMut> WasmWriter for (Store, Memory) {
     type Error = clarity::vm::errors::Error;
-    fn write_to_wasm_memory(
-        &mut self,
-        offset: i32,
-        buffer: &[u8],
-        _ty: Option<&TypeSignature>,
-        _value: Option<&Value>,
-    ) -> Result<WriteResult, Self::Error> {
+    fn write_to_wasm_memory(&mut self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error> {
         self.1
             .write(self.0.as_context_mut(), offset as usize, buffer)
             .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
-        Ok(WriteResult::NoOp)
+        Ok(())
     }
 }
 
@@ -779,9 +762,9 @@ where
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
-            writer.write_to_wasm_memory(offset, &buffer, None, None)?;
+            writer.write_to_wasm_memory(offset, &buffer)?;
             buffer.copy_from_slice(&high.to_le_bytes());
-            writer.write_to_wasm_memory(offset + 8, &buffer, None, None)?;
+            writer.write_to_wasm_memory(offset + 8, &buffer)?;
             Ok((16, 0))
         }
         TypeSignature::UIntType => {
@@ -790,9 +773,9 @@ where
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
-            writer.write_to_wasm_memory(offset, &buffer, None, None)?;
+            writer.write_to_wasm_memory(offset, &buffer)?;
             buffer.copy_from_slice(&high.to_le_bytes());
-            writer.write_to_wasm_memory(offset + 8, &buffer, None, None)?;
+            writer.write_to_wasm_memory(offset + 8, &buffer)?;
             Ok((16, 0))
         }
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_length)) => {
@@ -801,22 +784,17 @@ where
             let mut in_mem_written = 0;
 
             // Write the value to `in_mem_offset`
-            writer.write_to_wasm_memory(
-                in_mem_offset + in_mem_written,
-                &buffdata.data,
-                None,
-                None,
-            )?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &buffdata.data)?;
             in_mem_written += buffdata.data.len() as i32;
 
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                writer.write_to_wasm_memory(offset, &offset_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                writer.write_to_wasm_memory(offset + written, &len_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -841,17 +819,17 @@ where
             let mut in_mem_written = 0;
 
             // Write the value to `in_mem_offset`
-            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &string, None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &string)?;
             in_mem_written += string.len() as i32;
 
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                writer.write_to_wasm_memory(offset, &offset_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                writer.write_to_wasm_memory(offset + written, &len_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -887,10 +865,10 @@ where
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                writer.write_to_wasm_memory(offset, &offset_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = val_written.to_le_bytes();
-                writer.write_to_wasm_memory(offset + 4, &len_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset + 4, &len_buffer)?;
                 written += 4;
             }
 
@@ -902,7 +880,7 @@ where
             let res = value_as_response(value)?;
             let indicator = if res.committed { 1i32 } else { 0i32 };
             let indicator_bytes = indicator.to_le_bytes();
-            writer.write_to_wasm_memory(offset, &indicator_bytes, None, None)?;
+            writer.write_to_wasm_memory(offset, &indicator_bytes)?;
             written += 4;
 
             if res.committed {
@@ -940,12 +918,12 @@ where
             let bool_val = value_as_bool(value)?;
             let val = if bool_val { 1u32 } else { 0u32 };
             let val_bytes = val.to_le_bytes();
-            writer.write_to_wasm_memory(offset, &val_bytes, None, None)?;
+            writer.write_to_wasm_memory(offset, &val_bytes)?;
             Ok((4, 0))
         }
         TypeSignature::NoType => {
             let val_bytes = [0u8; 4];
-            writer.write_to_wasm_memory(offset, &val_bytes, None, None)?;
+            writer.write_to_wasm_memory(offset, &val_bytes)?;
             Ok((4, 0))
         }
         TypeSignature::OptionalType(inner_ty) => {
@@ -954,7 +932,7 @@ where
             let opt_data = value_as_optional(value)?;
             let indicator = if opt_data.data.is_some() { 1i32 } else { 0i32 };
             let indicator_bytes = indicator.to_le_bytes();
-            writer.write_to_wasm_memory(offset, &indicator_bytes, None, None)?;
+            writer.write_to_wasm_memory(offset, &indicator_bytes)?;
             written += 4;
             if let Some(inner) = opt_data.data.as_ref() {
                 let (new_written, new_in_mem_written) = write_to_wasm(
@@ -987,35 +965,20 @@ where
             let mut in_mem_written = 0;
 
             // Write the value to in_mem_offset
-            writer.write_to_wasm_memory(
-                in_mem_offset + in_mem_written,
-                &[standard.0],
-                None,
-                None,
-            )?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &[standard.0])?;
             in_mem_written += 1;
-            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &standard.1, None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &standard.1)?;
             in_mem_written += standard.1.len() as i32;
             if !contract_name.is_empty() {
                 let len_buffer = [contract_name.len() as u8];
-                writer.write_to_wasm_memory(
-                    in_mem_offset + in_mem_written,
-                    &len_buffer,
-                    None,
-                    None,
-                )?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &len_buffer)?;
                 in_mem_written += 1;
                 let bytes = contract_name.as_bytes();
-                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, bytes, None, None)?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, bytes)?;
                 in_mem_written += bytes.len() as i32;
             } else {
                 let len_buffer = [0u8];
-                writer.write_to_wasm_memory(
-                    in_mem_offset + in_mem_written,
-                    &len_buffer,
-                    None,
-                    None,
-                )?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &len_buffer)?;
                 in_mem_written += 1;
             }
 
@@ -1023,10 +986,10 @@ where
                 // Write the representation (offset and length of the value) to the
                 // offset
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                writer.write_to_wasm_memory(offset, &offset_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                writer.write_to_wasm_memory(offset + written, &len_buffer, None, None)?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -1316,7 +1279,7 @@ pub fn call_function<'a>(
         })?;
 
     // If the function returns a value, translate it into a Clarity `Value`
-    wasm_to_clarity_value(&return_type, 0, &results, memory, &mut writer.0, epoch)
+    wasm_to_clarity_value(&return_type, 0, &results, writer.1, &mut writer.0, epoch)
         .map(|(val, _offset)| val)
         .and_then(|option_value| {
             option_value.ok_or_else(|| Error::Wasm(WasmError::ExpectedReturnValue))
@@ -1417,7 +1380,7 @@ fn pass_argument_to_wasm(
             // For a string, write the bytes into the memory, then pass the
             // offset and length to the Wasm function.
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(s.data.len() as i32)];
-            writer.write_to_wasm_memory(in_mem_offset, s.data.as_slice(), None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset, s.data.as_slice())?;
             let adjusted_in_mem_offset = in_mem_offset + s.data.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1430,7 +1393,7 @@ fn pass_argument_to_wasm(
                 .flat_map(|c| (c as u32).to_be_bytes())
                 .collect();
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            writer.write_to_wasm_memory(in_mem_offset, &bytes, None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1438,7 +1401,7 @@ fn pass_argument_to_wasm(
             // For a buffer, write the bytes into the memory, then pass the
             // offset and length to the Wasm function.
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(b.data.len() as i32)];
-            writer.write_to_wasm_memory(in_mem_offset, b.data.as_slice(), None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset, b.data.as_slice())?;
             let adjusted_in_mem_offset = in_mem_offset + b.data.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1471,7 +1434,7 @@ fn pass_argument_to_wasm(
             bytes.extend(h);
             bytes.push(0);
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            writer.write_to_wasm_memory(in_mem_offset, &bytes, None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1493,7 +1456,7 @@ fn pass_argument_to_wasm(
                 .copied()
                 .collect();
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            writer.write_to_wasm_memory(in_mem_offset, &bytes, None, None)?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
