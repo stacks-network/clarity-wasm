@@ -405,11 +405,12 @@ impl ComplexWord for AsMaxLen {
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
                 ))) => {
-                    builder.i32_const(4);
-
-                    // Divide the length of the list by the length of each element to get
-                    // the number of elements in the list.
-                    builder.binop(BinaryOp::I32DivU);
+                    // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                    // Compute the number of elements in the list by dividing the total byte length by 4
+                    // (i.e., each element is 4 bytes). This division is equivalent to performing an unsigned
+                    // bitwise right shift by 2 bits.
+                    builder.i32_const(2);
+                    builder.binop(BinaryOp::I32ShrU);
 
                     Ok(())
                 }
@@ -858,9 +859,12 @@ impl ComplexWord for Len {
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
                 ))) => {
-                    // UTF8 is represented as 32-bit unicode scalars values.
-                    builder.i32_const(4);
-                    builder.binop(BinaryOp::I32DivU);
+                    // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                    // Compute the number of elements in the list by dividing the total byte length by 4
+                    // (i.e., each element is 4 bytes). This division is equivalent to performing an unsigned
+                    // bitwise right shift by 2 bits.
+                    builder.i32_const(2);
+                    builder.binop(BinaryOp::I32ShrU);
 
                     Ok(())
                 }
@@ -973,9 +977,11 @@ impl ComplexWord for ElementAt {
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
                     _,
                 ))) => {
-                    // UTF8 is represented as 32-bit unicode scalars values.
-                    builder.i64_const(4);
-                    builder.binop(BinaryOp::I64Mul);
+                    // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                    // Calculate the total byte length of the list by multiplying the element count by 4
+                    // Multiplying by 4 is equivalent to performing a bitwise left shift by 2 bits.
+                    builder.i64_const(2);
+                    builder.binop(BinaryOp::I64Shl);
 
                     Ok(SequenceElementType::UnicodeScalar)
                 }
@@ -1167,9 +1173,11 @@ impl ComplexWord for ReplaceAt {
                 Ok(SequenceElementType::Byte)
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                // UTF8 is represented as 32-bit unicode scalars values.
-                builder.i64_const(4);
-                builder.binop(BinaryOp::I64Mul);
+                // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                // Calculate the total byte length of the list by multiplying the element count by 4
+                // Multiplying by 4 is equivalent to performing a bitwise left shift by 2 bits.
+                builder.i64_const(2);
+                builder.binop(BinaryOp::I64Shl);
 
                 Ok(SequenceElementType::UnicodeScalar)
             }
@@ -1410,9 +1418,11 @@ impl ComplexWord for Slice {
                 Ok(())
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                // UTF8 is represented as 32-bit unicode scalars values.
-                builder.i64_const(4);
-                builder.binop(BinaryOp::I64Mul);
+                // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                // Calculate the total byte length of the list by multiplying the element count by 4
+                // Multiplying by 4 is equivalent to performing a bitwise left shift by 2 bits.
+                builder.i64_const(2);
+                builder.binop(BinaryOp::I64Shl);
 
                 Ok(())
             }
@@ -1512,9 +1522,11 @@ impl ComplexWord for Slice {
                 Ok(())
             }
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
-                // UTF8 is represented as 32-bit unicode scalars values.
-                builder.i64_const(4);
-                builder.binop(BinaryOp::I64Mul);
+                // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
+                // Calculate the total byte length of the list by multiplying the element count by 4
+                // Multiplying by 4 is equivalent to performing a bitwise left shift by 2 bits.
+                builder.i64_const(2);
+                builder.binop(BinaryOp::I64Shl);
 
                 Ok(())
             }
@@ -2116,7 +2128,7 @@ mod tests {
             a,
             evaluate(
                 "
-        (list 
+        (list
             0x515a7e92e7c60522db968d81ff70b80818fc17aeabbec36baf0dda2812e94a86
             0x541f557997791a762051eceb7c1069d9c903067d1d020bd38da294b10b0d680c
             0xe8107bb16a6b5f0cac737990336f93bc82bb678ba8a9cba86be3c3f818a34230
@@ -2150,7 +2162,7 @@ mod tests {
             a,
             evaluate(
                 "
-        (list 
+        (list
             0x97550c84a9e30d01461a29ac1c54c29e82c1925ee78b2ee1776d9e20c0183334
             0xf74616ab34b70062ff83d0f3459bee08066c0b32ed44ed6f4c52723036ee295c
             0x48dd032f5ebe0286a7aae330fe25a2fbe8e8288814e8f7ccb149f024611e71b1
@@ -2564,7 +2576,6 @@ mod tests {
   )
 )
 
-
 (define-private (test-principal-construct-inner (pub-key-hash (buff 20)))
   (let
     (
@@ -2576,8 +2587,8 @@ mod tests {
 )
 (test-principal-construct)";
             crosscheck(snippet, evaluate("
-        (ok 
-            (list 
+        (ok
+            (list
                 (ok 'ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK) (ok 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)
             )
         )"));
@@ -2590,18 +2601,18 @@ mod tests {
                 a,
                 evaluate(
                     "
-        (list 
-            (ok 
-                (tuple 
-                    (hash-bytes 0xfa6bf38ed557fe417333710d6033e9419391a320) 
-                    (name none) 
+        (list
+            (ok
+                (tuple
+                    (hash-bytes 0xfa6bf38ed557fe417333710d6033e9419391a320)
+                    (name none)
                     (version 0x1a)
                 )
-            ) 
-            (ok 
-                (tuple 
-                    (hash-bytes 0x164247d6f2b425ac5771423ae6c80c754f7172b0) 
-                    (name none) 
+            )
+            (ok
+                (tuple
+                    (hash-bytes 0x164247d6f2b425ac5771423ae6c80c754f7172b0)
+                    (name none)
                     (version 0x1a)
                 )
             )
