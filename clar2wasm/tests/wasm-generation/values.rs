@@ -61,20 +61,33 @@ mod clarity_v2_v3 {
     use clarity::vm::Value;
 
     use super::*;
-    use crate::runtime_config;
 
     proptest! {
-        #![proptest_config(runtime_config())]
-
         #[test]
-        fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
+        fn value_serialized_and_deserialized(val in PropValue::any()) {
             let mut env = TestEnvironment::default();
-            env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
-        })) {
-            crosscheck(
-                &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
+
+            let to_consensus_snippet = format!("(to-consensus-buff? {})", val);
+            let pre_check = env.evaluate(&to_consensus_snippet);
+
+            // Discard test cases where the `to-consensus-buff?` evaluation returns an error.
+            // For instance, cases like `(to-consensus-buff? (list))`` where a `NoType` should not be evaluated.
+            prop_assume!(pre_check.is_ok(), "Could not determine the input type for the serialization function");
+
+            let snippet = format!(
+                "(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))",
+                val.type_string(),
+                val
+            );
+
+            let res = pre_check.unwrap(); // Safe to unwrap because of the prop_assume!
+            let expected = if res.is_none() {
+                Ok(Some(Value::none()))
+            } else {
                 Ok(Some(Value::some(val.into()).unwrap()))
-            )
+            };
+
+            crosscheck(&snippet, expected);
         }
     }
 }
