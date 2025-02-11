@@ -73,7 +73,38 @@ impl TestEnvironment {
     }
 
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        if !Self::epoch_and_clarity_match(epoch, version) {
+            panic!("Epoch and Clarity version do not match");
+        }
+
         Self::new_with_amount(1_000_000_000, epoch, version)
+    }
+
+    pub fn epoch_and_clarity_match(epoch: StacksEpochId, version: ClarityVersion) -> bool {
+        match (epoch, version) {
+            // For Epoch10, no clarity version is supported.
+            (StacksEpochId::Epoch10, _) => false,
+
+            // For epochs 20, 2_05, 21, 22, 23, 24, and 25,
+            // Clarity1 and Clarity2 are supported but Clarity3 is not.
+            (StacksEpochId::Epoch20
+             | StacksEpochId::Epoch2_05
+             | StacksEpochId::Epoch21
+             | StacksEpochId::Epoch22
+             | StacksEpochId::Epoch23
+             | StacksEpochId::Epoch24
+             | StacksEpochId::Epoch25, ClarityVersion::Clarity3) => false,
+            (StacksEpochId::Epoch20
+             | StacksEpochId::Epoch2_05
+             | StacksEpochId::Epoch21
+             | StacksEpochId::Epoch22
+             | StacksEpochId::Epoch23
+             | StacksEpochId::Epoch24
+             | StacksEpochId::Epoch25, _) => true,
+
+            // For epochs 30 and 31, all clarity versions are supported.
+            (StacksEpochId::Epoch30 | StacksEpochId::Epoch31, _) => true,
+        }
     }
 
     pub fn new_with_network(
