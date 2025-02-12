@@ -72,6 +72,27 @@ impl TestEnvironment {
         }
     }
 
+    /// Creates a new environment instance with the specified epoch and Clarity version.
+    ///
+    /// # Parameters
+    ///
+    /// - `epoch`: The desired `StacksEpochId` for the environment.
+    /// - `version`: The desired `ClarityVersion` for the environment.
+    ///
+    /// # Behavior
+    ///
+    /// This function first checks whether the provided `epoch` and `version` are compatible using
+    /// `epoch_and_clarity_match`. If they do not match, it uses a default Clarity version that is
+    /// appropriate for the given `epoch` (as determined by `ClarityVersion::default_for_epoch`), and
+    /// prints a warning message indicating the mismatch and the defaulted values.
+    ///
+    /// Then, the function creates a new environment instance by calling `new_with_amount` with a
+    /// default amount of `1_000_000_000` along with the validated `epoch` and `version`.
+    ///
+    /// # Returns
+    ///
+    /// An instance of the environment configured with the validated epoch and Clarity version.
+    ///
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
         let (epoch, version) = if !Self::epoch_and_clarity_match(epoch, version) {
             let valid_version = ClarityVersion::default_for_epoch(epoch);
