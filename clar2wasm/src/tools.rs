@@ -135,18 +135,8 @@ impl TestEnvironment {
                 | StacksEpochId::Epoch23
                 | StacksEpochId::Epoch24
                 | StacksEpochId::Epoch25,
-                ClarityVersion::Clarity3,
-            ) => false,
-            (
-                StacksEpochId::Epoch20
-                | StacksEpochId::Epoch2_05
-                | StacksEpochId::Epoch21
-                | StacksEpochId::Epoch22
-                | StacksEpochId::Epoch23
-                | StacksEpochId::Epoch24
-                | StacksEpochId::Epoch25,
-                _,
-            ) => true,
+                version,
+            ) => version <= ClarityVersion::Clarity2,
 
             // For epochs 30 and 31, all clarity versions are supported.
             (StacksEpochId::Epoch30 | StacksEpochId::Epoch31, _) => true,
