@@ -59,6 +59,7 @@ proptest! {
 mod clarity_v2_v3 {
     use clar2wasm::tools::TestEnvironment;
     use clarity::vm::Value;
+    use clarity::vm::errors::{CheckErrors, Error, WasmError};
 
     use super::*;
 
@@ -67,18 +68,27 @@ mod clarity_v2_v3 {
         fn value_serialized_and_deserialized(val in PropValue::any()) {
             let mut env = TestEnvironment::default();
 
-            let to_consensus_snippet = format!("(to-consensus-buff? {})", val);
+            let to_consensus_snippet = format!("(to-consensus-buff? {val})");
             let pre_check = env.evaluate(&to_consensus_snippet);
 
-            // Discard test cases where the `to-consensus-buff?` evaluation returns an error.
-            // For instance, cases like `(to-consensus-buff? (list))`` where a `NoType` should not be evaluated.
-            prop_assume!(pre_check.is_ok(), "Could not determine the input type for the serialization function");
+            // Discard test cases only when `to-consensus-buff?` evaluation
+            // could not determine the type of the input parameter.
+            // For instance, `(to-consensus-buff? (list))` where a `NoType` should not be evaluated.
+            let err_msg = "could not determine the input type for the serialization function";
+            prop_assume!(match pre_check {
+                Ok(_) => true,
+                Err(ref e) if e.to_string().contains(err_msg) => false,
+                _ => true
+            });
 
             let snippet = format!(
                 "(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))",
                 val.type_string(),
                 val
             );
+
+            println!("SNIPPET:   {:?}", snippet);
+            println!("PRE_CHECK: {:?}", pre_check);
 
             let res = pre_check.unwrap(); // Safe to unwrap because of the prop_assume!
             let expected = if res.is_none() {
