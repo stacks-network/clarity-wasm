@@ -72,8 +72,75 @@ impl TestEnvironment {
         }
     }
 
+    /// Creates a new environment instance with the specified epoch and Clarity version.
+    ///
+    /// # Parameters
+    ///
+    /// - `epoch`: The desired `StacksEpochId` for the environment.
+    /// - `version`: The desired `ClarityVersion` for the environment.
+    ///
+    /// # Behavior
+    ///
+    /// This function first checks whether the provided `epoch` and `version` are compatible using
+    /// `epoch_and_clarity_match`. If they do not match, it uses a default Clarity version that is
+    /// appropriate for the given `epoch` (as determined by `ClarityVersion::default_for_epoch`), and
+    /// prints a warning message indicating the mismatch and the defaulted values.
+    ///
+    /// Then, the function creates a new environment instance by calling `new_with_amount` with a
+    /// default amount of `1_000_000_000` along with the validated `epoch` and `version`.
+    ///
+    /// # Returns
+    ///
+    /// An instance of the environment configured with the validated epoch and Clarity version.
+    ///
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        let (epoch, version) = if !Self::epoch_and_clarity_match(epoch, version) {
+            let valid_version = ClarityVersion::default_for_epoch(epoch);
+            println!(
+                "[WARN] Provided epoch ({epoch}) and Clarity version ({version}) do not match. \
+                 Defaulting to epoch ({epoch}) and Clarity version ({valid_version})."
+            );
+            (epoch, valid_version)
+        } else {
+            (epoch, version)
+        };
+
         Self::new_with_amount(1_000_000_000, epoch, version)
+    }
+
+    /// Checks whether the given epoch and Clarity version are compatible.
+    ///
+    /// # Parameters
+    ///
+    /// - `epoch`: The `StacksEpochId` representing the current epoch.
+    /// - `version`: The `ClarityVersion` representing the Clarity version to check.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the specified `epoch` supports the given `ClarityVersion`,
+    /// and `false` otherwise.
+    ///
+    pub fn epoch_and_clarity_match(epoch: StacksEpochId, version: ClarityVersion) -> bool {
+        match (epoch, version) {
+            // For Epoch10, no clarity version is supported.
+            (StacksEpochId::Epoch10, _) => false,
+
+            // For epochs 20, 2_05, 21, 22, 23, 24, and 25,
+            // Clarity1 and Clarity2 are supported but Clarity3 is not.
+            (
+                StacksEpochId::Epoch20
+                | StacksEpochId::Epoch2_05
+                | StacksEpochId::Epoch21
+                | StacksEpochId::Epoch22
+                | StacksEpochId::Epoch23
+                | StacksEpochId::Epoch24
+                | StacksEpochId::Epoch25,
+                version,
+            ) => version <= ClarityVersion::Clarity2,
+
+            // For epochs 30 and 31, all clarity versions are supported.
+            (StacksEpochId::Epoch30 | StacksEpochId::Epoch31, _) => true,
+        }
     }
 
     pub fn new_with_network(
