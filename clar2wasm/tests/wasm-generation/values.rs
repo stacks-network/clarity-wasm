@@ -59,7 +59,6 @@ proptest! {
 mod clarity_v2_v3 {
     use clar2wasm::tools::TestEnvironment;
     use clarity::vm::Value;
-    use clarity::vm::errors::{CheckErrors, Error, WasmError};
 
     use super::*;
 
