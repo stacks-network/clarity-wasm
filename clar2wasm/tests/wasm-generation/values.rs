@@ -87,9 +87,6 @@ mod clarity_v2_v3 {
                 val
             );
 
-            println!("SNIPPET:   {:?}", snippet);
-            println!("PRE_CHECK: {:?}", pre_check);
-
             let res = pre_check.unwrap(); // Safe to unwrap because of the prop_assume!
             let expected = if res.is_none() {
                 Ok(Some(Value::none()))
