@@ -402,7 +402,10 @@ mod tests {
 
         #[test]
         fn get_block_info_less_than_two_args() {
-            let mut env = TestEnvironment::default();
+            let mut env = TestEnvironment::new(
+                clarity::types::StacksEpochId::Epoch25,
+                clarity::vm::ClarityVersion::Clarity2,
+            );
             env.advance_chain_tip(1);
             let result = env.evaluate("(get-block-info? id-header-hash)");
             assert!(result.is_err());
