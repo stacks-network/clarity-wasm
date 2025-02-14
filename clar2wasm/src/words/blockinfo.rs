@@ -356,7 +356,8 @@ mod tests {
     #[cfg(any(feature = "test-clarity-v1", feature = "test-clarity-v2"))]
     #[cfg(test)]
     mod clarity_v1_v2 {
-        use clarity::{types::{StacksEpochId}, vm::ClarityVersion};
+        use clarity::types::StacksEpochId;
+        use clarity::vm::ClarityVersion;
 
         use super::*;
         use crate::tools::crosscheck_with_epoch;
@@ -409,10 +410,7 @@ mod tests {
                 StacksEpochId::Epoch25
             };
 
-            let mut env = TestEnvironment::new(
-                epoch,
-                ClarityVersion::default_for_epoch(epoch)
-            );
+            let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
 
             env.advance_chain_tip(1);
             let result = env.evaluate("(get-block-info? id-header-hash)");
@@ -630,10 +628,7 @@ mod tests {
             StacksEpochId::Epoch25
         };
 
-        let mut env = TestEnvironment::new(
-            epoch,
-            ClarityVersion::default_for_epoch(epoch)
-        );
+        let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? burnchain-header-hash u0)")
@@ -652,10 +647,7 @@ mod tests {
             StacksEpochId::Epoch25
         };
 
-        let mut env = TestEnvironment::new(
-            epoch,
-            ClarityVersion::default_for_epoch(epoch)
-        );
+        let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
 
         env.advance_chain_tip(1);
         let result = env
@@ -681,10 +673,7 @@ mod tests {
             StacksEpochId::Epoch25
         };
 
-        let mut env = TestEnvironment::new(
-            epoch,
-            ClarityVersion::default_for_epoch(epoch)
-        );
+        let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
 
         env.advance_chain_tip(1);
         let result = env
@@ -704,10 +693,7 @@ mod tests {
             StacksEpochId::Epoch25
         };
 
-        let mut env = TestEnvironment::new(
-            epoch,
-            ClarityVersion::default_for_epoch(epoch)
-        );
+        let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
 
         env.advance_chain_tip(1);
         let result = env
@@ -732,10 +718,7 @@ mod tests {
             StacksEpochId::Epoch25
         };
 
-        let mut env = TestEnvironment::new(
-            epoch,
-            ClarityVersion::default_for_epoch(epoch)
-        );
+        let mut env = TestEnvironment::new(epoch, ClarityVersion::default_for_epoch(epoch));
 
         env.advance_chain_tip(1);
         let result = env
