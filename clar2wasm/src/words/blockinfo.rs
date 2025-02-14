@@ -342,9 +342,10 @@ impl ComplexWord for GetTenureInfo {
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::errors::{CheckErrors, Error};
     use clarity::vm::types::{OptionalData, PrincipalData, TupleData};
-    use clarity::vm::Value;
+    use clarity::vm::{ClarityVersion, Value};
 
     use crate::tools::{evaluate, TestEnvironment};
 
@@ -355,7 +356,7 @@ mod tests {
     #[cfg(any(feature = "test-clarity-v1", feature = "test-clarity-v2"))]
     #[cfg(test)]
     mod clarity_v1_v2 {
-        use clarity::types::StacksEpochId;
+        use clarity::{types::{StacksEpochId}, vm::ClarityVersion};
 
         use super::*;
         use crate::tools::crosscheck_with_epoch;
@@ -402,10 +403,17 @@ mod tests {
 
         #[test]
         fn get_block_info_less_than_two_args() {
+            let epoch = if cfg!(feature = "test-clarity-v1") {
+                StacksEpochId::Epoch2_05
+            } else {
+                StacksEpochId::Epoch25
+            };
+
             let mut env = TestEnvironment::new(
-                clarity::types::StacksEpochId::Epoch25,
-                clarity::vm::ClarityVersion::Clarity2,
+                epoch,
+                ClarityVersion::default_for_epoch(epoch)
             );
+
             env.advance_chain_tip(1);
             let result = env.evaluate("(get-block-info? id-header-hash)");
             assert!(result.is_err());
@@ -616,9 +624,15 @@ mod tests {
 
     #[test]
     fn get_block_info_burnchain_header_hash() {
+        let epoch = if cfg!(feature = "test-clarity-v1") {
+            StacksEpochId::Epoch2_05
+        } else {
+            StacksEpochId::Epoch25
+        };
+
         let mut env = TestEnvironment::new(
-            clarity::types::StacksEpochId::Epoch25,
-            clarity::vm::ClarityVersion::Clarity2,
+            epoch,
+            ClarityVersion::default_for_epoch(epoch)
         );
         env.advance_chain_tip(1);
         let result = env
@@ -632,10 +646,17 @@ mod tests {
 
     #[test]
     fn get_block_info_id_header_hash() {
+        let epoch = if cfg!(feature = "test-clarity-v1") {
+            StacksEpochId::Epoch2_05
+        } else {
+            StacksEpochId::Epoch25
+        };
+
         let mut env = TestEnvironment::new(
-            clarity::types::StacksEpochId::Epoch25,
-            clarity::vm::ClarityVersion::Clarity2,
+            epoch,
+            ClarityVersion::default_for_epoch(epoch)
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? id-header-hash u0)")
@@ -654,10 +675,17 @@ mod tests {
 
     #[test]
     fn get_block_info_header_hash() {
+        let epoch = if cfg!(feature = "test-clarity-v1") {
+            StacksEpochId::Epoch2_05
+        } else {
+            StacksEpochId::Epoch25
+        };
+
         let mut env = TestEnvironment::new(
-            clarity::types::StacksEpochId::Epoch25,
-            clarity::vm::ClarityVersion::Clarity2,
+            epoch,
+            ClarityVersion::default_for_epoch(epoch)
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? header-hash u0)")
@@ -670,10 +698,17 @@ mod tests {
 
     #[test]
     fn get_block_info_miner_address() {
+        let epoch = if cfg!(feature = "test-clarity-v1") {
+            StacksEpochId::Epoch2_05
+        } else {
+            StacksEpochId::Epoch25
+        };
+
         let mut env = TestEnvironment::new(
-            clarity::types::StacksEpochId::Epoch25,
-            clarity::vm::ClarityVersion::Clarity2,
+            epoch,
+            ClarityVersion::default_for_epoch(epoch)
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? miner-address u0)")
@@ -691,10 +726,17 @@ mod tests {
 
     #[test]
     fn get_block_info_time() {
+        let epoch = if cfg!(feature = "test-clarity-v1") {
+            StacksEpochId::Epoch2_05
+        } else {
+            StacksEpochId::Epoch25
+        };
+
         let mut env = TestEnvironment::new(
-            clarity::types::StacksEpochId::Epoch25,
-            clarity::vm::ClarityVersion::Clarity2,
+            epoch,
+            ClarityVersion::default_for_epoch(epoch)
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? time u0)")
@@ -731,6 +773,7 @@ mod tests {
             clarity::types::StacksEpochId::Epoch25,
             clarity::vm::ClarityVersion::Clarity2,
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? miner-spend-total u0)")
@@ -744,6 +787,7 @@ mod tests {
             clarity::types::StacksEpochId::Epoch25,
             clarity::vm::ClarityVersion::Clarity2,
         );
+
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? miner-spend-winner u0)")
