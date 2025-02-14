@@ -58,42 +58,53 @@ proptest! {
 #[cfg(not(feature = "test-clarity-v1"))]
 mod clarity_v2_v3 {
     use clar2wasm::tools::TestEnvironment;
+    use clarity::vm::types::{BuffData, SequenceData};
     use clarity::vm::Value;
 
     use super::*;
 
     proptest! {
         #[test]
-        fn value_serialized_and_deserialized(val in PropValue::any()) {
-            let mut env = TestEnvironment::default();
+        fn serialize_deserialize_any_value(val in PropValue::any()) {
+            let snippet = format!("(to-consensus-buff? {val})");
+            const INPUT_TYPE_ERROR: &str = "could not determine the input type for the serialization function";
 
-            let to_consensus_snippet = format!("(to-consensus-buff? {val})");
-            let pre_check = env.evaluate(&to_consensus_snippet);
-
-            // Discard test cases only when `to-consensus-buff?` evaluation
+            // Pre-check to discard test cases where `to-consensus-buff?` evaluation
             // could not determine the type of the input parameter.
             // For instance, `(to-consensus-buff? (list))` where a `NoType` should not be evaluated.
-            let err_msg = "could not determine the input type for the serialization function";
+            let mut env = TestEnvironment::default();
+            let pre_check = env.evaluate(&snippet);
             prop_assume!(match pre_check {
                 Ok(_) => true,
-                Err(ref e) if e.to_string().contains(err_msg) => false,
+                Err(ref e) if e.to_string().contains(INPUT_TYPE_ERROR) => false,
                 _ => true
             });
 
-            let snippet = format!(
-                "(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))",
-                val.type_string(),
-                val
-            );
+            // Serialize the PropValue to check it against
+            // the `to-consensus-buff?` implementation.
+            let serialized_value = Value::Sequence(SequenceData::Buffer(BuffData {
+                data: Value::from(val.clone()).serialize_to_vec().unwrap()
+            }));
 
             let res = pre_check.unwrap(); // Safe to unwrap because of the prop_assume!
             let expected = if res.is_none() {
                 Ok(Some(Value::none()))
             } else {
-                Ok(Some(Value::some(val.into()).unwrap()))
+                Ok(Some(Value::some(serialized_value.clone()).unwrap()))
             };
 
+            // Crosscheck serialization
             crosscheck(&snippet, expected);
+
+            // Crosscheck deserialization with `from-consensus-buff?`
+            crosscheck(
+                &format!(
+                    "(from-consensus-buff? {} {})",
+                    val.type_string(),
+                    serialized_value
+                ),
+                Ok(Some(Value::some(Value::from(val)).unwrap()))
+            );
         }
     }
 }
