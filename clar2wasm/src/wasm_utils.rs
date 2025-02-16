@@ -721,6 +721,21 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
     }
 }
 
+pub trait WasmWriter {
+    type Error: Into<Error>;
+    fn write_to_wasm_memory(&mut self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error>;
+}
+
+impl<Store: AsContextMut> WasmWriter for (Store, Memory) {
+    type Error = clarity::vm::errors::Error;
+    fn write_to_wasm_memory(&mut self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.1
+            .write(self.0.as_context_mut(), offset as usize, buffer)
+            .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+        Ok(())
+    }
+}
+
 /// Write a value to the Wasm memory at `offset` given the provided Clarity
 /// `TypeSignature`.
 ///
@@ -728,15 +743,18 @@ pub fn placeholder_for_type(ty: ValType) -> Val {
 /// to the memory at `in_mem_offset`, and if `include_repr` is true, the offset
 /// and length of the value will be written to the memory at `offset`.
 /// Returns the number of bytes written at `offset` and at `in_mem_offset`.
-pub fn write_to_wasm(
-    mut store: impl AsContextMut,
-    memory: Memory,
+pub fn write_to_wasm<W>(
+    writer: &mut W,
     ty: &TypeSignature,
     offset: i32,
     in_mem_offset: i32,
     value: &Value,
     include_repr: bool,
-) -> Result<(i32, i32), Error> {
+) -> Result<(i32, i32), W::Error>
+where
+    W: WasmWriter,
+    W::Error: From<Error>,
+{
     match ty {
         TypeSignature::IntType => {
             let mut buffer: [u8; 8] = [0; 8];
@@ -744,13 +762,9 @@ pub fn write_to_wasm(
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
-            memory
-                .write(&mut store, offset as usize, &buffer)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &buffer)?;
             buffer.copy_from_slice(&high.to_le_bytes());
-            memory
-                .write(&mut store, (offset + 8) as usize, &buffer)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset + 8, &buffer)?;
             Ok((16, 0))
         }
         TypeSignature::UIntType => {
@@ -759,13 +773,9 @@ pub fn write_to_wasm(
             let high = (i >> 64) as u64;
             let low = (i & 0xffff_ffff_ffff_ffff) as u64;
             buffer.copy_from_slice(&low.to_le_bytes());
-            memory
-                .write(&mut store, offset as usize, &buffer)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &buffer)?;
             buffer.copy_from_slice(&high.to_le_bytes());
-            memory
-                .write(&mut store, (offset + 8) as usize, &buffer)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset + 8, &buffer)?;
             Ok((16, 0))
         }
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_length)) => {
@@ -774,27 +784,17 @@ pub fn write_to_wasm(
             let mut in_mem_written = 0;
 
             // Write the value to `in_mem_offset`
-            memory
-                .write(
-                    &mut store,
-                    (in_mem_offset + in_mem_written) as usize,
-                    &buffdata.data,
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &buffdata.data)?;
             in_mem_written += buffdata.data.len() as i32;
 
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                memory
-                    .write(&mut store, (offset) as usize, &offset_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                memory
-                    .write(&mut store, (offset + written) as usize, &len_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -819,27 +819,17 @@ pub fn write_to_wasm(
             let mut in_mem_written = 0;
 
             // Write the value to `in_mem_offset`
-            memory
-                .write(
-                    &mut store,
-                    (in_mem_offset + in_mem_written) as usize,
-                    &string,
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &string)?;
             in_mem_written += string.len() as i32;
 
             if include_repr {
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                memory
-                    .write(&mut store, (offset) as usize, &offset_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                memory
-                    .write(&mut store, (offset + written) as usize, &len_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -860,8 +850,7 @@ pub fn write_to_wasm(
             let mut val_in_mem_written = 0;
             for elem in &list_data.data {
                 let (new_written, new_in_mem_written) = write_to_wasm(
-                    store.as_context_mut(),
-                    memory,
+                    writer,
                     elem_ty,
                     val_offset + val_written,
                     val_in_mem_offset + val_in_mem_written,
@@ -876,14 +865,10 @@ pub fn write_to_wasm(
                 // Write the representation (offset and length) of the value to
                 // `offset`.
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                memory
-                    .write(&mut store, (offset) as usize, &offset_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = val_written.to_le_bytes();
-                memory
-                    .write(&mut store, (offset + 4) as usize, &len_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset + 4, &len_buffer)?;
                 written += 4;
             }
 
@@ -895,15 +880,12 @@ pub fn write_to_wasm(
             let res = value_as_response(value)?;
             let indicator = if res.committed { 1i32 } else { 0i32 };
             let indicator_bytes = indicator.to_le_bytes();
-            memory
-                .write(&mut store, (offset) as usize, &indicator_bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &indicator_bytes)?;
             written += 4;
 
             if res.committed {
                 let (new_written, new_in_mem_written) = write_to_wasm(
-                    store,
-                    memory,
+                    writer,
                     &inner_types.0,
                     offset + written,
                     in_mem_offset,
@@ -920,8 +902,7 @@ pub fn write_to_wasm(
                 written += get_type_size(&inner_types.0);
 
                 let (new_written, new_in_mem_written) = write_to_wasm(
-                    store,
-                    memory,
+                    writer,
                     &inner_types.1,
                     offset + written,
                     in_mem_offset,
@@ -937,16 +918,12 @@ pub fn write_to_wasm(
             let bool_val = value_as_bool(value)?;
             let val = if bool_val { 1u32 } else { 0u32 };
             let val_bytes = val.to_le_bytes();
-            memory
-                .write(&mut store, (offset) as usize, &val_bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &val_bytes)?;
             Ok((4, 0))
         }
         TypeSignature::NoType => {
             let val_bytes = [0u8; 4];
-            memory
-                .write(&mut store, (offset) as usize, &val_bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &val_bytes)?;
             Ok((4, 0))
         }
         TypeSignature::OptionalType(inner_ty) => {
@@ -955,14 +932,11 @@ pub fn write_to_wasm(
             let opt_data = value_as_optional(value)?;
             let indicator = if opt_data.data.is_some() { 1i32 } else { 0i32 };
             let indicator_bytes = indicator.to_le_bytes();
-            memory
-                .write(&mut store, (offset) as usize, &indicator_bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(offset, &indicator_bytes)?;
             written += 4;
             if let Some(inner) = opt_data.data.as_ref() {
                 let (new_written, new_in_mem_written) = write_to_wasm(
-                    store,
-                    memory,
+                    writer,
                     inner_ty,
                     offset + written,
                     in_mem_offset,
@@ -991,46 +965,20 @@ pub fn write_to_wasm(
             let mut in_mem_written = 0;
 
             // Write the value to in_mem_offset
-            memory
-                .write(
-                    &mut store,
-                    (in_mem_offset + in_mem_written) as usize,
-                    &[standard.0],
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &[standard.0])?;
             in_mem_written += 1;
-            memory
-                .write(
-                    &mut store,
-                    (in_mem_offset + in_mem_written) as usize,
-                    &standard.1,
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &standard.1)?;
             in_mem_written += standard.1.len() as i32;
             if !contract_name.is_empty() {
                 let len_buffer = [contract_name.len() as u8];
-                memory
-                    .write(
-                        &mut store,
-                        (in_mem_offset + in_mem_written) as usize,
-                        &len_buffer,
-                    )
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &len_buffer)?;
                 in_mem_written += 1;
                 let bytes = contract_name.as_bytes();
-                memory
-                    .write(&mut store, (in_mem_offset + in_mem_written) as usize, bytes)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, bytes)?;
                 in_mem_written += bytes.len() as i32;
             } else {
                 let len_buffer = [0u8];
-                memory
-                    .write(
-                        &mut store,
-                        (in_mem_offset + in_mem_written) as usize,
-                        &len_buffer,
-                    )
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(in_mem_offset + in_mem_written, &len_buffer)?;
                 in_mem_written += 1;
             }
 
@@ -1038,14 +986,10 @@ pub fn write_to_wasm(
                 // Write the representation (offset and length of the value) to the
                 // offset
                 let offset_buffer = in_mem_offset.to_le_bytes();
-                memory
-                    .write(&mut store, (offset) as usize, &offset_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset, &offset_buffer)?;
                 written += 4;
                 let len_buffer = in_mem_written.to_le_bytes();
-                memory
-                    .write(&mut store, (offset + written) as usize, &len_buffer)
-                    .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+                writer.write_to_wasm_memory(offset + written, &len_buffer)?;
                 written += 4;
             }
 
@@ -1062,8 +1006,7 @@ pub fn write_to_wasm(
                     .get(key)
                     .ok_or(Error::Wasm(WasmError::ValueTypeMismatch))?;
                 let (new_written, new_in_mem_written) = write_to_wasm(
-                    store.as_context_mut(),
-                    memory,
+                    writer,
                     val_type,
                     offset + written,
                     in_mem_offset + in_mem_written,
@@ -1298,6 +1241,8 @@ pub fn call_function<'a>(
         .get_memory(&mut store, "memory")
         .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
+    let mut writer = (store, memory);
+
     // Determine how much space is needed for arguments
     let mut arg_size = 0;
     for arg in func_types.get_arg_types() {
@@ -1309,12 +1254,11 @@ pub fn call_function<'a>(
     let mut wasm_args = vec![];
     for (arg, ty) in args.iter().zip(func_types.get_arg_types()) {
         let (arg_vec, new_offset, new_in_mem_offset) =
-            pass_argument_to_wasm(memory, &mut store, ty, arg, offset, in_mem_offset)?;
+            pass_argument_to_wasm(&mut writer, ty, arg, offset, in_mem_offset)?;
         wasm_args.extend(arg_vec);
         offset = new_offset;
         in_mem_offset = new_in_mem_offset;
     }
-
     // Reserve stack space for the return value, if necessary.
     let return_type = func_types
         .get_return_type()
@@ -1322,21 +1266,20 @@ pub fn call_function<'a>(
         .ok_or(Error::Wasm(WasmError::ExpectedReturnValue))?
         .clone();
     let (mut results, offset) = reserve_space_for_return(offset, &return_type)?;
-
     // Update the stack pointer after space is reserved for the arguments and
     // return values.
     stack_pointer
-        .set(&mut store, Val::I32(offset))
+        .set(&mut writer.0, Val::I32(offset))
         .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
 
     // Call the function
-    func.call(&mut store, &wasm_args, &mut results)
+    func.call(&mut writer.0, &wasm_args, &mut results)
         .map_err(|e| {
-            error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
+            error_mapping::resolve_error(e, instance, &mut writer.0, &epoch, &clarity_version)
         })?;
 
     // If the function returns a value, translate it into a Clarity `Value`
-    wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)
+    wasm_to_clarity_value(&return_type, 0, &results, writer.1, &mut writer.0, epoch)
         .map(|(val, _offset)| val)
         .and_then(|option_value| {
             option_value.ok_or_else(|| Error::Wasm(WasmError::ExpectedReturnValue))
@@ -1348,8 +1291,7 @@ pub fn call_function<'a>(
 /// Return a vector of `Val`s that can be passed to a Wasm function, and the
 /// two offsets, adjusted to the next available memory location.
 fn pass_argument_to_wasm(
-    memory: Memory,
-    mut store: impl AsContextMut,
+    writer: &mut (impl AsContextMut, Memory),
     ty: &TypeSignature,
     value: &Value,
     offset: i32,
@@ -1380,14 +1322,8 @@ fn pass_argument_to_wasm(
 
             if let Some(inner_value) = o.data.as_ref() {
                 let mut buffer = vec![Val::I32(1)];
-                let (inner_buffer, new_offset, new_in_mem_offset) = pass_argument_to_wasm(
-                    memory,
-                    store,
-                    inner_ty,
-                    inner_value,
-                    offset,
-                    in_mem_offset,
-                )?;
+                let (inner_buffer, new_offset, new_in_mem_offset) =
+                    pass_argument_to_wasm(writer, inner_ty, inner_value, offset, in_mem_offset)?;
                 buffer.extend(inner_buffer);
                 Ok((buffer, new_offset, new_in_mem_offset))
             } else {
@@ -1408,8 +1344,7 @@ fn pass_argument_to_wasm(
             };
             let mut buffer = vec![Val::I32(r.committed as i32)];
             let (value_buffer, new_offset, new_in_mem_offset) = pass_argument_to_wasm(
-                memory,
-                store,
+                writer,
                 if r.committed {
                     &inner_tys.0
                 } else {
@@ -1445,13 +1380,7 @@ fn pass_argument_to_wasm(
             // For a string, write the bytes into the memory, then pass the
             // offset and length to the Wasm function.
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(s.data.len() as i32)];
-            memory
-                .write(
-                    store.as_context_mut(),
-                    in_mem_offset as usize,
-                    s.data.as_slice(),
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset, s.data.as_slice())?;
             let adjusted_in_mem_offset = in_mem_offset + s.data.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1464,9 +1393,7 @@ fn pass_argument_to_wasm(
                 .flat_map(|c| (c as u32).to_be_bytes())
                 .collect();
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            memory
-                .write(&mut store, in_mem_offset as usize, &bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1474,13 +1401,7 @@ fn pass_argument_to_wasm(
             // For a buffer, write the bytes into the memory, then pass the
             // offset and length to the Wasm function.
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(b.data.len() as i32)];
-            memory
-                .write(
-                    store.as_context_mut(),
-                    in_mem_offset as usize,
-                    b.data.as_slice(),
-                )
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset, b.data.as_slice())?;
             let adjusted_in_mem_offset = in_mem_offset + b.data.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1494,8 +1415,7 @@ fn pass_argument_to_wasm(
             let mut in_mem_written = 0;
             for item in &l.data {
                 let (len, in_mem_len) = write_to_wasm(
-                    &mut store,
-                    memory,
+                    writer,
                     ltd.get_list_item_type(),
                     offset + written,
                     in_mem_offset + in_mem_written,
@@ -1514,9 +1434,7 @@ fn pass_argument_to_wasm(
             bytes.extend(h);
             bytes.push(0);
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            memory
-                .write(&mut store, in_mem_offset as usize, &bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1538,9 +1456,7 @@ fn pass_argument_to_wasm(
                 .copied()
                 .collect();
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
-            memory
-                .write(&mut store, in_mem_offset as usize, &bytes)
-                .map_err(|e| Error::Wasm(WasmError::UnableToWriteMemory(e.into())))?;
+            writer.write_to_wasm_memory(in_mem_offset, &bytes)?;
             let adjusted_in_mem_offset = in_mem_offset + bytes.len() as i32;
             Ok((buffer, offset, adjusted_in_mem_offset))
         }
@@ -1554,14 +1470,8 @@ fn pass_argument_to_wasm(
             let mut in_mem_offset = in_mem_offset;
             for (name, ty) in tuple_ty.get_type_map() {
                 let b;
-                (b, offset, in_mem_offset) = pass_argument_to_wasm(
-                    memory,
-                    store.as_context_mut(),
-                    ty,
-                    &data_map[name],
-                    offset,
-                    in_mem_offset,
-                )?;
+                (b, offset, in_mem_offset) =
+                    pass_argument_to_wasm(writer, ty, &data_map[name], offset, in_mem_offset)?;
                 buffer.extend(b);
             }
             Ok((buffer, offset, in_mem_offset))

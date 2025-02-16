@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use clarity::vm::analysis::ContractAnalysis;
 use clarity::vm::diagnostic::DiagnosableError;
+use clarity::vm::errors::{Error, WasmError};
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
     ASCIIData, CharType, FixedFunction, FunctionType, ListTypeData, PrincipalData, SequenceData,
@@ -26,7 +27,7 @@ use walrus::{
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
-    ArgumentCountCheck, PRINCIPAL_BYTES_MAX,
+    ArgumentCountCheck, WasmWriter, PRINCIPAL_BYTES_MAX,
 };
 use crate::{check_args, debug_msg, words};
 
@@ -172,6 +173,30 @@ impl ArgumentsExt for &[SymbolicExpression] {
     }
 }
 
+impl From<GeneratorError> for Error {
+    fn from(e: GeneratorError) -> Self {
+        Error::Wasm(WasmError::UnableToWriteMemory(wasmtime::Error::msg(
+            format!("{:?}", e),
+        )))
+    }
+}
+
+impl WasmWriter for &mut WasmGenerator {
+    type Error = GeneratorError;
+    fn write_to_wasm_memory(&mut self, offset: i32, buffer: &[u8]) -> Result<(), Self::Error> {
+        let memory = self.get_memory()?;
+
+        self.module.data.add(
+            DataKind::Active(ActiveData {
+                memory,
+                location: walrus::ActiveDataLocation::Absolute(offset as u32),
+            }),
+            buffer.to_vec(),
+        );
+
+        Ok(())
+    }
+}
 /// Push a placeholder value for Wasm type `ty` onto the data stack.
 /// `unreachable!` is used for Wasm types that should never be used.
 #[allow(clippy::unreachable)]
