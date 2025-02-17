@@ -337,6 +337,14 @@
     (global $runtime-error-type-ser-offset (mut i32) (i32.const -1))
     (global $runtime-error-type-ser-len (mut i32) (i32.const -1))
 
+    ;;
+    ;; Cost tracking global definitions
+    (global $cost-runtime (mut i64) (i64.const 0))
+    (global $cost-read-count (mut i64) (i64.const 0))
+    (global $cost-read-length (mut i64) (i64.const 0))
+    (global $cost-write-count (mut i64) (i64.const 0))
+    (global $cost-write-length (mut i64) (i64.const 0))
+
     ;; (sha256) initial hash values: first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19
     (data (i32.const 0) "\67\e6\09\6a\85\ae\67\bb\72\f3\6e\3c\3a\f5\4f\a5\7f\52\0e\51\8c\68\05\9b\ab\d9\83\1f\19\cd\e0\5b")
 
@@ -385,6 +393,11 @@
         ;; 5: buffer to integer expects a buffer length <= 16
         ;; 6: panic
         ;; 7: short return
+        ;; 100: runtime cost overrun
+        ;; 101: read count cost overrun
+        ;; 102: read length cost overrun
+        ;; 103: write count cost overrun
+        ;; 104: write length cost overrun
     (func $stdlib.runtime-error (param $error_code i32)
         (global.set $runtime-error-code (local.get $error_code))
 
@@ -3967,6 +3980,14 @@
     (export "runtime-error-value-offset" (global $runtime-error-value-offset))
     (export "runtime-error-type-ser-offset" (global $runtime-error-type-ser-offset))
     (export "runtime-error-type-ser-len" (global $runtime-error-type-ser-len))
+
+    ;;
+    ;; Cost tracking globals
+    (export "cost-runtime" (global $cost-runtime))
+    (export "cost-read-count" (global $cost-read-count))
+    (export "cost-read-length" (global $cost-read-length))
+    (export "cost-write-count" (global $cost-write-count))
+    (export "cost-write-length" (global $cost-write-length))
 
     ;; Functions
     (export "stdlib.add-uint" (func $stdlib.add-uint))
