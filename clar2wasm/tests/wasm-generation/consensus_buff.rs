@@ -145,5 +145,34 @@ mod clarity_v2_v3 {
                 Err(_) => prop_assume!(false),
             }
         }
+
+        #[test]
+        fn deserialize_any_value(val in PropValue::any()) {
+            // Convert the PropValue into a Clarity Value and attempt to serialize it.
+            let ser_val = Value::from(val.clone()).serialize_to_vec();
+            match ser_val {
+                // If serialization succeeds, continue with the test by verifying deserialization.
+                Ok(vec_val) => {
+                    let serialized_value = Value::Sequence(SequenceData::Buffer(BuffData {
+                        data: vec_val
+                    }));
+
+                    // Expression that attempts to deserialize the buffer.
+                    // The expected outcome is that the deserialized value matches the original value.
+                    let snippet = format!(
+                        "(from-consensus-buff? {} {})",
+                        val.type_string(),
+                        serialized_value
+                    );
+
+                    crosscheck(
+                        &snippet,
+                        Ok(Some(Value::some(Value::from(val)).unwrap()))
+                    );
+                },
+                // If the value cannot be serialized, skip the test.
+                Err(_) => prop_assume!(false),
+            }
+        }
     }
 }
