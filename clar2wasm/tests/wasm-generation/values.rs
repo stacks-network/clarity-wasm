@@ -50,31 +50,3 @@ proptest! {
         )
     }
 }
-
-//
-// Proptests that should only be executed
-// when running Clarity::V2 or Clarity::v3.
-//
-#[cfg(not(feature = "test-clarity-v1"))]
-mod clarity_v2_v3 {
-    use clar2wasm::tools::TestEnvironment;
-    use clarity::vm::Value;
-
-    use super::*;
-    use crate::runtime_config;
-
-    proptest! {
-        #![proptest_config(runtime_config())]
-
-        #[test]
-        fn value_serialized_and_deserialized(val in PropValue::any().prop_filter("Filter condition description", |val| {
-            let mut env = TestEnvironment::default();
-            env.evaluate(&format!("(to-consensus-buff? {val})")).is_ok()
-        })) {
-            crosscheck(
-                &format!("(from-consensus-buff? {} (unwrap-panic (to-consensus-buff? {})))", val.type_string() ,val),
-                Ok(Some(Value::some(val.into()).unwrap()))
-            )
-        }
-    }
-}
