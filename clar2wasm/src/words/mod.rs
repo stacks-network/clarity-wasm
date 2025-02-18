@@ -188,6 +188,8 @@ pub(crate) static SIMPLE_WORDS: &[&'static dyn SimpleWord] = &[
     &stx::StxGetBalance,
 ];
 
+// FIXME: cost tracking of simple variadic words is incorrect
+
 pub(crate) static SIMPLE_VARIADIC_WORDS: &[&'static dyn SimpleWord] = &[
     &arithmetic::Sub,
     &arithmetic::Div,

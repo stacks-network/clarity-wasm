@@ -23,6 +23,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
+use crate::cost::CostGlobals;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
@@ -62,6 +63,11 @@ pub struct WasmGenerator {
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
+
+    /// Emits cost tracking code.
+    pub(crate) cost_globals: CostGlobals,
+    pub(crate) emit_cost_code: bool,
+
     /// Size of the current function's stack frame.
     frame_size: i32,
     /// Size of the maximum extra work space required by the stdlib functions
@@ -312,6 +318,14 @@ impl WasmGenerator {
         // Get the stack-pointer global ID
         let global_id = get_global(&module, "stack-pointer")?;
 
+        let cost_globals = CostGlobals {
+            runtime: get_global(&module, "cost-runtime")?,
+            read_count: get_global(&module, "cost-read-count")?,
+            read_length: get_global(&module, "cost-read-length")?,
+            write_count: get_global(&module, "cost-write-count")?,
+            write_length: get_global(&module, "cost-write-length")?,
+        };
+
         Ok(WasmGenerator {
             contract_analysis,
             module,
@@ -320,6 +334,8 @@ impl WasmGenerator {
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: Bindings::new(),
+            cost_globals,
+            emit_cost_code: false,
             early_return_block_id: None,
             current_function_type: None,
             frame_size: 0,
@@ -329,6 +345,12 @@ impl WasmGenerator {
             local_pool: Rc::new(RefCell::new(HashMap::new())),
             nft_types: HashMap::new(),
         })
+    }
+
+    pub fn with_cost_code(contract_analysis: ContractAnalysis) -> Result<Self, GeneratorError> {
+        let mut generator = Self::new(contract_analysis)?;
+        generator.emit_cost_code = true;
+        Ok(generator)
     }
 
     pub fn set_memory_pages(&mut self) -> Result<(), GeneratorError> {
@@ -2156,6 +2178,12 @@ impl WasmGenerator {
     }
 }
 
+impl AsRef<CostGlobals> for WasmGenerator {
+    fn as_ref(&self) -> &CostGlobals {
+        &self.cost_globals
+    }
+}
+
 /// Returns true if a composed type has an inner in-memory type.
 fn has_in_memory_type(ty: &TypeSignature) -> bool {
     match ty {
@@ -2268,6 +2296,7 @@ mod tests {
                 ClarityVersion::Clarity2,
                 StacksEpochId::Epoch25,
                 &mut AnalysisDatabase::new(&mut MemoryBackingStore::new()),
+                false,
             )
             .unwrap()
             .module;

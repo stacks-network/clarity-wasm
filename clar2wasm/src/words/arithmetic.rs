@@ -3,6 +3,7 @@ use clarity::vm::ClarityName;
 use walrus::ValType;
 
 use super::SimpleWord;
+use crate::cost::CostTrackingGenerator;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
@@ -44,7 +45,9 @@ impl SimpleWord for Add {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        if arg_types.len() > 1 {
+        let args_len = arg_types.len();
+
+        if args_len > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
                 TypeSignature::UIntType => "uint",
@@ -54,7 +57,9 @@ impl SimpleWord for Add {
                     ));
                 }
             };
+
             let func = generator.func_by_name(&format!("stdlib.add-{type_suffix}"));
+            generator.cost_add(builder, args_len as _);
             builder.call(func);
         }
         Ok(())
@@ -76,10 +81,12 @@ impl SimpleWord for Sub {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        let args_len = arg_types.len();
+
         let func = match return_type {
             TypeSignature::IntType => {
                 let type_suffix = "int";
-                if arg_types.len() == 1 {
+                if args_len == 1 {
                     // Locals declaration.
                     let op_lo = generator.module.locals.add(ValType::I64);
                     let op_hi = generator.module.locals.add(ValType::I64);
@@ -95,7 +102,7 @@ impl SimpleWord for Sub {
             }
             TypeSignature::UIntType => {
                 let type_suffix = "uint";
-                if arg_types.len() == 1 {
+                if args_len == 1 {
                     // unary 'uint' subtraction:
                     // throws an underflow runtime error.
                     builder.i32_const(ErrorMap::ArithmeticUnderflow as i32);
@@ -111,6 +118,7 @@ impl SimpleWord for Sub {
             }
         };
 
+        generator.cost_sub(builder, args_len as _);
         builder.call(func);
 
         Ok(())
@@ -132,7 +140,9 @@ impl SimpleWord for Mul {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        if arg_types.len() > 1 {
+        let args_len = arg_types.len();
+
+        if args_len > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
                 TypeSignature::UIntType => "uint",
@@ -142,9 +152,12 @@ impl SimpleWord for Mul {
                     ));
                 }
             };
+
             let func = generator.func_by_name(&format!("stdlib.mul-{type_suffix}"));
+            generator.cost_mul(builder, args_len as _);
             builder.call(func);
         }
+
         Ok(())
     }
 }
@@ -164,7 +177,9 @@ impl SimpleWord for Div {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        if arg_types.len() > 1 {
+        let args_len = arg_types.len();
+
+        if args_len > 1 {
             let type_suffix = match return_type {
                 TypeSignature::IntType => "int",
                 TypeSignature::UIntType => "uint",
@@ -174,7 +189,9 @@ impl SimpleWord for Div {
                     ));
                 }
             };
+
             let func = generator.func_by_name(&format!("stdlib.div-{type_suffix}"));
+            generator.cost_div(builder, args_len as _);
             builder.call(func);
         }
         Ok(())
