@@ -20,6 +20,8 @@ pub trait CostTrackingGenerator {
     fn emit_cost_code(&self) -> bool;
     fn globals(&self) -> &CostGlobals;
 
+    // simple variadic words
+
     fn cost_add(&self, instrs: &mut InstrSeqBuilder, n: u32) {
         if self.emit_cost_code() {
             let globals = self.globals();
@@ -45,6 +47,36 @@ pub trait CostTrackingGenerator {
         if self.emit_cost_code() {
             let globals = self.globals();
             caf_linear(instrs, globals.runtime, n, 13, 125);
+        }
+    }
+
+    // simple words
+
+    fn cost_log2(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 133);
+        }
+    }
+
+    fn cost_mod(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 141);
+        }
+    }
+
+    fn cost_pow(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 143);
+        }
+    }
+
+    fn cost_sqrti(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 142);
         }
     }
 }

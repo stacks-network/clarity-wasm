@@ -213,6 +213,7 @@ impl SimpleWord for Modulo {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_mod(builder);
         simple_typed_one_call(generator, builder, arg_types, return_type, "mod")
     }
 }
@@ -232,6 +233,7 @@ impl SimpleWord for Log2 {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_log2(builder);
         simple_typed_one_call(generator, builder, arg_types, return_type, "log2")
     }
 }
@@ -251,6 +253,7 @@ impl SimpleWord for Power {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_pow(builder);
         simple_typed_one_call(generator, builder, arg_types, return_type, "pow")
     }
 }
@@ -270,6 +273,7 @@ impl SimpleWord for Sqrti {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_sqrti(builder);
         simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")
     }
 }
