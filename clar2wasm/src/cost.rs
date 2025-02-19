@@ -79,6 +79,48 @@ pub trait CostTrackingGenerator {
             caf_const(instrs, globals.runtime, 142);
         }
     }
+
+    fn cost_bitwise_and(&self, instrs: &mut InstrSeqBuilder, n: u32) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_linear(instrs, globals.runtime, n, 15, 129);
+        }
+    }
+
+    fn cost_bitwise_or(&self, instrs: &mut InstrSeqBuilder, n: u32) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_linear(instrs, globals.runtime, n, 15, 129);
+        }
+    }
+
+    fn cost_bitwise_xor(&self, instrs: &mut InstrSeqBuilder, n: u32) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_linear(instrs, globals.runtime, n, 15, 129);
+        }
+    }
+
+    fn cost_bitwise_not(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 147);
+        }
+    }
+
+    fn cost_bitwise_lshift(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 167);
+        }
+    }
+
+    fn cost_bitwise_rshift(&self, instrs: &mut InstrSeqBuilder) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            caf_const(instrs, globals.runtime, 167);
+        }
+    }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
