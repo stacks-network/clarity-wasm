@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1739928232313,
+  "lastUpdate": 1739928326513,
   "repoUrl": "https://github.com/stacks-network/clarity-wasm",
   "entries": {
     "Benchmark": [
@@ -53701,6 +53701,1334 @@ window.BENCHMARK_DATA = {
             "name": "poc2/webassembly/121",
             "value": 1188579,
             "range": "± 14269",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "stacks-network",
+            "username": "stacks-network"
+          },
+          "committer": {
+            "name": "stacks-network",
+            "username": "stacks-network"
+          },
+          "id": "8ad1f2ee346753ab22f840a37ec56b854d4d2f20",
+          "message": "Add cost tracking code",
+          "timestamp": "2025-02-18T15:40:11Z",
+          "url": "https://github.com/stacks-network/clarity-wasm/pull/617/commits/8ad1f2ee346753ab22f840a37ec56b854d4d2f20"
+        },
+        "date": 1739928326063,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add/interpreter",
+            "value": 918,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add/webassembly",
+            "value": 309644,
+            "range": "± 6671",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/1",
+            "value": 4214,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/1",
+            "value": 339331,
+            "range": "± 6941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/51",
+            "value": 93859,
+            "range": "± 1742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/51",
+            "value": 343800,
+            "range": "± 7291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/101",
+            "value": 182173,
+            "range": "± 3837",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/101",
+            "value": 345740,
+            "range": "± 8136",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/151",
+            "value": 272883,
+            "range": "± 6602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/151",
+            "value": 348242,
+            "range": "± 6232",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/201",
+            "value": 360975,
+            "range": "± 8369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/201",
+            "value": 352047,
+            "range": "± 6860",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/251",
+            "value": 451191,
+            "range": "± 10846",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/251",
+            "value": 355592,
+            "range": "± 5991",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/301",
+            "value": 545146,
+            "range": "± 15011",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/301",
+            "value": 357091,
+            "range": "± 7323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/351",
+            "value": 633182,
+            "range": "± 14682",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/351",
+            "value": 357373,
+            "range": "± 7002",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/401",
+            "value": 720521,
+            "range": "± 18104",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/401",
+            "value": 352844,
+            "range": "± 6818",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/451",
+            "value": 807904,
+            "range": "± 18130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/451",
+            "value": 356494,
+            "range": "± 16797",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/501",
+            "value": 900143,
+            "range": "± 21609",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/501",
+            "value": 358770,
+            "range": "± 6508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/551",
+            "value": 987496,
+            "range": "± 22243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/551",
+            "value": 360155,
+            "range": "± 6231",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/601",
+            "value": 1081036,
+            "range": "± 25006",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/601",
+            "value": 361957,
+            "range": "± 6587",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/651",
+            "value": 1172461,
+            "range": "± 63186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/651",
+            "value": 367519,
+            "range": "± 5828",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/701",
+            "value": 1264005,
+            "range": "± 28368",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/701",
+            "value": 370075,
+            "range": "± 8584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/751",
+            "value": 1351086,
+            "range": "± 34804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/751",
+            "value": 368537,
+            "range": "± 7868",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/801",
+            "value": 1437564,
+            "range": "± 32142",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/801",
+            "value": 370016,
+            "range": "± 12745",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/851",
+            "value": 1545947,
+            "range": "± 36267",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/851",
+            "value": 374905,
+            "range": "± 6473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/901",
+            "value": 1628158,
+            "range": "± 35373",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/901",
+            "value": 374823,
+            "range": "± 13055",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/951",
+            "value": 1718128,
+            "range": "± 39580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/951",
+            "value": 381070,
+            "range": "± 6394",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/interpreter/1001",
+            "value": 1808948,
+            "range": "± 39480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fold_add_square/webassembly/1001",
+            "value": 382266,
+            "range": "± 6760",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/1",
+            "value": 7388,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/1",
+            "value": 353098,
+            "range": "± 8752",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/51",
+            "value": 225587,
+            "range": "± 1250",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/51",
+            "value": 528598,
+            "range": "± 10586",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/101",
+            "value": 441718,
+            "range": "± 3354",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/101",
+            "value": 690155,
+            "range": "± 20674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/151",
+            "value": 658521,
+            "range": "± 9582",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/151",
+            "value": 855825,
+            "range": "± 21219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/201",
+            "value": 872155,
+            "range": "± 5620",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/201",
+            "value": 1015517,
+            "range": "± 12284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/251",
+            "value": 1080622,
+            "range": "± 11613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/251",
+            "value": 1163618,
+            "range": "± 18402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/301",
+            "value": 1286372,
+            "range": "± 21957",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/301",
+            "value": 1304435,
+            "range": "± 31504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/351",
+            "value": 1496053,
+            "range": "± 10939",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/351",
+            "value": 1466130,
+            "range": "± 17897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/401",
+            "value": 1713326,
+            "range": "± 9984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/401",
+            "value": 1618682,
+            "range": "± 24525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/451",
+            "value": 1915453,
+            "range": "± 13980",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/451",
+            "value": 1774325,
+            "range": "± 13920",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/501",
+            "value": 2128707,
+            "range": "± 12263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/501",
+            "value": 1934657,
+            "range": "± 264400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/551",
+            "value": 2345967,
+            "range": "± 16513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/551",
+            "value": 2092796,
+            "range": "± 11292",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/601",
+            "value": 2561420,
+            "range": "± 6882",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/601",
+            "value": 2249168,
+            "range": "± 10025",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/651",
+            "value": 2768275,
+            "range": "± 18589",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/651",
+            "value": 2401750,
+            "range": "± 25391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/701",
+            "value": 2978512,
+            "range": "± 18242",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/701",
+            "value": 2557530,
+            "range": "± 16029",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/751",
+            "value": 3177713,
+            "range": "± 20652",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/751",
+            "value": 2715371,
+            "range": "± 53161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/801",
+            "value": 3393572,
+            "range": "± 10449",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/801",
+            "value": 2877966,
+            "range": "± 22162",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/851",
+            "value": 3607142,
+            "range": "± 10415",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/851",
+            "value": 3036317,
+            "range": "± 21682",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/901",
+            "value": 3818918,
+            "range": "± 46461",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/901",
+            "value": 3179557,
+            "range": "± 50918",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/951",
+            "value": 4020054,
+            "range": "± 31289",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/951",
+            "value": 3334370,
+            "range": "± 18351",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/interpreter/1001",
+            "value": 4236953,
+            "range": "± 12390",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "map_set_entries/webassembly/1001",
+            "value": 3502167,
+            "range": "± 75446",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/1",
+            "value": 124810,
+            "range": "± 2122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/1",
+            "value": 443546,
+            "range": "± 7150",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/3",
+            "value": 363184,
+            "range": "± 6339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/3",
+            "value": 585495,
+            "range": "± 6840",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/5",
+            "value": 602201,
+            "range": "± 9560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/5",
+            "value": 716099,
+            "range": "± 7959",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/7",
+            "value": 838382,
+            "range": "± 11868",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/7",
+            "value": 854853,
+            "range": "± 17757",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/9",
+            "value": 1083742,
+            "range": "± 19801",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/9",
+            "value": 986608,
+            "range": "± 41329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/11",
+            "value": 1316838,
+            "range": "± 21001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/11",
+            "value": 1127981,
+            "range": "± 10403",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/13",
+            "value": 1551993,
+            "range": "± 21363",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/13",
+            "value": 1265717,
+            "range": "± 8544",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/15",
+            "value": 1789388,
+            "range": "± 24861",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/15",
+            "value": 1399295,
+            "range": "± 10416",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/17",
+            "value": 2039402,
+            "range": "± 14797",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/17",
+            "value": 1531772,
+            "range": "± 11215",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/19",
+            "value": 2268984,
+            "range": "± 7348",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/19",
+            "value": 1662671,
+            "range": "± 11539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/21",
+            "value": 2517522,
+            "range": "± 17265",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/21",
+            "value": 1803772,
+            "range": "± 10720",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/23",
+            "value": 2756308,
+            "range": "± 17302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/23",
+            "value": 1955423,
+            "range": "± 13027",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/25",
+            "value": 3009355,
+            "range": "± 17701",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/25",
+            "value": 2088135,
+            "range": "± 48736",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/27",
+            "value": 3240508,
+            "range": "± 19837",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/27",
+            "value": 2226630,
+            "range": "± 13890",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/29",
+            "value": 3487906,
+            "range": "± 18805",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/29",
+            "value": 2364791,
+            "range": "± 11608",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/31",
+            "value": 3719681,
+            "range": "± 25742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/31",
+            "value": 2487405,
+            "range": "± 10138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/33",
+            "value": 3950945,
+            "range": "± 29489",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/33",
+            "value": 2613831,
+            "range": "± 10878",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/35",
+            "value": 4182930,
+            "range": "± 21956",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/35",
+            "value": 2750139,
+            "range": "± 20384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/37",
+            "value": 4437396,
+            "range": "± 29541",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/37",
+            "value": 2886636,
+            "range": "± 14382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/39",
+            "value": 4681701,
+            "range": "± 54575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/39",
+            "value": 3016538,
+            "range": "± 15996",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/41",
+            "value": 4917485,
+            "range": "± 22313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/41",
+            "value": 3149889,
+            "range": "± 14478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/43",
+            "value": 5140142,
+            "range": "± 26833",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/43",
+            "value": 3278284,
+            "range": "± 18186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/45",
+            "value": 5390347,
+            "range": "± 22185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/45",
+            "value": 3414818,
+            "range": "± 84317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/47",
+            "value": 5626631,
+            "range": "± 37741",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/47",
+            "value": 3541308,
+            "range": "± 18392",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/interpreter/49",
+            "value": 5856646,
+            "range": "± 66538",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "add_prices/webassembly/49",
+            "value": 3685232,
+            "range": "± 16212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/1",
+            "value": 483776,
+            "range": "± 3744",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/1",
+            "value": 344199,
+            "range": "± 6140",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/4",
+            "value": 1660921,
+            "range": "± 8714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/4",
+            "value": 371138,
+            "range": "± 6430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/7",
+            "value": 2807334,
+            "range": "± 23290",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/7",
+            "value": 395349,
+            "range": "± 6731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/10",
+            "value": 3944395,
+            "range": "± 16663",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/10",
+            "value": 416485,
+            "range": "± 7431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/13",
+            "value": 5095949,
+            "range": "± 21798",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/13",
+            "value": 440371,
+            "range": "± 6822",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/16",
+            "value": 6233869,
+            "range": "± 17294",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/16",
+            "value": 465593,
+            "range": "± 6978",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/19",
+            "value": 7364013,
+            "range": "± 54204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/19",
+            "value": 484244,
+            "range": "± 6849",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/22",
+            "value": 8539904,
+            "range": "± 106123",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/22",
+            "value": 509977,
+            "range": "± 7217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/25",
+            "value": 9656056,
+            "range": "± 96122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/25",
+            "value": 535015,
+            "range": "± 13846",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/28",
+            "value": 10782522,
+            "range": "± 58124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/28",
+            "value": 555676,
+            "range": "± 7765",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/31",
+            "value": 11888424,
+            "range": "± 83205",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/31",
+            "value": 577064,
+            "range": "± 7148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/34",
+            "value": 13085387,
+            "range": "± 231024",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/34",
+            "value": 573765,
+            "range": "± 9537",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/37",
+            "value": 14193872,
+            "range": "± 125690",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/37",
+            "value": 596597,
+            "range": "± 21370",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/40",
+            "value": 15303988,
+            "range": "± 87223",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/40",
+            "value": 622270,
+            "range": "± 8195",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/43",
+            "value": 16472981,
+            "range": "± 270841",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/43",
+            "value": 639421,
+            "range": "± 8348",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/46",
+            "value": 17614574,
+            "range": "± 280126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/46",
+            "value": 657072,
+            "range": "± 7879",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/49",
+            "value": 18689026,
+            "range": "± 319859",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/49",
+            "value": 682752,
+            "range": "± 7684",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/52",
+            "value": 20001322,
+            "range": "± 485180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/52",
+            "value": 696041,
+            "range": "± 24584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/55",
+            "value": 20903414,
+            "range": "± 224685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/55",
+            "value": 722095,
+            "range": "± 7986",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/58",
+            "value": 22113992,
+            "range": "± 331468",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/58",
+            "value": 742164,
+            "range": "± 10649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/61",
+            "value": 23334031,
+            "range": "± 226783",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/61",
+            "value": 763180,
+            "range": "± 7406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/64",
+            "value": 24336366,
+            "range": "± 444561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/64",
+            "value": 782847,
+            "range": "± 8269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/67",
+            "value": 25546070,
+            "range": "± 451467",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/67",
+            "value": 807144,
+            "range": "± 7903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/70",
+            "value": 27079008,
+            "range": "± 333649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/70",
+            "value": 829758,
+            "range": "± 13584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/73",
+            "value": 28070272,
+            "range": "± 967063",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/73",
+            "value": 848132,
+            "range": "± 9287",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/76",
+            "value": 29017738,
+            "range": "± 666358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/76",
+            "value": 862698,
+            "range": "± 14103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/79",
+            "value": 30538606,
+            "range": "± 950171",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/79",
+            "value": 881400,
+            "range": "± 9585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/82",
+            "value": 31751360,
+            "range": "± 901077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/82",
+            "value": 916205,
+            "range": "± 6581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/85",
+            "value": 33565248,
+            "range": "± 2176748",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/85",
+            "value": 925109,
+            "range": "± 8080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/88",
+            "value": 33590339,
+            "range": "± 541606",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/88",
+            "value": 942828,
+            "range": "± 9995",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/91",
+            "value": 35010197,
+            "range": "± 713883",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/91",
+            "value": 966547,
+            "range": "± 8343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/94",
+            "value": 36609121,
+            "range": "± 1288201",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/94",
+            "value": 990359,
+            "range": "± 7897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/97",
+            "value": 37396063,
+            "range": "± 460530",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/97",
+            "value": 1014269,
+            "range": "± 36438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/100",
+            "value": 39471596,
+            "range": "± 1059044",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/100",
+            "value": 1032505,
+            "range": "± 10223",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/103",
+            "value": 40113641,
+            "range": "± 1556975",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/103",
+            "value": 1057441,
+            "range": "± 14285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/106",
+            "value": 42127228,
+            "range": "± 1727172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/106",
+            "value": 1079140,
+            "range": "± 9994",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/109",
+            "value": 43064458,
+            "range": "± 911054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/109",
+            "value": 1100224,
+            "range": "± 11738",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/112",
+            "value": 44456610,
+            "range": "± 1050919",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/112",
+            "value": 1119318,
+            "range": "± 11910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/115",
+            "value": 45816471,
+            "range": "± 1415281",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/115",
+            "value": 1148468,
+            "range": "± 15346",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/118",
+            "value": 47210770,
+            "range": "± 1858615",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/118",
+            "value": 1162649,
+            "range": "± 15029",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/interpreter/121",
+            "value": 47960678,
+            "range": "± 963909",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "poc2/webassembly/121",
+            "value": 1185601,
+            "range": "± 21274",
             "unit": "ns/iter"
           }
         ]
