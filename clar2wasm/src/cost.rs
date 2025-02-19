@@ -4,125 +4,118 @@
 //! implementation of the Clarity runtime.
 
 use walrus::ir::{BinaryOp, Binop, Instr, UnaryOp, Unop};
-use walrus::{GlobalId, InstrSeqBuilder, LocalId};
+use walrus::{FunctionId, GlobalId, InstrSeqBuilder, LocalId};
 
+use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::WasmGenerator;
 
-pub struct CostGlobals {
-    pub runtime: GlobalId,
-    pub read_count: GlobalId,
-    pub read_length: GlobalId,
-    pub write_count: GlobalId,
-    pub write_length: GlobalId,
-}
-
 pub trait CostTrackingGenerator {
-    fn emit_cost_code(&self) -> bool;
-    fn globals(&self) -> &CostGlobals;
+    fn should_emit(&self) -> bool;
+    fn context(&self) -> &CostTrackingContext;
 
-    fn with_globals(&self, closure: impl FnOnce(&CostGlobals)) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
-            closure(globals);
+    fn with_context(&self, closure: impl FnOnce(&CostTrackingContext)) {
+        if self.should_emit() {
+            let context = self.context();
+            closure(context);
         }
     }
 
     // simple variadic words
 
     fn cost_add(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 11, 125);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 11, 125);
         });
     }
 
     fn cost_sub(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 11, 125);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 11, 125);
         });
     }
 
     fn cost_mul(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 13, 125);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 13, 125);
         });
     }
 
     fn cost_div(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 13, 125);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 13, 125);
         });
     }
 
     // simple words
 
     fn cost_log2(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 133);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 133);
         });
     }
 
     fn cost_mod(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 141);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
     fn cost_pow(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 143);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 143);
         });
     }
 
     fn cost_sqrti(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 142);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 142);
         });
     }
 
     fn cost_bitwise_and(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 15, 129);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
     fn cost_bitwise_or(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 15, 129);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
     fn cost_bitwise_xor(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_globals(|globals| {
-            caf_linear(instrs, globals.runtime, n, 15, 129);
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
     fn cost_bitwise_not(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 147);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 147);
         });
     }
 
     fn cost_bitwise_lshift(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 167);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 167);
         });
     }
 
     fn cost_bitwise_rshift(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_globals(|globals| {
-            caf_const(instrs, globals.runtime, 167);
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 167);
         });
     }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
-    fn emit_cost_code(&self) -> bool {
+    fn should_emit(&self) -> bool {
         self.emit_cost_code
     }
 
-    fn globals(&self) -> &CostGlobals {
-        &self.cost_globals
+    fn context(&self) -> &CostTrackingContext {
+        &self.cost_context
     }
 }
 
@@ -164,177 +157,235 @@ impl From<LocalId> for Scalar {
     }
 }
 
+pub struct CostTrackingContext {
+    pub runtime: GlobalId,
+    pub read_count: GlobalId,
+    pub read_length: GlobalId,
+    pub write_count: GlobalId,
+    pub write_length: GlobalId,
+
+    pub runtime_error: FunctionId,
+}
+
+enum CostType {
+    Runtime,
+    // ReadCount,
+    // ReadLength,
+    // WriteCount,
+    // WriteLength,
+}
+
+impl CostTrackingContext {
+    fn caf_const(
+        &self,
+        instrs: &mut InstrSeqBuilder,
+        cost_type: CostType,
+        cost: impl Into<Scalar>,
+    ) {
+        let cost = cost.into();
+        let (global, err_code) = self.global_and_err_code(cost_type);
+
+        instrs.global_get(global).scalar_get(cost);
+
+        // global - cost
+        instrs
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            .global_set(global)
+            .global_get(global)
+            .i64_const(0)
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64LtS,
+            }))
+            .if_else(
+                None,
+                |builder| {
+                    builder.i32_const(err_code);
+                    builder.call(self.runtime_error);
+                },
+                |_| {},
+            );
+    }
+
+    fn caf_linear(
+        &self,
+        instrs: &mut InstrSeqBuilder,
+        cost_type: CostType,
+        n: impl Into<Scalar>,
+        a: u64,
+        b: u64,
+    ) {
+        let n = n.into();
+        let (global, err_code) = self.global_and_err_code(cost_type);
+
+        // cost = (+ (* a n) b))
+        instrs
+            .global_get(global)
+            .i64_const(b as _)
+            .i64_const(a as _)
+            .scalar_get(n)
+            // * a
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Mul,
+            }))
+            // + b
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Add,
+            }));
+
+        // global - cost
+        instrs
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            .global_set(global)
+            .global_get(global)
+            .i64_const(0)
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64LtS,
+            }))
+            .if_else(
+                None,
+                |builder| {
+                    builder.i32_const(err_code);
+                    builder.call(self.runtime_error);
+                },
+                |_| {},
+            );
+    }
+
+    // fn caf_logn(
+    //     &self,
+    //     instrs: &mut InstrSeqBuilder,
+    //     cost_type: CostType,
+    //     n: impl Into<Scalar>,
+    //     a: u64,
+    //     b: u64,
+    // ) {
+    //     let n = n.into();
+    //     let (global, err_code) = self.global_and_err_code(cost_type);
+    //
+    //     // cost = (+ (* a (log2 n)) b))
+    //     instrs
+    //         .global_get(global)
+    //         .i64_const(b as _)
+    //         .i64_const(a as _)
+    //         .i64_const(63)
+    //         .scalar_get(n)
+    //         // begin log2(n)
+    //         // 63 minus leading zeros in `n`
+    //         // n *must* be larger than 0
+    //         .instr(Instr::Unop(Unop {
+    //             op: UnaryOp::I64Clz,
+    //         }))
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Sub,
+    //         }))
+    //         // * a
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Mul,
+    //         }))
+    //         // + b
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Add,
+    //         }));
+    //
+    //     // global - cost
+    //     instrs
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Sub,
+    //         }))
+    //         .global_set(global)
+    //         .global_get(global)
+    //         .i64_const(0)
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64LtS,
+    //         }))
+    //         .if_else(
+    //             None,
+    //             |builder| {
+    //                 builder.i32_const(err_code);
+    //                 builder.call(self.runtime_error);
+    //             },
+    //             |_| {},
+    //         );
+    // }
+    //
+    // fn caf_nlogn(
+    //     &self,
+    //     instrs: &mut InstrSeqBuilder,
+    //     cost_type: CostType,
+    //     n: impl Into<Scalar>,
+    //     a: u64,
+    //     b: u64,
+    // ) {
+    //     let n = n.into();
+    //     let (global, err_code) = self.global_and_err_code(cost_type);
+    //
+    //     // cost = (+ (* a (* n (log2 n))) b))
+    //     instrs
+    //         .global_get(global)
+    //         .i64_const(b as _)
+    //         .i64_const(a as _)
+    //         .scalar_get(n)
+    //         .i64_const(63)
+    //         .scalar_get(n)
+    //         // log2(n)
+    //         // 63 minus leading zeros in `n`
+    //         // n *must* be larger than 0
+    //         .instr(Instr::Unop(Unop {
+    //             op: UnaryOp::I64Clz,
+    //         }))
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Sub,
+    //         }))
+    //         // * n
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Mul,
+    //         }))
+    //         // * a
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Mul,
+    //         }))
+    //         // + b
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Add,
+    //         }));
+    //
+    //     // global - cost
+    //     instrs
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64Sub,
+    //         }))
+    //         .global_set(global)
+    //         .global_get(global)
+    //         .i64_const(0)
+    //         .instr(Instr::Binop(Binop {
+    //             op: BinaryOp::I64LtS,
+    //         }))
+    //         .if_else(
+    //             None,
+    //             |builder| {
+    //                 builder.i32_const(err_code);
+    //                 builder.call(self.runtime_error);
+    //             },
+    //             |_| {},
+    //         );
+    // }
+
+    fn global_and_err_code(&self, cost_type: CostType) -> (GlobalId, i32) {
+        match cost_type {
+            CostType::Runtime => (self.runtime, ErrorMap::CostOverrunRuntime as _),
+            // CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
+            // CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
+            // CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
+            // CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
+        }
+    }
+}
+
 // Cost assessment functions
-
-fn caf_const(instrs: &mut InstrSeqBuilder, global: GlobalId, cost: impl Into<Scalar>) {
-    let cost = cost.into();
-
-    instrs.global_get(global).scalar_get(cost);
-
-    // global - cost
-    instrs
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        .global_set(global)
-        .global_get(global)
-        .i64_const(0)
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64LtS,
-        }))
-        .if_else(
-            None,
-            |builder| {
-                builder.unreachable();
-            },
-            |_| {},
-        );
-}
-
-fn caf_linear(
-    instrs: &mut InstrSeqBuilder,
-    global: GlobalId,
-    n: impl Into<Scalar>,
-    a: u64,
-    b: u64,
-) {
-    let n = n.into();
-
-    // cost = (+ (* a n) b))
-    instrs
-        .global_get(global)
-        .i64_const(b as _)
-        .i64_const(a as _)
-        .scalar_get(n)
-        // * a
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Mul,
-        }))
-        // + b
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Add,
-        }));
-
-    // global - cost
-    instrs
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        .global_set(global)
-        .global_get(global)
-        .i64_const(0)
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64LtS,
-        }))
-        .if_else(
-            None,
-            |builder| {
-                builder.unreachable();
-            },
-            |_| {},
-        );
-}
-
-// fn caf_logn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
-//     let n = n.into();
-//
-//     // cost = (+ (* a (log2 n)) b))
-//     instrs
-//         .global_get(global)
-//         .i64_const(b as _)
-//         .i64_const(a as _)
-//         .i64_const(63)
-//         .scalar_get(n)
-//         // begin log2(n)
-//         // 63 minus leading zeros in `n`
-//         // n *must* be larger than 0
-//         .instr(Instr::Unop(Unop {
-//             op: UnaryOp::I64Clz,
-//         }))
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Sub,
-//         }))
-//         // * a
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Mul,
-//         }))
-//         // + b
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Add,
-//         }));
-//
-//     // global - cost
-//     instrs
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Sub,
-//         }))
-//         .global_set(global)
-//         .global_get(global)
-//         .i64_const(0)
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64LtS,
-//         }))
-//         .if_else(
-//             None,
-//             |builder| {
-//                 builder.unreachable();
-//             },
-//             |_| {},
-//         );
-// }
-
-// fn caf_nlogn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
-//     let n = n.into();
-//
-//     // cost = (+ (* a (* n (log2 n))) b))
-//     instrs
-//         .global_get(global)
-//         .i64_const(b as _)
-//         .i64_const(a as _)
-//         .scalar_get(n)
-//         .i64_const(63)
-//         .scalar_get(n)
-//         // log2(n)
-//         // 63 minus leading zeros in `n`
-//         // n *must* be larger than 0
-//         .instr(Instr::Unop(Unop {
-//             op: UnaryOp::I64Clz,
-//         }))
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Sub,
-//         }))
-//         // * n
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Mul,
-//         }))
-//         // * a
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Mul,
-//         }))
-//         // + b
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Add,
-//         }));
-//
-//     // global - cost
-//     instrs
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64Sub,
-//         }))
-//         .global_set(global)
-//         .global_get(global)
-//         .i64_const(0)
-//         .instr(Instr::Binop(Binop {
-//             op: BinaryOp::I64LtS,
-//         }))
-//         .if_else(
-//             None,
-//             |builder| {
-//                 builder.unreachable();
-//             },
-//             |_| {},
-//         );
-// }
 
 // ;; Linear cost-assessment function
 // (define-private (linear (n uint) (a uint) (b uint))

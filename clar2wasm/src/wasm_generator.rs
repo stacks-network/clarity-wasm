@@ -1,4 +1,3 @@
-use core::panic;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
@@ -23,7 +22,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
-use crate::cost::CostGlobals;
+use crate::cost::CostTrackingContext;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
@@ -65,7 +64,7 @@ pub struct WasmGenerator {
     pub(crate) bindings: Bindings,
 
     /// Emits cost tracking code.
-    pub(crate) cost_globals: CostGlobals,
+    pub(crate) cost_context: CostTrackingContext,
     pub(crate) emit_cost_code: bool,
 
     /// Size of the current function's stack frame.
@@ -284,6 +283,12 @@ pub fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorErro
         })
 }
 
+fn get_function(module: &Module, name: &str) -> Result<FunctionId, GeneratorError> {
+    module.funcs.by_name(name).ok_or_else(|| {
+        GeneratorError::InternalError(format!("Expected to find a function named ${name}"))
+    })
+}
+
 pub(crate) struct BorrowedLocal {
     id: LocalId,
     ty: ValType,
@@ -318,12 +323,13 @@ impl WasmGenerator {
         // Get the stack-pointer global ID
         let global_id = get_global(&module, "stack-pointer")?;
 
-        let cost_globals = CostGlobals {
+        let cost_globals = CostTrackingContext {
             runtime: get_global(&module, "cost-runtime")?,
             read_count: get_global(&module, "cost-read-count")?,
             read_length: get_global(&module, "cost-read-length")?,
             write_count: get_global(&module, "cost-write-count")?,
             write_length: get_global(&module, "cost-write-length")?,
+            runtime_error: get_function(&module, "stdlib.runtime-error")?,
         };
 
         Ok(WasmGenerator {
@@ -334,7 +340,7 @@ impl WasmGenerator {
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: Bindings::new(),
-            cost_globals,
+            cost_context: cost_globals,
             emit_cost_code: false,
             early_return_block_id: None,
             current_function_type: None,
@@ -1596,10 +1602,8 @@ impl WasmGenerator {
     }
 
     pub fn func_by_name(&self, name: &str) -> FunctionId {
-        self.module
-            .funcs
-            .by_name(name)
-            .unwrap_or_else(|| panic!("function not found: {name}"))
+        #[allow(clippy::unwrap_used)]
+        get_function(&self.module, name).unwrap()
     }
 
     pub fn get_function_type(&self, name: &str) -> Option<&FunctionType> {
@@ -2178,9 +2182,9 @@ impl WasmGenerator {
     }
 }
 
-impl AsRef<CostGlobals> for WasmGenerator {
-    fn as_ref(&self) -> &CostGlobals {
-        &self.cost_globals
+impl AsRef<CostTrackingContext> for WasmGenerator {
+    fn as_ref(&self) -> &CostTrackingContext {
+        &self.cost_context
     }
 }
 
