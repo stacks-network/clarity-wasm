@@ -10,7 +10,9 @@ use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::WasmGenerator;
 
 pub trait CostTrackingGenerator {
+    /// Whether or not cost-tracking code should be emitted.
     fn should_emit(&self) -> bool;
+    /// The context for the
     fn context(&self) -> &CostTrackingContext;
 
     fn with_context(&self, closure: impl FnOnce(&CostTrackingContext)) {
@@ -155,6 +157,36 @@ pub trait CostTrackingGenerator {
             context.caf_linear(instrs, CostType::Runtime, n, 7, 128);
         });
     }
+
+    fn cost_hash160(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 188);
+        });
+    }
+
+    fn cost_keccak256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 127);
+        });
+    }
+
+    fn cost_sha256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 100);
+        });
+    }
+
+    fn cost_sha512(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 176);
+        });
+    }
+
+    fn cost_sha512_256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 56);
+        });
+    }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
@@ -169,7 +201,7 @@ impl CostTrackingGenerator for WasmGenerator {
 
 /// A 32-bit unsigned integer to be resolved at either compile-time or run-time.
 #[derive(Clone, Copy)]
-enum Scalar {
+pub enum Scalar {
     Compile(u32),
     Run(LocalId),
 }
@@ -205,13 +237,16 @@ impl From<LocalId> for Scalar {
     }
 }
 
+/// Context required from a generator to emit cost tracking code.
 pub struct CostTrackingContext {
+    // costs being tracked
     pub runtime: GlobalId,
     pub read_count: GlobalId,
     pub read_length: GlobalId,
     pub write_count: GlobalId,
     pub write_length: GlobalId,
 
+    // the runtime error function
     pub runtime_error: FunctionId,
 }
 
@@ -224,6 +259,16 @@ enum CostType {
 }
 
 impl CostTrackingContext {
+    fn global_and_err_code(&self, cost_type: CostType) -> (GlobalId, i32) {
+        match cost_type {
+            CostType::Runtime => (self.runtime, ErrorMap::CostOverrunRuntime as _),
+            // CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
+            // CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
+            // CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
+            // CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
+        }
+    }
+
     fn caf_const(
         &self,
         instrs: &mut InstrSeqBuilder,
@@ -421,16 +466,6 @@ impl CostTrackingContext {
     //             |_| {},
     //         );
     // }
-
-    fn global_and_err_code(&self, cost_type: CostType) -> (GlobalId, i32) {
-        match cost_type {
-            CostType::Runtime => (self.runtime, ErrorMap::CostOverrunRuntime as _),
-            // CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
-            // CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
-            // CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
-            // CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
-        }
-    }
 }
 
 // Cost assessment functions
