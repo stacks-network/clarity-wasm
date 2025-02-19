@@ -20,106 +20,99 @@ pub trait CostTrackingGenerator {
     fn emit_cost_code(&self) -> bool;
     fn globals(&self) -> &CostGlobals;
 
+    fn with_globals(&self, closure: impl FnOnce(&CostGlobals)) {
+        if self.emit_cost_code() {
+            let globals = self.globals();
+            closure(globals);
+        }
+    }
+
     // simple variadic words
 
     fn cost_add(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 11, 125);
-        }
+        });
     }
 
     fn cost_sub(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 11, 125);
-        }
+        });
     }
 
     fn cost_mul(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 13, 125);
-        }
+        });
     }
 
     fn cost_div(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 13, 125);
-        }
+        });
     }
 
     // simple words
 
     fn cost_log2(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 133);
-        }
+        });
     }
 
     fn cost_mod(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 141);
-        }
+        });
     }
 
     fn cost_pow(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 143);
-        }
+        });
     }
 
     fn cost_sqrti(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 142);
-        }
+        });
     }
 
     fn cost_bitwise_and(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 15, 129);
-        }
+        });
     }
 
     fn cost_bitwise_or(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 15, 129);
-        }
+        });
     }
 
     fn cost_bitwise_xor(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_linear(instrs, globals.runtime, n, 15, 129);
-        }
+        });
     }
 
     fn cost_bitwise_not(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 147);
-        }
+        });
     }
 
     fn cost_bitwise_lshift(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 167);
-        }
+        });
     }
 
     fn cost_bitwise_rshift(&self, instrs: &mut InstrSeqBuilder) {
-        if self.emit_cost_code() {
-            let globals = self.globals();
+        self.with_globals(|globals| {
             caf_const(instrs, globals.runtime, 167);
-        }
+        });
     }
 }
 
@@ -132,11 +125,6 @@ impl CostTrackingGenerator for WasmGenerator {
         &self.cost_globals
     }
 }
-
-// caf_const(instrs, global, cost),
-// caf_linear(instrs, global, n, a, b),
-// caf_logn(instrs, global, n, a, b),
-// caf_nlogn(instrs, global, n, a, b),
 
 /// A 32-bit unsigned integer to be resolved at either compile-time or run-time.
 #[derive(Clone, Copy)]
