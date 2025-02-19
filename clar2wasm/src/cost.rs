@@ -235,106 +235,106 @@ fn caf_linear(
         );
 }
 
-fn caf_logn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
-    let n = n.into();
+// fn caf_logn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
+//     let n = n.into();
+//
+//     // cost = (+ (* a (log2 n)) b))
+//     instrs
+//         .global_get(global)
+//         .i64_const(b as _)
+//         .i64_const(a as _)
+//         .i64_const(63)
+//         .scalar_get(n)
+//         // begin log2(n)
+//         // 63 minus leading zeros in `n`
+//         // n *must* be larger than 0
+//         .instr(Instr::Unop(Unop {
+//             op: UnaryOp::I64Clz,
+//         }))
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Sub,
+//         }))
+//         // * a
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Mul,
+//         }))
+//         // + b
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Add,
+//         }));
+//
+//     // global - cost
+//     instrs
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Sub,
+//         }))
+//         .global_set(global)
+//         .global_get(global)
+//         .i64_const(0)
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64LtS,
+//         }))
+//         .if_else(
+//             None,
+//             |builder| {
+//                 builder.unreachable();
+//             },
+//             |_| {},
+//         );
+// }
 
-    // cost = (+ (* a (log2 n)) b))
-    instrs
-        .global_get(global)
-        .i64_const(b as _)
-        .i64_const(a as _)
-        .i64_const(63)
-        .scalar_get(n)
-        // begin log2(n)
-        // 63 minus leading zeros in `n`
-        // n *must* be larger than 0
-        .instr(Instr::Unop(Unop {
-            op: UnaryOp::I64Clz,
-        }))
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        // * a
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Mul,
-        }))
-        // + b
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Add,
-        }));
-
-    // global - cost
-    instrs
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        .global_set(global)
-        .global_get(global)
-        .i64_const(0)
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64LtS,
-        }))
-        .if_else(
-            None,
-            |builder| {
-                builder.unreachable();
-            },
-            |_| {},
-        );
-}
-
-fn caf_nlogn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
-    let n = n.into();
-
-    // cost = (+ (* a (* n (log2 n))) b))
-    instrs
-        .global_get(global)
-        .i64_const(b as _)
-        .i64_const(a as _)
-        .scalar_get(n)
-        .i64_const(63)
-        .scalar_get(n)
-        // log2(n)
-        // 63 minus leading zeros in `n`
-        // n *must* be larger than 0
-        .instr(Instr::Unop(Unop {
-            op: UnaryOp::I64Clz,
-        }))
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        // * n
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Mul,
-        }))
-        // * a
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Mul,
-        }))
-        // + b
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Add,
-        }));
-
-    // global - cost
-    instrs
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64Sub,
-        }))
-        .global_set(global)
-        .global_get(global)
-        .i64_const(0)
-        .instr(Instr::Binop(Binop {
-            op: BinaryOp::I64LtS,
-        }))
-        .if_else(
-            None,
-            |builder| {
-                builder.unreachable();
-            },
-            |_| {},
-        );
-}
+// fn caf_nlogn(instrs: &mut InstrSeqBuilder, global: GlobalId, n: impl Into<Scalar>, a: u64, b: u64) {
+//     let n = n.into();
+//
+//     // cost = (+ (* a (* n (log2 n))) b))
+//     instrs
+//         .global_get(global)
+//         .i64_const(b as _)
+//         .i64_const(a as _)
+//         .scalar_get(n)
+//         .i64_const(63)
+//         .scalar_get(n)
+//         // log2(n)
+//         // 63 minus leading zeros in `n`
+//         // n *must* be larger than 0
+//         .instr(Instr::Unop(Unop {
+//             op: UnaryOp::I64Clz,
+//         }))
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Sub,
+//         }))
+//         // * n
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Mul,
+//         }))
+//         // * a
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Mul,
+//         }))
+//         // + b
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Add,
+//         }));
+//
+//     // global - cost
+//     instrs
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64Sub,
+//         }))
+//         .global_set(global)
+//         .global_get(global)
+//         .i64_const(0)
+//         .instr(Instr::Binop(Binop {
+//             op: BinaryOp::I64LtS,
+//         }))
+//         .if_else(
+//             None,
+//             |builder| {
+//                 builder.unreachable();
+//             },
+//             |_| {},
+//         );
+// }
 
 // ;; Linear cost-assessment function
 // (define-private (linear (n uint) (a uint) (b uint))

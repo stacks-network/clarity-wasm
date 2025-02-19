@@ -139,6 +139,7 @@ pub fn compile(
             Err(CompileError::Generic {
                 ast: Box::new(ast),
                 diagnostics,
+                #[allow(clippy::expect_used)]
                 cost_tracker: Box::new(
                     contract_analysis
                         .cost_track

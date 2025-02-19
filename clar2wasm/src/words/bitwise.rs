@@ -3,10 +3,8 @@ use clarity::vm::ClarityName;
 use walrus::InstrSeqBuilder;
 
 use super::SimpleWord;
-use crate::{
-    cost::CostTrackingGenerator,
-    wasm_generator::{GeneratorError, WasmGenerator},
-};
+use crate::cost::CostTrackingGenerator;
+use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct BitwiseNot;
