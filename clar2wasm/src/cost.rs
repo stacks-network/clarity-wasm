@@ -107,6 +107,30 @@ pub trait CostTrackingGenerator {
             context.caf_const(instrs, CostType::Runtime, 167);
         });
     }
+
+    fn cost_buff_to_int_le(&self, instrs: &mut InstrSeqBuilder) {
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 141);
+        });
+    }
+
+    fn cost_buff_to_int_be(&self, instrs: &mut InstrSeqBuilder) {
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 141);
+        });
+    }
+
+    fn cost_buff_to_uint_le(&self, instrs: &mut InstrSeqBuilder) {
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 141);
+        });
+    }
+
+    fn cost_buff_to_uint_be(&self, instrs: &mut InstrSeqBuilder) {
+        self.with_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 141);
+        });
+    }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
