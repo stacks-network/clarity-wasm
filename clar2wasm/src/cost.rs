@@ -3,199 +3,248 @@
 //! The cost computations in this module are meant to be a full match with the interpreter
 //! implementation of the Clarity runtime.
 
+use std::ptr;
+
 use walrus::ir::{BinaryOp, Binop, Instr, UnaryOp, Unop};
-use walrus::{FunctionId, GlobalId, InstrSeqBuilder, LocalId};
+use walrus::{FunctionId, GlobalId, InstrSeqBuilder, LocalId, ValType};
 
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::WasmGenerator;
 
+/// Generators of cost tracking code.
 pub trait CostTrackingGenerator {
-    /// Whether or not cost-tracking code should be emitted.
-    fn should_emit(&self) -> bool;
-    /// The context for the
-    fn context(&self) -> &CostTrackingContext;
+    /// The cost tracking context.
+    ///
+    /// Shouldn't be called externally.
+    fn cost_context(&mut self) -> &mut CostTrackingContext;
 
-    fn with_context(&self, closure: impl FnOnce(&CostTrackingContext)) {
-        if self.should_emit() {
-            let context = self.context();
+    /// Produce `n` new locals to be used for cost tracking, and push them into the context.
+    ///
+    /// Shouldn't be called externally.
+    fn push_cost_locals(&mut self, n: usize);
+
+    /// Resets the locals in the cost tracking context.
+    ///
+    /// Meant to be called before processing the body of a function.
+    fn reset_cost_locals(&mut self) {
+        self.cost_context().locals = Vec::new();
+    }
+
+    /// Executes the given closure with `N` locals used for cost tracking, if
+    /// code should be emitted. All locals are of [`ValType::I32`].
+    ///
+    /// Locals are reused between runs. If the cost tracking context doesn't
+    /// have at least `N` locals stored, more will be created using
+    /// `push_cost_locals`.
+    ///
+    /// The locals in the cost context can be emptied using
+    /// [`reset_cost_locals`].
+    fn with_cost_locals<const N: usize>(&mut self, closure: impl FnOnce(&mut Self, [LocalId; N])) {
+        let context = self.cost_context();
+        if context.emit {
+            let n_locals = context.locals.len();
+
+            if N > n_locals {
+                let n_new_locals = N - n_locals;
+                self.push_cost_locals(n_new_locals);
+            }
+
+            let context = self.cost_context();
+
+            // SAFETY: we can be sure that there are at least N elements in the
+            //         vector, so copying an N-sized array's worth of elements is
+            //         safe - especially since `LocalId` implements `Copy`.
+            let locals = unsafe { ptr::read(context.locals.as_ptr() as _) };
+            closure(self, locals);
+        }
+    }
+
+    /// Executes the given closure with the cost tracking context, if code should be emitted.
+    fn with_emit_context(&mut self, closure: impl FnOnce(&CostTrackingContext)) {
+        let context = self.cost_context();
+        if context.emit {
+            let context = self.cost_context();
             closure(context);
         }
     }
 
     // simple variadic words
 
-    fn cost_add(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_add(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 11, 125);
         });
     }
 
-    fn cost_sub(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_sub(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 11, 125);
         });
     }
 
-    fn cost_mul(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_mul(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 13, 125);
         });
     }
 
-    fn cost_div(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_div(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 13, 125);
         });
     }
 
     // simple words
 
-    fn cost_log2(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_log2(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 133);
         });
     }
 
-    fn cost_mod(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_mod(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
-    fn cost_pow(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_pow(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 143);
         });
     }
 
-    fn cost_sqrti(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_sqrti(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 142);
         });
     }
 
-    fn cost_bitwise_and(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_bitwise_and(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
-    fn cost_bitwise_or(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_bitwise_or(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
-    fn cost_bitwise_xor(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_bitwise_xor(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 15, 129);
         });
     }
 
-    fn cost_bitwise_not(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_bitwise_not(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 147);
         });
     }
 
-    fn cost_bitwise_lshift(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_bitwise_lshift(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 167);
         });
     }
 
-    fn cost_bitwise_rshift(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_bitwise_rshift(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 167);
         });
     }
 
-    fn cost_buff_to_int_le(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_buff_to_int_le(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
-    fn cost_buff_to_int_be(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_buff_to_int_be(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
-    fn cost_buff_to_uint_le(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_buff_to_uint_le(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
-    fn cost_buff_to_uint_be(&self, instrs: &mut InstrSeqBuilder) {
-        self.with_context(|context| {
+    fn cost_buff_to_uint_be(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 141);
         });
     }
 
-    fn cost_cmp_gt(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_cmp_gt(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 7, 128);
         });
     }
 
-    fn cost_cmp_ge(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_cmp_ge(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 7, 128);
         });
     }
 
-    fn cost_cmp_lt(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_cmp_lt(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 7, 128);
         });
     }
 
-    fn cost_cmp_le(&self, instrs: &mut InstrSeqBuilder, n: u32) {
-        self.with_context(|context| {
+    fn cost_cmp_le(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 7, 128);
         });
     }
 
-    fn cost_hash160(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_context(|context| {
+    fn cost_hash160(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 188);
         });
     }
 
-    fn cost_keccak256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_context(|context| {
+    fn cost_keccak256(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 127);
         });
     }
 
-    fn cost_sha256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_context(|context| {
+    fn cost_sha256(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 100);
         });
     }
 
-    fn cost_sha512(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_context(|context| {
+    fn cost_sha512(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 176);
         });
     }
 
-    fn cost_sha512_256(&self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_context(|context| {
+    fn cost_sha512_256(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 56);
         });
     }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
-    fn should_emit(&self) -> bool {
-        self.emit_cost_code
+    fn cost_context(&mut self) -> &mut CostTrackingContext {
+        &mut self.cost_context
     }
 
-    fn context(&self) -> &CostTrackingContext {
-        &self.cost_context
+    fn push_cost_locals(&mut self, n: usize) {
+        for _ in 0..n {
+            let local = self.module.locals.add(ValType::I32);
+            self.cost_context.locals.push(local);
+        }
     }
 }
 
@@ -239,6 +288,9 @@ impl From<LocalId> for Scalar {
 
 /// Context required from a generator to emit cost tracking code.
 pub struct CostTrackingContext {
+    /// Whether or not to emit cost tracking code
+    pub emit: bool,
+
     // costs being tracked
     pub runtime: GlobalId,
     pub read_count: GlobalId,
@@ -246,8 +298,11 @@ pub struct CostTrackingContext {
     pub write_count: GlobalId,
     pub write_length: GlobalId,
 
-    // the runtime error function
+    /// Runtime error function
     pub runtime_error: FunctionId,
+
+    /// Locals used for cost tracking
+    pub locals: Vec<LocalId>,
 }
 
 enum CostType {

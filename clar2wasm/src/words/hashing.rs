@@ -1,6 +1,5 @@
 use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
-use walrus::ValType;
 
 use super::SimpleWord;
 use crate::cost::{CostTrackingGenerator, Scalar};
@@ -83,11 +82,13 @@ fn traverse_hash(
             "int"
         }
         TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => {
-            // length is currently at the top of the stack
-            let cost_local = generator.module.locals.add(ValType::I32);
-            builder.local_set(cost_local);
-            ty.emit_cost(generator, builder, cost_local);
-            builder.local_get(cost_local);
+            // length is currently at the top of the stack so we need one local
+            // to work with
+            generator.with_cost_locals::<1>(|generator, locals| {
+                builder.local_set(locals[0]);
+                ty.emit_cost(generator, builder, locals[0]);
+                builder.local_get(locals[0]);
+            });
 
             // Input buff is also copied
             generator.ensure_work_space(u32::from(len) + work_space);
@@ -184,11 +185,13 @@ impl SimpleWord for Keccak256 {
             }
         }
 
-        // length is currently at the top of the stack
-        let cost_local = generator.module.locals.add(ValType::I32);
-        builder.local_set(cost_local);
-        generator.cost_keccak256(builder, cost_local);
-        builder.local_get(cost_local);
+        // length is currently at the top of the stack so we need one local
+        // to work with
+        generator.with_cost_locals::<1>(|generator, locals| {
+            builder.local_set(locals[0]);
+            generator.cost_keccak256(builder, locals[0]);
+            builder.local_get(locals[0]);
+        });
 
         // Reserve stack space for the host-function to write the result
         let ret_ty = BUFF_32.clone();
@@ -264,11 +267,13 @@ impl SimpleWord for Sha512_256 {
             }
         }
 
-        // length is currently at the top of the stack
-        let cost_local = generator.module.locals.add(ValType::I32);
-        builder.local_set(cost_local);
-        generator.cost_sha512_256(builder, cost_local);
-        builder.local_get(cost_local);
+        // length is currently at the top of the stack so we need one local
+        // to work with
+        generator.with_cost_locals::<1>(|generator, locals| {
+            builder.local_set(locals[0]);
+            generator.cost_sha512_256(builder, locals[0]);
+            builder.local_get(locals[0]);
+        });
 
         // Reserve stack space for the host-function to write the result
         let ret_ty = BUFF_32.clone();

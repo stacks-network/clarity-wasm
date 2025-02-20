@@ -22,7 +22,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
-use crate::cost::CostTrackingContext;
+use crate::cost::{CostTrackingContext, CostTrackingGenerator};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
@@ -65,7 +65,6 @@ pub struct WasmGenerator {
 
     /// Emits cost tracking code.
     pub(crate) cost_context: CostTrackingContext,
-    pub(crate) emit_cost_code: bool,
 
     /// Size of the current function's stack frame.
     frame_size: i32,
@@ -323,13 +322,15 @@ impl WasmGenerator {
         // Get the stack-pointer global ID
         let global_id = get_global(&module, "stack-pointer")?;
 
-        let cost_globals = CostTrackingContext {
+        let cost_context = CostTrackingContext {
+            emit: false,
             runtime: get_global(&module, "cost-runtime")?,
             read_count: get_global(&module, "cost-read-count")?,
             read_length: get_global(&module, "cost-read-length")?,
             write_count: get_global(&module, "cost-write-count")?,
             write_length: get_global(&module, "cost-write-length")?,
             runtime_error: get_function(&module, "stdlib.runtime-error")?,
+            locals: Vec::new(),
         };
 
         Ok(WasmGenerator {
@@ -340,8 +341,7 @@ impl WasmGenerator {
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: Bindings::new(),
-            cost_context: cost_globals,
-            emit_cost_code: false,
+            cost_context,
             early_return_block_id: None,
             current_function_type: None,
             frame_size: 0,
@@ -355,7 +355,7 @@ impl WasmGenerator {
 
     pub fn with_cost_code(contract_analysis: ContractAnalysis) -> Result<Self, GeneratorError> {
         let mut generator = Self::new(contract_analysis)?;
-        generator.emit_cost_code = true;
+        generator.cost_context.emit = true;
         Ok(generator)
     }
 
@@ -612,6 +612,8 @@ impl WasmGenerator {
         let block_id = block.id();
 
         self.early_return_block_id = Some(block_id);
+
+        self.reset_cost_locals();
 
         // Traverse the body of the function
         self.set_expr_type(body, function_type.returns.clone())?;
