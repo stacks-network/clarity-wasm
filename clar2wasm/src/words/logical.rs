@@ -2,7 +2,10 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
-use crate::wasm_generator::{GeneratorError, WasmGenerator};
+use crate::{
+    cost::CostTrackingGenerator,
+    wasm_generator::{GeneratorError, WasmGenerator},
+};
 
 #[derive(Debug)]
 pub struct Not;
@@ -19,6 +22,7 @@ impl SimpleWord for Not {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_not(builder);
         builder.call(generator.func_by_name("stdlib.not"));
         Ok(())
     }

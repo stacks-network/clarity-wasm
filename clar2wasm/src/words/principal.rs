@@ -11,6 +11,7 @@ use walrus::{LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord};
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -31,6 +32,8 @@ impl SimpleWord for IsStandard {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_is_standard(builder);
+
         // Drop the length
         builder.drop();
 
@@ -204,6 +207,8 @@ impl SimpleWord for Destruct {
         _arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_destruct(builder);
+
         // Subtract STANDARD_PRINCIPAL_BYTES from the length to get the length
         // of the name.
         builder

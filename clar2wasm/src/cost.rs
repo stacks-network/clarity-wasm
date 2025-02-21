@@ -269,6 +269,56 @@ pub trait CostTrackingGenerator {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 56);
         });
     }
+
+    fn cost_not(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 138);
+        });
+    }
+
+    fn cost_to_int(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 135);
+        });
+    }
+
+    fn cost_to_uint(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 135);
+        });
+    }
+
+    fn cost_destruct(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 314);
+        });
+    }
+
+    fn cost_is_standard(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 127);
+        });
+    }
+
+    fn cost_stx_burn(&mut self, _instrs: &mut InstrSeqBuilder) {
+        // NOTE: this seems to not cost anything, but we include it for completion
+    }
+
+    fn cost_stx_get_account(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 4654);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
+    }
+
+    fn cost_stx_get_balance(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 4294);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
+    }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
@@ -343,8 +393,8 @@ pub struct CostTrackingContext {
 
 enum CostType {
     Runtime,
-    // ReadCount,
-    // ReadLength,
+    ReadCount,
+    ReadLength,
     // WriteCount,
     // WriteLength,
 }
@@ -353,8 +403,8 @@ impl CostTrackingContext {
     fn global_and_err_code(&self, cost_type: CostType) -> (GlobalId, i32) {
         match cost_type {
             CostType::Runtime => (self.runtime, ErrorMap::CostOverrunRuntime as _),
-            // CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
-            // CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
+            CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
+            CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
             // CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
             // CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
         }
