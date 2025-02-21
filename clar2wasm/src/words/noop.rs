@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord};
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -25,6 +26,8 @@ impl SimpleWord for ToInt {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_to_int(builder);
+
         let helper_func = generator.func_by_name("stdlib.to-int");
         builder.call(helper_func);
 
@@ -47,6 +50,8 @@ impl SimpleWord for ToUint {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_to_uint(builder);
+
         let helper_func = generator.func_by_name("stdlib.to-uint");
         builder.call(helper_func);
 
