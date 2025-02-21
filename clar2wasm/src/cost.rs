@@ -319,6 +319,332 @@ pub trait CostTrackingGenerator {
             context.caf_const(instrs, CostType::ReadLength, 1);
         });
     }
+
+    // complex words
+
+    fn cost_let(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_at_block(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_burn_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_stacks_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_tenure_info(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    // fn cost_and(&mut self, _instrs: &mut InstrSeqBuilder) {
+    //     todo!()
+    // }
+
+    fn cost_asserts(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_filter(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_if(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_match(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    // fn cost_or(&mut self, _instrs: &mut InstrSeqBuilder) {
+    //     todo!()
+    // }
+
+    fn cost_try(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_unwrap(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_unwrap_err(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_from_consensus_buff(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_to_consensus_buff(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_constant(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_as_contract(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_contract_call(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_begin(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_unwrap_err_panic(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_unwrap_panic(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_set_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_default_to(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_clarity_err(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_clarity_ok(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_clarity_some(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_index_of_alias(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_index_of_original(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_is_eq(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_private_function(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_public_function(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_readonly_function(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map_definition(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map_delete(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map_get(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map_insert(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map_set(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_contract_of(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_is_none(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_is_some(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_construct(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_principal_of(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_print(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_is_err(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_is_ok(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_recover(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_verify(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_append(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_as_max_len(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_concat(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_element_at_alias(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_element_at_original(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_fold(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_len(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_list_cons(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_map(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_replace_at(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_slice(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_stx_transfer(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_stx_transfer_memo(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_burn_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_burn_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_balance_of_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_owner_of_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_get_supply_of_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_mint_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_mint_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_transfer_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_transfer_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_define_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_impl_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_use_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_tuple_cons(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_tuple_get(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
+
+    fn cost_tuple_merge(&mut self, _instrs: &mut InstrSeqBuilder) {
+        todo!()
+    }
 }
 
 impl CostTrackingGenerator for WasmGenerator {
