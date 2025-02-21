@@ -7,6 +7,7 @@ use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
@@ -480,6 +481,7 @@ impl ComplexWord for Concat {
 
         let lhs_len = generator.module.locals.add(ValType::I32);
         let rhs_len = generator.module.locals.add(ValType::I32);
+        let ret_len = generator.module.locals.add(ValType::I32);
 
         // WORKAROUND: typechecker issue for lists
         generator.set_expr_type(lhs_expr, ret_ty.clone())?;
@@ -504,6 +506,13 @@ impl ComplexWord for Concat {
         builder.local_tee(rhs_len);
         /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
 
+        builder.local_get(lhs_len);
+        builder.local_get(rhs_len);
+        builder.binop(BinaryOp::I32Add);
+        builder.local_set(ret_len);
+
+        generator.cost_concat(builder, ret_len);
+
         // Copy arguments to the return buffer. RHS is copied 1st, and LHS 2nd
 
         /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
@@ -515,9 +524,7 @@ impl ComplexWord for Concat {
         // Set up the returns representing the new sequence [ret_off, ret_len]
 
         builder.local_get(ret_off);
-        builder.local_get(lhs_len);
-        builder.local_get(rhs_len);
-        builder.binop(BinaryOp::I32Add);
+        builder.local_get(ret_len);
 
         Ok(())
     }

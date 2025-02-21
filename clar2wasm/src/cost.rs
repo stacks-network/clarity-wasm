@@ -534,8 +534,10 @@ pub trait CostTrackingGenerator {
         todo!()
     }
 
-    fn cost_concat(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_concat(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 37, 220);
+        });
     }
 
     fn cost_element_at_alias(&mut self, _instrs: &mut InstrSeqBuilder) {
