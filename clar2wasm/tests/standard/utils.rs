@@ -54,7 +54,7 @@ pub(crate) trait FromWasmResult {
 impl FromWasmResult for u128 {
     fn from_wasm_result(v: &[Val]) -> Self {
         match v {
-            &[Val::I64(lo), Val::I64(hi)] => ((lo as u64) as u128) | ((hi as u64) as u128) << 64,
+            &[Val::I64(lo), Val::I64(hi)] => ((lo as u64) as u128) | (((hi as u64) as u128) << 64),
             _ => panic!("invalid wasm result"),
         }
     }
