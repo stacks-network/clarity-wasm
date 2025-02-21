@@ -3461,7 +3461,7 @@ fn principal_construct() {
             assert_eq!(&buffer, expected_principal);
         }
 
-        let err = (result[4].unwrap_i64() as u128) << 64 | result[3].unwrap_i64() as u128;
+        let err = ((result[4].unwrap_i64() as u128) << 64) | result[3].unwrap_i64() as u128;
         assert_eq!(err, expected_err);
     };
 
@@ -4165,18 +4165,18 @@ fn utf8_to_string_utf8_invalid() {
                 *a = code as u8;
             }
             (2, [a, b, ..]) => {
-                *a = (code >> 6 & 0x1F) as u8 | 0b1100_0000;
+                *a = ((code >> 6) & 0x1F) as u8 | 0b1100_0000;
                 *b = (code & 0x3F) as u8 | 0b1000_0000;
             }
             (3, [a, b, c, ..]) => {
-                *a = (code >> 12 & 0x0F) as u8 | 0b1110_0000;
-                *b = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *a = ((code >> 12) & 0x0F) as u8 | 0b1110_0000;
+                *b = ((code >> 6) & 0x3F) as u8 | 0b1000_0000;
                 *c = (code & 0x3F) as u8 | 0b1000_0000;
             }
             (4, [a, b, c, d]) => {
-                *a = (code >> 18 & 0x07) as u8 | 0b1111_0000;
-                *b = (code >> 12 & 0x3F) as u8 | 0b1000_0000;
-                *c = (code >> 6 & 0x3F) as u8 | 0b1000_0000;
+                *a = ((code >> 18) & 0x07) as u8 | 0b1111_0000;
+                *b = ((code >> 12) & 0x3F) as u8 | 0b1000_0000;
+                *c = ((code >> 6) & 0x3F) as u8 | 0b1000_0000;
                 *d = (code & 0x3F) as u8 | 0b1000_0000;
             }
             _ => unreachable!("Cannot create a utf8 with more than 4 bytes"),

@@ -751,12 +751,13 @@ fn link_set_variable_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
                 // env.add_memory(value.get_memory_use())?;
 
                 // Store the variable in the global context
-                caller
-                    .data_mut()
-                    .global_context
-                    .database
-                    .set_variable(&contract, var_name.as_str(), value, &data_types, &epoch)
-                    .map_err(Error::from)?;
+                caller.data_mut().global_context.database.set_variable(
+                    &contract,
+                    var_name.as_str(),
+                    value,
+                    &data_types,
+                    &epoch,
+                )?;
 
                 Ok(())
             },
@@ -1293,7 +1294,7 @@ fn link_stx_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error
              amount_hi: i64,
              principal_offset: i32,
              principal_length: i32| {
-                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
+                let amount = ((amount_hi as u128) << 64) | ((amount_lo as u64) as u128);
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1391,7 +1392,7 @@ fn link_stx_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), E
              recipient_length: i32,
              memo_offset: i32,
              memo_length: i32| {
-                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
+                let amount = ((amount_hi as u128) << 64) | ((amount_lo as u64) as u128);
 
                 // Get the memory from the caller
                 let memory = caller
@@ -1655,7 +1656,7 @@ fn link_ft_burn_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
-                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
+                let amount = ((amount_hi as u128) << 64) | ((amount_lo as u64) as u128);
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
@@ -1783,7 +1784,7 @@ fn link_ft_mint_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Error>
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
-                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
+                let amount = ((amount_hi as u128) << 64) | ((amount_lo as u64) as u128);
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
@@ -1909,7 +1910,7 @@ fn link_ft_transfer_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), Er
                 let token_name = ClarityName::try_from(name.clone())?;
 
                 // Compute the amount
-                let amount = (amount_hi as u128) << 64 | ((amount_lo as u64) as u128);
+                let amount = ((amount_hi as u128) << 64) | ((amount_lo as u64) as u128);
 
                 // Read the sender principal from the Wasm memory
                 let value = read_from_wasm(
@@ -3004,7 +3005,7 @@ fn check_height_valid(
     height_hi: i64,
     return_offset: i32,
 ) -> Result<Option<u32>, Error> {
-    let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
+    let height = ((height_hi as u128) << 64) | ((height_lo as u64) as u128);
 
     let height_value = match u32::try_from(height) {
         Ok(result) => result,
@@ -3577,7 +3578,7 @@ fn link_get_burn_block_info_header_hash_property_fn(
                     .get_export("memory")
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
-                let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
+                let height = ((height_hi as u128) << 64) | ((height_lo as u64) as u128);
 
                 // Note: we assume that we will not have a height bigger than u32::MAX.
                 let height_value = match u32::try_from(height) {
@@ -3653,7 +3654,7 @@ fn link_get_burn_block_info_pox_addrs_property_fn(
                     .and_then(|export| export.into_memory())
                     .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
 
-                let height = (height_hi as u128) << 64 | ((height_lo as u64) as u128);
+                let height = ((height_hi as u128) << 64) | ((height_lo as u64) as u128);
 
                 // Note: we assume that we will not have a height bigger than u32::MAX.
                 let height_value = match u32::try_from(height) {

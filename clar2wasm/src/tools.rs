@@ -500,7 +500,7 @@ impl KnownBug {
         if let Error::Wasm(WasmError::WasmGeneratorError(message)) = err {
             RGX.captures(message).is_some_and(|caps| {
                 caps.get(1)
-                    .map_or(true, |cap1| cap1.as_str() == caps.get(2).unwrap().as_str())
+                    .is_none_or(|cap1| cap1.as_str() == caps.get(2).unwrap().as_str())
             })
         } else {
             false
