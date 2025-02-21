@@ -204,6 +204,18 @@ pub trait CostTrackingGenerator {
         });
     }
 
+    fn cost_or(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 3, 120);
+        });
+    }
+
+    fn cost_and(&mut self, instrs: &mut InstrSeqBuilder, n: u32) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 3, 120);
+        });
+    }
+
     fn cost_hash160(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
         self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 188);
