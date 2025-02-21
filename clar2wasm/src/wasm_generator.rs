@@ -929,14 +929,14 @@ impl WasmGenerator {
             }
             clarity::vm::Value::Principal(p) => match p {
                 PrincipalData::Standard(standard) => {
-                    let mut data = vec![standard.0];
+                    let mut data = vec![standard.version()];
                     data.extend_from_slice(&standard.1);
                     // Append a 0 for the length of the contract name
                     data.push(0);
                     data
                 }
                 PrincipalData::Contract(contract) => {
-                    let mut data = vec![contract.issuer.0];
+                    let mut data = vec![contract.issuer.version()];
                     data.extend_from_slice(&contract.issuer.1);
                     let contract_length = contract.name.len();
                     data.push(contract_length);
