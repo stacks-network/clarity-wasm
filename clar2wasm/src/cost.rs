@@ -216,6 +216,30 @@ pub trait CostTrackingGenerator {
         });
     }
 
+    fn cost_int_to_ascii(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 147);
+        });
+    }
+
+    fn cost_int_to_utf8(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 181);
+        });
+    }
+
+    fn cost_string_to_int(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 168);
+        });
+    }
+
+    fn cost_string_to_uint(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 168);
+        });
+    }
+
     fn cost_hash160(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
         self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 188);
