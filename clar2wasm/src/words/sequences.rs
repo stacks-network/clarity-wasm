@@ -488,29 +488,19 @@ impl ComplexWord for Concat {
         // Traverse the two arguments, setting up the stack to contain the
         // arguments to the subsequent `memory.copy` instructions
 
-        /* [] */
         builder.local_get(ret_off);
-        /* [ret_off] */
         generator.traverse_expr(builder, lhs_expr)?;
         builder.local_tee(lhs_len);
-        /* [ret_off, lhs_off, lhs_len] */
         builder.local_get(ret_off);
-        /* [ret_off, lhs_off, lhs_len, ret_off] */
         builder.local_get(lhs_len);
-        /* [ret_off, lhs_off, lhs_len, ret_off, lhs_len] */
         builder.binop(BinaryOp::I32Add);
-        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len] */
         generator.traverse_expr(builder, rhs_expr)?;
         builder.local_tee(rhs_len);
-        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
 
         // Copy arguments to the return buffer. RHS is copied 1st, and LHS 2nd
 
-        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
         builder.memory_copy(memory, memory);
-        /* [ret_off, lhs_off, lhs_len] */
         builder.memory_copy(memory, memory);
-        /* [] */
 
         // Set up the returns representing the new sequence [ret_off, ret_len]
 
