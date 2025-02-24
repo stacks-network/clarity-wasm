@@ -481,10 +481,6 @@ impl ComplexWord for Concat {
         let lhs_len = generator.module.locals.add(ValType::I32);
         let rhs_len = generator.module.locals.add(ValType::I32);
 
-        // WORKAROUND: typechecker issue for lists
-        generator.set_expr_type(lhs_expr, ret_ty.clone())?;
-        generator.set_expr_type(rhs_expr, ret_ty)?;
-
         // Traverse the two arguments, setting up the stack to contain the
         // arguments to the subsequent `memory.copy` instructions
 
