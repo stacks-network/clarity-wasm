@@ -434,9 +434,9 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.3.0"
-source = "git+https://github.com/stacks-network/stacks-core?branch=feat%2Fclarity-wasm-develop#2ecb92e408e4ef3dc0589f49afd3bc18b582dca7"
+source = "git+https://github.com/stacks-network/stacks-core?branch=feat%2Fclarity-wasm-develop#c78b57efe8d6826fe323b6c3b41746862757592f"
 dependencies = [
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "integer-sqrt",
  "lazy_static",
  "rand",
@@ -951,6 +951,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "foldhash"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0d2fde1f7b3d48b8395d5f2de76c18a528bd6a9cdde438df747bfcba3e05d6f"
+
+[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1192,8 +1198,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
- "allocator-api2",
- "serde",
 ]
 
 [[package]]
@@ -1201,6 +1205,12 @@ name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash",
+ "serde",
+]
 
 [[package]]
 name = "hashlink"
@@ -2367,12 +2377,12 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.2"
-source = "git+https://github.com/stacks-network/stacks-core?branch=feat%2Fclarity-wasm-develop#2ecb92e408e4ef3dc0589f49afd3bc18b582dca7"
+source = "git+https://github.com/stacks-network/stacks-core?branch=feat%2Fclarity-wasm-develop#c78b57efe8d6826fe323b6c3b41746862757592f"
 dependencies = [
  "chrono",
  "curve25519-dalek 2.0.0",
  "ed25519-dalek",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "lazy_static",
  "libc",
  "nix 0.23.2",
@@ -2390,6 +2400,7 @@ dependencies = [
  "slog-json",
  "slog-term",
  "time",
+ "toml",
  "winapi",
 ]
 
