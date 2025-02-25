@@ -4333,12 +4333,12 @@ fn skip_functions() {
     check(Value::Bool(false));
 
     check(Value::Principal(PrincipalData::Standard(
-        StandardPrincipalData(0, [0; 20]),
+        StandardPrincipalData::new(0, [0; 20]).unwrap(),
     )));
 
     check(Value::Principal(PrincipalData::Contract(
         QualifiedContractIdentifier {
-            issuer: StandardPrincipalData(0, [0; 20]),
+            issuer: StandardPrincipalData::new(0, [0; 20]).unwrap(),
             name: "abcd".into(),
         },
     )));

@@ -38,14 +38,13 @@ mod clarity_v2_v3 {
         match contract_name {
             Some(contract_name) => {
                 Value::Principal(PrincipalData::Contract(QualifiedContractIdentifier::new(
-                    StandardPrincipalData(version, principal_data),
+                    StandardPrincipalData::new(version, principal_data).unwrap(),
                     contract_name.into(),
                 )))
             }
-            None => Value::Principal(PrincipalData::Standard(StandardPrincipalData(
-                version,
-                principal_data,
-            ))),
+            None => Value::Principal(PrincipalData::Standard(
+                StandardPrincipalData::new(version, principal_data).unwrap(),
+            )),
         }
     }
 
