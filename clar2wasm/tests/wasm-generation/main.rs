@@ -377,12 +377,17 @@ fn tuple(tuple_ty: TupleTypeSignature) -> impl Strategy<Value = Value> {
 }
 
 fn standard_principal() -> impl Strategy<Value = Value> {
+    // Generate a version byte in the range [0, 31] and a 20-byte vector for the hash.
     (0u8..32, prop::collection::vec(any::<u8>(), 20))
         .prop_map(|(v, hash)| {
-            Value::Principal(PrincipalData::Standard(StandardPrincipalData(
-                v,
-                hash.try_into().unwrap(),
-            )))
+            // Since the generated vector always has exactly 20 bytes,
+            // the conversion to [u8; 20] will not fail.
+            let hash_array: [u8; 20] = hash.try_into().expect("Expected 20-byte vector for hash");
+            // Create a StandardPrincipalData instance. This unwrap is safe since the constructor
+            // is designed to succeed with valid inputs.
+            let principal = StandardPrincipalData::new(v, hash_array)
+                .expect("Failed to create StandardPrincipalData");
+            Value::Principal(PrincipalData::Standard(principal))
         })
         .no_shrink()
 }

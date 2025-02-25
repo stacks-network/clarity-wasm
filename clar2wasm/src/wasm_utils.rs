@@ -1534,7 +1534,7 @@ fn pass_argument_to_wasm(
             let h = &issuer.1;
             let bytes: Vec<u8> = std::iter::once(v)
                 .chain(h.iter().copied())
-                .chain(std::iter::once(name.len() as u8))
+                .chain(std::iter::once(name.len()))
                 .chain(name.as_bytes().iter().copied())
                 .collect();
             let buffer = vec![Val::I32(in_mem_offset), Val::I32(bytes.len() as i32)];
