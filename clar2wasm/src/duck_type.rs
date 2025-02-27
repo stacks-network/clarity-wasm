@@ -1,5 +1,8 @@
 use clarity::vm::types::{SequenceSubtype, TypeSignature};
-use walrus::{ir::BinaryOp, InstrSeqBuilder, LocalId, ValType};
+use walrus::{
+    ir::{BinaryOp, Loop},
+    InstrSeqBuilder, LocalId, ValType,
+};
 
 use crate::{
     wasm_generator::{clar2wasm_ty, GeneratorError, WasmGenerator},
@@ -116,17 +119,14 @@ impl WasmGenerator {
                 let target_elem_ty = target_ltd.get_list_item_type();
 
                 // Set list length and offset to locals, and reserve some working space to store the target elements
-                let offset = self.module.locals.add(ValType::I32);
-                let length = self.module.locals.add(ValType::I32);
+                let [offset, length] = locals else {
+                    return Err(GeneratorError::InternalError(
+                        "List duck typing should use only two locals".to_owned(),
+                    ));
+                };
                 let offset_target = self.module.locals.add(ValType::I32);
-                builder.local_set(length);
-                builder.local_set(offset);
-                builder
-                    .global_get(self.stack_pointer)
-                    .local_tee(offset_target)
-                    .i32_const(get_type_in_memory_size(target_ty, false))
-                    .binop(BinaryOp::I32Add)
-                    .global_set(self.stack_pointer);
+                builder.local_set(*length);
+                builder.local_set(*offset);
 
                 // Create locals for the element target repr.
                 let target_locs = self.create_locals_for_ty(target_elem_ty);
@@ -136,7 +136,7 @@ impl WasmGenerator {
                     let mut loop_ = builder.dangling_instr_seq(None);
                     let loop_id = loop_.id();
 
-                    let og_elem_size = self.read_from_memory(&mut loop_, offset, 0, og_elem_ty)?;
+                    let og_elem_size = self.read_from_memory(&mut loop_, *offset, 0, og_elem_ty)?;
                     self.duck_type_stack(&mut loop_, og_elem_ty, target_elem_ty, &target_locs)?;
                     for l in target_locs.iter().rev() {
                         loop_.local_get(*l);
@@ -145,26 +145,47 @@ impl WasmGenerator {
                         self.write_to_memory(&mut loop_, offset_target, 0, target_elem_ty)?;
 
                     loop_
-                        .local_get(offset)
+                        .local_get(*offset)
                         .i32_const(og_elem_size)
                         .binop(BinaryOp::I32Add)
-                        .local_set(offset);
+                        .local_set(*offset);
                     loop_
                         .local_get(offset_target)
                         .i32_const(target_elem_size as i32)
                         .binop(BinaryOp::I32Add)
                         .local_set(offset_target);
                     loop_
-                        .local_get(length)
+                        .local_get(*length)
                         .i32_const(1)
                         .binop(BinaryOp::I32Sub)
-                        .local_tee(length)
+                        .local_tee(*length)
                         .br_if(loop_id);
 
                     loop_id
                 };
 
-                todo!()
+                // we will "duck-type-clone" if the length of the list is not empty
+                builder.local_get(*length).if_else(
+                    None,
+                    |then| {
+                        // we set the offset_target to copy at the free space of stack-pointer and we move this on further
+                        then.global_get(self.stack_pointer)
+                            .local_tee(offset_target)
+                            .i32_const(get_type_in_memory_size(target_ty, false))
+                            .binop(BinaryOp::I32Add)
+                            .global_set(self.stack_pointer);
+
+                        // we put the resulting offset/length on the stack
+                        then.local_get(offset_target).local_get(*length);
+
+                        // the cloning loop
+                        then.instr(Loop { seq: loop_id });
+
+                        // we set the result back to the correct locals
+                        then.local_set(*length).local_set(*offset);
+                    },
+                    |_else| {},
+                );
             }
             (TypeSignature::ListUnionType(_), TypeSignature::ListUnionType(_)) => {
                 return Err(GeneratorError::InternalError(
