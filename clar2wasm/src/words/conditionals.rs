@@ -30,6 +30,8 @@ impl ComplexWord for If {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_if(builder);
+
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
         let false_branch = args.get_expr(2)?;
@@ -71,6 +73,8 @@ impl ComplexWord for Match {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        generator.cost_match(builder);
+
         // WORKAROUND: we'll have to set the types of arguments to the type of expression,
         //             since the typechecker didn't do it for us
         let expr_ty = generator
@@ -195,6 +199,8 @@ impl ComplexWord for Filter {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_filter(builder);
 
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -527,6 +533,8 @@ impl ComplexWord for Unwrap {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_unwrap(builder);
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -609,6 +617,8 @@ impl ComplexWord for UnwrapErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_unwrap_err(builder);
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -701,6 +711,8 @@ impl ComplexWord for Asserts {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_asserts(builder);
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -777,6 +789,8 @@ impl ComplexWord for Try {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_try(builder);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

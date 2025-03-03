@@ -2,6 +2,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -21,6 +22,8 @@ impl ComplexWord for GetBlockInfo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_get_block_info(builder);
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -107,6 +110,8 @@ impl ComplexWord for GetBurnBlockInfo {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_get_burn_block_info(builder);
+
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
 
@@ -172,6 +177,8 @@ impl ComplexWord for AtBlock {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_at_block(builder);
+
         let block_hash = args.get_expr(0)?;
         let e = args.get_expr(1)?;
 
@@ -207,6 +214,8 @@ impl ComplexWord for GetStacksBlockInfo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_get_stacks_block_info(builder);
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;
@@ -275,6 +284,8 @@ impl ComplexWord for GetTenureInfo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_get_tenure_info(builder);
 
         let prop_name = args.get_name(0)?;
         let block = args.get_expr(1)?;

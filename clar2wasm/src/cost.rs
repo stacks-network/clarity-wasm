@@ -489,13 +489,7 @@ pub trait CostTrackingGenerator {
         });
     }
 
-    fn cost_index_of_alias(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
-        self.with_emit_context(|context| {
-            context.caf_linear(instrs, CostType::Runtime, n, 1, 211);
-        });
-    }
-
-    fn cost_index_of_original(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+    fn cost_index_of(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
         self.with_emit_context(|context| {
             context.caf_linear(instrs, CostType::Runtime, n, 1, 211);
         });
@@ -616,13 +610,7 @@ pub trait CostTrackingGenerator {
         });
     }
 
-    fn cost_element_at_alias(&mut self, instrs: &mut InstrSeqBuilder) {
-        self.with_emit_context(|context| {
-            context.caf_const(instrs, CostType::Runtime, 498);
-        });
-    }
-
-    fn cost_element_at_original(&mut self, instrs: &mut InstrSeqBuilder) {
+    fn cost_element_at(&mut self, instrs: &mut InstrSeqBuilder) {
         self.with_emit_context(|context| {
             context.caf_const(instrs, CostType::Runtime, 498);
         });

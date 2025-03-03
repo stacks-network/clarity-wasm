@@ -1,6 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::ComplexWord;
@@ -33,8 +34,12 @@ impl ComplexWord for Let {
         // Save the current named locals
         let saved_locals = generator.bindings.clone();
 
+        let nbindings = bindings.len();
+
+        generator.cost_let(builder, nbindings as u32);
+
         // Traverse the bindings
-        for i in 0..bindings.len() {
+        for i in 0..nbindings {
             let pair = bindings.get_list(i)?;
             let name = pair.get_name(0)?;
             let value = pair.get_expr(1)?;

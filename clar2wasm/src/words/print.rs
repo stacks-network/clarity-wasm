@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, signature_from_string, ArgumentCountCheck};
 
@@ -62,6 +63,9 @@ impl ComplexWord for Print {
         // Storing expr to memory to pass a reference to `print`
         let (value_offset, value_length) =
             generator.create_call_stack_local(builder, &ty, false, true);
+
+        generator.cost_print(builder, value_length as u32);
+
         generator.write_to_memory(builder, value_offset, 0, &ty)?;
         // Then load the offset and length onto the stack
         builder.local_get(value_offset).i32_const(value_length);
