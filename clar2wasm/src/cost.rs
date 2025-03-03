@@ -301,7 +301,7 @@ pub trait CostTrackingGenerator {
     }
 
     fn cost_stx_burn(&mut self, _instrs: &mut InstrSeqBuilder) {
-        // NOTE: this seems to not cost anything, but we include it for completion
+        // TODO: check if this indeed costs nothing (SUSPICIOUS)
     }
 
     fn cost_stx_get_account(&mut self, instrs: &mut InstrSeqBuilder) {
@@ -322,216 +322,292 @@ pub trait CostTrackingGenerator {
 
     // complex words
 
-    fn cost_let(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_let(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 117, 178);
+        });
     }
 
-    fn cost_at_block(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_at_block(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 1327);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_get_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_get_block_info(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 6321);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_get_burn_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_get_burn_block_info(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 96479);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_get_stacks_block_info(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_get_stacks_block_info(&mut self, instrs: &mut InstrSeqBuilder) {
+        // TODO: check if this indeed costs the same as `get_block_info`
+        self.cost_get_block_info(instrs)
     }
 
     fn cost_get_tenure_info(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+        // TODO: check if this indeed costs nothing (SUSPICIOUS)
     }
 
-    // fn cost_and(&mut self, _instrs: &mut InstrSeqBuilder) {
-    //     todo!()
-    // }
-
-    fn cost_asserts(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_asserts(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 128);
+        });
     }
 
-    fn cost_filter(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_filter(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 407);
+        });
     }
 
-    fn cost_if(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_if(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 168);
+        });
     }
 
-    fn cost_match(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_match(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 264);
+        });
     }
 
-    // fn cost_or(&mut self, _instrs: &mut InstrSeqBuilder) {
-    //     todo!()
-    // }
-
-    fn cost_try(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_try(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 240);
+        });
     }
 
-    fn cost_unwrap(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_unwrap(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 252);
+        });
     }
 
-    fn cost_unwrap_err(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_unwrap_err(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 248);
+        });
     }
 
-    fn cost_from_consensus_buff(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_from_consensus_buff(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_nlogn(instrs, CostType::Runtime, n, 3, 185);
+        });
     }
 
-    fn cost_to_consensus_buff(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_to_consensus_buff(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 233);
+        });
     }
 
-    fn cost_define_constant(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_as_contract(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 138);
+        });
     }
 
-    fn cost_as_contract(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_contract_call(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 134);
+        });
     }
 
-    fn cost_contract_call(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_begin(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 151);
+        });
     }
 
-    fn cost_begin(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_unwrap_err_panic(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 302);
+        });
     }
 
-    fn cost_unwrap_err_panic(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_unwrap_panic(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 274);
+        });
     }
 
-    fn cost_unwrap_panic(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_get_data_var(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        let n = n.into();
+
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 468);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 1);
+        });
     }
 
-    fn cost_define_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_set_data_var(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        let n = n.into();
+
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 5, 655);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_linear(instrs, CostType::WriteLength, n, 1, 1);
+        });
     }
 
-    fn cost_get_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_default_to(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 268);
+        });
     }
 
-    fn cost_set_data_var(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_clarity_err(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 199);
+        });
     }
 
-    fn cost_default_to(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_clarity_ok(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 199);
+        });
     }
 
-    fn cost_clarity_err(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_clarity_some(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 199);
+        });
     }
 
-    fn cost_clarity_ok(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_index_of_alias(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 211);
+        });
     }
 
-    fn cost_clarity_some(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_index_of_original(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 211);
+        });
     }
 
-    fn cost_index_of_alias(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_is_eq(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 151);
+        });
     }
 
-    fn cost_index_of_original(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_map_get(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        let n = n.into();
+
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 1025);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_linear(instrs, CostType::ReadLength, n, 1, 1);
+        });
     }
 
-    fn cost_is_eq(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_map_set(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        let n = n.into();
+
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 4, 1899);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_linear(instrs, CostType::WriteLength, n, 1, 1);
+        });
     }
 
-    fn cost_define_private_function(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_map_insert(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        // TODO: check if this indeed costs the same as `set`
+        self.cost_map_set(instrs, n)
     }
 
-    fn cost_define_public_function(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_map_delete(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        // TODO: check if this indeed costs the same as `set`
+        self.cost_map_set(instrs, n)
     }
 
-    fn cost_define_readonly_function(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_contract_of(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 13400);
+        });
     }
 
-    fn cost_map_definition(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_is_none(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 214);
+        });
     }
 
-    fn cost_map_delete(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_is_some(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 195);
+        });
     }
 
-    fn cost_map_get(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_construct(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 398);
+        });
     }
 
-    fn cost_map_insert(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_principal_of(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 984);
+        });
     }
 
-    fn cost_map_set(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_print(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 15, 1458);
+        });
     }
 
-    fn cost_contract_of(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_is_err(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 245);
+        });
     }
 
-    fn cost_is_none(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_is_ok(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 258);
+        });
     }
 
-    fn cost_is_some(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_recover(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 8655);
+        });
     }
 
-    fn cost_construct(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_verify(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 8349);
+        });
     }
 
-    fn cost_principal_of(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_append(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 73, 285);
+        });
     }
 
-    fn cost_print(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_is_err(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_is_ok(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_recover(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_verify(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_append(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_as_max_len(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_as_max_len(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 475);
+        });
     }
 
     fn cost_concat(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
@@ -540,113 +616,185 @@ pub trait CostTrackingGenerator {
         });
     }
 
-    fn cost_element_at_alias(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_element_at_alias(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 498);
+        });
     }
 
-    fn cost_element_at_original(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_element_at_original(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 498);
+        });
     }
 
-    fn cost_fold(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_fold(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 460);
+        });
     }
 
-    fn cost_len(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_len(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 429);
+        });
     }
 
-    fn cost_list_cons(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_list_cons(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 14, 164);
+        });
     }
 
-    fn cost_map(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_map(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1198, 3067);
+        });
     }
 
-    fn cost_replace_at(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_replace_at(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 1, 561);
+        });
     }
 
-    fn cost_slice(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_slice(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 498);
+        });
     }
 
-    fn cost_stx_transfer(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_stx_transfer(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 4640);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_stx_transfer_memo(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_stx_transfer_memo(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 4709);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_burn_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_ft_mint(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 1479);
+            context.caf_const(instrs, CostType::ReadCount, 2);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 2);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_burn_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_ft_burn(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 549);
+            context.caf_const(instrs, CostType::ReadCount, 2);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 2);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_define_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_ft_transfer(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 549);
+            context.caf_const(instrs, CostType::ReadCount, 2);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 2);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_define_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_ft_get_supply(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 420);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_get_balance_of_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_ft_get_balance(&mut self, instrs: &mut InstrSeqBuilder) {
+        self.with_emit_context(|context| {
+            context.caf_const(instrs, CostType::Runtime, 479);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_get_owner_of_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_nft_mint(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 9, 575);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_get_supply_of_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_nft_burn(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 9, 572);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_mint_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_nft_transfer(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 9, 572);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+            context.caf_const(instrs, CostType::WriteCount, 1);
+            context.caf_const(instrs, CostType::WriteLength, 1);
+        });
     }
 
-    fn cost_mint_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_nft_get_owner(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 9, 795);
+            context.caf_const(instrs, CostType::ReadCount, 1);
+            context.caf_const(instrs, CostType::ReadLength, 1);
+        });
     }
 
-    fn cost_transfer_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_tuple_get(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_nlogn(instrs, CostType::Runtime, n, 4, 1736);
+        });
     }
 
-    fn cost_transfer_non_fungible_token(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_tuple_merge(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_linear(instrs, CostType::Runtime, n, 4, 408);
+        });
     }
 
-    fn cost_define_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
+    fn cost_tuple_cons(&mut self, instrs: &mut InstrSeqBuilder, n: impl Into<Scalar>) {
+        self.with_emit_context(|context| {
+            context.caf_nlogn(instrs, CostType::Runtime, n, 10, 1876);
+        });
     }
 
-    fn cost_impl_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_use_trait(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_tuple_cons(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_tuple_get(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
-
-    fn cost_tuple_merge(&mut self, _instrs: &mut InstrSeqBuilder) {
-        todo!()
-    }
+    // TODO: check if these are indeed only relevant during analysis
+    // DefineConstant
+    // DefineDataVar
+    // DefinePrivateFunction
+    // DefinePublicFunction
+    // DefineReadOnlyFunction
+    // DefineFungibleToken
+    // DefineNonFungibleToken
+    // DefineTrait
 }
 
 impl CostTrackingGenerator for WasmGenerator {
@@ -723,8 +871,8 @@ enum CostType {
     Runtime,
     ReadCount,
     ReadLength,
-    // WriteCount,
-    // WriteLength,
+    WriteCount,
+    WriteLength,
 }
 
 impl CostTrackingContext {
@@ -733,8 +881,8 @@ impl CostTrackingContext {
             CostType::Runtime => (self.runtime, ErrorMap::CostOverrunRuntime as _),
             CostType::ReadCount => (self.read_count, ErrorMap::CostOverrunReadCount as _),
             CostType::ReadLength => (self.read_length, ErrorMap::CostOverrunReadLength as _),
-            // CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
-            // CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
+            CostType::WriteCount => (self.write_count, ErrorMap::CostOverrunWriteCount as _),
+            CostType::WriteLength => (self.write_length, ErrorMap::CostOverrunWriteLength as _),
         }
     }
 
@@ -817,763 +965,125 @@ impl CostTrackingContext {
             );
     }
 
-    // fn caf_logn(
-    //     &self,
-    //     instrs: &mut InstrSeqBuilder,
-    //     cost_type: CostType,
-    //     n: impl Into<Scalar>,
-    //     a: u64,
-    //     b: u64,
-    // ) {
-    //     let n = n.into();
-    //     let (global, err_code) = self.global_and_err_code(cost_type);
-    //
-    //     // cost = (+ (* a (log2 n)) b))
-    //     instrs
-    //         .global_get(global)
-    //         .i64_const(b as _)
-    //         .i64_const(a as _)
-    //         .i64_const(63)
-    //         .scalar_get(n)
-    //         // begin log2(n)
-    //         // 63 minus leading zeros in `n`
-    //         // n *must* be larger than 0
-    //         .instr(Instr::Unop(Unop {
-    //             op: UnaryOp::I64Clz,
-    //         }))
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Sub,
-    //         }))
-    //         // * a
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Mul,
-    //         }))
-    //         // + b
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Add,
-    //         }));
-    //
-    //     // global - cost
-    //     instrs
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Sub,
-    //         }))
-    //         .global_set(global)
-    //         .global_get(global)
-    //         .i64_const(0)
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64LtS,
-    //         }))
-    //         .if_else(
-    //             None,
-    //             |builder| {
-    //                 builder.i32_const(err_code);
-    //                 builder.call(self.runtime_error);
-    //             },
-    //             |_| {},
-    //         );
-    // }
-    //
-    // fn caf_nlogn(
-    //     &self,
-    //     instrs: &mut InstrSeqBuilder,
-    //     cost_type: CostType,
-    //     n: impl Into<Scalar>,
-    //     a: u64,
-    //     b: u64,
-    // ) {
-    //     let n = n.into();
-    //     let (global, err_code) = self.global_and_err_code(cost_type);
-    //
-    //     // cost = (+ (* a (* n (log2 n))) b))
-    //     instrs
-    //         .global_get(global)
-    //         .i64_const(b as _)
-    //         .i64_const(a as _)
-    //         .scalar_get(n)
-    //         .i64_const(63)
-    //         .scalar_get(n)
-    //         // log2(n)
-    //         // 63 minus leading zeros in `n`
-    //         // n *must* be larger than 0
-    //         .instr(Instr::Unop(Unop {
-    //             op: UnaryOp::I64Clz,
-    //         }))
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Sub,
-    //         }))
-    //         // * n
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Mul,
-    //         }))
-    //         // * a
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Mul,
-    //         }))
-    //         // + b
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Add,
-    //         }));
-    //
-    //     // global - cost
-    //     instrs
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64Sub,
-    //         }))
-    //         .global_set(global)
-    //         .global_get(global)
-    //         .i64_const(0)
-    //         .instr(Instr::Binop(Binop {
-    //             op: BinaryOp::I64LtS,
-    //         }))
-    //         .if_else(
-    //             None,
-    //             |builder| {
-    //                 builder.i32_const(err_code);
-    //                 builder.call(self.runtime_error);
-    //             },
-    //             |_| {},
-    //         );
-    // }
+    // NOTE: this seems to only be used during analysis, and since we're only measuring runtime
+    //       costs it is unused
+    #[allow(unused)]
+    fn caf_logn(
+        &self,
+        instrs: &mut InstrSeqBuilder,
+        cost_type: CostType,
+        n: impl Into<Scalar>,
+        a: u64,
+        b: u64,
+    ) {
+        let n = n.into();
+        let (global, err_code) = self.global_and_err_code(cost_type);
+
+        // cost = (+ (* a (log2 n)) b))
+        instrs
+            .global_get(global)
+            .i64_const(b as _)
+            .i64_const(a as _)
+            .i64_const(63)
+            .scalar_get(n)
+            // begin log2(n)
+            // 63 minus leading zeros in `n`
+            // n *must* be larger than 0
+            .instr(Instr::Unop(Unop {
+                op: UnaryOp::I64Clz,
+            }))
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            // * a
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Mul,
+            }))
+            // + b
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Add,
+            }));
+
+        // global - cost
+        instrs
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            .global_set(global)
+            .global_get(global)
+            .i64_const(0)
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64LtS,
+            }))
+            .if_else(
+                None,
+                |builder| {
+                    builder.i32_const(err_code);
+                    builder.call(self.runtime_error);
+                },
+                |_| {},
+            );
+    }
+
+    fn caf_nlogn(
+        &self,
+        instrs: &mut InstrSeqBuilder,
+        cost_type: CostType,
+        n: impl Into<Scalar>,
+        a: u64,
+        b: u64,
+    ) {
+        let n = n.into();
+        let (global, err_code) = self.global_and_err_code(cost_type);
+
+        // cost = (+ (* a (* n (log2 n))) b))
+        instrs
+            .global_get(global)
+            .i64_const(b as _)
+            .i64_const(a as _)
+            .scalar_get(n)
+            .i64_const(63)
+            .scalar_get(n)
+            // log2(n)
+            // 63 minus leading zeros in `n`
+            // n *must* be larger than 0
+            .instr(Instr::Unop(Unop {
+                op: UnaryOp::I64Clz,
+            }))
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            // * n
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Mul,
+            }))
+            // * a
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Mul,
+            }))
+            // + b
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Add,
+            }));
+
+        // global - cost
+        instrs
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64Sub,
+            }))
+            .global_set(global)
+            .global_get(global)
+            .i64_const(0)
+            .instr(Instr::Binop(Binop {
+                op: BinaryOp::I64LtS,
+            }))
+            .if_else(
+                None,
+                |builder| {
+                    builder.i32_const(err_code);
+                    builder.call(self.runtime_error);
+                },
+                |_| {},
+            );
+    }
 }
-
-// Cost assessment functions
-
-// ;; Linear cost-assessment function
-// (define-private (linear (n uint) (a uint) (b uint))
-//     (+ (* a n) b))
-//
-// ;; LogN cost-assessment function
-// (define-private (logn (n uint) (a uint) (b uint))
-//     (+ (* a (log2 n)) b))
-//
-// ;; NLogN cost-assessment function
-// (define-private (nlogn (n uint) (a uint) (b uint))
-//     (+ (* a (* n (log2 n))) b))
-//
-//
-// ;; Cost Functions
-// (define-read-only (cost_analysis_type_annotate (n uint))
-//     (runtime (linear n u1 u9)))
-//
-// (define-read-only (cost_analysis_type_check (n uint))
-//     (runtime (linear n u113 u1)))
-//
-// (define-read-only (cost_analysis_type_lookup (n uint))
-//     (runtime (linear n u1 u4)))
-//
-// (define-read-only (cost_analysis_visit (n uint))
-//     (runtime u1))
-//
-// (define-read-only (cost_analysis_iterable_func (n uint))
-//     (runtime (linear n u2 u14)))
-//
-// (define-read-only (cost_analysis_option_cons (n uint))
-//     (runtime u5))
-//
-// (define-read-only (cost_analysis_option_check (n uint))
-//     (runtime u4))
-//
-// (define-read-only (cost_analysis_bind_name (n uint))
-//     (runtime (linear n u1 u59)))
-//
-// (define-read-only (cost_analysis_list_items_check (n uint))
-//     (runtime (linear n u2 u4)))
-//
-// (define-read-only (cost_analysis_check_tuple_get (n uint))
-//     (runtime (logn n u1 u2)))
-//
-// (define-read-only (cost_analysis_check_tuple_merge (n uint))
-//     (runtime (nlogn n u45 u49)))
-//
-// (define-read-only (cost_analysis_check_tuple_cons (n uint))
-//     (runtime (nlogn n u3 u5)))
-//
-// (define-read-only (cost_analysis_tuple_items_check (n uint))
-//     (runtime (linear n u1 u28)))
-//
-// (define-read-only (cost_analysis_check_let (n uint))
-//     (runtime (linear n u1 u10)))
-//
-// (define-read-only (cost_analysis_lookup_function (n uint))
-//     (runtime u18))
-//
-// (define-read-only (cost_analysis_lookup_function_types (n uint))
-//     (runtime (linear n u1 u26)))
-//
-// (define-read-only (cost_analysis_lookup_variable_const (n uint))
-//     (runtime u15))
-//
-// (define-read-only (cost_analysis_lookup_variable_depth (n uint))
-//     (runtime (nlogn n u1 u12)))
-//
-// (define-read-only (cost_ast_parse (n uint))
-//     (runtime (linear n u27 u81)))
-//
-// (define-read-only (cost_ast_cycle_detection (n uint))
-//     (runtime (linear n u141 u72)))
-//
-// (define-read-only (cost_analysis_storage (n uint))
-//     {
-//         runtime: (linear n u2 u94),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_analysis_use_trait_entry (n uint))
-//     {
-//         runtime: (linear n u9 u698),
-//         write_length: (linear n u1 u1),
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: (linear n u1 u1)
-//     })
-//
-// (define-read-only (cost_analysis_fetch_contract_entry (n uint))
-//     {
-//         runtime: (linear n u1 u1516),
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: (linear n u1 u1)
-//     })
-//
-// (define-read-only (cost_analysis_get_function_entry (n uint))
-//     {
-//         runtime: (linear n u78 u1307),
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: (linear n u1 u1)
-//     })
-//
-// (define-read-only (cost_lookup_variable_depth (n uint))
-//     (runtime (linear n u1 u1)))
-//
-// (define-read-only (cost_lookup_variable_size (n uint))
-//     (runtime (linear n u2 u1)))
-//
-// (define-read-only (cost_lookup_function (n uint))
-//     (runtime u16))
-//
-// (define-read-only (cost_bind_name (n uint))
-//     (runtime u216))
-//
-// (define-read-only (cost_inner_type_check_cost (n uint))
-//     (runtime (linear n u2 u5)))
-//
-// (define-read-only (cost_user_function_application (n uint))
-//     (runtime (linear n u26 u5)))
-//
-// (define-read-only (cost_let (n uint))
-//     (runtime (linear n u117 u178)))
-//
-// (define-read-only (cost_if (n uint))
-//     (runtime u168))
-//
-// (define-read-only (cost_asserts (n uint))
-//     (runtime u128))
-//
-// (define-read-only (cost_map (n uint))
-//     (runtime (linear n u1198 u3067)))
-//
-// (define-read-only (cost_filter (n uint))
-//     (runtime u407))
-//
-// (define-read-only (cost_len (n uint))
-//     (runtime u429))
-//
-// (define-read-only (cost_element_at (n uint))
-//     (runtime u498))
-//
-// (define-read-only (cost_index_of (n uint))
-//     (runtime (linear n u1 u211)))
-//
-// (define-read-only (cost_fold (n uint))
-//     (runtime u460))
-//
-// (define-read-only (cost_list_cons (n uint))
-//     (runtime (linear n u14 u164)))
-//
-// (define-read-only (cost_type_parse_step (n uint))
-//     (runtime u4))
-//
-// (define-read-only (cost_tuple_get (n uint))
-//     (runtime (nlogn n u4 u1736)))
-//
-// (define-read-only (cost_tuple_merge (n uint))
-//     (runtime (linear n u4 u408)))
-//
-// (define-read-only (cost_tuple_cons (n uint))
-//     (runtime (nlogn n u10 u1876)))
-//
-// (define-read-only (cost_add (n uint))
-//     (runtime (linear n u11 u125)))
-//
-// (define-read-only (cost_sub (n uint))
-//     (runtime (linear n u11 u125)))
-//
-// (define-read-only (cost_mul (n uint))
-//     (runtime (linear n u13 u125)))
-//
-// (define-read-only (cost_div (n uint))
-//     (runtime (linear n u13 u125)))
-//
-// (define-read-only (cost_geq (n uint))
-//     (runtime (linear n u7 u128)))
-//
-// (define-read-only (cost_leq (n uint))
-//     (runtime (linear n u7 u128)))
-//
-// (define-read-only (cost_le (n uint))
-//     (runtime (linear n u7 u128)))
-//
-// (define-read-only (cost_ge (n uint))
-//     (runtime (linear n u7 u128)))
-//
-// (define-read-only (cost_int_cast (n uint))
-//     (runtime u135))
-//
-// (define-read-only (cost_mod (n uint))
-//     (runtime u141))
-//
-// (define-read-only (cost_pow (n uint))
-//     (runtime u143))
-//
-// (define-read-only (cost_sqrti (n uint))
-//     (runtime u142))
-//
-// (define-read-only (cost_log2 (n uint))
-//     (runtime u133))
-//
-// (define-read-only (cost_xor (n uint))
-//     (runtime (linear n u15 u129)))
-//
-// (define-read-only (cost_not (n uint))
-//     (runtime u138))
-//
-// (define-read-only (cost_eq (n uint))
-//     (runtime (linear n u7 u151)))
-//
-// (define-read-only (cost_begin (n uint))
-//     (runtime u151))
-//
-// (define-read-only (cost_hash160 (n uint))
-//     (runtime (linear n u1 u188)))
-//
-// (define-read-only (cost_sha256 (n uint))
-//     (runtime (linear n u1 u100)))
-//
-// (define-read-only (cost_sha512 (n uint))
-//     (runtime (linear n u1 u176)))
-//
-// (define-read-only (cost_sha512t256 (n uint))
-//     (runtime (linear n u1 u56)))
-//
-// (define-read-only (cost_keccak256 (n uint))
-//     (runtime (linear n u1 u127)))
-//
-// (define-read-only (cost_secp256k1recover (n uint))
-//     (runtime u8655))
-//
-// (define-read-only (cost_secp256k1verify (n uint))
-//     (runtime u8349))
-//
-// (define-read-only (cost_print (n uint))
-//     (runtime (linear n u15 u1458)))
-//
-// (define-read-only (cost_some_cons (n uint))
-//     (runtime u199))
-//
-// (define-read-only (cost_ok_cons (n uint))
-//     (runtime u199))
-//
-// (define-read-only (cost_err_cons (n uint))
-//     (runtime u199))
-//
-// (define-read-only (cost_default_to (n uint))
-//     (runtime u268))
-//
-// (define-read-only (cost_unwrap_ret (n uint))
-//     (runtime u274))
-//
-// (define-read-only (cost_unwrap_err_or_ret (n uint))
-//     (runtime u302))
-//
-// (define-read-only (cost_is_okay (n uint))
-//     (runtime u258))
-//
-// (define-read-only (cost_is_none (n uint))
-//     (runtime u214))
-//
-// (define-read-only (cost_is_err (n uint))
-//     (runtime u245))
-//
-// (define-read-only (cost_is_some (n uint))
-//     (runtime u195))
-//
-// (define-read-only (cost_unwrap (n uint))
-//     (runtime u252))
-//
-// (define-read-only (cost_unwrap_err (n uint))
-//     (runtime u248))
-//
-// (define-read-only (cost_try_ret (n uint))
-//     (runtime u240))
-//
-// (define-read-only (cost_match (n uint))
-//     (runtime u264))
-//
-// (define-read-only (cost_or (n uint))
-//     (runtime (linear n u3 u120)))
-//
-// (define-read-only (cost_and (n uint))
-//     (runtime (linear n u3 u120)))
-//
-// (define-read-only (cost_append (n uint))
-//     (runtime (linear n u73 u285)))
-//
-// (define-read-only (cost_concat (n uint))
-//     (runtime (linear n u37 u220)))
-//
-// (define-read-only (cost_as_max_len (n uint))
-//     (runtime u475))
-//
-// (define-read-only (cost_contract_call (n uint))
-//     (runtime u134))
-//
-// (define-read-only (cost_contract_of (n uint))
-//     (runtime u13400))
-//
-// (define-read-only (cost_principal_of (n uint))
-//     (runtime u984))
-//
-// (define-read-only (cost_at_block (n uint))
-//     {
-//         runtime: u1327,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_load_contract (n uint))
-//     {
-//         runtime: (linear n u1 u80),
-//         write_length: u0,
-//         write_count: u0,
-//         ;; set to 3 because of the associated metadata loads
-//         read_count: u3,
-//         read_length: (linear n u1 u1)
-//     })
-//
-//
-// (define-read-only (cost_create_map (n uint))
-//     {
-//         runtime: (linear n u1 u1564),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u0,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_create_var (n uint))
-//     {
-//         runtime: (linear n u7 u2025),
-//         write_length: (linear n u1 u1),
-//         write_count: u2,
-//         read_count: u0,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_create_nft (n uint))
-//     {
-//         runtime: (linear n u1 u1570),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u0,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_create_ft (n uint))
-//     {
-//         runtime: u1831,
-//         write_length: u1,
-//         write_count: u2,
-//         read_count: u0,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_fetch_entry (n uint))
-//     {
-//         runtime: (linear n u1 u1025),
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: (linear n u1 u1)
-//     })
-//
-//
-// (define-read-only (cost_set_entry (n uint))
-//     {
-//         runtime: (linear n u4 u1899),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_fetch_var (n uint))
-//     {
-//         runtime: (linear n u1 u468),
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: (linear n u1 u1)
-//     })
-//
-//
-// (define-read-only (cost_set_var (n uint))
-//     {
-//         runtime: (linear n u5 u655),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_contract_storage (n uint))
-//     {
-//         runtime: (linear n u11 u7165),
-//         write_length: (linear n u1 u1),
-//         write_count: u1,
-//         read_count: u0,
-//         read_length: u0
-//     })
-//
-//
-// (define-read-only (cost_block_info (n uint))
-//     {
-//         runtime: u6321,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_stx_balance (n uint))
-//     {
-//         runtime: u4294,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_stx_transfer (n uint))
-//     {
-//         runtime: u4640,
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_ft_mint (n uint))
-//     {
-//         runtime: u1479,
-//         write_length: u1,
-//         write_count: u2,
-//         read_count: u2,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_ft_transfer (n uint))
-//     {
-//         runtime: u549,
-//         write_length: u1,
-//         write_count: u2,
-//         read_count: u2,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_ft_balance (n uint))
-//     {
-//         runtime: u479,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_nft_mint (n uint))
-//     {
-//         runtime: (linear n u9 u575),
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_nft_transfer (n uint))
-//     {
-//         runtime: (linear n u9 u572),
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_nft_owner (n uint))
-//     {
-//         runtime: (linear n u9 u795),
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_ft_get_supply (n uint))
-//     {
-//         runtime: u420,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_ft_burn (n uint))
-//     {
-//         runtime: u549,
-//         write_length: u1,
-//         write_count: u2,
-//         read_count: u2,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (cost_nft_burn (n uint))
-//     {
-//         runtime: (linear n u9 u572),
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-//
-// (define-read-only (poison_microblock (n uint))
-//     {
-//         runtime: u17485,
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_buff_to_int_le (n uint))
-//     (runtime u141))
-//
-// (define-read-only (cost_buff_to_uint_le (n uint))
-//     (runtime u141))
-//
-// (define-read-only (cost_buff_to_int_be (n uint))
-//     (runtime u141))
-//
-// (define-read-only (cost_buff_to_uint_be (n uint))
-//     (runtime u141))
-//
-// (define-read-only (cost_is_standard (n uint))
-//     (runtime u127))
-//
-// (define-read-only (cost_principal_destruct (n uint))
-//     (runtime u314))
-//
-// (define-read-only (cost_principal_construct (n uint))
-//     (runtime u398))
-//
-// (define-read-only (cost_string_to_int (n uint))
-//     (runtime u168))
-//
-// (define-read-only (cost_string_to_uint (n uint))
-//     (runtime u168))
-//
-// (define-read-only (cost_int_to_ascii (n uint))
-//     (runtime u147))
-//
-// (define-read-only (cost_int_to_utf8 (n uint))
-//     (runtime u181))
-//
-//
-// (define-read-only (cost_burn_block_info (n uint))
-//     {
-//         runtime: u96479,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_stx_account (n uint))
-//     {
-//         runtime: u4654,
-//         write_length: u0,
-//         write_count: u0,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_slice (n uint))
-//     (runtime u448))
-//
-// (define-read-only (cost_to_consensus_buff (n uint))
-//     (runtime (linear n u1 u233)))
-//
-// (define-read-only (cost_from_consensus_buff (n uint))
-//     (runtime (nlogn n u3 u185)))
-//
-// (define-read-only (cost_stx_transfer_memo (n uint))
-//     {
-//         runtime: u4709,
-//         write_length: u1,
-//         write_count: u1,
-//         read_count: u1,
-//         read_length: u1
-//     })
-//
-// (define-read-only (cost_replace_at (n uint))
-//     (runtime (linear n u1 u561)))
-//
-// (define-read-only (cost_as_contract (n uint))
-//     (runtime u138))
-//
-// (define-read-only (cost_bitwise_and (n uint))
-//     (runtime (linear n u15 u129)))
-//
-// (define-read-only (cost_bitwise_or (n uint))
-//     (runtime (linear n u15 u129)))
-//
-// (define-read-only (cost_bitwise_not (n uint))
-//     (runtime u147))
-//
-// (define-read-only (cost_bitwise_left_shift (n uint))
-//     (runtime u167))
-//
-// (define-read-only (cost_bitwise_right_shift (n uint))
-//     (runtime u167))
