@@ -152,6 +152,7 @@ where
         ClarityVersion::latest(),
         StacksEpochId::latest(),
         &mut analysis_db,
+        false,
     )
     .expect("Failed compiling clarity to WASM");
 

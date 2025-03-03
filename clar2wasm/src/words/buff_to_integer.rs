@@ -1,5 +1,6 @@
 use clarity::vm::types::TypeSignature;
 
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::words::SimpleWord;
 
@@ -32,6 +33,7 @@ impl SimpleWord for BuffToUintBe {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        generator.cost_buff_to_uint_be(builder);
         traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
     }
 }
@@ -53,6 +55,7 @@ impl SimpleWord for BuffToIntBe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-be", with the result interpreted
         // as i128 instead of u128.
+        generator.cost_buff_to_int_be(builder);
         traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
     }
 }
@@ -72,6 +75,7 @@ impl SimpleWord for BuffToUintLe {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        generator.cost_buff_to_uint_le(builder);
         traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
     }
 }
@@ -93,6 +97,7 @@ impl SimpleWord for BuffToIntLe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-le", with the result interpreted
         // as i128 instead of u128.
+        generator.cost_buff_to_int_le(builder);
         traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
     }
 }

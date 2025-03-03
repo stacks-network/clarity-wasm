@@ -7,6 +7,7 @@ use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
@@ -64,6 +65,8 @@ impl ComplexWord for ListCons {
             total_size += elem_size;
         }
 
+        generator.cost_list_cons(builder, total_size);
+
         // Push the offset and size to the data stack
         builder.local_get(offset).i32_const(total_size as i32);
 
@@ -87,6 +90,8 @@ impl ComplexWord for Fold {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_fold(builder);
 
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -321,6 +326,15 @@ impl ComplexWord for Append {
         // list. Save a copy of the length for later.
         let src_length = generator.module.locals.add(ValType::I32);
         builder.local_tee(src_length);
+
+        generator.with_cost_locals::<1>(|generator, locals| {
+            builder.i32_const(1);
+            builder.binop(BinaryOp::I32Add);
+            builder.local_set(locals[0]);
+            generator.cost_append(builder, locals[0]);
+            builder.local_get(src_length);
+        });
+
         builder.memory_copy(memory, memory);
 
         // Increment the write pointer by the length of the source list.
@@ -362,6 +376,8 @@ impl ComplexWord for AsMaxLen {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_as_max_len(builder);
 
         // Push a `0` and a `1` to the stack, to be used by the `select`
         // instruction later.
@@ -469,54 +485,61 @@ impl ComplexWord for Concat {
         let memory = generator.get_memory()?;
 
         // Create a new sequence to hold the result in the stack frame
-        let ty = generator
+        let ret_ty = generator
             .get_expr_type(expr)
             .ok_or_else(|| GeneratorError::TypeError("concat expression must be typed".to_owned()))?
             .clone();
-        let (offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
+        let (ret_off, _) = generator.create_call_stack_local(builder, &ret_ty, false, true);
 
-        builder.local_get(offset);
+        let lhs_expr = args.get_expr(0)?;
+        let rhs_expr = args.get_expr(1)?;
 
-        // Traverse the lhs, leaving it on the data stack (offset, size)
-        let lhs = args.get_expr(0)?;
+        let lhs_len = generator.module.locals.add(ValType::I32);
+        let rhs_len = generator.module.locals.add(ValType::I32);
+        let ret_len = generator.module.locals.add(ValType::I32);
+
         // WORKAROUND: typechecker issue for lists
-        generator.set_expr_type(lhs, ty.clone())?;
-        generator.traverse_expr(builder, lhs)?;
+        generator.set_expr_type(lhs_expr, ret_ty.clone())?;
+        generator.set_expr_type(rhs_expr, ret_ty)?;
 
-        // Save the length of the lhs
-        let lhs_length = generator.module.locals.add(ValType::I32);
-        builder.local_tee(lhs_length);
+        // Traverse the two arguments, setting up the stack to contain the
+        // arguments to the subsequent `memory.copy` instructions
 
-        // Copy the lhs to the new sequence
+        /* [] */
+        builder.local_get(ret_off);
+        /* [ret_off] */
+        generator.traverse_expr(builder, lhs_expr)?;
+        builder.local_tee(lhs_len);
+        /* [ret_off, lhs_off, lhs_len] */
+        builder.local_get(ret_off);
+        /* [ret_off, lhs_off, lhs_len, ret_off] */
+        builder.local_get(lhs_len);
+        /* [ret_off, lhs_off, lhs_len, ret_off, lhs_len] */
+        builder.binop(BinaryOp::I32Add);
+        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len] */
+        generator.traverse_expr(builder, rhs_expr)?;
+        builder.local_tee(rhs_len);
+        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
+
+        builder.local_get(lhs_len);
+        builder.local_get(rhs_len);
+        builder.binop(BinaryOp::I32Add);
+        builder.local_set(ret_len);
+
+        generator.cost_concat(builder, ret_len);
+
+        // Copy arguments to the return buffer. RHS is copied 1st, and LHS 2nd
+
+        /* [ret_off, lhs_off, lhs_len, ret_off + lhs_len, rhs_off, rhs_len] */
         builder.memory_copy(memory, memory);
-
-        // Load the adjusted destination offset
-        builder
-            .local_get(offset)
-            .local_get(lhs_length)
-            .binop(BinaryOp::I32Add);
-
-        // Traverse the rhs, leaving it on the data stack (offset, size)
-        let rhs = args.get_expr(1)?;
-        // WORKAROUND: typechecker issue for lists
-        generator.set_expr_type(rhs, ty.clone())?;
-        generator.traverse_expr(builder, rhs)?;
-
-        // Save the length of the rhs
-        let rhs_length = generator.module.locals.add(ValType::I32);
-        builder.local_tee(rhs_length);
-
-        // Copy the rhs to the new sequence
+        /* [ret_off, lhs_off, lhs_len] */
         builder.memory_copy(memory, memory);
+        /* [] */
 
-        // Load the offset of the new sequence
-        builder.local_get(offset);
+        // Set up the returns representing the new sequence [ret_off, ret_len]
 
-        // Total size = lhs_length + rhs_length
-        builder
-            .local_get(lhs_length)
-            .local_get(rhs_length)
-            .binop(BinaryOp::I32Add);
+        builder.local_get(ret_off);
+        builder.local_get(ret_len);
 
         Ok(())
     }
@@ -827,6 +850,8 @@ impl ComplexWord for Len {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_len(builder);
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -911,6 +936,8 @@ impl ComplexWord for ElementAt {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_element_at(builder);
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;

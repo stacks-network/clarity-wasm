@@ -4,6 +4,7 @@ use walrus::ir::BinaryOp;
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -54,6 +55,8 @@ impl ComplexWord for IsSome {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
+        generator.cost_is_some(builder);
+
         traverse_optional(generator, builder, args)
     }
 }
@@ -74,6 +77,8 @@ impl ComplexWord for IsNone {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_is_none(builder);
 
         traverse_optional(generator, builder, args)?;
 
