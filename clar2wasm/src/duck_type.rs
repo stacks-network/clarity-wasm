@@ -15,24 +15,25 @@ impl WasmGenerator {
         builder: &mut InstrSeqBuilder,
         og_ty: &TypeSignature,
         target_ty: &TypeSignature,
-    ) {
-        let needed_workspace = dt_needed_workspace(target_ty);
-        let former_stack_pointer;
-        if needed_workspace > 0 {
-            self.ensure_work_space(dt_needed_workspace(target_ty));
-            former_stack_pointer = self.module.locals.add(ValType::I32);
-            builder
-                .global_get(self.stack_pointer)
-                .local_set(former_stack_pointer);
+    ) -> Result<(), GeneratorError> {
+        let former_stack_pointer = {
+            let needed_workspace = dt_needed_workspace(target_ty);
+            (needed_workspace > 0).then(|| {
+                self.ensure_work_space(needed_workspace);
+                let pointer = self.module.locals.add(ValType::I32);
+                builder.global_get(self.stack_pointer).local_set(pointer);
+                pointer
+            })
+        };
+
+        let locals = self.create_locals_for_ty(target_ty);
+        self.duck_type_stack(builder, og_ty, target_ty, &locals)?;
+
+        if let Some(pointer) = former_stack_pointer {
+            builder.local_get(pointer).global_set(self.stack_pointer);
         }
 
-        todo!();
-
-        if needed_workspace > 0 {
-            builder
-                .local_get(former_stack_pointer)
-                .global_set(self.stack_pointer);
-        }
+        Ok(())
     }
 
     fn duck_type_stack(
