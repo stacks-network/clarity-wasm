@@ -208,5 +208,17 @@ impl WasmGenerator {
 }
 
 fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
-    todo!();
+    match ty {
+        TypeSignature::OptionalType(opt) => dt_needed_workspace(opt),
+        TypeSignature::ResponseType(resp) => {
+            dt_needed_workspace(&resp.0) + dt_needed_workspace(&resp.1)
+        }
+        TypeSignature::TupleType(tup) => tup.get_type_map().values().map(dt_needed_workspace).sum(),
+        TypeSignature::SequenceType(SequenceSubtype::ListType(_)) => {
+            get_type_in_memory_size(ty, false) as u32
+        }
+        _ => 0,
+    }
 }
+#[cfg(test)]
+mod tests {}
