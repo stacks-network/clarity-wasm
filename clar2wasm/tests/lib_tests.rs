@@ -475,14 +475,25 @@ macro_rules! test_contract_call_response_events {
     };
 }
 
-macro_rules! test_contract_call_error {
-    ($func: ident, $contract_name: literal, $contract_func: literal, $test: expr) => {
+macro_rules! test_contract_call_runtime_error {
+    ($func: ident, $contract_name: literal, $contract_func: literal, $additional_check: expr, $test: expr) => {
         test_multi_contract_init!(
             $func,
             [$contract_name],
             |global_context: &mut GlobalContext,
              contract_contexts: &HashMap<&str, ContractContext>,
              _return_val: Option<Value>| {
+                // Prepare global context
+                global_context.begin();
+
+                if let Some(check_str) = $additional_check {
+                    // Additional check provided and equals "rollback_check", clear the event_batches.
+                    // This guarantees that if a rollback occurs later, an empty event_batches will trigger a rollback error.
+                    if check_str == "rollback_check" {
+                        global_context.event_batches = vec![];
+                    }
+                }
+
                 // Initialize a call stack
                 let mut call_stack = CallStack::new();
 
@@ -497,6 +508,7 @@ macro_rules! test_contract_call_error {
                     None,
                 );
 
+                // If the call fails, pass the error to the provided test closure.
                 match result {
                     Err(e) => $test(e),
                     _ => (),
@@ -4083,14 +4095,11 @@ test_contract_call_response!(
     }
 );
 
-//
-// Runtime error tests
-//
-
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_division_by_zero_error,
     "runtime-errors",
     "division-by-zero-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4099,10 +4108,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_power_argument_error,
     "runtime-errors",
     "power-argument-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4116,10 +4126,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_square_root_argument_error,
     "runtime-errors",
     "square-root-argument-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4131,10 +4142,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_log2_argument_error,
     "runtime-errors",
     "log2-argument-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4146,10 +4158,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_overflow_error,
     "runtime-errors",
     "overflow-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4158,10 +4171,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_underflow_error,
     "runtime-errors",
     "underflow-error",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4170,10 +4184,11 @@ test_contract_call_error!(
     }
 );
 
-test_contract_call_error!(
+test_contract_call_runtime_error!(
     test_root_cause_error_case,
     "root-cause-error-case",
     "foo",
+    None,
     |error: Error| {
         assert_eq!(
             error,
@@ -4202,5 +4217,23 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(42));
+    }
+);
+
+test_contract_call_runtime_error!(
+    test_issue_2,
+    "issue",
+    "abc",
+    Some("rollback_check"),
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Runtime(
+                RuntimeErrorType::Arithmetic(
+                    "Power argument to (pow ...) must be a u32 integer".to_string()
+                ),
+                Some(Vec::new())
+            )
+        );
     }
 );
