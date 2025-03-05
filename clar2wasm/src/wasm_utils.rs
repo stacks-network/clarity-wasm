@@ -1332,6 +1332,11 @@ pub fn call_function<'a>(
     // Call the function
     func.call(&mut store, &wasm_args, &mut results)
         .map_err(|e| {
+            store
+                .data_mut()
+                .global_context
+                .roll_back()
+                .unwrap_or_else(|e| panic!("Failed to clean up global context: {}", e));
             error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
         })?;
 

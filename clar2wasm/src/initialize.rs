@@ -369,6 +369,11 @@ pub fn initialize_contract(
     top_level
         .call(&mut store, &[], results.as_mut_slice())
         .map_err(|e| {
+            store
+                .data_mut()
+                .global_context
+                .roll_back()
+                .unwrap_or_else(|e| panic!("Failed to clean up global context: {}", e));
             error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
         })?;
 
