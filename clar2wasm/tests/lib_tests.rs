@@ -497,6 +497,8 @@ macro_rules! test_contract_call_error {
                     None,
                 );
 
+                global_context.begin();
+
                 match result {
                     Err(e) => $test(e),
                     _ => (),
