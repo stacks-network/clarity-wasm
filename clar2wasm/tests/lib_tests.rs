@@ -13,7 +13,7 @@ use clarity::vm::contexts::{CallStack, EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
 use clarity::vm::costs::LimitedCostTracker;
 use clarity::vm::database::{ClarityDatabase, MemoryBackingStore};
-use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType};
+use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType, WasmError};
 use clarity::vm::events::StacksTransactionEvent;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, ResponseData, StandardPrincipalData, TupleData,
@@ -4099,7 +4099,7 @@ test_contract_call_runtime_error!(
     test_division_by_zero_error,
     "runtime-errors",
     "division-by-zero-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4109,10 +4109,24 @@ test_contract_call_runtime_error!(
 );
 
 test_contract_call_runtime_error!(
+    test_division_by_zero_rollback_error,
+    "runtime-errors",
+    "division-by-zero-error",
+    Some("rollback_check"),
+    |error: Error| {
+        assert_eq!(
+            error,
+            Error::Wasm(
+                WasmError::Expect("Expected entry to rollback".into()))
+        );
+    }
+);
+
+test_contract_call_runtime_error!(
     test_power_argument_error,
     "runtime-errors",
     "power-argument-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4130,7 +4144,7 @@ test_contract_call_runtime_error!(
     test_square_root_argument_error,
     "runtime-errors",
     "square-root-argument-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4146,7 +4160,7 @@ test_contract_call_runtime_error!(
     test_log2_argument_error,
     "runtime-errors",
     "log2-argument-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4162,7 +4176,7 @@ test_contract_call_runtime_error!(
     test_overflow_error,
     "runtime-errors",
     "overflow-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4175,7 +4189,7 @@ test_contract_call_runtime_error!(
     test_underflow_error,
     "runtime-errors",
     "underflow-error",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4188,7 +4202,7 @@ test_contract_call_runtime_error!(
     test_root_cause_error_case,
     "root-cause-error-case",
     "foo",
-    None,
+    None::<String>,
     |error: Error| {
         assert_eq!(
             error,
@@ -4217,23 +4231,5 @@ test_contract_call_response!(
     |response: ResponseData| {
         assert!(response.committed);
         assert_eq!(*response.data, Value::Int(42));
-    }
-);
-
-test_contract_call_runtime_error!(
-    test_issue_2,
-    "issue",
-    "abc",
-    Some("rollback_check"),
-    |error: Error| {
-        assert_eq!(
-            error,
-            Error::Runtime(
-                RuntimeErrorType::Arithmetic(
-                    "Power argument to (pow ...) must be a u32 integer".to_string()
-                ),
-                Some(Vec::new())
-            )
-        );
     }
 );
