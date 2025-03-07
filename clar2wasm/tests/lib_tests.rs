@@ -4116,8 +4116,7 @@ test_contract_call_runtime_error!(
     |error: Error| {
         assert_eq!(
             error,
-            Error::Wasm(
-                WasmError::Expect("Expected entry to rollback".into()))
+            Error::Wasm(WasmError::Expect("Expected entry to rollback".into()))
         );
     }
 );
