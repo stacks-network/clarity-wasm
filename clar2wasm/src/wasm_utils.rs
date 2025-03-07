@@ -1331,16 +1331,24 @@ pub fn call_function<'a>(
 
     let func_result = func.call(&mut store, &[], results.as_mut_slice());
     match func_result {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             // Before propagating the error, attempt to roll back the function context.
             // If the rollback fails, immediately return a rollback-specific error.
             if store.data_mut().global_context.roll_back().is_err() {
-                return Err(Error::Wasm(WasmError::Expect("Expected entry to rollback".into())));
+                return Err(Error::Wasm(WasmError::Expect(
+                    "Expected entry to rollback".into(),
+                )));
             }
 
             // Rollback succeeded, so resolve and return the original runtime error.
-            return Err(error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version));
+            return Err(error_mapping::resolve_error(
+                e,
+                instance,
+                &mut store,
+                &epoch,
+                &clarity_version,
+            ));
         }
     }
 
