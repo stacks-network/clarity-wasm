@@ -1329,11 +1329,11 @@ pub fn call_function<'a>(
         .set(&mut store, Val::I32(offset))
         .map_err(|e| Error::Wasm(WasmError::Runtime(e)))?;
 
-     // Call the function
-     func.call(&mut store, &wasm_args, &mut results)
-         .map_err(|e| {
-             error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
-         })?;
+    // Call the function
+    func.call(&mut store, &wasm_args, &mut results)
+        .map_err(|e| {
+            error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
+        })?;
 
     // If the function returns a value, translate it into a Clarity `Value`
     wasm_to_clarity_value(&return_type, 0, &results, memory, &mut &mut store, epoch)
