@@ -2,6 +2,7 @@ use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
@@ -60,6 +61,7 @@ impl SimpleWord for CmpLess {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_cmp_lt(builder, arg_types.len() as _);
         traverse_comparison("lt", generator, builder, arg_types, return_type)
     }
 }
@@ -79,6 +81,7 @@ impl SimpleWord for CmpLeq {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_cmp_le(builder, arg_types.len() as _);
         traverse_comparison("le", generator, builder, arg_types, return_type)
     }
 }
@@ -98,6 +101,7 @@ impl SimpleWord for CmpGreater {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_cmp_gt(builder, arg_types.len() as _);
         traverse_comparison("gt", generator, builder, arg_types, return_type)
     }
 }
@@ -117,6 +121,7 @@ impl SimpleWord for CmpGeq {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        generator.cost_cmp_ge(builder, arg_types.len() as _);
         traverse_comparison("ge", generator, builder, arg_types, return_type)
     }
 }

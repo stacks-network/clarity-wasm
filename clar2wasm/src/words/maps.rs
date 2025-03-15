@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -133,6 +134,8 @@ impl ComplexWord for MapGet {
         let (return_offset, return_size) =
             generator.create_call_stack_local(builder, &ty, true, true);
 
+        generator.cost_map_get(builder, (key_size + return_size) as u32);
+
         // Push the return value offset and size to the data stack
         builder.local_get(return_offset).i32_const(return_size);
 
@@ -212,6 +215,8 @@ impl ComplexWord for MapSet {
             })?
             .clone();
         let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
+
+        generator.cost_map_get(builder, (key_size + val_size) as u32);
 
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
@@ -295,6 +300,8 @@ impl ComplexWord for MapInsert {
             .clone();
         let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
 
+        generator.cost_map_insert(builder, (key_size + val_size) as u32);
+
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
 
@@ -357,6 +364,9 @@ impl ComplexWord for MapDelete {
             })?
             .clone();
         let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
+
+        // NOTE: may also depend on the size of the value being deleted
+        generator.cost_map_delete(builder, key_size as u32);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;

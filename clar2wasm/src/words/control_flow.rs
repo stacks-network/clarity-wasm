@@ -4,6 +4,7 @@ use walrus::ir::{IfElse, UnaryOp};
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::CostTrackingGenerator;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -30,6 +31,8 @@ impl ComplexWord for Begin {
             args.len(),
             ArgumentCountCheck::AtLeast
         );
+
+        generator.cost_begin(builder);
 
         generator.set_expr_type(
             args.last().ok_or_else(|| {
@@ -60,6 +63,8 @@ impl ComplexWord for UnwrapPanic {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_unwrap_panic(builder);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;
@@ -198,6 +203,8 @@ impl ComplexWord for UnwrapErrPanic {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        generator.cost_unwrap_err_panic(builder);
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

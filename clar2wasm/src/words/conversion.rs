@@ -1,7 +1,7 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
 use super::SimpleWord;
-use crate::wasm_generator::GeneratorError;
+use crate::{cost::CostTrackingGenerator, wasm_generator::GeneratorError};
 
 #[derive(Debug)]
 pub struct StringToInt;
@@ -31,6 +31,8 @@ impl SimpleWord for StringToInt {
                 ))
             }
         };
+
+        generator.cost_string_to_int(builder);
 
         let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-int"));
         builder.call(func);
@@ -68,6 +70,8 @@ impl SimpleWord for StringToUint {
             }
         };
 
+        generator.cost_string_to_uint(builder);
+
         let func = generator.func_by_name(&format!("stdlib.{func_prefix}-to-uint"));
 
         builder.call(func);
@@ -100,6 +104,8 @@ impl SimpleWord for IntToAscii {
                 ));
             }
         };
+
+        generator.cost_int_to_ascii(builder);
 
         let (result_offset, _) =
             generator.create_call_stack_local(builder, return_type, false, true);
@@ -137,6 +143,8 @@ impl SimpleWord for IntToUtf8 {
                 ));
             }
         };
+
+        generator.cost_int_to_utf8(builder);
 
         let (result_offset, _) =
             generator.create_call_stack_local(builder, return_type, false, true);

@@ -78,6 +78,21 @@ pub enum ErrorMap {
     /// Indicates an attempt to use a function with too many arguments
     ArgumentCountAtMost = 15,
 
+    /// Indicates a runtime cost overrun
+    CostOverrunRuntime = 100,
+
+    /// Indicates a read count cost overrun
+    CostOverrunReadCount = 101,
+
+    /// Indicates a read length cost overrun
+    CostOverrunReadLength = 102,
+
+    /// Indicates a write count cost overrun
+    CostOverrunWriteCount = 103,
+
+    /// Indicates a write length cost overrun
+    CostOverrunWriteLength = 104,
+
     /// A catch-all for errors that are not mapped to specific error codes.
     /// This might be used for unexpected or unclassified errors.
     NotMapped = 99,
@@ -103,6 +118,11 @@ impl From<i32> for ErrorMap {
             13 => ErrorMap::ArgumentCountMismatch,
             14 => ErrorMap::ArgumentCountAtLeast,
             15 => ErrorMap::ArgumentCountAtMost,
+            100 => ErrorMap::CostOverrunRuntime,
+            101 => ErrorMap::CostOverrunReadCount,
+            102 => ErrorMap::CostOverrunReadLength,
+            103 => ErrorMap::CostOverrunWriteCount,
+            104 => ErrorMap::CostOverrunWriteLength,
             _ => ErrorMap::NotMapped,
         }
     }

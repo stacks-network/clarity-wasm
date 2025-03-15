@@ -74,6 +74,7 @@ macro_rules! test_multi_contract_init {
                             ClarityVersion::Clarity2,
                             StacksEpochId::latest(),
                             analysis_db,
+                            false,
                         )
                         .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
                     })

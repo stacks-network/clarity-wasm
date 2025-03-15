@@ -23,6 +23,9 @@ struct Args {
     /// Output file to write compiled WebAssembly to
     #[arg(short, long)]
     output: Option<String>,
+    /// Whether to emit cost-tracking code.
+    #[arg(long, default_value_t = false)]
+    cost_tracking: bool,
 }
 
 fn main() {
@@ -60,6 +63,7 @@ fn main() {
         clarity_version,
         epoch,
         &mut datastore.as_analysis_db(),
+        args.cost_tracking,
     )
     .unwrap_or_else(|err| match err {
         CompileError::Generic {
