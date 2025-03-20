@@ -1,4 +1,3 @@
-use core::panic;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
@@ -23,6 +22,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
+use crate::cost::ChargeContext;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
@@ -62,6 +62,10 @@ pub struct WasmGenerator {
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
+
+    /// Emits cost tracking code if set.
+    pub(crate) cost_context: Option<ChargeContext>,
+
     /// Size of the current function's stack frame.
     frame_size: i32,
     /// Size of the maximum extra work space required by the stdlib functions
@@ -278,6 +282,12 @@ pub fn get_global(module: &Module, name: &str) -> Result<GlobalId, GeneratorErro
         })
 }
 
+fn get_function(module: &Module, name: &str) -> Result<FunctionId, GeneratorError> {
+    module.funcs.by_name(name).ok_or_else(|| {
+        GeneratorError::InternalError(format!("Expected to find a function named ${name}"))
+    })
+}
+
 pub(crate) struct BorrowedLocal {
     id: LocalId,
     ty: ValType,
@@ -320,6 +330,7 @@ impl WasmGenerator {
             literal_memory_offset: HashMap::new(),
             constants: HashMap::new(),
             bindings: Bindings::new(),
+            cost_context: None,
             early_return_block_id: None,
             current_function_type: None,
             frame_size: 0,
@@ -329,6 +340,19 @@ impl WasmGenerator {
             local_pool: Rc::new(RefCell::new(HashMap::new())),
             nft_types: HashMap::new(),
         })
+    }
+
+    pub fn with_cost_code(contract_analysis: ContractAnalysis) -> Result<Self, GeneratorError> {
+        let mut generator = Self::new(contract_analysis)?;
+        generator.cost_context = Some(ChargeContext {
+            runtime: get_global(&generator.module, "cost-runtime")?,
+            read_count: get_global(&generator.module, "cost-read-count")?,
+            read_length: get_global(&generator.module, "cost-read-length")?,
+            write_count: get_global(&generator.module, "cost-write-count")?,
+            write_length: get_global(&generator.module, "cost-write-length")?,
+            runtime_error: get_function(&generator.module, "stdlib.runtime-error")?,
+        });
+        Ok(generator)
     }
 
     pub fn set_memory_pages(&mut self) -> Result<(), GeneratorError> {
@@ -351,6 +375,15 @@ impl WasmGenerator {
 
     pub fn generate(mut self) -> Result<Module, GeneratorError> {
         let expressions = std::mem::take(&mut self.contract_analysis.expressions);
+
+        if self.cost_context.is_some() {
+            let module = &mut self.module;
+            module.add_import_global("clarity", "cost-runtime", ValType::I64, true);
+            module.add_import_global("clarity", "cost-read-count", ValType::I64, true);
+            module.add_import_global("clarity", "cost-read-length", ValType::I64, true);
+            module.add_import_global("clarity", "cost-write-count", ValType::I64, true);
+            module.add_import_global("clarity", "cost-write-length", ValType::I64, true);
+        }
 
         // Get the type of the last top-level expression with a return value
         // or default to `None`.
@@ -1574,10 +1607,8 @@ impl WasmGenerator {
     }
 
     pub fn func_by_name(&self, name: &str) -> FunctionId {
-        self.module
-            .funcs
-            .by_name(name)
-            .unwrap_or_else(|| panic!("function not found: {name}"))
+        #[allow(clippy::unwrap_used)]
+        get_function(&self.module, name).unwrap()
     }
 
     pub fn get_function_type(&self, name: &str) -> Option<&FunctionType> {
@@ -2268,6 +2299,7 @@ mod tests {
                 ClarityVersion::Clarity2,
                 StacksEpochId::Epoch25,
                 &mut AnalysisDatabase::new(&mut MemoryBackingStore::new()),
+                false,
             )
             .unwrap()
             .module;

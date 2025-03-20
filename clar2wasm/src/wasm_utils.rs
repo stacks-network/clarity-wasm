@@ -19,6 +19,7 @@ use crate::error_mapping::{self, ErrorMap};
 use crate::initialize::ClarityWasmContext;
 use crate::linker::link_host_functions;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
+use crate::CostLinker;
 
 #[allow(non_snake_case)]
 pub enum MintAssetErrorCodes {
@@ -1273,6 +1274,9 @@ pub fn call_function<'a>(
 
     // Link in the host interface functions.
     link_host_functions(&mut linker)?;
+    linker
+        .define_cost_globals(&mut store)
+        .map_err(|e| Error::Wasm(WasmError::UnableToLoadModule(e)))?;
 
     let instance = linker
         .instantiate(&mut store, &module)
