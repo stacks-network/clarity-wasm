@@ -1,6 +1,8 @@
 /// Generate the standard library as a Wasm binary from the WAT source.
 #[allow(clippy::expect_used)]
 fn main() {
+    println!("cargo:rerun-if-changed=src/standard/standard.wat");
+
     match wat::parse_file("src/standard/standard.wat") {
         Ok(binary) => {
             std::fs::write("src/standard/standard.wasm", binary)
@@ -10,5 +12,4 @@ fn main() {
             panic!("Failed to parse standard library: {error}");
         }
     };
-    println!("cargo:rerun-if-changed=src/standard/standard.wat");
 }

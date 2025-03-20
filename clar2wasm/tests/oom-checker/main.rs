@@ -43,6 +43,7 @@ fn as_oom_check_snippet(
                 version,
                 epoch,
                 analysis_db,
+                false,
             )
             .map_err(|e| CheckErrors::Expects(format!("Compilation failure {e:?}")))
         })
