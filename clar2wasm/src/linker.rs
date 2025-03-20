@@ -1,5 +1,6 @@
 use clarity::vm::analysis::CheckErrors;
 use clarity::vm::callables::{DefineType, DefinedFunction};
+use clarity::vm::clarity_wasm::ClarityWasmContext;
 use clarity::vm::costs::{constants as cost_constants, CostTracker};
 use clarity::vm::database::{ClarityDatabase, STXBalance, StoreType};
 use clarity::vm::errors::{Error, RuntimeErrorType, WasmError};
@@ -15,7 +16,6 @@ use stacks_common::util::hash::{Keccak256Hash, Sha512Sum, Sha512Trunc256Sum};
 use stacks_common::util::secp256k1::{secp256k1_recover, secp256k1_verify, Secp256k1PublicKey};
 use wasmtime::{Caller, Engine, Instance, Linker, Memory, Module, Store};
 
-use crate::initialize::ClarityWasmContext;
 use crate::wasm_utils::*;
 
 /// Link the host interface functions for into the Wasm module.
@@ -4402,22 +4402,37 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                         &args_sizes,
                     )?;
 
-                let mut env = Environment {
-                    global_context: caller.data_mut().global_context,
-                    contract_context: &contract.contract_context,
-                    call_stack: &mut call_stack,
-                    sender,
-                    caller: Some(caller_contract),
-                    sponsor,
-                };
+                let result = {
+                    let data: *mut _ = &mut *caller.data_mut();
+                    let mut env = Environment {
+                        global_context: unsafe { (*data).global_context },
+                        contract_context: &contract.contract_context,
+                        call_stack: &mut call_stack,
+                        sender,
+                        caller: Some(caller_contract),
+                        sponsor,
+                    };
 
-                let result = if short_circuit_cost {
-                    env.run_free(|free_env| {
-                        free_env.execute_contract_from_wasm(contract_id, &function_name, &args)
-                    })
-                } else {
-                    env.execute_contract_from_wasm(contract_id, &function_name, &args)
-                }?;
+                    if short_circuit_cost {
+                        env.run_free(|free_env| {
+                            free_env.execute_contract_from_wasm(
+                                contract_id,
+                                &function_name,
+                                &args,
+                                args_offset,
+                                &mut caller,
+                            )
+                        })
+                    } else {
+                        env.execute_contract_from_wasm(
+                            contract_id,
+                            &function_name,
+                            &args,
+                            args_offset,
+                            &mut caller,
+                        )
+                    }?
+                };
 
                 // Write the result to the return buffer
                 let return_ty = if trait_name_length == 0 {
