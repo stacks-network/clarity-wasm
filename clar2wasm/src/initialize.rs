@@ -7,9 +7,9 @@ use clarity::vm::{CallStack, ContractContext, Value};
 use stacks_common::types::chainstate::StacksBlockId;
 use wasmtime::{Linker, Module, Store};
 
-use crate::error_mapping;
 use crate::linker::link_host_functions;
 use crate::wasm_utils::*;
+use crate::{error_mapping, CostLinker};
 
 // The context used when making calls into the Wasm module.
 pub struct ClarityWasmContext<'a, 'b> {
@@ -346,6 +346,9 @@ pub fn initialize_contract(
     let mut linker = Linker::new(&engine);
     // Link in the host interface functions.
     link_host_functions(&mut linker)?;
+    linker
+        .define_cost_globals(&mut store)
+        .map_err(|e| Error::Wasm(WasmError::UnableToLoadModule(e)))?;
 
     let instance = linker
         .instantiate(&mut store, &module)
@@ -448,6 +451,7 @@ mod tests {
                     ClarityVersion::latest(),
                     StacksEpochId::latest(),
                     analysis_db,
+                    false,
                 )
                 .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
             })
