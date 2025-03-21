@@ -174,6 +174,7 @@ impl TestEnvironment {
                     self.version,
                     self.epoch,
                     analysis_db,
+                    false,
                 )
                 .map_err(|e| CheckErrors::Expects(format!("Compilation failure {:?}", e)))
             })
