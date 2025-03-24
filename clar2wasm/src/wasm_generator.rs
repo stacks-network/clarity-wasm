@@ -22,7 +22,7 @@ use walrus::{
     MemoryId, Module, ValType,
 };
 
-use crate::cost::ChargeContext;
+use crate::cost::{ChargeContext, SimpleWordCharge};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
@@ -489,6 +489,8 @@ impl WasmGenerator {
                     simpleword.visit(self, builder, &arg_types, &return_type)?;
                 } else if let Some(variadic) = words::lookup_variadic_simple(function_name) {
                     let (arg_types, return_type) = get_types()?;
+
+                    variadic.charge(self, builder, arg_types.len() as u32);
 
                     let mut args_enumerated = args.iter().enumerate();
 
