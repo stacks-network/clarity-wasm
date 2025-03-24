@@ -226,6 +226,7 @@ pub trait SimpleWordCharge: SimpleWord {
     }
 }
 impl<Word: SimpleWord> SimpleWordCharge for Word {}
+impl SimpleWordCharge for dyn SimpleWord {}
 
 /// Extension trait allowing for `ComplexWord`s to generate cost tracking code
 /// during traversal.
@@ -245,6 +246,7 @@ pub trait ComplexWordCharge: ComplexWord {
     }
 }
 impl<Word: ComplexWord> ComplexWordCharge for Word {}
+impl ComplexWordCharge for dyn ComplexWord {}
 
 /// Generators of cost tracking code.
 pub trait ChargeGenerator {
