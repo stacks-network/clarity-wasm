@@ -1,6 +1,7 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
 use super::{SimpleWord, Word};
+use crate::cost::WordCharge;
 use crate::wasm_generator::GeneratorError;
 
 #[derive(Debug)]
@@ -20,6 +21,8 @@ impl SimpleWord for StringToInt {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let func_prefix = match &arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
@@ -58,6 +61,8 @@ impl SimpleWord for StringToUint {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let func_prefix = match arg_types[0] {
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
                 "string"
@@ -97,6 +102,8 @@ impl SimpleWord for IntToAscii {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -136,6 +143,8 @@ impl SimpleWord for IntToUtf8 {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let type_prefix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
