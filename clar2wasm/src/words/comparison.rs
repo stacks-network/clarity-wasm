@@ -2,15 +2,24 @@ use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::ClarityName;
 
 use super::SimpleWord;
+use crate::cost::SimpleWordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
+trait CmpWord: SimpleWord {
+    fn fn_name(&self) -> &'static str;
+}
+
 fn traverse_comparison(
-    name: &str,
+    word: &impl CmpWord,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
     _return_type: &TypeSignature,
 ) -> Result<(), GeneratorError> {
+    word.charge(generator, builder, arg_types.len() as u32);
+
+    let name = word.fn_name();
+
     let ty = &arg_types[0];
 
     let type_suffix = match ty {
@@ -60,7 +69,13 @@ impl SimpleWord for CmpLess {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_comparison("lt", generator, builder, arg_types, return_type)
+        traverse_comparison(self, generator, builder, arg_types, return_type)
+    }
+}
+
+impl CmpWord for CmpLess {
+    fn fn_name(&self) -> &'static str {
+        "lt"
     }
 }
 
@@ -79,7 +94,13 @@ impl SimpleWord for CmpLeq {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_comparison("le", generator, builder, arg_types, return_type)
+        traverse_comparison(self, generator, builder, arg_types, return_type)
+    }
+}
+
+impl CmpWord for CmpLeq {
+    fn fn_name(&self) -> &'static str {
+        "le"
     }
 }
 
@@ -98,7 +119,13 @@ impl SimpleWord for CmpGreater {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_comparison("gt", generator, builder, arg_types, return_type)
+        traverse_comparison(self, generator, builder, arg_types, return_type)
+    }
+}
+
+impl CmpWord for CmpGreater {
+    fn fn_name(&self) -> &'static str {
+        "gt"
     }
 }
 
@@ -117,6 +144,12 @@ impl SimpleWord for CmpGeq {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_comparison("ge", generator, builder, arg_types, return_type)
+        traverse_comparison(self, generator, builder, arg_types, return_type)
+    }
+}
+
+impl CmpWord for CmpGeq {
+    fn fn_name(&self) -> &'static str {
+        "ge"
     }
 }
