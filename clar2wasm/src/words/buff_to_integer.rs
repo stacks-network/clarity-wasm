@@ -1,19 +1,21 @@
 use clarity::vm::types::TypeSignature;
 
+use crate::cost::SimpleWordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::words::SimpleWord;
 
 fn traverse_buffer_to_integer(
-    name: &str,
+    word: &impl SimpleWord,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
 ) -> Result<(), GeneratorError> {
-    let func = generator
-        .module
-        .funcs
-        .by_name(name)
-        .ok_or_else(|| GeneratorError::InternalError(format!("function not found: {name}")))?;
+    word.charge(generator, builder, 0);
+
+    let name = word.name();
+
+    let func = generator.func_by_name(&format!("stdlib.{name}"));
     builder.call(func);
+
     Ok(())
 }
 
@@ -32,7 +34,7 @@ impl SimpleWord for BuffToUintBe {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
+        traverse_buffer_to_integer(self, generator, builder)
     }
 }
 
@@ -53,7 +55,7 @@ impl SimpleWord for BuffToIntBe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-be", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("stdlib.buff-to-uint-be", generator, builder)
+        traverse_buffer_to_integer(&BuffToUintBe, generator, builder)
     }
 }
 
@@ -72,7 +74,7 @@ impl SimpleWord for BuffToUintLe {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
-        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
+        traverse_buffer_to_integer(self, generator, builder)
     }
 }
 
@@ -93,6 +95,6 @@ impl SimpleWord for BuffToIntLe {
     ) -> Result<(), crate::wasm_generator::GeneratorError> {
         // This is the same function as "buff-to-uint-le", with the result interpreted
         // as i128 instead of u128.
-        traverse_buffer_to_integer("stdlib.buff-to-uint-le", generator, builder)
+        traverse_buffer_to_integer(&BuffToUintLe, generator, builder)
     }
 }
