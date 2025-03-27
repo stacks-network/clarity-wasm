@@ -4,6 +4,7 @@ use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
 use super::{ComplexWord, SimpleWord, Word};
+use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
@@ -450,11 +451,13 @@ impl Word for SimpleAnd {
 impl SimpleWord for SimpleAnd {
     fn visit(
         &self,
-        _generator: &mut WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, arg_types.len() as u32)?;
+
         for _ in 0..arg_types.len().saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32And);
         }
@@ -503,11 +506,13 @@ impl Word for SimpleOr {
 impl SimpleWord for SimpleOr {
     fn visit(
         &self,
-        _generator: &mut WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, arg_types.len() as u32)?;
+
         for _ in 0..arg_types.len().saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32Or);
         }
