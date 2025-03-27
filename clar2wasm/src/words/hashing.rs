@@ -1,18 +1,22 @@
 use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
+use walrus::ValType;
 
 use super::{SimpleWord, Word};
+use crate::cost::WordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
-    name: &'static str,
+    word: &impl SimpleWord,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
     work_space: u32, // constant upper bound
 ) -> Result<(), GeneratorError> {
+    let name = word.name();
+
     // Buffer type for the result based on the hash function
-    let buffer_size = match name {
+    let buffer_size = match name.as_str() {
         "hash160" => 20,
         "sha512" => 64,
         _ => 32, // sha256
@@ -27,10 +31,19 @@ pub fn traverse_hash(
 
     let hash_type = match arg_types[0] {
         TypeSignature::IntType | TypeSignature::UIntType => {
+            // an integer is 16 bytes
+            word.charge(generator, builder, 16)?;
+
             generator.ensure_work_space(work_space);
             "int"
         }
         TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => {
+            // for cost tracking we need the length of the input to the hash,
+            // so we load it onto a new local
+            let buf_len = generator.module.locals.add(ValType::I32);
+            builder.local_tee(buf_len);
+            word.charge(generator, builder, buf_len)?;
+
             // Input buff is also copied
             generator.ensure_work_space(u32::from(len) + work_space);
             "buf"
@@ -71,7 +84,7 @@ impl SimpleWord for Hash160 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from sha256, see `Sha256::visit`
-        traverse_hash("hash160", generator, builder, arg_types, 64 + 8 + 289)
+        traverse_hash(self, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -93,7 +106,7 @@ impl SimpleWord for Sha256 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
-        traverse_hash("sha256", generator, builder, arg_types, 64 + 8 + 289)
+        traverse_hash(self, generator, builder, arg_types, 64 + 8 + 289)
     }
 }
 
@@ -132,6 +145,12 @@ impl SimpleWord for Keccak256 {
                 ))
             }
         }
+
+        // for cost tracking we need the length of the input to the hash,
+        // so we load it onto a new local
+        let buf_len = generator.module.locals.add(ValType::I32);
+        builder.local_tee(buf_len);
+        self.charge(generator, builder, buf_len)?;
 
         // Reserve stack space for the host-function to write the result
         let ret_ty = BUFF_32.clone();
@@ -172,7 +191,7 @@ impl SimpleWord for Sha512 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
-        traverse_hash("sha512", generator, builder, arg_types, 128 + 16 + 705)
+        traverse_hash(self, generator, builder, arg_types, 128 + 16 + 705)
     }
 }
 
@@ -211,6 +230,12 @@ impl SimpleWord for Sha512_256 {
                 ))
             }
         }
+
+        // for cost tracking we need the length of the input to the hash,
+        // so we load it onto a new local
+        let buf_len = generator.module.locals.add(ValType::I32);
+        builder.local_tee(buf_len);
+        self.charge(generator, builder, buf_len)?;
 
         // Reserve stack space for the host-function to write the result
         let ret_ty = BUFF_32.clone();
