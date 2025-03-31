@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -71,6 +72,8 @@ impl ComplexWord for StxTransfer {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;

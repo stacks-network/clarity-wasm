@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, signature_from_string, ArgumentCountCheck};
 
@@ -56,6 +57,8 @@ impl ComplexWord for Print {
             generator.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
                 data: serialized_ty,
             }))?;
+
+        self.charge(generator, builder, serialized_ty_len)?;
 
         // Push the value back onto the data stack
         for val_local in &val_locals {
