@@ -76,6 +76,8 @@ impl ComplexWord for StxTransfer {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0)?;
+
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
