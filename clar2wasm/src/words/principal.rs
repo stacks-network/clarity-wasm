@@ -122,6 +122,8 @@ impl ComplexWord for Construct {
             ArgumentCountCheck::AtMost
         );
 
+        self.charge(generator, builder, 0)?;
+
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         // [ version_offset, version_length ]
@@ -303,6 +305,8 @@ impl ComplexWord for PrincipalOf {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         // Traverse the public key
         generator.traverse_expr(builder, args.get_expr(0)?)?;
