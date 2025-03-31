@@ -322,7 +322,7 @@ impl WasmGenerator {
         let standard_lib_wasm: Vec<u8> = std::fs::read(&wasm_path)
             .map_err(|e| GeneratorError::IOError(format!("Failed to read standard library WASM: {}", e)))?;
 
-        let module = Module::from_buffer(standard_lib_wasm).map_err(|_err| {
+        let module = Module::from_buffer(&standard_lib_wasm).map_err(|_err| {
             GeneratorError::InternalError("failed to load standard library".to_owned())
         })?;
         // Get the stack-pointer global ID
