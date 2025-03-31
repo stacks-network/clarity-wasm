@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::ComplexWordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -86,6 +87,8 @@ impl ComplexWord for BurnFungibleToken {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0);
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let sender = args.get_expr(2)?;
@@ -123,6 +126,8 @@ impl ComplexWord for TransferFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 4, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0);
 
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
@@ -164,6 +169,8 @@ impl ComplexWord for MintFungibleToken {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0);
+
         let token = args.get_name(0)?;
         let amount = args.get_expr(1)?;
         let recipient = args.get_expr(2)?;
@@ -201,6 +208,8 @@ impl ComplexWord for GetSupplyOfFungibleToken {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0);
+
         let token = args.get_name(0)?;
 
         let (id_offset, id_length) = generator.add_string_literal(token)?;
@@ -230,6 +239,8 @@ impl ComplexWord for GetBalanceOfFungibleToken {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0);
 
         let token = args.get_name(0)?;
         let owner = args.get_expr(1)?;
@@ -337,6 +348,8 @@ impl ComplexWord for BurnNonFungibleToken {
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        self.charge(generator, builder, id_length);
+
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
             GeneratorError::TypeError("Usage of nft-burn? on an unknown nft token".to_owned())
@@ -391,6 +404,8 @@ impl ComplexWord for TransferNonFungibleToken {
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
+
+        self.charge(generator, builder, id_length);
 
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
@@ -449,6 +464,8 @@ impl ComplexWord for MintNonFungibleToken {
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
 
+        self.charge(generator, builder, id_length);
+
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {
             GeneratorError::TypeError("Usage of nft-mint? on an unknown nft token".to_owned())
@@ -501,6 +518,8 @@ impl ComplexWord for GetOwnerOfNonFungibleToken {
         builder
             .i32_const(id_offset as i32)
             .i32_const(id_length as i32);
+
+        self.charge(generator, builder, id_length);
 
         // Push the identifier onto the stack
         let identifier_ty = generator.nft_types.get(token).cloned().ok_or_else(|| {

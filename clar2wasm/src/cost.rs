@@ -228,8 +228,6 @@ impl SimpleWordCharge for dyn SimpleWord {}
 
 /// Extension trait allowing for `ComplexWord`s to generate cost tracking code
 /// during traversal.
-// TODO: use this in the complex word traversal
-#[allow(dead_code)]
 pub trait ComplexWordCharge: ComplexWord {
     /// Generate cost tracking code for this word.
     ///
