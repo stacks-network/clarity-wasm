@@ -117,6 +117,7 @@ pub enum GeneratorError {
     InternalError(String),
     TypeError(String),
     ArgumentCountMismatch,
+    IOError(String),
 }
 
 pub enum FunctionKind {
@@ -132,6 +133,7 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
             GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
+            GeneratorError::IOError(msg) => format!("I/O error: {}", msg),
         }
     }
 
