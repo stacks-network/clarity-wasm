@@ -3,6 +3,7 @@ use walrus::ir::{BinaryOp, InstrSeqType};
 
 use super::{ComplexWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
     WasmGenerator,
@@ -55,6 +56,8 @@ impl ComplexWord for ToConsensusBuff {
         generator.serialize_to_memory(builder, offset, 0, &ty)?;
 
         builder.local_set(length);
+
+        self.charge(generator, builder, length)?;
 
         // Check if the serialized value size < MAX_VALUE_SIZE
         builder
@@ -128,6 +131,10 @@ impl ComplexWord for FromConsensusBuff {
 
         // Traverse the input buffer, leaving the offset and length on the stack.
         generator.traverse_expr(builder, args.get_expr(1)?)?;
+
+        let length = generator.module.locals.add(walrus::ValType::I32);
+        builder.local_tee(length);
+        self.charge(generator, builder, length)?;
 
         // TODO: true, true is too big; see issue: #593
         let (offset_result, _len) = generator.create_call_stack_local(builder, &ty, true, true);
