@@ -210,8 +210,6 @@ impl<D, T: CostLinker<D>> AccessCostMeter<D> for T {}
 
 /// Extension trait allowing for `SimpleWord`s to generate cost tracking code
 /// during traversal.
-// TODO: use this in the simple word traversal
-#[allow(dead_code)]
 pub trait SimpleWordCharge: SimpleWord {
     /// Generate cost tracking code for this word.
     ///

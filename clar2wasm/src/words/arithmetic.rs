@@ -3,15 +3,16 @@ use clarity::vm::ClarityName;
 use walrus::ValType;
 
 use super::SimpleWord;
+use crate::cost::SimpleWordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn simple_typed_one_call(
+    word: &impl SimpleWord,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     _arg_types: &[TypeSignature],
     return_type: &TypeSignature,
-    name: &str,
 ) -> Result<(), GeneratorError> {
     let type_suffix = match return_type {
         TypeSignature::IntType => "int",
@@ -22,6 +23,10 @@ fn simple_typed_one_call(
             ));
         }
     };
+
+    word.charge(generator, builder, 0);
+
+    let name = word.name();
 
     let func = generator.func_by_name(&format!("stdlib.{name}-{type_suffix}"));
     builder.call(func);
@@ -196,7 +201,7 @@ impl SimpleWord for Modulo {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "mod")
+        simple_typed_one_call(self, generator, builder, arg_types, return_type)
     }
 }
 
@@ -215,7 +220,7 @@ impl SimpleWord for Log2 {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "log2")
+        simple_typed_one_call(self, generator, builder, arg_types, return_type)
     }
 }
 
@@ -234,7 +239,7 @@ impl SimpleWord for Power {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "pow")
+        simple_typed_one_call(self, generator, builder, arg_types, return_type)
     }
 }
 
@@ -253,7 +258,7 @@ impl SimpleWord for Sqrti {
         arg_types: &[TypeSignature],
         return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        simple_typed_one_call(generator, builder, arg_types, return_type, "sqrti")
+        simple_typed_one_call(self, generator, builder, arg_types, return_type)
     }
 }
 
