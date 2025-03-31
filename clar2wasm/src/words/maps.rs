@@ -1,8 +1,10 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
+use walrus::ValType;
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::ComplexWordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -130,11 +132,14 @@ impl ComplexWord for MapGet {
                 GeneratorError::TypeError("map-get? expression must be typed".to_owned())
             })?
             .clone();
-        let (return_offset, return_size) =
-            generator.create_call_stack_local(builder, &ty, true, true);
+        let (return_offset, size) = generator.create_call_stack_local(builder, &ty, true, true);
+
+        let return_size = generator.module.locals.add(ValType::I32);
+        builder.i32_const(size).local_set(return_size);
+        self.charge(generator, builder, return_size);
 
         // Push the return value offset and size to the data stack
-        builder.local_get(return_offset).i32_const(return_size);
+        builder.local_get(return_offset).local_get(return_size);
 
         // Call the host-interface function, `map_get`
         builder.call(generator.func_by_name("stdlib.map_get"));
@@ -211,7 +216,11 @@ impl ComplexWord for MapSet {
                 GeneratorError::TypeError("map-set value expression must be typed".to_owned())
             })?
             .clone();
-        let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
+        let (val_offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
+
+        let val_size = generator.module.locals.add(ValType::I32);
+        builder.i32_const(size).local_set(val_size);
+        self.charge(generator, builder, val_size);
 
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
@@ -220,7 +229,7 @@ impl ComplexWord for MapSet {
         generator.write_to_memory(builder, val_offset, 0, &ty)?;
 
         // Push the value offset and size to the data stack
-        builder.local_get(val_offset).i32_const(val_size);
+        builder.local_get(val_offset).local_get(val_size);
 
         // Call the host interface function, `map_set`
         builder.call(generator.func_by_name("stdlib.map_set"));
@@ -293,7 +302,11 @@ impl ComplexWord for MapInsert {
                 GeneratorError::TypeError("map-set value expression must be typed".to_owned())
             })?
             .clone();
-        let (val_offset, val_size) = generator.create_call_stack_local(builder, &ty, true, false);
+        let (val_offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
+
+        let val_size = generator.module.locals.add(ValType::I32);
+        builder.i32_const(size).local_set(val_size);
+        self.charge(generator, builder, val_size);
 
         // Push the value to the data stack
         generator.traverse_expr(builder, value)?;
@@ -302,7 +315,7 @@ impl ComplexWord for MapInsert {
         generator.write_to_memory(builder, val_offset, 0, &ty)?;
 
         // Push the value offset and size to the data stack
-        builder.local_get(val_offset).i32_const(val_size);
+        builder.local_get(val_offset).local_get(val_size);
 
         // Call the host interface function, `map_insert`
         builder.call(generator.func_by_name("stdlib.map_insert"));
@@ -356,7 +369,11 @@ impl ComplexWord for MapDelete {
                 GeneratorError::TypeError("map-set value expression must be typed".to_owned())
             })?
             .clone();
-        let (key_offset, key_size) = generator.create_call_stack_local(builder, &ty, true, false);
+        let (key_offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
+
+        let key_size = generator.module.locals.add(ValType::I32);
+        builder.i32_const(size).local_set(key_size);
+        self.charge(generator, builder, key_size);
 
         // Push the key to the data stack
         generator.traverse_expr(builder, key)?;
@@ -365,7 +382,7 @@ impl ComplexWord for MapDelete {
         generator.write_to_memory(builder, key_offset, 0, &ty)?;
 
         // Push the key offset and size to the data stack
-        builder.local_get(key_offset).i32_const(key_size);
+        builder.local_get(key_offset).local_get(key_size);
 
         // Call the host interface function, `map_delete`
         builder.call(

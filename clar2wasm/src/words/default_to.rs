@@ -4,6 +4,7 @@ use walrus::ir::InstrSeqType;
 
 use super::ComplexWord;
 use crate::check_args;
+use crate::cost::ComplexWordCharge;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
 };
@@ -25,6 +26,8 @@ impl ComplexWord for DefaultTo {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0);
 
         // There are a `default` value and an `optional` arguments.
         // (default-to 767 (some 1))
