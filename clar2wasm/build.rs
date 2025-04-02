@@ -8,8 +8,7 @@ fn main() {
 
     match wat::parse_file("src/standard/standard.wat") {
         Ok(binary) => {
-            std::fs::write(&wasm_path, binary)
-                .expect("Failed to write standard library");
+            std::fs::write(&wasm_path, binary).expect("Failed to write standard library");
 
             println!("cargo:rustc-env=STANDARD_WASM_PATH={}", wasm_path.display());
         }
