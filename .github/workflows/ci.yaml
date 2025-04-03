@@ -157,7 +157,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: codecov-v${{ matrix.clarity_version }}.json
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
   # Compile boot contracts with a release version.
