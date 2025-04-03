@@ -138,6 +138,7 @@ jobs:
 
   # Code coverage
   codecov:
+    require_ci_to_pass: false
     runs-on: ubuntu-latest
     if: ${{ always() }}
     needs: run-tests
