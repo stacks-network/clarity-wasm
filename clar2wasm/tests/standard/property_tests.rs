@@ -591,7 +591,7 @@ fn prop_buff_to_uint_be() {
         PropInt::new({
             let mut b = b.to_vec();
             let offset = 16 - b.len();
-            b.extend(std::iter::repeat(0).take(offset));
+            b.extend(std::iter::repeat_n(0, offset));
             b.rotate_right(offset);
             u128::from_be_bytes(b.try_into().unwrap())
         })
@@ -603,7 +603,7 @@ fn prop_buff_to_uint_le() {
     test_buff_to_uint("stdlib.buff-to-uint-le", 1500, |b| {
         PropInt::new({
             let mut b = b.to_vec();
-            b.extend(std::iter::repeat(0).take(16 - b.len()));
+            b.extend(std::iter::repeat_n(0, 16 - b.len()));
             u128::from_le_bytes(b.try_into().unwrap())
         })
     })
