@@ -1,6 +1,6 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -8,11 +8,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct GetBlockInfo;
 
-impl ComplexWord for GetBlockInfo {
+impl Word for GetBlockInfo {
     fn name(&self) -> ClarityName {
         "get-block-info?".into()
     }
+}
 
+impl ComplexWord for GetBlockInfo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -93,11 +95,13 @@ impl ComplexWord for GetBlockInfo {
 #[derive(Debug)]
 pub struct GetBurnBlockInfo;
 
-impl ComplexWord for GetBurnBlockInfo {
+impl Word for GetBurnBlockInfo {
     fn name(&self) -> ClarityName {
         "get-burn-block-info?".into()
     }
+}
 
+impl ComplexWord for GetBurnBlockInfo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -158,11 +162,13 @@ impl ComplexWord for GetBurnBlockInfo {
 #[derive(Debug)]
 pub struct AtBlock;
 
-impl ComplexWord for AtBlock {
+impl Word for AtBlock {
     fn name(&self) -> ClarityName {
         "at-block".into()
     }
+}
 
+impl ComplexWord for AtBlock {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -194,11 +200,13 @@ impl ComplexWord for AtBlock {
 #[derive(Debug)]
 pub struct GetStacksBlockInfo;
 
-impl ComplexWord for GetStacksBlockInfo {
+impl Word for GetStacksBlockInfo {
     fn name(&self) -> ClarityName {
         "get-stacks-block-info?".into()
     }
+}
 
+impl ComplexWord for GetStacksBlockInfo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -262,11 +270,13 @@ impl ComplexWord for GetStacksBlockInfo {
 #[derive(Debug)]
 pub struct GetTenureInfo;
 
-impl ComplexWord for GetTenureInfo {
+impl Word for GetTenureInfo {
     fn name(&self) -> ClarityName {
         "get-tenure-info?".into()
     }
+}
 
+impl ComplexWord for GetTenureInfo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

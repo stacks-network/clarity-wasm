@@ -4,7 +4,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
@@ -14,11 +14,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct IsEq;
 
-impl ComplexWord for IsEq {
+impl Word for IsEq {
     fn name(&self) -> ClarityName {
         "is-eq".into()
     }
+}
 
+impl ComplexWord for IsEq {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -108,14 +110,16 @@ pub enum IndexOf {
     Alias,
 }
 
-impl ComplexWord for IndexOf {
+impl Word for IndexOf {
     fn name(&self) -> ClarityName {
         match self {
             IndexOf::Original => "index-of".into(),
             IndexOf::Alias => "index-of?".into(),
         }
     }
+}
 
+impl ComplexWord for IndexOf {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

@@ -3,16 +3,18 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
-use crate::words::ComplexWord;
+use crate::words::{ComplexWord, Word};
 
 #[derive(Debug)]
 pub struct Let;
 
-impl ComplexWord for Let {
+impl Word for Let {
     fn name(&self) -> ClarityName {
         "let".into()
     }
+}
 
+impl ComplexWord for Let {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

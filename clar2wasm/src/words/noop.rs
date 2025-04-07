@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::{ComplexWord, SimpleWord};
+use super::{ComplexWord, SimpleWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -13,11 +13,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct ToInt;
 
-impl SimpleWord for ToInt {
+impl Word for ToInt {
     fn name(&self) -> ClarityName {
         "to-int".into()
     }
+}
 
+impl SimpleWord for ToInt {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -35,11 +37,13 @@ impl SimpleWord for ToInt {
 #[derive(Debug)]
 pub struct ToUint;
 
-impl SimpleWord for ToUint {
+impl Word for ToUint {
     fn name(&self) -> ClarityName {
         "to-uint".into()
     }
+}
 
+impl SimpleWord for ToUint {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -57,11 +61,13 @@ impl SimpleWord for ToUint {
 #[derive(Debug)]
 pub struct ContractOf;
 
-impl ComplexWord for ContractOf {
+impl Word for ContractOf {
     fn name(&self) -> ClarityName {
         "contract-of".into()
     }
+}
 
+impl ComplexWord for ContractOf {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

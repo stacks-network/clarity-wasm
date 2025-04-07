@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{IfElse, UnaryOp};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
@@ -11,11 +11,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct Begin;
 
-impl ComplexWord for Begin {
+impl Word for Begin {
     fn name(&self) -> ClarityName {
         "begin".into()
     }
+}
 
+impl ComplexWord for Begin {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -47,11 +49,13 @@ impl ComplexWord for Begin {
 #[derive(Debug)]
 pub struct UnwrapPanic;
 
-impl ComplexWord for UnwrapPanic {
+impl Word for UnwrapPanic {
     fn name(&self) -> ClarityName {
         "unwrap-panic".into()
     }
+}
 
+impl ComplexWord for UnwrapPanic {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -185,11 +189,13 @@ impl ComplexWord for UnwrapPanic {
 #[derive(Debug)]
 pub struct UnwrapErrPanic;
 
-impl ComplexWord for UnwrapErrPanic {
+impl Word for UnwrapErrPanic {
     fn name(&self) -> ClarityName {
         "unwrap-err-panic".into()
     }
+}
 
+impl ComplexWord for UnwrapErrPanic {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

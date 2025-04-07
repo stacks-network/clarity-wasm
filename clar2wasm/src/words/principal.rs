@@ -9,7 +9,7 @@ use clarity::{
 use walrus::ir::{BinaryOp, ExtendedLoad, InstrSeqType, LoadKind, MemArg};
 use walrus::{LocalId, ValType};
 
-use super::{ComplexWord, SimpleWord};
+use super::{ComplexWord, SimpleWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator,
@@ -19,11 +19,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct IsStandard;
 
-impl SimpleWord for IsStandard {
+impl Word for IsStandard {
     fn name(&self) -> ClarityName {
         "is-standard".into()
     }
+}
 
+impl SimpleWord for IsStandard {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -88,11 +90,13 @@ impl SimpleWord for IsStandard {
 #[derive(Debug)]
 pub struct Construct;
 
-impl ComplexWord for Construct {
+impl Word for Construct {
     fn name(&self) -> ClarityName {
         "principal-construct?".into()
     }
+}
 
+impl ComplexWord for Construct {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -192,11 +196,13 @@ fn generate_tuple(
     builder.i32_const(1);
 }
 
-impl SimpleWord for Destruct {
+impl Word for Destruct {
     fn name(&self) -> ClarityName {
         "principal-destruct?".into()
     }
+}
 
+impl SimpleWord for Destruct {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -277,11 +283,13 @@ impl SimpleWord for Destruct {
 #[derive(Debug)]
 pub struct PrincipalOf;
 
-impl ComplexWord for PrincipalOf {
+impl Word for PrincipalOf {
     fn name(&self) -> ClarityName {
         "principal-of?".into()
     }
+}
 
+impl ComplexWord for PrincipalOf {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

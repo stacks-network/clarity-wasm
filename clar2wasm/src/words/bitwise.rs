@@ -2,17 +2,19 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 use walrus::InstrSeqBuilder;
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct BitwiseNot;
 
-impl SimpleWord for BitwiseNot {
+impl Word for BitwiseNot {
     fn name(&self) -> ClarityName {
         "bit-not".into()
     }
+}
 
+impl SimpleWord for BitwiseNot {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -45,11 +47,13 @@ fn traverse_bitwise(
 #[derive(Debug)]
 pub struct BitwiseOr;
 
-impl SimpleWord for BitwiseOr {
+impl Word for BitwiseOr {
     fn name(&self) -> ClarityName {
         "bit-or".into()
     }
+}
 
+impl SimpleWord for BitwiseOr {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -64,11 +68,13 @@ impl SimpleWord for BitwiseOr {
 #[derive(Debug)]
 pub struct BitwiseAnd;
 
-impl SimpleWord for BitwiseAnd {
+impl Word for BitwiseAnd {
     fn name(&self) -> ClarityName {
         "bit-and".into()
     }
+}
 
+impl SimpleWord for BitwiseAnd {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -83,11 +89,13 @@ impl SimpleWord for BitwiseAnd {
 #[derive(Debug)]
 pub struct BitwiseXor;
 
-impl SimpleWord for BitwiseXor {
+impl Word for BitwiseXor {
     fn name(&self) -> ClarityName {
         "bit-xor".into()
     }
+}
 
+impl SimpleWord for BitwiseXor {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -102,11 +110,13 @@ impl SimpleWord for BitwiseXor {
 #[derive(Debug)]
 pub struct BitwiseLShift;
 
-impl SimpleWord for BitwiseLShift {
+impl Word for BitwiseLShift {
     fn name(&self) -> ClarityName {
         "bit-shift-left".into()
     }
+}
 
+impl SimpleWord for BitwiseLShift {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -123,11 +133,13 @@ impl SimpleWord for BitwiseLShift {
 #[derive(Debug)]
 pub struct BitwiseRShift;
 
-impl SimpleWord for BitwiseRShift {
+impl Word for BitwiseRShift {
     fn name(&self) -> ClarityName {
         "bit-shift-right".into()
     }
+}
 
+impl SimpleWord for BitwiseRShift {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -156,11 +168,13 @@ impl SimpleWord for BitwiseRShift {
 #[derive(Debug)]
 pub struct Xor;
 
-impl SimpleWord for Xor {
+impl Word for Xor {
     fn name(&self) -> ClarityName {
         "xor".into()
     }
+}
 
+impl SimpleWord for Xor {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

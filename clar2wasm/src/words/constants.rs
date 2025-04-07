@@ -1,7 +1,7 @@
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use walrus::{ActiveData, DataKind, ValType};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{
@@ -11,11 +11,13 @@ use crate::wasm_utils::{
 #[derive(Debug)]
 pub struct DefineConstant;
 
-impl ComplexWord for DefineConstant {
+impl Word for DefineConstant {
     fn name(&self) -> ClarityName {
         "define-constant".into()
     }
+}
 
+impl ComplexWord for DefineConstant {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

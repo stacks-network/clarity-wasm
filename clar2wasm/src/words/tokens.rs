@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -9,11 +9,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct DefineFungibleToken;
 
-impl ComplexWord for DefineFungibleToken {
+impl Word for DefineFungibleToken {
     fn name(&self) -> ClarityName {
         "define-fungible-token".into()
     }
+}
 
+impl ComplexWord for DefineFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -72,11 +74,13 @@ impl ComplexWord for DefineFungibleToken {
 #[derive(Debug)]
 pub struct BurnFungibleToken;
 
-impl ComplexWord for BurnFungibleToken {
+impl Word for BurnFungibleToken {
     fn name(&self) -> ClarityName {
         "ft-burn?".into()
     }
+}
 
+impl ComplexWord for BurnFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -110,11 +114,13 @@ impl ComplexWord for BurnFungibleToken {
 #[derive(Debug)]
 pub struct TransferFungibleToken;
 
-impl ComplexWord for TransferFungibleToken {
+impl Word for TransferFungibleToken {
     fn name(&self) -> ClarityName {
         "ft-transfer?".into()
     }
+}
 
+impl ComplexWord for TransferFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -150,11 +156,13 @@ impl ComplexWord for TransferFungibleToken {
 #[derive(Debug)]
 pub struct MintFungibleToken;
 
-impl ComplexWord for MintFungibleToken {
+impl Word for MintFungibleToken {
     fn name(&self) -> ClarityName {
         "ft-mint?".into()
     }
+}
 
+impl ComplexWord for MintFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -187,11 +195,13 @@ impl ComplexWord for MintFungibleToken {
 #[derive(Debug)]
 pub struct GetSupplyOfFungibleToken;
 
-impl ComplexWord for GetSupplyOfFungibleToken {
+impl Word for GetSupplyOfFungibleToken {
     fn name(&self) -> ClarityName {
         "ft-get-supply".into()
     }
+}
 
+impl ComplexWord for GetSupplyOfFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -217,11 +227,13 @@ impl ComplexWord for GetSupplyOfFungibleToken {
 #[derive(Debug)]
 pub struct GetBalanceOfFungibleToken;
 
-impl ComplexWord for GetBalanceOfFungibleToken {
+impl Word for GetBalanceOfFungibleToken {
     fn name(&self) -> ClarityName {
         "ft-get-balance".into()
     }
+}
 
+impl ComplexWord for GetBalanceOfFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -255,11 +267,13 @@ impl ComplexWord for GetBalanceOfFungibleToken {
 #[derive(Debug)]
 pub struct DefineNonFungibleToken;
 
-impl ComplexWord for DefineNonFungibleToken {
+impl Word for DefineNonFungibleToken {
     fn name(&self) -> ClarityName {
         "define-non-fungible-token".into()
     }
+}
 
+impl ComplexWord for DefineNonFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -313,11 +327,13 @@ impl ComplexWord for DefineNonFungibleToken {
 #[derive(Debug)]
 pub struct BurnNonFungibleToken;
 
-impl ComplexWord for BurnNonFungibleToken {
+impl Word for BurnNonFungibleToken {
     fn name(&self) -> ClarityName {
         "nft-burn?".into()
     }
+}
 
+impl ComplexWord for BurnNonFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -367,11 +383,13 @@ impl ComplexWord for BurnNonFungibleToken {
 #[derive(Debug)]
 pub struct TransferNonFungibleToken;
 
-impl ComplexWord for TransferNonFungibleToken {
+impl Word for TransferNonFungibleToken {
     fn name(&self) -> ClarityName {
         "nft-transfer?".into()
     }
+}
 
+impl ComplexWord for TransferNonFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -425,11 +443,13 @@ impl ComplexWord for TransferNonFungibleToken {
 #[derive(Debug)]
 pub struct MintNonFungibleToken;
 
-impl ComplexWord for MintNonFungibleToken {
+impl Word for MintNonFungibleToken {
     fn name(&self) -> ClarityName {
         "nft-mint?".into()
     }
+}
 
+impl ComplexWord for MintNonFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -479,11 +499,13 @@ impl ComplexWord for MintNonFungibleToken {
 #[derive(Debug)]
 pub struct GetOwnerOfNonFungibleToken;
 
-impl ComplexWord for GetOwnerOfNonFungibleToken {
+impl Word for GetOwnerOfNonFungibleToken {
     fn name(&self) -> ClarityName {
         "nft-get-owner?".into()
     }
+}
 
+impl ComplexWord for GetOwnerOfNonFungibleToken {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

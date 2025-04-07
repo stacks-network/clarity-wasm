@@ -1,7 +1,7 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 use clarity::vm::ClarityName;
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 fn traverse_comparison(
@@ -48,11 +48,13 @@ fn traverse_comparison(
 #[derive(Debug)]
 pub struct CmpLess;
 
-impl SimpleWord for CmpLess {
+impl Word for CmpLess {
     fn name(&self) -> ClarityName {
         "<".into()
     }
+}
 
+impl SimpleWord for CmpLess {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -67,11 +69,13 @@ impl SimpleWord for CmpLess {
 #[derive(Debug)]
 pub struct CmpLeq;
 
-impl SimpleWord for CmpLeq {
+impl Word for CmpLeq {
     fn name(&self) -> ClarityName {
         "<=".into()
     }
+}
 
+impl SimpleWord for CmpLeq {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -86,11 +90,13 @@ impl SimpleWord for CmpLeq {
 #[derive(Debug)]
 pub struct CmpGreater;
 
-impl SimpleWord for CmpGreater {
+impl Word for CmpGreater {
     fn name(&self) -> ClarityName {
         ">".into()
     }
+}
 
+impl SimpleWord for CmpGreater {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -105,11 +111,13 @@ impl SimpleWord for CmpGreater {
 #[derive(Debug)]
 pub struct CmpGeq;
 
-impl SimpleWord for CmpGeq {
+impl Word for CmpGeq {
     fn name(&self) -> ClarityName {
         ">=".into()
     }
+}
 
+impl SimpleWord for CmpGeq {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
