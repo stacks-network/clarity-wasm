@@ -137,27 +137,27 @@ jobs:
           if-no-files-found: error
 
   # Code coverage
-  codecov:
-    runs-on: ubuntu-latest
-    if: ${{ always() }}
-    needs: run-tests
-    strategy:
-      fail-fast: false
-      matrix:
-        clarity_version: [1, 2, 3]
-    name: Clarity::V${{ matrix.clarity_version }} Code Coverage
-    steps:
-      - name: Download codecov.json
-        uses: actions/download-artifact@v4
-        with:
-          name: code-coverage-v${{ matrix.clarity_version }}
+  # codecov:
+  #   runs-on: ubuntu-latest
+  #   if: ${{ always() }}
+  #   needs: run-tests
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       clarity_version: [1, 2, 3]
+  #   name: Clarity::V${{ matrix.clarity_version }} Code Coverage
+  #   steps:
+  #     - name: Download codecov.json
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: code-coverage-v${{ matrix.clarity_version }}
 
-      - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: codecov-v${{ matrix.clarity_version }}.json
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+  #     - name: Upload coverage report to Codecov
+  #       uses: codecov/codecov-action@v4
+  #       with:
+  #         files: codecov-v${{ matrix.clarity_version }}.json
+  #         fail_ci_if_error: true
+  #         token: ${{ secrets.CODECOV_TOKEN }}
 
   # Compile boot contracts with a release version.
   compile-boot-contracts:

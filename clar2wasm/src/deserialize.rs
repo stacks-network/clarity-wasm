@@ -1043,7 +1043,7 @@ impl WasmGenerator {
 
         // bitset which will indicate if a field was defined or not
         let result_len = tm.len();
-        let bitset: Vec<LocalId> = (0..(result_len + 31) / 32)
+        let bitset: Vec<LocalId> = (0..result_len.div_ceil(32))
             .map(|_| self.module.locals.add(ValType::I32))
             .collect();
 

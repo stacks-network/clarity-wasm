@@ -640,9 +640,9 @@ impl WasmGenerator {
     /// # Arguments
     ///
     /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
-    ///               the WebAssembly instruction sequence.
+    ///   the WebAssembly instruction sequence.
     /// * `expr` - A reference to the `SymbolicExpression` representing the expression
-    ///            that triggered the early return.
+    ///   that triggered the early return.
     /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
     ///
     /// # Returns
