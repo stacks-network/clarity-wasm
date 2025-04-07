@@ -39,9 +39,11 @@ pub mod tokens;
 pub mod traits;
 pub mod tuples;
 
-pub trait ComplexWord: Sync + core::fmt::Debug {
+pub trait Word: Sync + core::fmt::Debug {
     fn name(&self) -> ClarityName;
+}
 
+pub trait ComplexWord: Word {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -135,9 +137,7 @@ pub(crate) static COMPLEX_WORDS: &[&'static dyn ComplexWord] = &[
     &tuples::TupleMerge,
 ];
 
-pub trait SimpleWord: Sync + core::fmt::Debug {
-    fn name(&self) -> ClarityName;
-
+pub trait SimpleWord: Word {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

@@ -5,7 +5,7 @@ use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value
 use walrus::ir::BinaryOp;
 use walrus::ValType;
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -13,11 +13,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct AsContract;
 
-impl ComplexWord for AsContract {
+impl Word for AsContract {
     fn name(&self) -> ClarityName {
         "as-contract".into()
     }
+}
 
+impl ComplexWord for AsContract {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -45,11 +47,13 @@ impl ComplexWord for AsContract {
 #[derive(Debug)]
 pub struct ContractCall;
 
-impl ComplexWord for ContractCall {
+impl Word for ContractCall {
     fn name(&self) -> ClarityName {
         "contract-call?".into()
     }
+}
 
+impl ComplexWord for ContractCall {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

@@ -1,7 +1,7 @@
 use clarity::vm::types::{ASCIIData, CharType};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, signature_from_string, ArgumentCountCheck};
@@ -9,11 +9,13 @@ use crate::wasm_utils::{check_argument_count, signature_from_string, ArgumentCou
 #[derive(Debug)]
 pub struct Print;
 
-impl ComplexWord for Print {
+impl Word for Print {
     fn name(&self) -> ClarityName {
         "print".into()
     }
+}
 
+impl ComplexWord for Print {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

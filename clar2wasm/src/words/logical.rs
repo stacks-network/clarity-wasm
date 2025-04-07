@@ -1,17 +1,19 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
 pub struct Not;
 
-impl SimpleWord for Not {
+impl Word for Not {
     fn name(&self) -> ClarityName {
         "not".into()
     }
+}
 
+impl SimpleWord for Not {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

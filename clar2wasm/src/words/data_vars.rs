@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ValType;
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -10,11 +10,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct DefineDataVar;
 
-impl ComplexWord for DefineDataVar {
+impl Word for DefineDataVar {
     fn name(&self) -> ClarityName {
         "define-data-var".into()
     }
+}
 
+impl ComplexWord for DefineDataVar {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -100,11 +102,13 @@ impl ComplexWord for DefineDataVar {
 #[derive(Debug)]
 pub struct SetDataVar;
 
-impl ComplexWord for SetDataVar {
+impl Word for SetDataVar {
     fn name(&self) -> ClarityName {
         "var-set".into()
     }
+}
 
+impl ComplexWord for SetDataVar {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -173,11 +177,13 @@ impl ComplexWord for SetDataVar {
 #[derive(Debug)]
 pub struct GetDataVar;
 
-impl ComplexWord for GetDataVar {
+impl Word for GetDataVar {
     fn name(&self) -> ClarityName {
         "var-get".into()
     }
+}
 
+impl ComplexWord for GetDataVar {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

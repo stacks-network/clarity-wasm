@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::ClarityName;
 use walrus::ValType;
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
@@ -32,11 +32,13 @@ fn simple_typed_one_call(
 #[derive(Debug)]
 pub struct Add;
 
-impl SimpleWord for Add {
+impl Word for Add {
     fn name(&self) -> ClarityName {
         "+".into()
     }
+}
 
+impl SimpleWord for Add {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -64,11 +66,13 @@ impl SimpleWord for Add {
 #[derive(Debug)]
 pub struct Sub;
 
-impl SimpleWord for Sub {
+impl Word for Sub {
     fn name(&self) -> ClarityName {
         "-".into()
     }
+}
 
+impl SimpleWord for Sub {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -120,11 +124,13 @@ impl SimpleWord for Sub {
 #[derive(Debug)]
 pub struct Mul;
 
-impl SimpleWord for Mul {
+impl Word for Mul {
     fn name(&self) -> ClarityName {
         "*".into()
     }
+}
 
+impl SimpleWord for Mul {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -152,11 +158,13 @@ impl SimpleWord for Mul {
 #[derive(Debug)]
 pub struct Div;
 
-impl SimpleWord for Div {
+impl Word for Div {
     fn name(&self) -> ClarityName {
         "/".into()
     }
+}
 
+impl SimpleWord for Div {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -184,11 +192,13 @@ impl SimpleWord for Div {
 #[derive(Debug)]
 pub struct Modulo;
 
-impl SimpleWord for Modulo {
+impl Word for Modulo {
     fn name(&self) -> ClarityName {
         "mod".into()
     }
+}
 
+impl SimpleWord for Modulo {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -203,11 +213,13 @@ impl SimpleWord for Modulo {
 #[derive(Debug)]
 pub struct Log2;
 
-impl SimpleWord for Log2 {
+impl Word for Log2 {
     fn name(&self) -> ClarityName {
         "log2".into()
     }
+}
 
+impl SimpleWord for Log2 {
     fn visit<'b>(
         &self,
         generator: &mut WasmGenerator,
@@ -222,11 +234,13 @@ impl SimpleWord for Log2 {
 #[derive(Debug)]
 pub struct Power;
 
-impl SimpleWord for Power {
+impl Word for Power {
     fn name(&self) -> ClarityName {
         "pow".into()
     }
+}
 
+impl SimpleWord for Power {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -241,11 +255,13 @@ impl SimpleWord for Power {
 #[derive(Debug)]
 pub struct Sqrti;
 
-impl SimpleWord for Sqrti {
+impl Word for Sqrti {
     fn name(&self) -> ClarityName {
         "sqrti".into()
     }
+}
 
+impl SimpleWord for Sqrti {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

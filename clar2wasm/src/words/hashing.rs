@@ -1,7 +1,7 @@
 use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 pub fn traverse_hash(
@@ -56,11 +56,13 @@ pub fn traverse_hash(
 #[derive(Debug)]
 pub struct Hash160;
 
-impl SimpleWord for Hash160 {
+impl Word for Hash160 {
     fn name(&self) -> ClarityName {
         "hash160".into()
     }
+}
 
+impl SimpleWord for Hash160 {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -76,11 +78,13 @@ impl SimpleWord for Hash160 {
 #[derive(Debug)]
 pub struct Sha256;
 
-impl SimpleWord for Sha256 {
+impl Word for Sha256 {
     fn name(&self) -> ClarityName {
         "sha256".into()
     }
+}
 
+impl SimpleWord for Sha256 {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -96,11 +100,13 @@ impl SimpleWord for Sha256 {
 #[derive(Debug)]
 pub struct Keccak256;
 
-impl SimpleWord for Keccak256 {
+impl Word for Keccak256 {
     fn name(&self) -> ClarityName {
         "keccak256".into()
     }
+}
 
+impl SimpleWord for Keccak256 {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -151,11 +157,13 @@ impl SimpleWord for Keccak256 {
 #[derive(Debug)]
 pub struct Sha512;
 
-impl SimpleWord for Sha512 {
+impl Word for Sha512 {
     fn name(&self) -> ClarityName {
         "sha512".into()
     }
+}
 
+impl SimpleWord for Sha512 {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -171,11 +179,13 @@ impl SimpleWord for Sha512 {
 #[derive(Debug)]
 pub struct Sha512_256;
 
-impl SimpleWord for Sha512_256 {
+impl Word for Sha512_256 {
     fn name(&self) -> ClarityName {
         "sha512/256".into()
     }
+}
 
+impl SimpleWord for Sha512_256 {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

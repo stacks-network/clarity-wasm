@@ -13,16 +13,18 @@ use crate::wasm_generator::{
     ArgumentsExt, GeneratorError, SequenceElementType, WasmGenerator,
 };
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
-use crate::words::{self, ComplexWord};
+use crate::words::{self, ComplexWord, Word};
 
 #[derive(Debug)]
 pub struct ListCons;
 
-impl ComplexWord for ListCons {
+impl Word for ListCons {
     fn name(&self) -> ClarityName {
         "list".into()
     }
+}
 
+impl ComplexWord for ListCons {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -74,11 +76,13 @@ impl ComplexWord for ListCons {
 #[derive(Debug)]
 pub struct Fold;
 
-impl ComplexWord for Fold {
+impl Word for Fold {
     fn name(&self) -> ClarityName {
         "fold".into()
     }
+}
 
+impl ComplexWord for Fold {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -260,11 +264,13 @@ impl ComplexWord for Fold {
 #[derive(Debug)]
 pub struct Append;
 
-impl ComplexWord for Append {
+impl Word for Append {
     fn name(&self) -> ClarityName {
         "append".into()
     }
+}
 
+impl ComplexWord for Append {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -349,11 +355,13 @@ impl ComplexWord for Append {
 #[derive(Debug)]
 pub struct AsMaxLen;
 
-impl ComplexWord for AsMaxLen {
+impl Word for AsMaxLen {
     fn name(&self) -> ClarityName {
         "as-max-len?".into()
     }
+}
 
+impl ComplexWord for AsMaxLen {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -452,11 +460,13 @@ impl ComplexWord for AsMaxLen {
 #[derive(Debug)]
 pub struct Concat;
 
-impl ComplexWord for Concat {
+impl Word for Concat {
     fn name(&self) -> ClarityName {
         "concat".into()
     }
+}
 
+impl ComplexWord for Concat {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -525,11 +535,13 @@ impl ComplexWord for Concat {
 #[derive(Debug)]
 pub struct Map;
 
-impl ComplexWord for Map {
+impl Word for Map {
     fn name(&self) -> ClarityName {
         "map".into()
     }
+}
 
+impl ComplexWord for Map {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -813,11 +825,13 @@ impl ComplexWord for Map {
 #[derive(Debug)]
 pub struct Len;
 
-impl ComplexWord for Len {
+impl Word for Len {
     fn name(&self) -> ClarityName {
         "len".into()
     }
+}
 
+impl ComplexWord for Len {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -895,14 +909,16 @@ pub enum ElementAt {
     Alias,
 }
 
-impl ComplexWord for ElementAt {
+impl Word for ElementAt {
     fn name(&self) -> ClarityName {
         match self {
             ElementAt::Original => "element-at".into(),
             ElementAt::Alias => "element-at?".into(),
         }
     }
+}
 
+impl ComplexWord for ElementAt {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -1081,11 +1097,13 @@ impl ComplexWord for ElementAt {
 #[derive(Debug)]
 pub struct ReplaceAt;
 
-impl ComplexWord for ReplaceAt {
+impl Word for ReplaceAt {
     fn name(&self) -> ClarityName {
         "replace-at?".into()
     }
+}
 
+impl ComplexWord for ReplaceAt {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -1334,11 +1352,13 @@ impl ComplexWord for ReplaceAt {
 #[derive(Debug)]
 pub struct Slice;
 
-impl ComplexWord for Slice {
+impl Word for Slice {
     fn name(&self) -> ClarityName {
         "slice?".into()
     }
+}
 
+impl ComplexWord for Slice {
     fn traverse(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,

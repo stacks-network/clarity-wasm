@@ -1,7 +1,7 @@
 use clarity::vm::types::{ASCIIData, CharType};
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
@@ -12,11 +12,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct DefinePrivateFunction;
 
-impl ComplexWord for DefinePrivateFunction {
+impl Word for DefinePrivateFunction {
     fn name(&self) -> ClarityName {
         "define-private".into()
     }
+}
 
+impl ComplexWord for DefinePrivateFunction {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -48,11 +50,13 @@ impl ComplexWord for DefinePrivateFunction {
 #[derive(Debug)]
 pub struct DefineReadonlyFunction;
 
-impl ComplexWord for DefineReadonlyFunction {
+impl Word for DefineReadonlyFunction {
     fn name(&self) -> ClarityName {
         "define-read-only".into()
     }
+}
 
+impl ComplexWord for DefineReadonlyFunction {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -107,11 +111,13 @@ impl ComplexWord for DefineReadonlyFunction {
 #[derive(Debug)]
 pub struct DefinePublicFunction;
 
-impl ComplexWord for DefinePublicFunction {
+impl Word for DefinePublicFunction {
     fn name(&self) -> ClarityName {
         "define-public".into()
     }
+}
 
+impl ComplexWord for DefinePublicFunction {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

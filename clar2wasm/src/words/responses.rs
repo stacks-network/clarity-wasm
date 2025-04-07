@@ -2,10 +2,11 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::BinaryOp;
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
+
 pub fn traverse_response(
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
@@ -42,11 +43,13 @@ pub fn traverse_response(
 #[derive(Debug)]
 pub struct IsOk;
 
-impl ComplexWord for IsOk {
+impl Word for IsOk {
     fn name(&self) -> ClarityName {
         "is-ok".into()
     }
+}
 
+impl ComplexWord for IsOk {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -63,11 +66,13 @@ impl ComplexWord for IsOk {
 #[derive(Debug)]
 pub struct IsErr;
 
-impl ComplexWord for IsErr {
+impl Word for IsErr {
     fn name(&self) -> ClarityName {
         "is-err".into()
     }
+}
 
+impl ComplexWord for IsErr {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

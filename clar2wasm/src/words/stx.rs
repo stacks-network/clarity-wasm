@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::{ComplexWord, SimpleWord};
+use super::{ComplexWord, SimpleWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -9,11 +9,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct StxBurn;
 
-impl SimpleWord for StxBurn {
+impl Word for StxBurn {
     fn name(&self) -> ClarityName {
         "stx-burn?".into()
     }
+}
 
+impl SimpleWord for StxBurn {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -32,11 +34,13 @@ impl SimpleWord for StxBurn {
 #[derive(Debug)]
 pub struct StxGetBalance;
 
-impl SimpleWord for StxGetBalance {
+impl Word for StxGetBalance {
     fn name(&self) -> ClarityName {
         "stx-get-balance".into()
     }
+}
 
+impl SimpleWord for StxGetBalance {
     fn visit(
         &self,
         generator: &mut WasmGenerator,
@@ -52,11 +56,13 @@ impl SimpleWord for StxGetBalance {
 #[derive(Debug)]
 pub struct StxTransfer;
 
-impl ComplexWord for StxTransfer {
+impl Word for StxTransfer {
     fn name(&self) -> ClarityName {
         "stx-transfer?".into()
     }
+}
 
+impl ComplexWord for StxTransfer {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -84,11 +90,13 @@ impl ComplexWord for StxTransfer {
 #[derive(Debug)]
 pub struct StxTransferMemo;
 
-impl ComplexWord for StxTransferMemo {
+impl Word for StxTransferMemo {
     fn name(&self) -> ClarityName {
         "stx-transfer-memo?".into()
     }
+}
 
+impl ComplexWord for StxTransferMemo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -116,11 +124,13 @@ impl ComplexWord for StxTransferMemo {
 #[derive(Debug)]
 pub struct StxGetAccount;
 
-impl SimpleWord for StxGetAccount {
+impl Word for StxGetAccount {
     fn name(&self) -> ClarityName {
         "stx-account".into()
     }
+}
 
+impl SimpleWord for StxGetAccount {
     fn visit(
         &self,
         generator: &mut WasmGenerator,

@@ -2,7 +2,7 @@ use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::InstrSeqType;
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{
     clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
@@ -12,11 +12,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct DefaultTo;
 
-impl ComplexWord for DefaultTo {
+impl Word for DefaultTo {
     fn name(&self) -> ClarityName {
         "default-to".into()
     }
+}
 
+impl ComplexWord for DefaultTo {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

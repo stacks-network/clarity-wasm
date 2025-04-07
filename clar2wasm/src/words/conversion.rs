@@ -1,16 +1,18 @@
 use clarity::vm::types::{SequenceSubtype, StringSubtype, TypeSignature};
 
-use super::SimpleWord;
+use super::{SimpleWord, Word};
 use crate::wasm_generator::GeneratorError;
 
 #[derive(Debug)]
 pub struct StringToInt;
 
-impl SimpleWord for StringToInt {
+impl Word for StringToInt {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-int?".into()
     }
+}
 
+impl SimpleWord for StringToInt {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -42,11 +44,13 @@ impl SimpleWord for StringToInt {
 #[derive(Debug)]
 pub struct StringToUint;
 
-impl SimpleWord for StringToUint {
+impl Word for StringToUint {
     fn name(&self) -> clarity::vm::ClarityName {
         "string-to-uint?".into()
     }
+}
 
+impl SimpleWord for StringToUint {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -79,11 +83,13 @@ impl SimpleWord for StringToUint {
 #[derive(Debug)]
 pub struct IntToAscii;
 
-impl SimpleWord for IntToAscii {
+impl Word for IntToAscii {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-ascii".into()
     }
+}
 
+impl SimpleWord for IntToAscii {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -116,11 +122,13 @@ impl SimpleWord for IntToAscii {
 #[derive(Debug)]
 pub struct IntToUtf8;
 
-impl SimpleWord for IntToUtf8 {
+impl Word for IntToUtf8 {
     fn name(&self) -> clarity::vm::ClarityName {
         "int-to-utf8".into()
     }
+}
 
+impl SimpleWord for IntToUtf8 {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,

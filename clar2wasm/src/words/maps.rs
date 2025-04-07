@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
 
-use super::ComplexWord;
+use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
@@ -9,11 +9,13 @@ use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 #[derive(Debug)]
 pub struct MapDefinition;
 
-impl ComplexWord for MapDefinition {
+impl Word for MapDefinition {
     fn name(&self) -> ClarityName {
         "define-map".into()
     }
+}
 
+impl ComplexWord for MapDefinition {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -71,11 +73,13 @@ impl ComplexWord for MapDefinition {
 #[derive(Debug)]
 pub struct MapGet;
 
-impl ComplexWord for MapGet {
+impl Word for MapGet {
     fn name(&self) -> ClarityName {
         "map-get?".into()
     }
+}
 
+impl ComplexWord for MapGet {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -150,11 +154,13 @@ impl ComplexWord for MapGet {
 #[derive(Debug)]
 pub struct MapSet;
 
-impl ComplexWord for MapSet {
+impl Word for MapSet {
     fn name(&self) -> ClarityName {
         "map-set".into()
     }
+}
 
+impl ComplexWord for MapSet {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -232,11 +238,13 @@ impl ComplexWord for MapSet {
 #[derive(Debug)]
 pub struct MapInsert;
 
-impl ComplexWord for MapInsert {
+impl Word for MapInsert {
     fn name(&self) -> ClarityName {
         "map-insert".into()
     }
+}
 
+impl ComplexWord for MapInsert {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -314,11 +322,13 @@ impl ComplexWord for MapInsert {
 #[derive(Debug)]
 pub struct MapDelete;
 
-impl ComplexWord for MapDelete {
+impl Word for MapDelete {
     fn name(&self) -> ClarityName {
         "map-delete".into()
     }
+}
 
+impl ComplexWord for MapDelete {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,

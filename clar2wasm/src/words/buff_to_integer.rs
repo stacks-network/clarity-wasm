@@ -1,7 +1,7 @@
 use clarity::vm::types::TypeSignature;
 
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
-use crate::words::SimpleWord;
+use crate::words::{SimpleWord, Word};
 
 fn traverse_buffer_to_integer(
     name: &str,
@@ -20,11 +20,13 @@ fn traverse_buffer_to_integer(
 #[derive(Debug)]
 pub struct BuffToUintBe;
 
-impl SimpleWord for BuffToUintBe {
+impl Word for BuffToUintBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-be".into()
     }
+}
 
+impl SimpleWord for BuffToUintBe {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -39,11 +41,13 @@ impl SimpleWord for BuffToUintBe {
 #[derive(Debug)]
 pub struct BuffToIntBe;
 
-impl SimpleWord for BuffToIntBe {
+impl Word for BuffToIntBe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-be".into()
     }
+}
 
+impl SimpleWord for BuffToIntBe {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -60,11 +64,13 @@ impl SimpleWord for BuffToIntBe {
 #[derive(Debug)]
 pub struct BuffToUintLe;
 
-impl SimpleWord for BuffToUintLe {
+impl Word for BuffToUintLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-uint-le".into()
     }
+}
 
+impl SimpleWord for BuffToUintLe {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,
@@ -79,11 +85,13 @@ impl SimpleWord for BuffToUintLe {
 #[derive(Debug)]
 pub struct BuffToIntLe;
 
-impl SimpleWord for BuffToIntLe {
+impl Word for BuffToIntLe {
     fn name(&self) -> clarity::vm::ClarityName {
         "buff-to-int-le".into()
     }
+}
 
+impl SimpleWord for BuffToIntLe {
     fn visit(
         &self,
         generator: &mut crate::wasm_generator::WasmGenerator,

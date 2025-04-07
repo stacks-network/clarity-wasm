@@ -3,7 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
-use super::{ComplexWord, SimpleWord};
+use super::{ComplexWord, SimpleWord, Word};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
@@ -15,11 +15,13 @@ use crate::{check_args, words};
 #[derive(Debug)]
 pub struct If;
 
-impl ComplexWord for If {
+impl Word for If {
     fn name(&self) -> ClarityName {
         "if".into()
     }
+}
 
+impl ComplexWord for If {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -58,11 +60,13 @@ impl ComplexWord for If {
 #[derive(Debug)]
 pub struct Match;
 
-impl ComplexWord for Match {
+impl Word for Match {
     fn name(&self) -> ClarityName {
         "match".into()
     }
+}
 
+impl ComplexWord for Match {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -181,11 +185,13 @@ impl ComplexWord for Match {
 #[derive(Debug)]
 pub struct Filter;
 
-impl ComplexWord for Filter {
+impl Word for Filter {
     fn name(&self) -> ClarityName {
         "filter".into()
     }
+}
 
+impl ComplexWord for Filter {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -406,11 +412,13 @@ fn traverse_short_circuiting_list(
 #[derive(Debug)]
 pub struct And;
 
-impl ComplexWord for And {
+impl Word for And {
     fn name(&self) -> ClarityName {
         "and".into()
     }
+}
 
+impl ComplexWord for And {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -433,11 +441,13 @@ impl ComplexWord for And {
 #[derive(Debug)]
 pub struct SimpleAnd;
 
-impl SimpleWord for SimpleAnd {
+impl Word for SimpleAnd {
     fn name(&self) -> ClarityName {
         "and".into()
     }
+}
 
+impl SimpleWord for SimpleAnd {
     fn visit(
         &self,
         _generator: &mut WasmGenerator,
@@ -455,11 +465,13 @@ impl SimpleWord for SimpleAnd {
 #[derive(Debug)]
 pub struct Or;
 
-impl ComplexWord for Or {
+impl Word for Or {
     fn name(&self) -> ClarityName {
         "or".into()
     }
+}
 
+impl ComplexWord for Or {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -482,11 +494,13 @@ impl ComplexWord for Or {
 #[derive(Debug)]
 pub struct SimpleOr;
 
-impl SimpleWord for SimpleOr {
+impl Word for SimpleOr {
     fn name(&self) -> ClarityName {
         "or".into()
     }
+}
 
+impl SimpleWord for SimpleOr {
     fn visit(
         &self,
         _generator: &mut WasmGenerator,
@@ -504,11 +518,13 @@ impl SimpleWord for SimpleOr {
 #[derive(Debug)]
 pub struct Unwrap;
 
-impl ComplexWord for Unwrap {
+impl Word for Unwrap {
     fn name(&self) -> ClarityName {
         "unwrap!".into()
     }
+}
 
+impl ComplexWord for Unwrap {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -587,11 +603,13 @@ impl ComplexWord for Unwrap {
 #[derive(Debug)]
 pub struct UnwrapErr;
 
-impl ComplexWord for UnwrapErr {
+impl Word for UnwrapErr {
     fn name(&self) -> ClarityName {
         "unwrap-err!".into()
     }
+}
 
+impl ComplexWord for UnwrapErr {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -678,11 +696,13 @@ impl ComplexWord for UnwrapErr {
 #[derive(Debug)]
 pub struct Asserts;
 
-impl ComplexWord for Asserts {
+impl Word for Asserts {
     fn name(&self) -> ClarityName {
         "asserts!".into()
     }
+}
 
+impl ComplexWord for Asserts {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
@@ -755,11 +775,13 @@ impl ComplexWord for Asserts {
 #[derive(Debug)]
 pub struct Try;
 
-impl ComplexWord for Try {
+impl Word for Try {
     fn name(&self) -> ClarityName {
         "try!".into()
     }
+}
 
+impl ComplexWord for Try {
     fn traverse(
         &self,
         generator: &mut WasmGenerator,
