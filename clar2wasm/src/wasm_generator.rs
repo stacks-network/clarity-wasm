@@ -345,6 +345,7 @@ impl WasmGenerator {
     pub fn with_cost_code(contract_analysis: ContractAnalysis) -> Result<Self, GeneratorError> {
         let mut generator = Self::new(contract_analysis)?;
         generator.cost_context = Some(ChargeContext {
+            clarity_version: generator.contract_analysis.clarity_version,
             runtime: get_global(&generator.module, "cost-runtime")?,
             read_count: get_global(&generator.module, "cost-read-count")?,
             read_length: get_global(&generator.module, "cost-read-length")?,
