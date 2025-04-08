@@ -121,6 +121,7 @@ pub enum GeneratorError {
     InternalError(String),
     TypeError(String),
     ArgumentCountMismatch,
+    EnvironmentError(String),
     IOError(String),
 }
 
@@ -137,6 +138,9 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
             GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
+            GeneratorError::EnvironmentError(msg) => {
+                format!("Environment configuration error: {}", msg)
+            }
             GeneratorError::IOError(msg) => format!("I/O error: {}", msg),
         }
     }
@@ -316,9 +320,8 @@ impl Deref for BorrowedLocal {
 
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
-        let wasm_path = std::env::var("STANDARD_WASM_PATH").unwrap_or_else(|_| {
-            format!("{}/src/standard/standard.wasm", env!("CARGO_MANIFEST_DIR"))
-        });
+        let wasm_path = std::env::var("STANDARD_WASM_PATH")
+            .map_err(|e| GeneratorError::EnvironmentError(format!("STANDARD_WASM_PATH: {}", e)))?;
 
         let standard_lib_wasm: Vec<u8> = std::fs::read(&wasm_path).map_err(|e| {
             GeneratorError::IOError(format!("Failed to read standard library WASM: {}", e))
@@ -2329,9 +2332,8 @@ mod tests {
 
     #[test]
     fn end_of_standard_data_is_correct() {
-        let standard_lib_path = std::env::var("STANDARD_WASM_PATH").unwrap_or_else(|_| {
-            format!("{}/src/standard/standard.wasm", env!("CARGO_MANIFEST_DIR"))
-        });
+        let standard_lib_path = std::env::var("STANDARD_WASM_PATH")
+            .expect("Environment variable STANDARD_WASM_PATH not set");
         let standard_lib_wasm =
             std::fs::read(&standard_lib_path).expect("Failed to read WASM file");
         let module = Module::from_buffer(&standard_lib_wasm).unwrap();
