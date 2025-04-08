@@ -3,6 +3,7 @@ use clarity::vm::ClarityName;
 use walrus::InstrSeqBuilder;
 
 use super::{SimpleWord, Word};
+use crate::cost::WordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
 
 #[derive(Debug)]
@@ -22,6 +23,8 @@ impl SimpleWord for BitwiseNot {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let helper_func = generator.func_by_name("stdlib.bit-not");
         builder.call(helper_func);
         Ok(())
@@ -31,11 +34,15 @@ impl SimpleWord for BitwiseNot {
 // multi value bit-operations
 
 fn traverse_bitwise(
-    name: &'static str,
+    word: &impl SimpleWord,
     generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     arg_types: &[TypeSignature],
 ) -> Result<(), GeneratorError> {
+    word.charge(generator, builder, arg_types.len() as u32)?;
+
+    let name = word.name();
+
     let helper_func = generator.func_by_name(&format!("stdlib.{name}"));
     // Run this once for every arg except first
     for _ in arg_types.iter().skip(1) {
@@ -61,7 +68,7 @@ impl SimpleWord for BitwiseOr {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-or", generator, builder, arg_types)
+        traverse_bitwise(self, generator, builder, arg_types)
     }
 }
 
@@ -82,7 +89,7 @@ impl SimpleWord for BitwiseAnd {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-and", generator, builder, arg_types)
+        traverse_bitwise(self, generator, builder, arg_types)
     }
 }
 
@@ -103,7 +110,7 @@ impl SimpleWord for BitwiseXor {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        traverse_bitwise("bit-xor", generator, builder, arg_types)
+        traverse_bitwise(self, generator, builder, arg_types)
     }
 }
 
@@ -124,6 +131,8 @@ impl SimpleWord for BitwiseLShift {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let func = generator.func_by_name("stdlib.bit-shift-left");
         builder.call(func);
         Ok(())
@@ -147,6 +156,8 @@ impl SimpleWord for BitwiseRShift {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         let type_suffix = match arg_types[0] {
             TypeSignature::IntType => "int",
             TypeSignature::UIntType => "uint",
@@ -183,7 +194,7 @@ impl SimpleWord for Xor {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         // xor is a proxy call to bit-xor since they share the same implementation.
-        traverse_bitwise("bit-xor", generator, builder, arg_types)
+        traverse_bitwise(&BitwiseXor, generator, builder, arg_types)
     }
 }
 
