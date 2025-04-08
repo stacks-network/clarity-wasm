@@ -2251,8 +2251,6 @@ fn count_in_memory_space(ty: &TypeSignature) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-
     use clarity::types::StacksEpochId;
     use clarity::vm::analysis::AnalysisDatabase;
     use clarity::vm::costs::LimitedCostTracker;
