@@ -3,11 +3,13 @@
 //! The cost computations in this module are meant to be a full match with the interpreter
 //! implementation of the Clarity runtime.
 
+mod clar1;
+mod clar2;
 mod clar3;
 
 use std::fmt;
 
-use clarity::vm::ClarityName;
+use clarity::vm::{ClarityName, ClarityVersion};
 use walrus::ir::{BinaryOp, Instr, UnaryOp, Unop};
 use walrus::{FunctionId, GlobalId, InstrSeqBuilder, LocalId, Module};
 use wasmtime::{AsContextMut, Extern, Global, Mutability, Val, ValType};
@@ -260,7 +262,13 @@ pub trait ChargeGenerator {
         let n = n.into();
 
         if let Some((ctx, module)) = self.cost_context() {
-            match clar3::WORD_COSTS.get(&word_name) {
+            let maybe_word_cost = match ctx.clarity_version {
+                ClarityVersion::Clarity1 => clar1::WORD_COSTS.get(&word_name),
+                ClarityVersion::Clarity2 => clar2::WORD_COSTS.get(&word_name),
+                ClarityVersion::Clarity3 => clar3::WORD_COSTS.get(&word_name),
+            };
+
+            match maybe_word_cost {
                 Some(cost) => ctx.emit(instrs, module, cost, n)?,
                 None => {
                     return Err(GeneratorError::InternalError(format!(
@@ -332,6 +340,7 @@ impl ScalarGet for InstrSeqBuilder<'_> {
 
 /// Context required from a generator to emit cost tracking code.
 pub struct ChargeContext {
+    pub clarity_version: ClarityVersion,
     pub runtime: GlobalId,
     pub read_count: GlobalId,
     pub read_length: GlobalId,
@@ -358,6 +367,10 @@ enum Caf {
     ///
     /// a * n + b
     Linear { a: u64, b: u64 },
+    /// Logarithmic cost, scaling with `n`
+    ///
+    /// a * log2(n) + b
+    LogN { a: u64, b: u64 },
     /// Linear logarithmic cost, scaling with `n`
     ///
     /// a * n * log2(n) + b
@@ -441,6 +454,16 @@ impl ChargeContext {
                 a,
                 b,
             ),
+            Caf::LogN { a, b } => caf_logn(
+                instrs,
+                module,
+                global,
+                self.runtime_error,
+                err_code,
+                n,
+                a,
+                b,
+            ),
             Caf::NLogN { a, b } => caf_nlogn(
                 instrs,
                 module,
@@ -511,6 +534,57 @@ fn caf_linear(
     instrs
         // n
         .scalar_get(module, n)?
+        // a *
+        .i64_const(a as _)
+        .binop(BinaryOp::I64Mul)
+        // b +
+        .i64_const(b as _)
+        .binop(BinaryOp::I64Add);
+
+    // global -= cost
+    instrs
+        .binop(BinaryOp::I64Sub)
+        .global_set(global)
+        .global_get(global)
+        .i64_const(0)
+        .binop(BinaryOp::I64LtS)
+        .if_else(
+            None,
+            |builder| {
+                builder.i32_const(err_code);
+                builder.call(error);
+            },
+            |_| {},
+        );
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn caf_logn(
+    instrs: &mut InstrSeqBuilder,
+    module: &Module,
+    global: GlobalId,
+    error: FunctionId,
+    err_code: i32,
+    n: impl Into<Scalar>,
+    a: u64,
+    b: u64,
+) -> Result<()> {
+    let n = n.into();
+
+    // global pushed onto the stack to subtract from later
+    instrs.global_get(global);
+
+    // cost = a * log2(n) + b
+    instrs
+        // log2(n)
+        // 63 minus leading zeros in `n`
+        // n *must* be larger than 0
+        .i64_const(63)
+        .scalar_get(module, n)?
+        .unop(UnaryOp::I64Clz)
+        .binop(BinaryOp::I64Sub)
         // a *
         .i64_const(a as _)
         .binop(BinaryOp::I64Mul)
@@ -628,6 +702,37 @@ mod test_caf {
             let final_val = execute_with_caf(n, initial_val, |local| {
                 (
                     Caf::Linear {
+                        a: a as _,
+                        b: b as _,
+                    },
+                    local,
+                )
+            })
+            .expect("execution with enough fuel should succeed");
+
+            assert_eq!(
+                final_val,
+                initial_val - cost as u64,
+                "should decrement accurately"
+            );
+        }
+    }
+
+    #[test]
+    fn logn() {
+        let initial_val = 1000000;
+
+        let a = 2;
+        let b = 3;
+
+        // cost = (+ (* a (log2 n)) b))
+
+        for n in 1..100u32 {
+            let cost = a * n.ilog2() + b;
+
+            let final_val = execute_with_caf(n as _, initial_val, |local| {
+                (
+                    Caf::LogN {
                         a: a as _,
                         b: b as _,
                     },
@@ -771,6 +876,17 @@ mod test_caf {
                 caf_const(&mut body, &module, cost_global, error, ERR_CODE, n).unwrap()
             }
             Caf::Linear { a, b } => caf_linear(
+                &mut body,
+                &module,
+                cost_global,
+                error,
+                ERR_CODE,
+                scalar,
+                a,
+                b,
+            )
+            .unwrap(),
+            Caf::LogN { a, b } => caf_logn(
                 &mut body,
                 &module,
                 cost_global,
