@@ -82,6 +82,8 @@ impl ComplexWord for ContractOf {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0)?;
+
         generator.traverse_args(builder, args)?;
 
         Ok(())
