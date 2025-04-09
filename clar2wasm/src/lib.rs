@@ -12,6 +12,9 @@ use clarity::vm::ClarityVersion;
 pub use walrus::Module;
 use wasm_generator::{GeneratorError, WasmGenerator};
 
+mod cost;
+pub use cost::{AccessCostMeter, CostGlobals, CostLinker, CostMeter};
+
 mod deserialize;
 pub mod initialize;
 pub mod linker;
@@ -60,6 +63,7 @@ pub fn compile(
     clarity_version: ClarityVersion,
     epoch: StacksEpochId,
     analysis_db: &mut AnalysisDatabase,
+    emit_cost_code: bool,
 ) -> Result<CompileResult, CompileError> {
     // Parse the contract
     let (ast, mut diagnostics, success) = build_ast_with_diagnostics(
@@ -120,7 +124,12 @@ pub fn compile(
     }
 
     #[allow(clippy::expect_used)]
-    match WasmGenerator::new(contract_analysis.clone()).and_then(WasmGenerator::generate) {
+    let generator = match emit_cost_code {
+        false => WasmGenerator::new(contract_analysis.clone()),
+        true => WasmGenerator::with_cost_code(contract_analysis.clone()),
+    };
+
+    match generator.and_then(WasmGenerator::generate) {
         Ok(module) => Ok(CompileResult {
             ast,
             diagnostics,
@@ -132,6 +141,7 @@ pub fn compile(
             Err(CompileError::Generic {
                 ast: Box::new(ast),
                 diagnostics,
+                #[allow(clippy::expect_used)]
                 cost_tracker: Box::new(
                     contract_analysis
                         .cost_track

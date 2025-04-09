@@ -327,7 +327,17 @@
     ;; Useful for debugging, just prints a message
     (import "" "debug_msg" (func $debug_msg (param $value i32)))
 
+    ;; TODO: These are not defined, but instead during compilation, because otherwise we *must* link
+    ;;       them in, and the test suite will fail due to some of the runtime code being in
+    ;;      `stacks-core`
     ;;
+    ;; ;; Cost tracking globals
+    ;; (import "clarity" "cost-runtime" (global $cost-runtime (mut i64)))
+    ;; (import "clarity" "cost-read-count" (global $cost-read-count (mut i64)))
+    ;; (import "clarity" "cost-read-length" (global $cost-read-length (mut i64)))
+    ;; (import "clarity" "cost-write-count" (global $cost-write-count (mut i64)))
+    ;; (import "clarity" "cost-write-length" (global $cost-write-length (mut i64)))
+
     ;; Global definitions
     (global $stack-pointer (mut i32) (i32.const 0))
     (global $runtime-error-code (mut i32) (i32.const -1))
@@ -385,6 +395,11 @@
         ;; 5: buffer to integer expects a buffer length <= 16
         ;; 6: panic
         ;; 7: short return
+        ;; 100: runtime cost overrun
+        ;; 101: read count cost overrun
+        ;; 102: read length cost overrun
+        ;; 103: write count cost overrun
+        ;; 104: write length cost overrun
     (func $stdlib.runtime-error (param $error_code i32)
         (global.set $runtime-error-code (local.get $error_code))
 
