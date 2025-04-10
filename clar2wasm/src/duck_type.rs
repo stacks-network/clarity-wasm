@@ -221,4 +221,145 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
     }
 }
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::thread::yield_now;
+
+    use clarity::{
+        types::StacksEpochId,
+        vm::{
+            analysis::ContractAnalysis,
+            clarity_wasm::get_type_size,
+            costs::LimitedCostTracker,
+            types::{QualifiedContractIdentifier, SequenceData, SequenceSubtype, TypeSignature},
+            ClarityVersion, Value,
+        },
+    };
+    use walrus::{FunctionBuilder, InstrSeqBuilder};
+
+    use crate::{
+        wasm_generator::{
+            add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
+        },
+        wasm_utils::{placeholder_for_type, write_to_wasm},
+    };
+
+    impl WasmGenerator {
+        fn empty() -> Self {
+            let empty_analysis = ContractAnalysis::new(
+                QualifiedContractIdentifier::transient(),
+                vec![],
+                LimitedCostTracker::Free,
+                StacksEpochId::latest(),
+                ClarityVersion::latest(),
+            );
+
+            WasmGenerator::new(empty_analysis)
+                .expect("failed to build WasmGenerator for empty contract")
+        }
+
+        fn pass_value(
+            &mut self,
+            builder: &mut InstrSeqBuilder,
+            value: &Value,
+            ty: &TypeSignature,
+        ) -> Result<(), GeneratorError> {
+            match value {
+                Value::Bool(b) => {
+                    builder.i32_const(*b as i32);
+                    Ok(())
+                }
+                Value::Int(i) => {
+                    builder.i64_const((i & 0xFFFFFFFFFFFFFFFF) as i64);
+                    builder.i64_const(((i >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                    Ok(())
+                }
+                Value::UInt(u) => {
+                    builder.i64_const((u & 0xFFFFFFFFFFFFFFFF) as i64);
+                    builder.i64_const(((u >> 64) & 0xFFFFFFFFFFFFFFFF) as i64);
+                    Ok(())
+                }
+                Value::Sequence(SequenceData::String(s)) => {
+                    let (offset, len) = self.add_clarity_string_literal(s)?;
+                    builder.i32_const(offset as i32);
+                    builder.i32_const(len as i32);
+                    Ok(())
+                }
+                Value::Principal(_) | Value::Sequence(SequenceData::Buffer(_)) => {
+                    let (offset, len) = self.add_literal(value)?;
+                    builder.i32_const(offset as i32);
+                    builder.i32_const(len as i32);
+                    Ok(())
+                }
+                Value::Optional(opt) => {
+                    let TypeSignature::OptionalType(inner_ty) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    match opt.data {
+                        Some(inner) => {
+                            builder.i32_const(1);
+                            self.pass_value(builder, &inner, inner_ty)?;
+                        }
+                        None => {
+                            builder.i32_const(0);
+                            add_placeholder_for_clarity_type(builder, inner_ty);
+                        }
+                    }
+                    Ok(())
+                }
+                Value::Response(resp) => {
+                    let TypeSignature::ResponseType(resp_ty) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    builder.i32_const(resp.committed as i32);
+                    if resp.committed {
+                        self.pass_value(builder, &resp.data, &resp_ty.0)?;
+                        add_placeholder_for_clarity_type(builder, &resp_ty.1);
+                    } else {
+                        add_placeholder_for_clarity_type(builder, &resp_ty.0);
+                        self.pass_value(builder, &resp.data, &resp_ty.1)?;
+                    }
+                    Ok(())
+                }
+                Value::Tuple(tuple) => {
+                    let TypeSignature::TupleType(tuple_ty) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    for (elem, elem_ty) in tuple
+                        .data_map
+                        .values()
+                        .zip(tuple_ty.get_type_map().values())
+                    {
+                        self.pass_value(builder, elem, elem_ty)?;
+                    }
+                    Ok(())
+                }
+                Value::Sequence(SequenceData::List(list)) => {
+                    let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    todo!()
+                }
+            }
+        }
+    }
+
+    fn duck_type_test(
+        value: &Value,
+        original_type: &TypeSignature,
+        target_type: &TypeSignature,
+    ) -> walrus::Module {
+        let mut generator = WasmGenerator::empty();
+        let return_ty = clar2wasm_ty(target_type);
+        let mut builder = FunctionBuilder::new(&mut generator.module.types, &[], &return_ty);
+
+        todo!()
+    }
+}
