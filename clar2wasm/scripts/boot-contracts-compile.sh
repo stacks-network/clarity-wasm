@@ -2,6 +2,7 @@
 
 BOOT_CONTRACTS_PATH="./tests/contracts/boot-contracts"
 CLAR2WASM_PATH="../target/release"
+STANDARD_WASM_PATH="${CLAR2WASM_PATH}/build/clar2wasm-*/out/standard.wasm"
 
 declare -a boot_contracts=(
     bns
