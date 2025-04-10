@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BOOT_CONTRACTS_PATH="./tests/contracts/boot-contracts"
 CLAR2WASM_PATH="../target/release"
