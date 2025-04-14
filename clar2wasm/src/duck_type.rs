@@ -28,6 +28,9 @@ impl WasmGenerator {
 
         let locals = self.create_locals_for_ty(target_ty);
         self.duck_type_stack(builder, og_ty, target_ty, &locals)?;
+        for l in locals {
+            builder.local_get(l);
+        }
 
         if let Some(pointer) = former_stack_pointer {
             builder.local_get(pointer).global_set(self.stack_pointer);
@@ -61,7 +64,7 @@ impl WasmGenerator {
             )
             | (TypeSignature::CallableType(_), TypeSignature::CallableType(_))
             | (TypeSignature::TraitReferenceType(_), TypeSignature::TraitReferenceType(_)) => {
-                for &l in locals {
+                for &l in locals.iter().rev() {
                     builder.local_set(l);
                 }
             }
@@ -222,25 +225,26 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
 }
 #[cfg(test)]
 mod tests {
-    use std::thread::yield_now;
-
     use clarity::{
         types::StacksEpochId,
         vm::{
             analysis::ContractAnalysis,
-            clarity_wasm::get_type_size,
             costs::LimitedCostTracker,
-            types::{QualifiedContractIdentifier, SequenceData, SequenceSubtype, TypeSignature},
+            types::{
+                BuffData, BufferLength, QualifiedContractIdentifier, SequenceData, TypeSignature,
+            },
             ClarityVersion, Value,
         },
     };
     use walrus::{FunctionBuilder, InstrSeqBuilder};
+    use wasmtime::{Engine, Module, Store};
 
     use crate::{
+        linker::dummy_linker,
         wasm_generator::{
             add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
         },
-        wasm_utils::{placeholder_for_type, write_to_wasm},
+        wasm_utils::{placeholder_for_type, wasm_to_clarity_value},
     };
 
     impl WasmGenerator {
@@ -252,7 +256,6 @@ mod tests {
                 StacksEpochId::latest(),
                 ClarityVersion::latest(),
             );
-
             WasmGenerator::new(empty_analysis)
                 .expect("failed to build WasmGenerator for empty contract")
         }
@@ -296,10 +299,10 @@ mod tests {
                             "Mismatched value/type".to_owned(),
                         ));
                     };
-                    match opt.data {
+                    match &opt.data {
                         Some(inner) => {
                             builder.i32_const(1);
-                            self.pass_value(builder, &inner, inner_ty)?;
+                            self.pass_value(builder, inner, inner_ty)?;
                         }
                         None => {
                             builder.i32_const(0);
@@ -339,27 +342,107 @@ mod tests {
                     }
                     Ok(())
                 }
-                Value::Sequence(SequenceData::List(list)) => {
-                    let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = ty else {
-                        return Err(GeneratorError::InternalError(
-                            "Mismatched value/type".to_owned(),
-                        ));
-                    };
-                    todo!()
+                Value::Sequence(SequenceData::List(_list)) => {
+                    todo!("Need to complete #610 first")
                 }
+                Value::CallableContract(_) => unimplemented!("We can already test principals"),
             }
+        }
+
+        fn create_duck_type_module(
+            &mut self,
+            value: &Value,
+            original_type: &TypeSignature,
+            target_type: &TypeSignature,
+        ) {
+            let return_ty = clar2wasm_ty(target_type);
+            let mut top_level = FunctionBuilder::new(&mut self.module.types, &[], &return_ty);
+            {
+                let builder = &mut top_level.func_body();
+
+                self.pass_value(builder, value, original_type)
+                    .expect("failed to write instructions for original value");
+
+                self.duck_type(builder, original_type, target_type)
+                    .expect("failed to write duck type instructions");
+            }
+
+            let top_level = top_level.finish(vec![], &mut self.module.funcs);
+            self.module.exports.add(".top-level", top_level);
+
+            self.module.globals.get_mut(self.stack_pointer).kind =
+                walrus::GlobalKind::Local(walrus::InitExpr::Value(walrus::ir::Value::I32(20000)));
+        }
+
+        fn execute_duck_type_module(&mut self, target_type: &TypeSignature) -> Value {
+            std::fs::write("debug.wasm", self.module.emit_wasm()).unwrap();
+
+            let engine = Engine::default();
+            let mut store = Store::new(&engine, ());
+            let linker = dummy_linker(&engine).expect("failed to create linker");
+            let module =
+                Module::new(&engine, self.module.emit_wasm()).expect("failed to create module");
+            let instance = linker
+                .instantiate(&mut store, &module)
+                .expect("failed to instanciate module");
+
+            let top_level = instance
+                .get_func(&mut store, ".top-level")
+                .expect("cannot find .top-level function");
+
+            let mut result: Vec<_> = top_level
+                .ty(&mut store)
+                .results()
+                .map(placeholder_for_type)
+                .collect();
+
+            top_level
+                .call(&mut store, &[], &mut result)
+                .expect("couldn't call .top-level");
+
+            let memory = instance
+                .get_memory(&mut store, "memory")
+                .expect("couldn't find memory");
+            wasm_to_clarity_value(
+                target_type,
+                0,
+                &result,
+                memory,
+                &mut store,
+                StacksEpochId::latest(),
+            )
+            .expect("error in execution")
+            .0
+            .expect("no value computed???")
         }
     }
 
-    fn duck_type_test(
-        value: &Value,
-        original_type: &TypeSignature,
-        target_type: &TypeSignature,
-    ) -> walrus::Module {
-        let mut generator = WasmGenerator::empty();
-        let return_ty = clar2wasm_ty(target_type);
-        let mut builder = FunctionBuilder::new(&mut generator.module.types, &[], &return_ty);
+    fn duck_type_test(value: Value, og_ty: TypeSignature, target_ty: TypeSignature) {
+        let mut gen = WasmGenerator::empty();
+        gen.create_duck_type_module(&value, &og_ty, &target_ty);
+        let res = gen.execute_duck_type_module(&target_ty);
 
-        todo!()
+        assert_eq!(value, res);
+    }
+
+    #[test]
+    fn it_works() {
+        duck_type_test(
+            Value::Int(42),
+            TypeSignature::IntType,
+            TypeSignature::IntType,
+        );
+    }
+
+    #[test]
+    fn it_works_seq() {
+        let val = Value::Sequence(SequenceData::Buffer(BuffData {
+            data: vec![0x42, 0x43],
+        }));
+        let ty = TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::BufferType(
+            2u32.try_into().unwrap(),
+        ));
+
+        duck_type_test(val, ty.clone(), ty);
     }
 }

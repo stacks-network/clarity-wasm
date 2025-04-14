@@ -5227,13 +5227,8 @@ fn link_debug_msg<T>(linker: &mut Linker<T>) -> Result<(), Error> {
         })
 }
 
-/// the standard.wat file and link in all of the host interface functions.
-pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
-    let standard_lib = include_str!("standard/standard.wat");
-    let engine = Engine::default();
-    let mut store = Store::new(&engine, ());
-
-    let mut linker = Linker::new(&engine);
+pub fn dummy_linker(engine: &Engine) -> Result<Linker<()>, wasmtime::Error> {
+    let mut linker = Linker::new(engine);
 
     link_skip_list(&mut linker)?;
 
@@ -5900,6 +5895,15 @@ pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
         },
     )?;
 
+    Ok(linker)
+}
+
+/// the standard.wat file and link in all of the host interface functions.
+pub fn load_stdlib() -> Result<(Instance, Store<()>), wasmtime::Error> {
+    let standard_lib = include_str!("standard/standard.wat");
+    let engine = Engine::default();
+    let mut store = Store::new(&engine, ());
+    let linker = dummy_linker(&engine)?;
     let module = Module::new(&engine, standard_lib)?;
     let instance = linker.instantiate(&mut store, &module)?;
     Ok((instance, store))
