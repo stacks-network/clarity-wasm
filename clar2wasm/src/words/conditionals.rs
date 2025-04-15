@@ -4,6 +4,7 @@ use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
 
 use super::{ComplexWord, SimpleWord, Word};
+use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
@@ -30,6 +31,8 @@ impl ComplexWord for If {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let conditional = args.get_expr(0)?;
         let true_branch = args.get_expr(1)?;
@@ -74,6 +77,8 @@ impl ComplexWord for Match {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         // WORKAROUND: we'll have to set the types of arguments to the type of expression,
         //             since the typechecker didn't do it for us
         let expr_ty = generator
@@ -200,6 +205,8 @@ impl ComplexWord for Filter {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -426,13 +433,11 @@ impl ComplexWord for And {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_args!(
-            generator,
-            builder,
-            1,
-            args.len(),
-            ArgumentCountCheck::AtLeast
-        );
+        let args_len = args.len();
+
+        check_args!(generator, builder, 1, args_len, ArgumentCountCheck::AtLeast);
+
+        self.charge(generator, builder, args_len as u32)?;
 
         traverse_short_circuiting_list(generator, builder, args, false)
     }
@@ -450,14 +455,19 @@ impl Word for SimpleAnd {
 impl SimpleWord for SimpleAnd {
     fn visit(
         &self,
-        _generator: &mut WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        for _ in 0..arg_types.len().saturating_sub(1) {
+        let args_len = arg_types.len();
+
+        self.charge(generator, builder, args_len as u32)?;
+
+        for _ in 0..args_len.saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32And);
         }
+
         Ok(())
     }
 }
@@ -479,13 +489,11 @@ impl ComplexWord for Or {
         _expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_args!(
-            generator,
-            builder,
-            1,
-            args.len(),
-            ArgumentCountCheck::AtLeast
-        );
+        let args_len = args.len();
+
+        check_args!(generator, builder, 1, args_len, ArgumentCountCheck::AtLeast);
+
+        self.charge(generator, builder, args_len as u32)?;
 
         traverse_short_circuiting_list(generator, builder, args, true)
     }
@@ -503,14 +511,19 @@ impl Word for SimpleOr {
 impl SimpleWord for SimpleOr {
     fn visit(
         &self,
-        _generator: &mut WasmGenerator,
+        generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        for _ in 0..arg_types.len().saturating_sub(1) {
+        let args_len = arg_types.len();
+
+        self.charge(generator, builder, args_len as u32)?;
+
+        for _ in 0..args_len.saturating_sub(1) {
             builder.binop(ir::BinaryOp::I32Or);
         }
+
         Ok(())
     }
 }
@@ -533,6 +546,8 @@ impl ComplexWord for Unwrap {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -618,6 +633,8 @@ impl ComplexWord for UnwrapErr {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
@@ -712,6 +729,8 @@ impl ComplexWord for Asserts {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0)?;
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
@@ -790,6 +809,8 @@ impl ComplexWord for Try {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let input = args.get_expr(0)?;
         generator.traverse_expr(builder, input)?;

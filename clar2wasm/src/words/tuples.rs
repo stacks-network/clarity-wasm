@@ -5,6 +5,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{clar2wasm_ty, drop_value, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -25,13 +26,11 @@ impl ComplexWord for TupleCons {
         expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
-        check_argument_count(
-            generator,
-            builder,
-            1,
-            args.len(),
-            ArgumentCountCheck::AtLeast,
-        )?;
+        let args_len = args.len();
+
+        check_argument_count(generator, builder, 1, args_len, ArgumentCountCheck::AtLeast)?;
+
+        self.charge(generator, builder, args_len as u32)?;
 
         let ty = generator
             .get_expr_type(expr)
@@ -141,6 +140,8 @@ impl ComplexWord for TupleGet {
         // Determine the wasm types for each field of the tuple
         let field_types = tuple_ty.get_type_map();
 
+        self.charge(generator, builder, field_types.iter().len() as u32)?;
+
         // Create locals for the target field
         let wasm_types = clar2wasm_ty(field_types.get(target_field_name).ok_or_else(|| {
             GeneratorError::InternalError(format!("missing field '{target_field_name}' in tuple"))
@@ -212,10 +213,14 @@ impl ComplexWord for TupleMerge {
             })?
             .clone();
 
-        // Those locals will contain the resulting tuple after the merge operation
-        let result_locals: BTreeMap<_, Vec<_>> = generator
+        let result_ty = generator
             .get_expr_type(expr)
-            .ok_or_else(|| GeneratorError::TypeError("merge expression must be typed".to_owned()))
+            .ok_or_else(|| GeneratorError::TypeError("merge expression must be typed".to_owned()));
+
+        self.charge(generator, builder, result_ty.iter().len() as u32)?;
+
+        // Those locals will contain the resulting tuple after the merge operation
+        let result_locals: BTreeMap<_, Vec<_>> = result_ty
             .and_then(|expr_ty| match expr_ty {
                 TypeSignature::TupleType(tuple) => Ok(tuple),
                 _ => Err(GeneratorError::TypeError("expected tuple type".to_string())),
