@@ -1,15 +1,11 @@
 use clarity::vm::types::{SequenceSubtype, TypeSignature};
-use walrus::{
-    ir::{BinaryOp, Loop},
-    InstrSeqBuilder, LocalId, ValType,
-};
+use walrus::ir::{BinaryOp, Loop};
+use walrus::{InstrSeqBuilder, LocalId, ValType};
 
-use crate::{
-    wasm_generator::{
-        add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, GeneratorError, WasmGenerator,
-    },
-    wasm_utils::get_type_in_memory_size,
+use crate::wasm_generator::{
+    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, GeneratorError, WasmGenerator,
 };
+use crate::wasm_utils::get_type_in_memory_size;
 
 impl WasmGenerator {
     /// Converts the representation of a Value from a type to another type. The Value keeps the
@@ -239,28 +235,22 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use clarity::{
-        types::StacksEpochId,
-        vm::{
-            analysis::ContractAnalysis,
-            costs::LimitedCostTracker,
-            types::{
-                QualifiedContractIdentifier, ResponseData, SequenceData, TupleData,
-                TupleTypeSignature, TypeSignature,
-            },
-            ClarityVersion, Value,
-        },
+    use clarity::types::StacksEpochId;
+    use clarity::vm::analysis::ContractAnalysis;
+    use clarity::vm::costs::LimitedCostTracker;
+    use clarity::vm::types::{
+        QualifiedContractIdentifier, ResponseData, SequenceData, TupleData, TupleTypeSignature,
+        TypeSignature,
     };
+    use clarity::vm::{ClarityVersion, Value};
     use walrus::{FunctionBuilder, InstrSeqBuilder};
     use wasmtime::{Engine, Module, Store};
 
-    use crate::{
-        linker::dummy_linker,
-        wasm_generator::{
-            add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
-        },
-        wasm_utils::{placeholder_for_type, wasm_to_clarity_value},
+    use crate::linker::dummy_linker;
+    use crate::wasm_generator::{
+        add_placeholder_for_clarity_type, clar2wasm_ty, GeneratorError, WasmGenerator,
     };
+    use crate::wasm_utils::{placeholder_for_type, wasm_to_clarity_value};
 
     impl WasmGenerator {
         fn empty() -> Self {
