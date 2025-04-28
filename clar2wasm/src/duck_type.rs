@@ -244,7 +244,10 @@ mod tests {
         vm::{
             analysis::ContractAnalysis,
             costs::LimitedCostTracker,
-            types::{QualifiedContractIdentifier, SequenceData, TypeSignature},
+            types::{
+                QualifiedContractIdentifier, ResponseData, SequenceData, TupleData,
+                TupleTypeSignature, TypeSignature,
+            },
             ClarityVersion, Value,
         },
     };
@@ -429,5 +432,159 @@ mod tests {
             .0
             .expect("no value computed???")
         }
+    }
+
+    fn duck_type_test(value: Value, og_ty: TypeSignature, target_ty: TypeSignature) {
+        let mut gen = WasmGenerator::empty();
+        gen.create_duck_type_module(&value, &og_ty, &target_ty);
+        let res = gen.execute_duck_type_module(&target_ty);
+
+        assert_eq!(value, res);
+    }
+
+    #[test]
+    fn duck_type_optional_int() {
+        let value = Value::none();
+        let og_ty = TypeSignature::OptionalType(Box::new(TypeSignature::NoType));
+        let target_ty = TypeSignature::OptionalType(Box::new(TypeSignature::IntType));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_optional_string() {
+        let value = Value::none();
+        let og_ty = TypeSignature::OptionalType(Box::new(TypeSignature::NoType));
+        let target_ty = TypeSignature::OptionalType(Box::new(TypeSignature::SequenceType(
+            clarity::vm::types::SequenceSubtype::StringType(
+                clarity::vm::types::StringSubtype::ASCII(999u32.try_into().unwrap()),
+            ),
+        )));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_response_int_int_from_ok() {
+        let value = Value::okay(Value::Int(42)).unwrap();
+        let og_ty =
+            TypeSignature::ResponseType(Box::new((TypeSignature::IntType, TypeSignature::NoType)));
+        let target_ty =
+            TypeSignature::ResponseType(Box::new((TypeSignature::IntType, TypeSignature::IntType)));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_response_int_int_from_err() {
+        let value = Value::error(Value::Int(42)).unwrap();
+        let og_ty =
+            TypeSignature::ResponseType(Box::new((TypeSignature::NoType, TypeSignature::IntType)));
+        let target_ty =
+            TypeSignature::ResponseType(Box::new((TypeSignature::IntType, TypeSignature::IntType)));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_response_string_int_from_ok() {
+        let value = Value::okay(Value::string_ascii_from_bytes("hello".bytes().collect()).unwrap())
+            .unwrap();
+        let og_ty = TypeSignature::ResponseType(Box::new((
+            TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::StringType(
+                clarity::vm::types::StringSubtype::ASCII(42u32.try_into().unwrap()),
+            )),
+            TypeSignature::NoType,
+        )));
+        let target_ty = TypeSignature::ResponseType(Box::new((
+            TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::StringType(
+                clarity::vm::types::StringSubtype::ASCII(42u32.try_into().unwrap()),
+            )),
+            TypeSignature::IntType,
+        )));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_response_string_int_from_err() {
+        let value = Value::error(Value::Int(42)).unwrap();
+        let og_ty =
+            TypeSignature::ResponseType(Box::new((TypeSignature::NoType, TypeSignature::IntType)));
+        let target_ty = TypeSignature::ResponseType(Box::new((
+            TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::StringType(
+                clarity::vm::types::StringSubtype::ASCII(42u32.try_into().unwrap()),
+            )),
+            TypeSignature::IntType,
+        )));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_tuple() {
+        let value = Value::from(
+            TupleData::from_data(vec![
+                ("a".into(), Value::Int(42)),
+                ("b".into(), Value::none()),
+                ("c".into(), Value::buff_from(vec![1, 2, 3, 4, 5]).unwrap()),
+                (
+                    "d".into(),
+                    Value::Response(ResponseData {
+                        committed: true,
+                        data: Box::new(Value::none()),
+                    }),
+                ),
+            ])
+            .unwrap(),
+        );
+        let og_ty = TypeSignature::TupleType(
+            TupleTypeSignature::try_from(vec![
+                ("a".into(), TypeSignature::IntType),
+                (
+                    "b".into(),
+                    TypeSignature::OptionalType(Box::new(TypeSignature::NoType)),
+                ),
+                (
+                    "c".into(),
+                    TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::BufferType(
+                        500u32.try_into().unwrap(),
+                    )),
+                ),
+                (
+                    "d".into(),
+                    TypeSignature::ResponseType(Box::new((
+                        TypeSignature::OptionalType(Box::new(TypeSignature::NoType)),
+                        TypeSignature::NoType,
+                    ))),
+                ),
+            ])
+            .unwrap(),
+        );
+        let target_ty = TypeSignature::TupleType(
+            TupleTypeSignature::try_from(vec![
+                ("a".into(), TypeSignature::IntType),
+                (
+                    "b".into(),
+                    TypeSignature::OptionalType(Box::new(TypeSignature::UIntType)),
+                ),
+                (
+                    "c".into(),
+                    TypeSignature::SequenceType(clarity::vm::types::SequenceSubtype::BufferType(
+                        500u32.try_into().unwrap(),
+                    )),
+                ),
+                (
+                    "d".into(),
+                    TypeSignature::ResponseType(Box::new((
+                        TypeSignature::OptionalType(Box::new(TypeSignature::IntType)),
+                        TypeSignature::BoolType,
+                    ))),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        duck_type_test(value, og_ty, target_ty);
     }
 }
