@@ -352,6 +352,7 @@ mod tests {
                 Value::Sequence(SequenceData::List(_list)) => {
                     todo!("Need to complete #610 first")
                 }
+                #[allow(clippy::unimplemented)]
                 Value::CallableContract(_) => unimplemented!("We can already test principals"),
             }
         }
