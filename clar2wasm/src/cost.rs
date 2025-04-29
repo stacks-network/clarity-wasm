@@ -214,8 +214,6 @@ impl<D, T: CostLinker<D>> AccessCostMeter<D> for T {}
 
 /// Extension trait allowing for words to generate cost tracking code
 /// during traversal.
-// TODO: use this in word traversal
-#[allow(dead_code)]
 pub trait WordCharge {
     /// Generate cost tracking code for this word.
     ///
