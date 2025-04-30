@@ -7,6 +7,7 @@ use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::ValType;
 
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
     add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, type_from_sequence_element,
@@ -45,6 +46,8 @@ impl ComplexWord for ListCons {
                     ty
                 )));
             };
+
+        self.charge(generator, builder, list.len() as u32)?;
 
         // Allocate space on the data stack for the entire list
         let (offset, _size) = generator.create_call_stack_local(builder, &ty, false, true);
@@ -91,6 +94,8 @@ impl ComplexWord for Fold {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let func = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -312,6 +317,8 @@ impl ComplexWord for Append {
         // Allocate stack space for the new list.
         let (write_ptr, length) = generator.create_call_stack_local(builder, &ty, false, true);
 
+        self.charge(generator, builder, length as u32)?;
+
         // Push the offset and length of this list to the stack to be returned.
         builder.local_get(write_ptr).i32_const(length);
 
@@ -387,6 +394,8 @@ impl ComplexWord for AsMaxLen {
         let offset_local = generator.module.locals.add(ValType::I32);
         builder.local_set(offset_local);
         builder.local_get(length_local);
+
+        self.charge(generator, builder, 0)?;
 
         // We need to check if the list is longer than the second argument.
         // If it is, then return `none`, otherwise, return `(some input)`.
@@ -527,6 +536,12 @@ impl ComplexWord for Concat {
             .local_get(lhs_length)
             .local_get(rhs_length)
             .binop(BinaryOp::I32Add);
+
+        // we charge after the operation since that's the only time we have the
+        // length of the resulting list
+        let length = generator.module.locals.add(ValType::I32);
+        builder.local_tee(length);
+        self.charge(generator, builder, length)?;
 
         Ok(())
     }
@@ -703,6 +718,8 @@ impl ComplexWord for Map {
         let index = generator.module.locals.add(ValType::I32);
         builder.i32_const(0).local_set(index);
 
+        self.charge(generator, builder, min_num_elements)?;
+
         // Loop over the min_num_elements of the input sequences, calling the
         // function on each set of elements. The result of the function call
         // will be written to the output sequence. The loop_exit block allows
@@ -841,6 +858,8 @@ impl ComplexWord for Len {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 1, args.len(), ArgumentCountCheck::Exact);
 
+        self.charge(generator, builder, 0)?;
+
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
         generator.traverse_expr(builder, seq)?;
@@ -927,6 +946,8 @@ impl ComplexWord for ElementAt {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         // Traverse the sequence, leaving the offset and length on the stack.
         let seq = args.get_expr(0)?;
@@ -1124,6 +1145,8 @@ impl ComplexWord for ReplaceAt {
         // Create a new stack local for a copy of the input list
         let (dest_offset, length) =
             generator.create_call_stack_local(builder, &seq_ty, false, true);
+
+        self.charge(generator, builder, length as u32)?;
 
         // Put the destination offset on the stack
         builder.local_get(dest_offset);
@@ -1367,6 +1390,8 @@ impl ComplexWord for Slice {
         args: &[clarity::vm::SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let seq = args.get_expr(0)?;
 

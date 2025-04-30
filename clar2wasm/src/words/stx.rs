@@ -3,6 +3,7 @@ use clarity::vm::{ClarityName, SymbolicExpression};
 
 use super::{ComplexWord, SimpleWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -23,6 +24,8 @@ impl SimpleWord for StxBurn {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
+
         // Amount and sender are on the stack, so just call the host interface
         // function, `stx_burn`
         builder.call(generator.func_by_name("stdlib.stx_burn"));
@@ -48,6 +51,7 @@ impl SimpleWord for StxGetBalance {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
         builder.call(generator.func_by_name("stdlib.stx_get_balance"));
         Ok(())
     }
@@ -71,6 +75,8 @@ impl ComplexWord for StxTransfer {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
+
+        self.charge(generator, builder, 0)?;
 
         let amount = args.get_expr(0)?;
         let sender = args.get_expr(1)?;
@@ -138,6 +144,7 @@ impl SimpleWord for StxGetAccount {
         _arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        self.charge(generator, builder, 0)?;
         builder.call(generator.func_by_name("stdlib.stx_account"));
         Ok(())
     }

@@ -4,6 +4,7 @@ use walrus::ValType;
 
 use super::{ComplexWord, Word};
 use crate::check_args;
+use crate::cost::WordCharge;
 use crate::wasm_generator::{ArgumentsExt, GeneratorError, LiteralMemoryEntry, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -145,6 +146,8 @@ impl ComplexWord for SetDataVar {
         // Create space on the call stack to write the value
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, false);
 
+        self.charge(generator, builder, size as u32)?;
+
         // Write the value to the memory, to be read by the host
         generator.write_to_memory(builder, offset, 0, &ty)?;
 
@@ -210,6 +213,8 @@ impl ComplexWord for GetDataVar {
             })?
             .clone();
         let (offset, size) = generator.create_call_stack_local(builder, &ty, true, true);
+
+        self.charge(generator, builder, size as u32)?;
 
         // Push the identifier offset and length onto the data stack
         builder
