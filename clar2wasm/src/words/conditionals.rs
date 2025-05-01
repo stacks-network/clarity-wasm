@@ -205,8 +205,9 @@ impl ComplexWord for Filter {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
-
         self.charge(generator, builder, 0)?;
+
+        let memory = generator.get_memory()?;
 
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -232,29 +233,13 @@ impl ComplexWord for Filter {
         // Setup neccesary locals for the operations.
         let input_len = generator.module.locals.add(ValType::I32);
         let input_offset = generator.module.locals.add(ValType::I32);
-        let input_end = generator.module.locals.add(ValType::I32);
         let output_len = generator.module.locals.add(ValType::I32);
 
-        builder
-            // [ input_offset, input_len ]
-            .local_set(input_len)
-            // [ input_offset ]
-            .local_tee(input_offset)
-            // [ input_offset ]
-            .local_get(input_len)
-            // [ input_offset, input_len ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ input_end ]
-            .local_set(input_end);
-        // [ ]
-        // now we have an empty stack, and three initialized locals
+        // save list (offset, length) to locals
+        builder.local_set(input_len).local_set(input_offset);
 
-        // reserve space for the length of the output list
+        // reserve space for the output list
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
-
-        let memory = generator.get_memory()?;
-
-        let mut loop_result = Ok(());
 
         let mut loop_ = builder.dangling_instr_seq(None);
         let loop_id = loop_.id();
@@ -278,83 +263,56 @@ impl ComplexWord for Filter {
             }
         };
 
-        // Stack now contains the value read from memory, note that this can be multiple values in case of
-        // sequences.
-
-        // [ Value ]
-
-        // call the discriminator
-
         if let Some(simple) = words::lookup_simple(discriminator) {
             // Call simple builtin
-            loop_result = simple.visit(
+            simple.visit(
                 generator,
                 &mut loop_,
                 &[TypeSignature::BoolType],
                 &TypeSignature::BoolType,
-            );
+            )?;
         } else {
             // user defined
             loop_.call(generator.func_by_name(discriminator.as_str()));
         }
         // [ Discriminator result (bool) ]
 
-        let mut success_branch = loop_.dangling_instr_seq(None);
-        let succ_id = success_branch.id();
+        loop_.if_else(
+            None,
+            |then| {
+                // copy value to result sequence
+                then.local_get(output_offset)
+                    .local_get(output_len)
+                    .binop(ir::BinaryOp::I32Add)
+                    .local_get(input_offset)
+                    .i32_const(elem_size)
+                    .memory_copy(memory, memory);
 
-        // on success, increment length and copy value
-        // memory.copy takes source, destination and size in push order
-        // (reverse on stack)
-
-        success_branch
-            // []
-            .local_get(output_offset)
-            // [ output_ofs ]
-            .local_get(output_len)
-            // [ output_ofs, output_len ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ output_write_pos ]
-            .local_get(input_offset)
-            // [ output_write_pos, input_offset ]
-            .i32_const(elem_size)
-            // [ output_write_pos, input_offset, element_size ]
-            .memory_copy(memory, memory)
-            // [  ]
-            .local_get(output_len)
-            // [ output_len ]
-            .i32_const(elem_size)
-            // [ output_len, elem_size ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ new_output_len ]
-            .local_set(output_len);
-        // [  ]
-
-        // fail branch is a no-op (FIXME there is most certainly a better way to do this)
-
-        let fail_branch = loop_.dangling_instr_seq(None);
-        let fail_id = fail_branch.id();
-
-        loop_.instr(ir::IfElse {
-            consequent: succ_id,
-            alternative: fail_id,
-        });
+                // increment the size of result sequence
+                then.local_get(output_len)
+                    .i32_const(elem_size)
+                    .binop(ir::BinaryOp::I32Add)
+                    .local_set(output_len);
+            },
+            |_else| {},
+        );
 
         // increment offset, leaving the new offset on the stack for the end check
         loop_
             .local_get(input_offset)
             .i32_const(elem_size)
             .binop(ir::BinaryOp::I32Add)
-            .local_tee(input_offset);
+            .local_set(input_offset);
 
         // Loop if we haven't reached the end of the sequence
         loop_
-            .local_get(input_end)
-            .binop(ir::BinaryOp::I32LtU)
+            .local_get(input_len)
+            .i32_const(elem_size)
+            .binop(ir::BinaryOp::I32Sub)
+            .local_tee(input_len)
             .br_if(loop_id);
 
         builder.instr(Loop { seq: loop_id });
-
-        loop_result?;
 
         builder.local_get(output_offset);
         builder.local_get(output_len);
