@@ -163,40 +163,6 @@ fn typechecker_workaround(ast: &ContractAST, contract_analysis: &mut ContractAna
             .and_then(|first| first.match_atom())
             .map(|atom| atom.as_str())
         {
-            Some("filter") => {
-                let Some(func_name) = expr.match_list().and_then(|l| l[1].match_atom()) else {
-                    continue;
-                };
-
-                let entry_type = match contract_analysis
-                    .get_private_function(func_name.as_str())
-                    .or(contract_analysis.get_read_only_function_type(func_name.as_str()))
-                {
-                    Some(clarity::vm::types::FunctionType::Fixed(FixedFunction {
-                        args, ..
-                    })) => args[0].signature.clone(),
-                    _ => continue,
-                };
-                let max_len = match contract_analysis
-                    .type_map
-                    .as_ref()
-                    .and_then(|ty| ty.get_type(expr))
-                {
-                    Some(TypeSignature::SequenceType(SequenceSubtype::ListType(l))) => {
-                        l.get_max_len()
-                    }
-                    _ => continue,
-                };
-                match (
-                    ListTypeData::new_list(entry_type, max_len),
-                    contract_analysis.type_map.as_mut(),
-                ) {
-                    (Ok(list_type), Some(tmap)) => {
-                        tmap.overwrite_type(expr, TypeSignature::from(list_type))
-                    }
-                    _ => continue,
-                }
-            }
             Some("fold") => {
                 // in the case of fold we need to override the type of the argument list
 
