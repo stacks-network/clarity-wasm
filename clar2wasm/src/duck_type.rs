@@ -8,7 +8,7 @@ use crate::wasm_generator::{
 use crate::wasm_utils::get_type_in_memory_size;
 
 impl WasmGenerator {
-    /// Converts the representation of a Value from a type to another type. The Value keeps the
+    /// Converts the representation of a Value on top of the stack from a type to another type. The Value keeps the
     /// same value in the end, only its representation in locals and memory differs.
     ///
     /// The original and target types should be "somewhat compatible" and validated by the typechecker
