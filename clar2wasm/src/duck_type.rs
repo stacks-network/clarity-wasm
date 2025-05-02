@@ -206,7 +206,11 @@ impl WasmGenerator {
                     "Unconcretized ListUnionType".to_owned(),
                 ))
             }
-            _ => todo!(),
+            _ => {
+                return Err(GeneratorError::TypeError(format!(
+                    "Incompatible types for duck typing:\n\t{og_ty}\n\t{target_ty}"
+                )))
+            }
         }
         Ok(())
     }
