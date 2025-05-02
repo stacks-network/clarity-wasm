@@ -1,4 +1,4 @@
-use clarity::vm::types::TypeSignature;
+use clarity::vm::types::{FixedFunction, FunctionType, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
@@ -245,9 +245,9 @@ impl ComplexWord for Filter {
         let loop_id = loop_.id();
 
         // Load an element from the sequence
-        let elem_size = match elem_ty {
+        let elem_size = match &elem_ty {
             SequenceElementType::Other(elem_ty) => {
-                generator.read_from_memory(&mut loop_, input_offset, 0, &elem_ty)?
+                generator.read_from_memory(&mut loop_, input_offset, 0, elem_ty)?
             }
             SequenceElementType::Byte => {
                 // The element type is a byte, so we can just push the
@@ -272,7 +272,35 @@ impl ComplexWord for Filter {
                 &TypeSignature::BoolType,
             )?;
         } else {
-            // user defined
+            // In the case of a user defined function for a list element, we need to support the case where
+            // the discriminant argument is more complete than the type of the list elements.
+            // e.g:
+            // ```
+            // (define-private (foo (a (response int bool))) (and (is-ok a) (< (unwrap-panic a) 100)))
+            // (filter foo (list (ok 1) (ok 2)))
+            // ```
+            // The function expects a `response int bool` but the type of the element is `response int UNKNOWN`.
+            // This is something we can't fix with a regulare "workaround" since the type of the expression is identical
+            // to the type of the sequence.
+            if let SequenceElementType::Other(list_elem_ty) = &elem_ty {
+                let arg_ty = match generator
+                    .get_function_type(discriminator.as_str())
+                    .ok_or_else(|| {
+                        GeneratorError::InternalError(format!(
+                            "Couldn't find discriminant function {discriminator} for filter"
+                        ))
+                    })? {
+                    FunctionType::Fixed(FixedFunction { args, .. }) if args.len() == 1 => {
+                        args[0].signature.clone()
+                    }
+                    _ => {
+                        return Err(GeneratorError::TypeError(
+                            "Invalid function type for a filter discriminant".to_owned(),
+                        ))
+                    }
+                };
+                generator.duck_type(&mut loop_, list_elem_ty, &arg_ty)?;
+            }
             loop_.call(generator.func_by_name(discriminator.as_str()));
         }
         // [ Discriminator result (bool) ]
