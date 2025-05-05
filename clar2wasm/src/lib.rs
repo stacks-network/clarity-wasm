@@ -27,6 +27,7 @@ pub mod datastore;
 pub mod tools;
 
 mod debug_msg;
+pub mod duck_type;
 mod error_mapping;
 
 // FIXME: This is copied from stacks-blockchain
