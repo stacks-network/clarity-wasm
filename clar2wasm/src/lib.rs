@@ -248,7 +248,7 @@ fn typechecker_workaround(ast: &ContractAST, contract_analysis: &mut ContractAna
 }
 
 pub fn compile_contract(contract_analysis: ContractAnalysis) -> Result<Module, GeneratorError> {
-    let generator = WasmGenerator::new(contract_analysis)?;
+    let generator = WasmGenerator::with_cost_code(contract_analysis)?;
     generator.generate()
 }
 
