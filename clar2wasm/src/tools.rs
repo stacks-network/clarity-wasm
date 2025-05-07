@@ -24,6 +24,8 @@ use crate::compile;
 use crate::datastore::{BurnDatastore, Datastore, StacksConstants};
 use crate::initialize::initialize_contract;
 
+const DEFAULT_ENV_AMOUNT: u128 = 1_000_000_000;
+
 #[derive(Clone)]
 pub struct TestEnvironment {
     contract_contexts: HashMap<String, ContractContext>,
@@ -33,15 +35,37 @@ pub struct TestEnvironment {
     burn_datastore: BurnDatastore,
     cost_tracker: LimitedCostTracker,
     events: Vec<EventBatch>,
-    network: Network,
+    is_mainnet: bool,
+    chain_id: u32,
 }
 
 impl TestEnvironment {
-    pub fn new_with_amount(amount: u128, epoch: StacksEpochId, version: ClarityVersion) -> Self {
+    fn new_full(
+        amount: u128,
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: Network,
+    ) -> Self {
+        let (epoch, version) = if !Self::epoch_and_clarity_match(epoch, version) {
+            let valid_version = ClarityVersion::default_for_epoch(epoch);
+            println!(
+                "[WARN] Provided epoch ({epoch}) and Clarity version ({version}) do not match. \
+                 Defaulting to epoch ({epoch}) and Clarity version ({valid_version})."
+            );
+            (epoch, valid_version)
+        } else {
+            (epoch, version)
+        };
+
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
         let cost_tracker = LimitedCostTracker::new_free();
+
+        let (is_mainnet, chain_id) = match network {
+            Network::Mainnet => (true, CHAIN_ID_MAINNET),
+            Network::Testnet => (false, CHAIN_ID_TESTNET),
+        };
 
         let mut db = ClarityDatabase::new(&mut datastore, &burn_datastore, &burn_datastore);
         db.begin();
@@ -68,7 +92,8 @@ impl TestEnvironment {
             burn_datastore,
             cost_tracker,
             events: vec![],
-            network: Network::Testnet,
+            is_mainnet,
+            chain_id,
         }
     }
 
@@ -94,18 +119,19 @@ impl TestEnvironment {
     /// An instance of the environment configured with the validated epoch and Clarity version.
     ///
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
-        let (epoch, version) = if !Self::epoch_and_clarity_match(epoch, version) {
-            let valid_version = ClarityVersion::default_for_epoch(epoch);
-            println!(
-                "[WARN] Provided epoch ({epoch}) and Clarity version ({version}) do not match. \
-                 Defaulting to epoch ({epoch}) and Clarity version ({valid_version})."
-            );
-            (epoch, valid_version)
-        } else {
-            (epoch, version)
-        };
+        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, Network::Testnet)
+    }
 
-        Self::new_with_amount(1_000_000_000, epoch, version)
+    pub fn new_with_amount(amount: u128, epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        Self::new_full(amount, epoch, version, Network::Testnet)
+    }
+
+    pub fn new_with_network(
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: Network,
+    ) -> Self {
+        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, network)
     }
 
     /// Checks whether the given epoch and Clarity version are compatible.
@@ -141,16 +167,6 @@ impl TestEnvironment {
             // For epochs 30 and 31, all clarity versions are supported.
             (StacksEpochId::Epoch30 | StacksEpochId::Epoch31, _) => true,
         }
-    }
-
-    pub fn new_with_network(
-        epoch: StacksEpochId,
-        version: ClarityVersion,
-        network: Network,
-    ) -> Self {
-        let mut env = Self::new(epoch, version);
-        env.network = network;
-        env
     }
 
     pub fn init_contract_with_snippet(
@@ -200,13 +216,13 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
-        let (is_mainnet, chain_id) = match self.network {
-            Network::Mainnet => (true, CHAIN_ID_MAINNET),
-            Network::Testnet => (false, CHAIN_ID_TESTNET),
-        };
-
-        let mut global_context =
-            GlobalContext::new(is_mainnet, chain_id, conn, cost_tracker, self.epoch);
+        let mut global_context = GlobalContext::new(
+            self.is_mainnet,
+            self.chain_id,
+            conn,
+            cost_tracker,
+            self.epoch,
+        );
         global_context.begin();
         global_context
             .execute(|g| g.database.insert_contract_hash(&contract_id, snippet))
@@ -311,14 +327,9 @@ impl TestEnvironment {
             &self.burn_datastore,
         );
 
-        let (is_mainnet, chain_id) = match self.network {
-            Network::Mainnet => (true, CHAIN_ID_MAINNET),
-            Network::Testnet => (false, CHAIN_ID_TESTNET),
-        };
-
         let mut global_context = GlobalContext::new(
-            is_mainnet,
-            chain_id,
+            self.is_mainnet,
+            self.chain_id,
             conn,
             contract_analysis.cost_track.take().unwrap(),
             self.epoch,
