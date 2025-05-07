@@ -804,7 +804,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (lst (list 3 (list 3 int))))
-                (ok 0)
+                (ok lst)
             )
             "#,
         )
@@ -828,7 +828,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (lst (list 3 (response int int))))
-                (ok 0)
+                (ok lst)
             )
             "#,
         )
@@ -852,7 +852,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (lst (list 3 (optional int))))
-                (ok 0)
+                (ok lst)
             )
             "#,
         )
@@ -876,7 +876,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (lst (list 3 (tuple (a int) (b int)))))
-                (ok 0)
+                (ok lst)
             )
             "#,
         )
@@ -896,7 +896,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (arg (response (list 3 int) int )))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -920,7 +920,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (tuple (a int) (b (list 3 int)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -944,7 +944,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (tuple (a int) (b (response (list 3 int) int)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -969,7 +969,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (tuple (a int) (b (optional (list 3 int))))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -994,7 +994,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (response (tuple (a int) (b int)) int)))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1018,7 +1018,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (opt-arg (arg (response (optional int) int)))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1041,7 +1041,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (list-arg (arg (response (optional (list 3 int)) int)))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1065,7 +1065,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (response (tuple (a int) (b (list 3 int))) int)))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1090,7 +1090,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (response (tuple (a int) (b (optional (list 3 int)))) int)))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1110,7 +1110,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (int-arg (arg (tuple (a int) (b (list 3 int)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1134,7 +1134,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (uint-arg (arg (tuple (a uint) (b (list 3 uint)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1159,7 +1159,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (bool-arg (arg (tuple (a bool) (b (list 3 bool)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1179,7 +1179,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (string-arg (arg (tuple (a (string-ascii 10)) (b (list 3 (string-ascii 10))))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1199,7 +1199,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (principal-arg (arg (tuple (a principal) (b (list 3 principal)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1219,7 +1219,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (tuple-arg (arg (tuple (a int) (b (list 3 (tuple (x int) (y (list 2 int))))))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1239,7 +1239,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (optional-arg (arg (tuple (a int) (b (optional (list 3 (tuple (x int) (y (list 2 int)))))))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
@@ -1259,7 +1259,7 @@ mod tests {
             "contract-callee",
             r#"
             (define-public (response-arg (arg (tuple (a int) (b (response (list 3 (tuple (x int) (y (list 2 int)))) int)))))
-                (ok 0)
+                (ok arg)
             )
             "#,
         )
