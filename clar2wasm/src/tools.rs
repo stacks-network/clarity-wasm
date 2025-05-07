@@ -12,7 +12,7 @@ use clarity::vm::analysis::run_analysis;
 use clarity::vm::ast::build_ast;
 use clarity::vm::contexts::{EventBatch, GlobalContext};
 use clarity::vm::contracts::Contract;
-use clarity::vm::costs::LimitedCostTracker;
+use clarity::vm::costs::{ExecutionCost, LimitedCostTracker};
 use clarity::vm::database::ClarityDatabase;
 use clarity::vm::errors::{CheckErrors, Error, WasmError};
 use clarity::vm::events::{SmartContractEventData, StacksTransactionEvent};
@@ -60,7 +60,6 @@ impl TestEnvironment {
         let constants = StacksConstants::default();
         let burn_datastore = BurnDatastore::new(constants.clone());
         let mut datastore = Datastore::new();
-        let cost_tracker = LimitedCostTracker::new_free();
 
         let (is_mainnet, chain_id) = match network {
             Network::Mainnet => (true, CHAIN_ID_MAINNET),
@@ -83,6 +82,15 @@ impl TestEnvironment {
             database.increment_ustx_liquid_supply(amount)
         })
         .expect("Failed to increment liquid supply.");
+
+        let cost_tracker = LimitedCostTracker::new(
+            is_mainnet,
+            chain_id,
+            ExecutionCost::max_value(),
+            &mut conn,
+            epoch,
+        )
+        .expect("Could not create cost tracker");
 
         Self {
             contract_contexts: HashMap::new(),
@@ -530,6 +538,10 @@ impl CrossEvalResult {
         compare_events(
             self.env_interpreted.get_events(),
             self.env_compiled.get_events(),
+        );
+        assert_eq!(
+            self.env_compiled.cost_tracker,
+            self.env_interpreted.cost_tracker
         );
     }
 }
