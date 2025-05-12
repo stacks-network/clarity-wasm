@@ -1,4 +1,5 @@
 use clarity::types::StacksEpochId;
+use clarity::vm::costs::CostErrors;
 use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType, ShortReturnType, WasmError};
 use clarity::vm::types::ResponseData;
 use clarity::vm::{ClarityVersion, Value};
@@ -302,6 +303,11 @@ fn from_runtime_error_code(
             let (expected, got) = get_runtime_error_arg_lengths(&instance, &mut store);
             Error::Unchecked(CheckErrors::RequiresAtMostArguments(expected, got))
         }
+        ErrorMap::CostOverrunRuntime => Error::from(CostErrors::CostOverflow),
+        ErrorMap::CostOverrunReadCount => Error::from(CostErrors::CostOverflow),
+        ErrorMap::CostOverrunReadLength => Error::from(CostErrors::CostOverflow),
+        ErrorMap::CostOverrunWriteCount => Error::from(CostErrors::CostOverflow),
+        ErrorMap::CostOverrunWriteLength => Error::from(CostErrors::CostOverflow),
         _ => panic!("Runtime error code {} not supported", runtime_error_code),
     }
 }
