@@ -270,7 +270,8 @@ pub trait ChargeGenerator {
                 Some(cost) => ctx.emit(instrs, module, cost, n)?,
                 None => {
                     return Err(GeneratorError::InternalError(format!(
-                        "expected '{word_name}' to be in costs table"
+                        "'{}' do not exists in costs table for {}",
+                        word_name, ctx.clarity_version
                     )))
                 }
             }
