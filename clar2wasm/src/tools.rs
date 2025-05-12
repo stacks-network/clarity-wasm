@@ -40,7 +40,7 @@ pub struct TestEnvironment {
 }
 
 impl TestEnvironment {
-    fn new_full(
+    fn new_with_boot_contracts(
         amount: u128,
         epoch: StacksEpochId,
         version: ClarityVersion,
@@ -83,26 +83,87 @@ impl TestEnvironment {
         })
         .expect("Failed to increment liquid supply.");
 
-        let cost_tracker = LimitedCostTracker::new(
+        let mut env = Self {
+            contract_contexts: HashMap::new(),
+            epoch,
+            version,
+            datastore,
+            burn_datastore,
+            cost_tracker: LimitedCostTracker::new_free(),
+            events: vec![],
             is_mainnet,
             chain_id,
+        };
+
+        let pox = concat!(
+            include_str!("../tests/contracts/boot-contracts/pox-testnet.clar"),
+            include_str!("../tests/contracts/boot-contracts/pox-2.clar")
+        );
+
+        let mk_contract_id = |contract_name: &str| {
+            QualifiedContractIdentifier::new(
+                StandardPrincipalData::null_principal(),
+                (*contract_name).into(),
+            )
+        };
+
+        let _ = env
+            .init_contract_with_snippet_blu(mk_contract_id("pox-2"), pox)
+            .expect("could not interpret boot contract");
+
+        for boot_contract in std::fs::read_dir("tests/contracts/boot-contracts")
+            .expect("can't find boot contract folder")
+        {
+            let boot_contract = boot_contract.unwrap();
+            let name = boot_contract.file_name().into_string().unwrap();
+            if name.starts_with("pox") || name == "signers-voting.clar" {
+                continue;
+            }
+            let contract_name = boot_contract
+                .path()
+                .file_stem()
+                .and_then(|c| c.to_os_string().into_string().ok())
+                .expect("cannot get the contract name");
+            let snippet = std::fs::read_to_string(boot_contract.path()).unwrap_or_else(|_| {
+                panic!(
+                    "could not read contract {}",
+                    boot_contract.file_name().to_string_lossy()
+                )
+            });
+            let _ = env
+                .init_contract_with_snippet_blu(mk_contract_id(&contract_name), &snippet)
+                .expect(&format!(
+                    "could not interpret boot contract: {contract_name}"
+                ));
+            eprintln!("Succes for {}", contract_name);
+        }
+
+        env
+    }
+
+    fn new_full(
+        amount: u128,
+        epoch: StacksEpochId,
+        version: ClarityVersion,
+        network: Network,
+    ) -> Self {
+        let mut env = Self::new_with_boot_contracts(amount, epoch, version, network);
+
+        let mut conn =
+            ClarityDatabase::new(&mut env.datastore, &env.burn_datastore, &env.burn_datastore);
+
+        let cost_tracker = LimitedCostTracker::new(
+            env.is_mainnet,
+            env.chain_id,
             ExecutionCost::max_value(),
             &mut conn,
             epoch,
         )
         .expect("Could not create cost tracker");
 
-        Self {
-            contract_contexts: HashMap::new(),
-            epoch,
-            version,
-            datastore,
-            burn_datastore,
-            cost_tracker,
-            events: vec![],
-            is_mainnet,
-            chain_id,
-        }
+        let _ = std::mem::replace(&mut env.cost_tracker, cost_tracker);
+
+        env
     }
 
     /// Creates a new environment instance with the specified epoch and Clarity version.
@@ -182,11 +243,18 @@ impl TestEnvironment {
         contract_name: &str,
         snippet: &str,
     ) -> Result<Option<Value>, Error> {
-        let contract_id = QualifiedContractIdentifier::new(
+        let contract = QualifiedContractIdentifier::new(
             StandardPrincipalData::transient(),
             (*contract_name).into(),
         );
+        self.init_contract_with_snippet_blu(contract, snippet)
+    }
 
+    pub fn init_contract_with_snippet_blu(
+        &mut self,
+        contract_id: QualifiedContractIdentifier,
+        snippet: &str,
+    ) -> Result<Option<Value>, Error> {
         let mut compile_result = self
             .datastore
             .as_analysis_db()
@@ -262,7 +330,7 @@ impl TestEnvironment {
         self.cost_tracker = global_context.cost_track;
 
         self.contract_contexts
-            .insert(contract_name.to_string(), contract_context);
+            .insert(contract_id.name.to_string(), contract_context);
 
         Ok(return_val)
     }
@@ -882,6 +950,17 @@ pub fn crosscheck_with_network(
     );
 }
 
+struct EnvCostTracker {
+    total: ExecutionCost,
+    limit: ExecutionCost,
+    memory: u64,
+    memory_limit: u64,
+    epoch: StacksEpochId,
+    version: ClarityVersion,
+    mainnet: bool,
+    chain_id: u32,
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1017,6 +1096,14 @@ mod tests {
         "#;
             let res = interpret(snippet_different_err).expect_err("Should detect a syntax error");
             assert!(!KnownBug::has_list_of_qualified_principal_issue(&res));
+        }
+    }
+
+    #[test]
+    fn find_boot_contracts() {
+        for boot_contract in std::fs::read_dir("tests/contracts/boot-contracts").unwrap() {
+            let b = boot_contract.unwrap();
+            eprintln!("{:#?}", b.file_name());
         }
     }
 }
