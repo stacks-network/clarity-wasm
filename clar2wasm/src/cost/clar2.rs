@@ -9,7 +9,7 @@ use crate::words::bindings::Let;
 use crate::words::blockinfo::{AtBlock, GetBlockInfo, GetStacksBlockInfo, GetTenureInfo};
 use crate::words::comparison::{CmpGeq, CmpGreater, CmpLeq, CmpLess};
 use crate::words::conditionals::{And, Asserts, Filter, If, Match, Or, Try, Unwrap, UnwrapErr};
-use crate::words::contract::ContractCall;
+use crate::words::contract::{AsContract, ContractCall};
 use crate::words::control_flow::{Begin, UnwrapErrPanic, UnwrapPanic};
 use crate::words::data_vars::{GetDataVar, SetDataVar};
 use crate::words::default_to::DefaultTo;
@@ -425,6 +425,16 @@ lazy_static! {
             UnwrapPanic.name(),
             WordCost {
                 runtime: Constant(339),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            AsContract.name(),
+            WordCost {
+                runtime: Constant(138),
                 read_count: None,
                 read_length: None,
                 write_count: None,
