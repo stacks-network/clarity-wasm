@@ -20,7 +20,7 @@ use crate::words::logical::Not;
 use crate::words::maps::{MapDelete, MapGet, MapInsert, MapSet};
 use crate::words::noop::{ContractOf, ToInt, ToUint};
 use crate::words::options::{IsNone, IsSome};
-use crate::words::principal::PrincipalOf;
+use crate::words::principal::{IsStandard, PrincipalOf};
 use crate::words::print::Print;
 use crate::words::responses::{IsErr, IsOk};
 use crate::words::secp256k1::{Recover, Verify};
@@ -617,6 +617,16 @@ lazy_static! {
             IsSome.name(),
             WordCost {
                 runtime: Constant(287),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            IsStandard.name(),
+            WordCost {
+                runtime: Constant(127),
                 read_count: None,
                 read_length: None,
                 write_count: None,
