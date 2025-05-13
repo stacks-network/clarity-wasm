@@ -36,7 +36,6 @@ pub fn traverse_hash(
     // Allocate space on the stack for the result
     let (result_local, _) = generator.create_call_stack_local(builder, &return_ty, false, true);
 
-    // let workspace_offset;
     let hash_type = match arg_types[0] {
         TypeSignature::IntType | TypeSignature::UIntType => {
             // an integer is 16 bytes
@@ -92,6 +91,7 @@ impl SimpleWord for Hash160 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let (work_space, workspace_type) = HASH160_WORKSPACE.get_or_init(|| {
+            // work_space values from sha256, see `Sha256::visit`
             let work_space = 64 + 8 + 289;
             let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
@@ -103,7 +103,7 @@ impl SimpleWord for Hash160 {
 
         let (workspace_offset, _) =
             generator.create_call_stack_local(builder, workspace_type, false, true);
-        // work_space values from sha256, see `Sha256::visit`
+        
         traverse_hash(
             self,
             generator,
@@ -133,6 +133,7 @@ impl SimpleWord for Sha256 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let (work_space, workspace_type) = SHA256_WORKSPACE.get_or_init(|| {
+            // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
             let work_space = 64 + 8 + 289;
             let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
@@ -144,7 +145,7 @@ impl SimpleWord for Sha256 {
 
         let (workspace_offset, _) =
             generator.create_call_stack_local(builder, workspace_type, false, true);
-        // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
+        
         traverse_hash(
             self,
             generator,
@@ -237,6 +238,7 @@ impl SimpleWord for Sha512 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let (work_space, workspace_type) = SHA512_WORKSPACE.get_or_init(|| {
+            // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
             let work_space = 128 + 16 + 705;
             let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
@@ -248,7 +250,6 @@ impl SimpleWord for Sha512 {
 
         let (workspace_offset, _) =
             generator.create_call_stack_local(builder, workspace_type, false, true);
-        // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
         traverse_hash(
             self,
             generator,
