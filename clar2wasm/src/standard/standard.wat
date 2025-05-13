@@ -1827,12 +1827,12 @@
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
         ;; and thus always have the same length.
 
-        ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
+        ;; move $worksapce-offset: current value will contain sha256 result and moved place is new stack
         (local.set $workspace-offset (i32.add (local.tee $i (local.get $workspace-offset)) (i32.const 32)))
         ;; compute sha256
         (call $stdlib.sha256-buf (local.get $offset) (local.get $length) (local.get $i) (local.get $workspace-offset))
         drop ;; we don't need the length of sha256, it is always 32
-        (local.set $workspace-offset) ;; set $stack-pointer to its original value, aka offset of sha256 result
+        (local.set $workspace-offset) ;; set $workspace-offset to its original value, aka offset of sha256 result
 
         (call $hash160-pad (local.get $workspace-offset))
         (call $hash160-compress (local.get $offset-result) (local.get $workspace-offset))
@@ -1846,12 +1846,12 @@
         ;; Here we implement a ripemd with an easier padding since inputs are results of sha256,
         ;; and thus always have the same length.
 
-        ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
+        ;; move $workspace-offset: current value will contain sha256 result and moved place is new stack
         (local.set $workspace-offset (i32.add (local.tee $i (local.get $workspace-offset)) (i32.const 32)))
         ;; compute sha256
         (call $stdlib.sha256-int (local.get $lo) (local.get $hi) (local.get $i) (local.get $workspace-offset))
         drop ;; we don't need the length of sha256, it is always 32
-        (local.set $workspace-offset) ;; set $stack-pointer to its original value, aka offset of sha256 result
+        (local.set $workspace-offset) ;; set $workspace-offset to its original value, aka offset of sha256 result
 
         (call $hash160-pad (local.get $workspace-offset))
         (call $hash160-compress (local.get $offset-result) (local.get $workspace-offset))
@@ -2991,7 +2991,7 @@
         ;; Copying initial values (64 bytes) for SHA-512 from 648 index
         (memory.copy (local.get $workspace-offset) (i32.const 648) (i32.const 64))
 
-        ;; Copying the data from the offset to isolated environment (i.e. target-index = $stack-pointer+(initial-values+(80 rounds * 8)))
+        ;; Copying the data from the offset to isolated environment (i.e. target-index = $workspace-offset+(initial-values+(80 rounds * 8)))
         (memory.copy (i32.add (local.get $workspace-offset) (i32.const 704)) (local.get $offset) (local.get $length))
 
         (local.set $length_after_padding ;; total size of data with expansion divisible by 128
@@ -3057,7 +3057,7 @@
     )
 
     (func $process-sha512-block (param $current-block-index i32) (param $workspace-offset i32)
-        ;; Basically is the $stack-pointer, but accessing global variables can be slower
+        ;; Basically is the $workspace-offset
         (local $origin i32)
 
         ;; Temporary block data, in an iteration

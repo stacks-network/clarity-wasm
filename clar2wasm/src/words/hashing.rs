@@ -1,10 +1,16 @@
 use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
+use once_cell::sync::OnceCell;
 use walrus::{LocalId, ValType};
 
 use super::{SimpleWord, Word};
 use crate::cost::WordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
+
+// Static workspaces for hash functions
+static HASH160_WORKSPACE: OnceCell<(u32, TypeSignature)> = OnceCell::new();
+static SHA256_WORKSPACE: OnceCell<(u32, TypeSignature)> = OnceCell::new();
+static SHA512_WORKSPACE: OnceCell<(u32, TypeSignature)> = OnceCell::new();
 
 pub fn traverse_hash(
     word: &impl SimpleWord,
@@ -26,7 +32,7 @@ pub fn traverse_hash(
         BufferLength::try_from(buffer_size as usize)
             .map_err(|_| GeneratorError::InternalError("buffer size too large".to_string()))?,
     ));
-    println!("it runs here");
+
     // Allocate space on the stack for the result
     let (result_local, _) = generator.create_call_stack_local(builder, &return_ty, false, true);
 
@@ -35,16 +41,6 @@ pub fn traverse_hash(
         TypeSignature::IntType | TypeSignature::UIntType => {
             // an integer is 16 bytes
             word.charge(generator, builder, 16)?;
-            // (workspace_offset, _) = generator.create_call_stack_local(
-            //     builder,
-            //     &TypeSignature::SequenceType(SequenceSubtype::BufferType(
-            //         work_space
-            //             .try_into()
-            //             .expect("Failed to convert to BufferLength"),
-            //     )),
-            //     false,
-            //     true,
-            // );
             generator.ensure_work_space(work_space);
             "int"
         }
@@ -54,16 +50,6 @@ pub fn traverse_hash(
             let buf_len = generator.module.locals.add(ValType::I32);
             builder.local_tee(buf_len);
             word.charge(generator, builder, buf_len)?;
-            // (workspace_offset, _) = generator.create_call_stack_local(
-            //     builder,
-            //     &TypeSignature::SequenceType(SequenceSubtype::BufferType(
-            //         work_space
-            //             .try_into()
-            //             .expect("Failed to convert to BufferLength"),
-            //     )),
-            //     false,
-            //     true,
-            // );
             // Input buff is also copied
             generator.ensure_work_space(u32::from(len) + work_space);
             "buf"
@@ -105,19 +91,27 @@ impl SimpleWord for Hash160 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let work_space = 64 + 8 + 289;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        let (work_space, workspace_type) = HASH160_WORKSPACE.get_or_init(|| {
+            let work_space = 64 + 8 + 289;
+            let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
                     .try_into()
                     .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+            ));
+            (work_space, ty)
+        });
+
+        let (workspace_offset, _) =
+            generator.create_call_stack_local(builder, workspace_type, false, true);
         // work_space values from sha256, see `Sha256::visit`
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(
+            self,
+            generator,
+            builder,
+            arg_types,
+            *work_space,
+            workspace_offset,
+        )
     }
 }
 
@@ -138,19 +132,27 @@ impl SimpleWord for Sha256 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let work_space = 64 + 8 + 289;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        let (work_space, workspace_type) = SHA256_WORKSPACE.get_or_init(|| {
+            let work_space = 64 + 8 + 289;
+            let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
                     .try_into()
                     .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+            ));
+            (work_space, ty)
+        });
+
+        let (workspace_offset, _) =
+            generator.create_call_stack_local(builder, workspace_type, false, true);
         // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(
+            self,
+            generator,
+            builder,
+            arg_types,
+            *work_space,
+            workspace_offset,
+        )
     }
 }
 
@@ -234,19 +236,27 @@ impl SimpleWord for Sha512 {
         arg_types: &[TypeSignature],
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
-        let work_space = 128 + 16 + 705;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
+        let (work_space, workspace_type) = SHA512_WORKSPACE.get_or_init(|| {
+            let work_space = 128 + 16 + 705;
+            let ty = TypeSignature::SequenceType(SequenceSubtype::BufferType(
                 work_space
                     .try_into()
                     .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+            ));
+            (work_space, ty)
+        });
+
+        let (workspace_offset, _) =
+            generator.create_call_stack_local(builder, workspace_type, false, true);
         // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(
+            self,
+            generator,
+            builder,
+            arg_types,
+            *work_space,
+            workspace_offset,
+        )
     }
 }
 
@@ -482,6 +492,47 @@ mod tests {
     }
 
     #[test]
+    fn test_hashing_function_creates_workspace_only_once() {
+        // Create a test contract that calls each hash function with different buffer sizes
+        let test_contract = r#"
+        (define-public (test-hash-functions (input1 (buff 1000)) (input2 (buff 2000)) (input3 (buff 3000)))
+            (begin
+                ;; Test hash160 with different buffer sizes
+                (hash160 input1)
+                (hash160 input2)
+                (hash160 input1)
+                ;; Test sha256 with different buffer sizes
+                (sha256 input1)
+                (sha256 input3)
+                (sha256 input2)
+                ;; Test sha512 with different buffer sizes
+                (sha512 input2)
+                (sha512 input3)
+                (sha512 input1)
+                (ok true)
+            )
+        )
+        "#;
+
+        // Create test environment and initialize contract
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet("test-contract", test_contract)
+            .expect("Failed to init test contract");
+
+        // Create test inputs of different sizes
+        let input1 = format!("0x{}", "aa".repeat(1000));
+        let input2 = format!("0x{}", "bb".repeat(2000));
+        let input3 = format!("0x{}", "cc".repeat(3000));
+
+        // Call the contract with different sized inputs
+        env.interpret(&format!(
+            "(contract-call? .test-contract test-hash-functions {} {} {})",
+            input1, input2, input3
+        ))
+        .expect("Failed to interpret contract call");
+    }
+
+    #[test]
     fn test_sha256_ensure_workspace_for_hashing() {
         let page_size = 65536;
 
@@ -498,12 +549,14 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet("hasher", hasher_contract)
             .expect("Failed to init hasher contract");
+
         let expected = env
             .interpret(&format!(
                 "(contract-call? .hasher hash-large-buffer {})",
                 large_buff
             ))
             .expect("Failed to interpret contract call");
+
         let contracts = [
             ("hasher".into(), hasher_contract),
             (
@@ -520,7 +573,7 @@ mod tests {
     fn test_hash160_ensure_workspace_for_hashing() {
         let page_size = 65536;
 
-        let buffer_size = page_size - 100;
+        let buffer_size = page_size;
         let large_buff = format!("0x{}", "aa".repeat(buffer_size));
 
         let hasher_contract = r#"
@@ -533,12 +586,51 @@ mod tests {
         let mut env = TestEnvironment::default();
         env.init_contract_with_snippet("hasher", hasher_contract)
             .expect("Failed to init hasher contract");
+
         let expected = env
             .interpret(&format!(
                 "(contract-call? .hasher hash-large-buffer {})",
                 large_buff
             ))
             .expect("Failed to interpret contract call");
+
+        let contracts = [
+            ("hasher".into(), hasher_contract),
+            (
+                "caller".into(),
+                &format!("(contract-call? .hasher hash-large-buffer {})", large_buff),
+            ),
+        ];
+
+        // Compare compiled version with interpreted version
+        crosscheck_multi_contract(&contracts, Ok(expected));
+    }
+
+    #[test]
+    fn test_sha512_ensure_workspace_for_hashing() {
+        let page_size = 65536;
+
+        let buffer_size = page_size;
+        let large_buff = format!("0x{}", "aa".repeat(buffer_size));
+
+        let hasher_contract = r#"
+    (define-public (hash-large-buffer (input (buff 65537)))
+        (ok (sha512 input))
+    )
+            "#;
+
+        // First interpret the contracts to get the expected result
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet("hasher", hasher_contract)
+            .expect("Failed to init hasher contract");
+
+        let expected = env
+            .interpret(&format!(
+                "(contract-call? .hasher hash-large-buffer {})",
+                large_buff
+            ))
+            .expect("Failed to interpret contract call");
+
         let contracts = [
             ("hasher".into(), hasher_contract),
             (
