@@ -1,18 +1,22 @@
+use std::sync::OnceLock;
+
 use clarity::vm::types::{BufferLength, SequenceSubtype, TypeSignature, BUFF_32};
 use clarity::vm::ClarityName;
-use walrus::{LocalId, ValType};
+use walrus::ValType;
 
 use super::{SimpleWord, Word};
 use crate::cost::WordCharge;
 use crate::wasm_generator::{GeneratorError, WasmGenerator};
+
+static SHA256_CELL: OnceLock<u32> = OnceLock::new();
+static SHA512_CELL: OnceLock<u32> = OnceLock::new();
 
 pub fn traverse_hash(
     word: &impl SimpleWord,
     generator: &mut WasmGenerator,
     builder: &mut walrus::InstrSeqBuilder,
     arg_types: &[TypeSignature],
-    work_space: u32, // constant upper bound
-    work_space_offset: LocalId,
+    work_space_offset: u32,
 ) -> Result<(), GeneratorError> {
     let name = word.name();
 
@@ -26,7 +30,6 @@ pub fn traverse_hash(
         BufferLength::try_from(buffer_size as usize)
             .map_err(|_| GeneratorError::InternalError("buffer size too large".to_string()))?,
     ));
-    println!("it runs here");
     // Allocate space on the stack for the result
     let (result_local, _) = generator.create_call_stack_local(builder, &return_ty, false, true);
 
@@ -45,10 +48,9 @@ pub fn traverse_hash(
             //     false,
             //     true,
             // );
-            generator.ensure_work_space(work_space);
             "int"
         }
-        TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) => {
+        TypeSignature::SequenceType(SequenceSubtype::BufferType(_len)) => {
             // for cost tracking we need the length of the input to the hash,
             // so we load it onto a new local
             let buf_len = generator.module.locals.add(ValType::I32);
@@ -65,15 +67,12 @@ pub fn traverse_hash(
             //     true,
             // );
             // Input buff is also copied
-            generator.ensure_work_space(u32::from(len) + work_space);
             "buf"
         }
         _ => {
             return Err(GeneratorError::NotImplemented);
         }
     };
-
-    builder.local_get(work_space_offset);
 
     let hash_func = generator
         .module
@@ -83,7 +82,10 @@ pub fn traverse_hash(
             GeneratorError::InternalError(format!("function not found: {name}-{hash_type}"))
         })?;
 
-    builder.local_get(result_local).call(hash_func);
+    builder
+        .local_get(result_local)
+        .i32_const(work_space_offset as i32)
+        .call(hash_func);
 
     Ok(())
 }
@@ -106,18 +108,17 @@ impl SimpleWord for Hash160 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let work_space = 64 + 8 + 289;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
-                work_space
-                    .try_into()
-                    .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+        let arg_space =
+            if let TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) = arg_types[0] {
+                len.into()
+            } else {
+                0u32
+            };
+        let workspace_offset = generator.literal_memory_end;
+        generator.literal_memory_end += work_space + arg_space;
+
         // work_space values from sha256, see `Sha256::visit`
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(self, generator, builder, arg_types, workspace_offset)
     }
 }
 
@@ -139,18 +140,17 @@ impl SimpleWord for Sha256 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let work_space = 64 + 8 + 289;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
-                work_space
-                    .try_into()
-                    .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+        let arg_space =
+            if let TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) = arg_types[0] {
+                len.into()
+            } else {
+                0u32
+            };
+        let workspace_offset = generator.literal_memory_end;
+        generator.literal_memory_end += work_space + arg_space;
+
         // work_space values from `standard.wat::$extend-data`: 64 for padding, 8 for padded size and 289 for the data shift
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(self, generator, builder, arg_types, workspace_offset)
     }
 }
 
@@ -235,18 +235,16 @@ impl SimpleWord for Sha512 {
         _return_type: &TypeSignature,
     ) -> Result<(), GeneratorError> {
         let work_space = 128 + 16 + 705;
-        let (workspace_offset, _) = generator.create_call_stack_local(
-            builder,
-            &TypeSignature::SequenceType(SequenceSubtype::BufferType(
-                work_space
-                    .try_into()
-                    .expect("Failed to convert to BufferLength"),
-            )),
-            false,
-            true,
-        );
+        let arg_space =
+            if let TypeSignature::SequenceType(SequenceSubtype::BufferType(len)) = arg_types[0] {
+                len.into()
+            } else {
+                0u32
+            };
+        let workspace_offset = generator.literal_memory_end;
+        generator.literal_memory_end += work_space + arg_space;
         // work_space values from `standard.wat::$pad-sha512-data`: 128 for padding, 16 for padded size and 705 for the data shift
-        traverse_hash(self, generator, builder, arg_types, work_space, workspace_offset)
+        traverse_hash(self, generator, builder, arg_types, workspace_offset)
     }
 }
 
@@ -539,6 +537,7 @@ mod tests {
                 large_buff
             ))
             .expect("Failed to interpret contract call");
+
         let contracts = [
             ("hasher".into(), hasher_contract),
             (

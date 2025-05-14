@@ -1559,7 +1559,7 @@
         (local.set $i (i32.const 0))
         (loop
             (call $block64 (local.get $i) (local.get $workspace-offset))
-            (call $working-vars local.get $workspace-offset)
+            (call $working-vars (local.get $workspace-offset))
             (br_if 0
                 (i32.lt_u
                     (local.tee $i (i32.add (local.get $i) (i32.const 64)))
@@ -1623,7 +1623,6 @@
 
     (func $extend-data (param $offset i32) (param $length i32) (param $workspace-offset i32) (result i32)
         (local $res_len i32) (local $len64 i64)
-
         ;; Move data to the working stack, so that it has this relative configuration:
         ;;   0..32 -> Initial hash vals (will be the result hash in the end)
         ;;   32..288 -> Space to store W (result of $block64)
@@ -1828,6 +1827,10 @@
         ;; and thus always have the same length.
 
         ;; move $stack-pointers: current value will contain sha256 result and moved place is new stack
+        (call $log (i64.extend_i32_u (local.get $offset)))
+        (call $log (i64.extend_i32_u (local.get $length)))
+        (call $log (i64.extend_i32_u (local.get $offset-result)))
+        (call $log (i64.extend_i32_u (local.get $workspace-offset)))
         (local.set $workspace-offset (i32.add (local.tee $i (local.get $workspace-offset)) (i32.const 32)))
         ;; compute sha256
         (call $stdlib.sha256-buf (local.get $offset) (local.get $length) (local.get $i) (local.get $workspace-offset))
