@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use clarity::boot_util::boot_code_id;
 use clarity::consts::{CHAIN_ID_MAINNET, CHAIN_ID_TESTNET};
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::run_analysis;
@@ -131,7 +132,7 @@ impl TestEnvironment {
                 )
             });
             let _ = env
-                .init_contract_with_snippet_blu(mk_contract_id(&contract_name), &snippet)
+                .init_contract_with_snippet_blu(boot_code_id(&contract_name, is_mainnet), &snippet)
                 .expect(&format!(
                     "could not interpret boot contract: {contract_name}"
                 ));
