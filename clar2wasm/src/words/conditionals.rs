@@ -1034,7 +1034,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "See issue #488"]
     fn filter_result_read_only_double_workaround() {
         let snippet = "
 (define-read-only (is-even? (x int))
@@ -1062,6 +1061,21 @@ mod tests {
 )
 (filter is-dash 0x612d62)",
             Ok(Some(Value::buff_from_byte(0x2d))),
+        );
+    }
+
+    #[test]
+    fn filter_with_different_types_for_predicates() {
+        crosscheck(
+            "
+            (define-private (foo (a (response int bool))) (and (is-ok a) (< (unwrap-panic a) 100)))
+            (define-private (bar (a (response int uint))) (and (is-ok a) (> (unwrap-panic a) 42)))
+
+            (filter bar (filter foo (list (ok 1) (ok 50))))
+        ",
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::okay(Value::Int(50)).unwrap()]).unwrap(),
+            )),
         );
     }
 
