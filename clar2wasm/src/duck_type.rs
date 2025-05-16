@@ -10,16 +10,21 @@ use crate::wasm_utils::get_type_in_memory_size;
 impl WasmGenerator {
     /// Converts the representation of a Value on top of the stack from a type to another type. The Value keeps the
     /// same value in the end, only its representation in locals and memory differs.
+    /// This is a no-op if both types are identical.
     ///
     /// The original and target types should be "somewhat compatible" and validated by the typechecker
     /// for this function to succeed.
-    #[allow(dead_code)]
     pub(crate) fn duck_type(
         &mut self,
         builder: &mut InstrSeqBuilder,
         og_ty: &TypeSignature,
         target_ty: &TypeSignature,
     ) -> Result<(), GeneratorError> {
+        // This is a no-op if both types are identical
+        if og_ty == target_ty {
+            return Ok(());
+        }
+
         let former_stack_pointer = {
             let needed_workspace = dt_needed_workspace(target_ty);
             (needed_workspace > 0).then(|| {

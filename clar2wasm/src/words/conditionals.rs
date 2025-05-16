@@ -1,4 +1,4 @@
-use clarity::vm::types::TypeSignature;
+use clarity::vm::types::{FixedFunction, FunctionType, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, InstrSeqType, Loop};
 use walrus::ValType;
@@ -205,8 +205,9 @@ impl ComplexWord for Filter {
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
-
         self.charge(generator, builder, 0)?;
+
+        let memory = generator.get_memory()?;
 
         let discriminator = args.get_name(0)?;
         let sequence = args.get_expr(1)?;
@@ -232,37 +233,21 @@ impl ComplexWord for Filter {
         // Setup neccesary locals for the operations.
         let input_len = generator.module.locals.add(ValType::I32);
         let input_offset = generator.module.locals.add(ValType::I32);
-        let input_end = generator.module.locals.add(ValType::I32);
         let output_len = generator.module.locals.add(ValType::I32);
 
-        builder
-            // [ input_offset, input_len ]
-            .local_set(input_len)
-            // [ input_offset ]
-            .local_tee(input_offset)
-            // [ input_offset ]
-            .local_get(input_len)
-            // [ input_offset, input_len ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ input_end ]
-            .local_set(input_end);
-        // [ ]
-        // now we have an empty stack, and three initialized locals
+        // save list (offset, length) to locals
+        builder.local_set(input_len).local_set(input_offset);
 
-        // reserve space for the length of the output list
+        // reserve space for the output list
         let (output_offset, _) = generator.create_call_stack_local(builder, &ty, false, true);
-
-        let memory = generator.get_memory()?;
-
-        let mut loop_result = Ok(());
 
         let mut loop_ = builder.dangling_instr_seq(None);
         let loop_id = loop_.id();
 
         // Load an element from the sequence
-        let elem_size = match elem_ty {
+        let elem_size = match &elem_ty {
             SequenceElementType::Other(elem_ty) => {
-                generator.read_from_memory(&mut loop_, input_offset, 0, &elem_ty)?
+                generator.read_from_memory(&mut loop_, input_offset, 0, elem_ty)?
             }
             SequenceElementType::Byte => {
                 // The element type is a byte, so we can just push the
@@ -278,83 +263,84 @@ impl ComplexWord for Filter {
             }
         };
 
-        // Stack now contains the value read from memory, note that this can be multiple values in case of
-        // sequences.
-
-        // [ Value ]
-
-        // call the discriminator
-
         if let Some(simple) = words::lookup_simple(discriminator) {
             // Call simple builtin
-            loop_result = simple.visit(
+            simple.visit(
                 generator,
                 &mut loop_,
                 &[TypeSignature::BoolType],
                 &TypeSignature::BoolType,
-            );
+            )?;
         } else {
-            // user defined
+            // In the case of a user defined function for a list element, we need to support the case where
+            // the discriminant argument is more complete than the type of the list elements.
+            // e.g:
+            // ```
+            // (define-private (foo (a (response int bool))) (and (is-ok a) (< (unwrap-panic a) 100)))
+            // (filter foo (list (ok 1) (ok 2)))
+            // ```
+            // The function expects a `response int bool` but the type of the element is `response int UNKNOWN`.
+            // This is something we can't fix with a regulare "workaround" since the type of the expression is identical
+            // to the type of the sequence.
+            if let SequenceElementType::Other(list_elem_ty) = &elem_ty {
+                let arg_ty = match generator
+                    .get_function_type(discriminator.as_str())
+                    .ok_or_else(|| {
+                        GeneratorError::InternalError(format!(
+                            "Couldn't find discriminant function {discriminator} for filter"
+                        ))
+                    })? {
+                    FunctionType::Fixed(FixedFunction { args, .. }) if args.len() == 1 => {
+                        args[0].signature.clone()
+                    }
+                    _ => {
+                        return Err(GeneratorError::TypeError(
+                            "Invalid function type for a filter discriminant".to_owned(),
+                        ))
+                    }
+                };
+                generator.duck_type(&mut loop_, list_elem_ty, &arg_ty)?;
+            }
             loop_.call(generator.func_by_name(discriminator.as_str()));
         }
         // [ Discriminator result (bool) ]
 
-        let mut success_branch = loop_.dangling_instr_seq(None);
-        let succ_id = success_branch.id();
+        loop_.if_else(
+            None,
+            |then| {
+                // copy value to result sequence
+                then.local_get(output_offset)
+                    .local_get(output_len)
+                    .binop(ir::BinaryOp::I32Add)
+                    .local_get(input_offset)
+                    .i32_const(elem_size)
+                    .memory_copy(memory, memory);
 
-        // on success, increment length and copy value
-        // memory.copy takes source, destination and size in push order
-        // (reverse on stack)
-
-        success_branch
-            // []
-            .local_get(output_offset)
-            // [ output_ofs ]
-            .local_get(output_len)
-            // [ output_ofs, output_len ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ output_write_pos ]
-            .local_get(input_offset)
-            // [ output_write_pos, input_offset ]
-            .i32_const(elem_size)
-            // [ output_write_pos, input_offset, element_size ]
-            .memory_copy(memory, memory)
-            // [  ]
-            .local_get(output_len)
-            // [ output_len ]
-            .i32_const(elem_size)
-            // [ output_len, elem_size ]
-            .binop(ir::BinaryOp::I32Add)
-            // [ new_output_len ]
-            .local_set(output_len);
-        // [  ]
-
-        // fail branch is a no-op (FIXME there is most certainly a better way to do this)
-
-        let fail_branch = loop_.dangling_instr_seq(None);
-        let fail_id = fail_branch.id();
-
-        loop_.instr(ir::IfElse {
-            consequent: succ_id,
-            alternative: fail_id,
-        });
+                // increment the size of result sequence
+                then.local_get(output_len)
+                    .i32_const(elem_size)
+                    .binop(ir::BinaryOp::I32Add)
+                    .local_set(output_len);
+            },
+            |_else| {},
+        );
 
         // increment offset, leaving the new offset on the stack for the end check
         loop_
             .local_get(input_offset)
             .i32_const(elem_size)
             .binop(ir::BinaryOp::I32Add)
-            .local_tee(input_offset);
+            .local_set(input_offset);
 
         // Loop if we haven't reached the end of the sequence
         loop_
-            .local_get(input_end)
-            .binop(ir::BinaryOp::I32LtU)
+            .local_get(input_len)
+            .i32_const(elem_size)
+            .binop(ir::BinaryOp::I32Sub)
+            .local_tee(input_len)
             .br_if(loop_id);
 
         builder.instr(Loop { seq: loop_id });
-
-        loop_result?;
 
         builder.local_get(output_offset);
         builder.local_get(output_len);
@@ -1048,7 +1034,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "See issue #488"]
     fn filter_result_read_only_double_workaround() {
         let snippet = "
 (define-read-only (is-even? (x int))
@@ -1076,6 +1061,21 @@ mod tests {
 )
 (filter is-dash 0x612d62)",
             Ok(Some(Value::buff_from_byte(0x2d))),
+        );
+    }
+
+    #[test]
+    fn filter_with_different_types_for_predicates() {
+        crosscheck(
+            "
+            (define-private (foo (a (response int bool))) (and (is-ok a) (< (unwrap-panic a) 100)))
+            (define-private (bar (a (response int uint))) (and (is-ok a) (> (unwrap-panic a) 42)))
+
+            (filter bar (filter foo (list (ok 1) (ok 50))))
+        ",
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::okay(Value::Int(50)).unwrap()]).unwrap(),
+            )),
         );
     }
 
