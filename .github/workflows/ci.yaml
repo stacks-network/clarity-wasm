@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: standard-v${{ matrix.clarity_version }}.wasm
-          path: ${{github.workspace}}/clar2wasm/src/standard/standard.wasm
+          path: ${{github.workspace}}/target/llvm-cov-target/debug/build/clar2wasm-*/out/standard.wasm
           if-no-files-found: error
 
   # Run the tests and generates coverage reports
@@ -92,6 +92,8 @@ jobs:
   run-tests:
     runs-on: ubuntu-latest
     needs: build-test-artifacts
+    env:
+      STANDARD_WASM_PATH: ${{github.workspace}}/clar2wasm/src/standard/standard.wasm
     strategy:
       fail-fast: false
       matrix:
