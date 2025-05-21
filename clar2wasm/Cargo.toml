@@ -59,3 +59,6 @@ path = "src/bin/crosscheck.rs"
 [[bench]]
 name = "comparison"
 harness = false
+
+[lints.clippy]
+result_large_err = "allow"
