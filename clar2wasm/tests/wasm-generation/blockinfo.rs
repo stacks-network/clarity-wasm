@@ -3,6 +3,7 @@ use proptest::proptest;
 
 use crate::{buffer, PropValue};
 
+#[allow(dead_code)]
 const BLOCK_INFO_V1: [&str; 5] = [
     "burnchain-header-hash",
     "id-header-hash",
