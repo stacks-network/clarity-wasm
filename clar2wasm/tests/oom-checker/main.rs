@@ -11,7 +11,7 @@ use clarity::vm::errors::{CheckErrors, Error};
 use clarity::vm::types::{
     ListTypeData, QualifiedContractIdentifier, StandardPrincipalData, TypeSignature,
 };
-use clarity::vm::{ClarityVersion, Value};
+use clarity::vm::{ClarityVersion, ContractName, Value};
 
 /// Name of the buffer that will fill the empty space.
 const IGNORE_BUFFER_NAME: &str = "ignore";
@@ -123,6 +123,57 @@ pub fn crosscheck_oom_with_env(
         &as_oom_check_snippet(snippet, &[], env.epoch, env.version),
         expected,
         env,
+    );
+}
+
+pub fn crosscheck_oom_multi_contract(
+    contracts: &[(ContractName, &str)],
+    expected: Result<Option<Value>, Error>,
+) {
+    // compiled version
+    let mut compiled_env = TestEnvironment::default();
+
+    let compiled_results: Vec<_> = contracts
+        .iter()
+        .map(|(name, snippet)| {
+            let oom_snippet = compiled_env.as_oom_check_snippet(snippet, &[]);
+            compiled_env
+                .init_contract_with_snippet(name, &oom_snippet)
+                .expect("Failed to init contract")
+        })
+        .collect();
+
+    // interpreted version
+    let mut interpreted_env = TestEnvironment::default();
+
+    let interpreted_results: Vec<_> = contracts
+        .iter()
+        .map(|(name, snippet)| {
+            let oom_snippet = interpreted_env.as_oom_check_snippet(snippet, &[]);
+            interpreted_env
+                .interpret_contract_with_snippet(name, &oom_snippet)
+                .expect("Failed to init contract")
+        })
+        .collect();
+
+    // compare results contract by contract
+    for ((cmp_res, int_res), (contract_name, _)) in compiled_results
+        .iter()
+        .zip(interpreted_results)
+        .zip(contracts)
+    {
+        assert_eq!(
+            cmp_res, &int_res,
+            "Compiled and interpreted results diverge in contract \"{contract_name}\"\ncompiled: {cmp_res:?}\ninterpreted: {int_res:?}"
+        );
+    }
+
+    // compare with expected final value
+    let final_value = compiled_results.last().cloned().unwrap_or(None);
+    assert_eq!(
+        final_value,
+        expected.unwrap(),
+        "final value is not the expected {final_value:?}"
     );
 }
 
