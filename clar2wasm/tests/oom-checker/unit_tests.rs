@@ -3,7 +3,8 @@ use clarity::vm::types::{PrincipalData, TypeSignature};
 use clarity::vm::Value;
 
 use crate::{
-    crosscheck_oom, crosscheck_oom_with_env, crosscheck_oom_with_non_literal_args, list_of,
+    crosscheck_oom, crosscheck_oom_multi_contract, crosscheck_oom_with_env,
+    crosscheck_oom_with_non_literal_args, list_of,
 };
 
 #[test]
@@ -329,4 +330,32 @@ mod clarity_v2_v3 {
             Ok(Some(Value::string_utf8_from_bytes(b"42".to_vec()).unwrap())),
         );
     }
+}
+
+#[test]
+fn contract_call_oom() {
+    let snippet = r#"
+            (define-public (list-arg (lst (list 3 int)))
+                (ok lst)
+            )
+            "#;
+
+    crosscheck_oom_multi_contract(
+        &[
+            ("contract-callee".into(), snippet),
+            (
+                "caller".into(),
+                r#"
+            (contract-call? .contract-callee list-arg (list 1 2 3))
+            "#,
+            ),
+        ],
+        Ok(Some(
+            Value::okay(
+                Value::cons_list_unsanitized(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+                    .unwrap(),
+            )
+            .unwrap(),
+        )),
+    );
 }
