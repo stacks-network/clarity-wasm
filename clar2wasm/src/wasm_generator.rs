@@ -121,6 +121,8 @@ pub enum GeneratorError {
     InternalError(String),
     TypeError(String),
     ArgumentCountMismatch,
+    EnvironmentError(String),
+    IOError(String),
 }
 
 pub enum FunctionKind {
@@ -136,6 +138,10 @@ impl DiagnosableError for GeneratorError {
             GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
             GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
             GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
+            GeneratorError::EnvironmentError(msg) => {
+                format!("Environment configuration error: {}", msg)
+            }
+            GeneratorError::IOError(msg) => format!("I/O error: {}", msg),
         }
     }
 
@@ -314,9 +320,14 @@ impl Deref for BorrowedLocal {
 
 impl WasmGenerator {
     pub fn new(contract_analysis: ContractAnalysis) -> Result<WasmGenerator, GeneratorError> {
-        let standard_lib_wasm: &[u8] = include_bytes!("standard/standard.wasm");
+        let wasm_path = std::env::var("STANDARD_WASM_PATH")
+            .map_err(|e| GeneratorError::EnvironmentError(format!("STANDARD_WASM_PATH: {}", e)))?;
 
-        let module = Module::from_buffer(standard_lib_wasm).map_err(|_err| {
+        let standard_lib_wasm: Vec<u8> = std::fs::read(&wasm_path).map_err(|e| {
+            GeneratorError::IOError(format!("Failed to read standard library WASM: {}", e))
+        })?;
+
+        let module = Module::from_buffer(&standard_lib_wasm).map_err(|_err| {
             GeneratorError::InternalError("failed to load standard library".to_owned())
         })?;
         // Get the stack-pointer global ID
@@ -2243,8 +2254,6 @@ fn count_in_memory_space(ty: &TypeSignature) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-
     use clarity::types::StacksEpochId;
     use clarity::vm::analysis::AnalysisDatabase;
     use clarity::vm::costs::LimitedCostTracker;
@@ -2324,9 +2333,10 @@ mod tests {
 
     #[test]
     fn end_of_standard_data_is_correct() {
-        const STANDARD_LIB_PATH: &str =
-            concat!(env!("CARGO_MANIFEST_DIR"), "/src/standard/standard.wasm");
-        let standard_lib_wasm = std::fs::read(STANDARD_LIB_PATH).expect("Failed to read WASM file");
+        let standard_lib_path = std::env::var("STANDARD_WASM_PATH")
+            .expect("Environment variable STANDARD_WASM_PATH not set");
+        let standard_lib_wasm =
+            std::fs::read(&standard_lib_path).expect("Failed to read WASM file");
         let module = Module::from_buffer(&standard_lib_wasm).unwrap();
         let initial_data_size: usize = module.data.iter().map(|d| d.value.len()).sum();
 
