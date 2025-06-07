@@ -1,6 +1,6 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::{
-    FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
+    FixedFunction, FunctionType, ListTypeData, SequenceSubtype, StringSubtype, TypeSignature,
 };
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{self, BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
@@ -90,7 +90,7 @@ impl ComplexWord for Fold {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
@@ -112,21 +112,60 @@ impl ComplexWord for Fold {
         // (- 6 (- 4 (- 2 0)))
         // ```
 
-        // WORKAROUND: Get the type of the function being called, and set the
-        // type of the initial value to match the functions parameter type.
-        // This is a workaround for the typechecker not being able to infer
-        // the complete type of initial value.
-        if let Some(FunctionType::Fixed(fixed)) = generator.get_function_type(func) {
-            let initial_ty = fixed
-                .args
-                .get(1)
+        // To make sure that the initial value will reserve enough space in memory, we reassign its type to the type of the expression.
+        generator.set_expr_type(
+            initial,
+            generator
+                .get_expr_type(expr)
                 .ok_or_else(|| {
-                    GeneratorError::TypeError("expected function with 2 arguments".into())
+                    GeneratorError::TypeError("fold expression should be typed".to_owned())
                 })?
-                .signature
-                .clone();
-            generator.set_expr_type(initial, initial_ty)?;
+                .clone(),
+        )?;
+
+        // We need to find the correct types expected by the function `func` and the result type of the fold expression
+        // to make sure everything will be coherent in the end.
+        // This is only needed if we are folding a list and the function is user-defined.
+        struct FoldFuncTy {
+            elem_ty: TypeSignature,
+            acc_ty: TypeSignature,
+            return_ty: TypeSignature,
         }
+        let fold_func_ty = {
+            match generator.get_expr_type(sequence).ok_or_else(|| {
+                GeneratorError::TypeError("Folded sequence should be typed".to_owned())
+            })? {
+                TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+                    match generator.get_function_type(func) {
+                        Some(FunctionType::Fixed(FixedFunction { args, returns }))
+                            if args.len() == 2 =>
+                        {
+                            let fold_func_ty = FoldFuncTy {
+                                elem_ty: args[0].signature.clone(),
+                                acc_ty: args[1].signature.clone(),
+                                return_ty: returns.clone(),
+                            };
+                            // Set the type of the list elements
+                            generator.set_expr_type(
+                                sequence,
+                                TypeSignature::SequenceType(SequenceSubtype::ListType(
+                                    ListTypeData::new_list(
+                                        fold_func_ty.elem_ty.clone(),
+                                        ltd.get_max_len(),
+                                    )
+                                    .map_err(|e| GeneratorError::TypeError(e.to_string()))?,
+                                )),
+                            )?;
+                            // set the accumulator type
+                            generator.set_expr_type(initial, fold_func_ty.acc_ty.clone())?;
+                            Some(fold_func_ty)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        };
 
         // The result type must match the type of the initial value
         let result_clar_ty = generator
@@ -227,6 +266,10 @@ impl ComplexWord for Fold {
         } else {
             // Call user defined function
             generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+            // since the accumulator and the return type of the function could have different types, we need to duck-type.
+            if let Some(tys) = &fold_func_ty {
+                generator.duck_type(&mut loop_, &tys.return_ty, &tys.acc_ty)?;
+            }
         }
         // Save the result into the locals (in reverse order as we pop)
         for result_local in result_locals.iter().rev() {
@@ -261,6 +304,11 @@ impl ComplexWord for Fold {
                 consequent: then_id,
                 alternative: else_id,
             });
+
+        // since the return type of the function and the accumulator could have different types, we need to duck-type.
+        if let Some(tys) = &fold_func_ty {
+            generator.duck_type(builder, &tys.acc_ty, &tys.return_ty)?;
+        }
 
         Ok(())
     }
@@ -2352,6 +2400,34 @@ mod tests {
                 .unwrap();
 
         crosscheck(snippet, Ok(Some(expected)))
+    }
+
+    #[test]
+    fn fold_with_response_partial_acc() {
+        let snippet = "
+            (define-private (foo (a (response int bool)) (b (response int uint)))
+                (match b
+                    bok (ok (+ (unwrap-panic a) bok))
+                    berr (ok (+ (unwrap-panic a) (to-int berr)))
+                )
+            )
+            (fold foo (list (ok 1)) (ok 2))
+        ";
+        crosscheck(snippet, Ok(Some(Value::okay(Value::Int(3)).unwrap())));
+    }
+
+    #[test]
+    fn fold_with_response_full_acc() {
+        let snippet = "
+            (define-private (foo (a (response int bool)) (b (response int uint)))
+                (match b
+                    bok (ok (+ (unwrap-panic a) bok))
+                    berr (err (+ (to-uint (unwrap-panic a)) berr))
+                )
+            )
+            (fold foo (list (ok 1)) (ok 2))
+        ";
+        crosscheck(snippet, Ok(Some(Value::okay(Value::Int(3)).unwrap())));
     }
 
     #[test]
