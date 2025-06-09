@@ -618,4 +618,87 @@ mod tests {
 
         duck_type_test(value, og_ty, target_ty);
     }
+
+    #[test]
+    fn duck_type_list_response() {
+        let value = Value::cons_list_unsanitized(vec![
+            Value::okay(Value::Int(1)).unwrap(),
+            Value::okay(Value::Int(2)).unwrap(),
+            Value::okay(Value::Int(3)).unwrap(),
+            Value::okay(Value::Int(4)).unwrap(),
+        ])
+        .unwrap();
+        let og_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::ResponseType(Box::new((
+                    TypeSignature::IntType,
+                    TypeSignature::NoType,
+                ))),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        let target_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::ResponseType(Box::new((
+                    TypeSignature::IntType,
+                    TypeSignature::PrincipalType,
+                ))),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_list_list_response() {
+        let list_okay_int_value = |int| {
+            Value::cons_list_unsanitized(vec![Value::okay(Value::Int(int)).unwrap()]).unwrap()
+        };
+        let value = Value::cons_list_unsanitized(vec![
+            list_okay_int_value(1),
+            list_okay_int_value(2),
+            list_okay_int_value(3),
+            list_okay_int_value(4),
+        ])
+        .unwrap();
+        let og_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(Box::new((
+                            TypeSignature::IntType,
+                            TypeSignature::NoType,
+                        ))),
+                        1,
+                    )
+                    .unwrap(),
+                )),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        let target_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(Box::new((
+                            TypeSignature::IntType,
+                            TypeSignature::PrincipalType,
+                        ))),
+                        1,
+                    )
+                    .unwrap(),
+                )),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
 }
