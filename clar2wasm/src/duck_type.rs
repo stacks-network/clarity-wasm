@@ -248,8 +248,8 @@ mod tests {
     use clarity::vm::analysis::ContractAnalysis;
     use clarity::vm::costs::LimitedCostTracker;
     use clarity::vm::types::{
-        QualifiedContractIdentifier, ResponseData, SequenceData, TupleData, TupleTypeSignature,
-        TypeSignature,
+        ListTypeData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
+        TupleData, TupleTypeSignature, TypeSignature,
     };
     use clarity::vm::{ClarityVersion, Value};
     use walrus::{FunctionBuilder, InstrSeqBuilder};
@@ -358,8 +358,38 @@ mod tests {
                     }
                     Ok(())
                 }
-                Value::Sequence(SequenceData::List(_list)) => {
-                    todo!("Need to complete #610 first")
+                Value::Sequence(SequenceData::List(list)) => {
+                    let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    let offset = self.module.locals.add(walrus::ValType::I32);
+
+                    for value in list.data.iter().rev() {
+                        self.pass_value(builder, value, ltd.get_list_item_type())?;
+                    }
+
+                    builder.global_get(self.stack_pointer).local_set(offset);
+                    let mut length = 0;
+                    for _ in 0..list.data.len() {
+                        let written =
+                            self.write_to_memory(builder, offset, 0, ltd.get_list_item_type())?;
+                        builder
+                            .local_get(offset)
+                            .i32_const(written as i32)
+                            .binop(walrus::ir::BinaryOp::I32Add)
+                            .local_set(offset);
+                        length += written;
+                    }
+
+                    // the offset is already on the stack
+                    builder
+                        .global_get(self.stack_pointer)
+                        .i32_const(length as i32);
+
+                    builder.local_get(offset).global_set(self.stack_pointer);
+                    Ok(())
                 }
                 #[allow(clippy::unimplemented)]
                 Value::CallableContract(_) => unimplemented!("We can already test principals"),
@@ -420,6 +450,7 @@ mod tests {
             let memory = instance
                 .get_memory(&mut store, "memory")
                 .expect("couldn't find memory");
+
             wasm_to_clarity_value(
                 target_type,
                 0,
