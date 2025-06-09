@@ -143,7 +143,10 @@ impl WasmGenerator {
                         "List duck typing should use only two locals".to_owned(),
                     ));
                 };
+
                 let offset_target = self.module.locals.add(ValType::I32);
+                let length_target = self.module.locals.add(ValType::I32);
+
                 builder.local_set(*length);
                 builder.local_set(*offset);
 
@@ -157,7 +160,7 @@ impl WasmGenerator {
 
                     let og_elem_size = self.read_from_memory(&mut loop_, *offset, 0, og_elem_ty)?;
                     self.duck_type_stack(&mut loop_, og_elem_ty, target_elem_ty, &target_locs)?;
-                    for l in target_locs.iter().rev() {
+                    for l in target_locs.iter() {
                         loop_.local_get(*l);
                     }
                     let target_elem_size =
@@ -174,8 +177,13 @@ impl WasmGenerator {
                         .binop(BinaryOp::I32Add)
                         .local_set(offset_target);
                     loop_
+                        .local_get(length_target)
+                        .i32_const(target_elem_size as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(length_target);
+                    loop_
                         .local_get(*length)
-                        .i32_const(1)
+                        .i32_const(og_elem_size)
                         .binop(BinaryOp::I32Sub)
                         .local_tee(*length)
                         .br_if(loop_id);
@@ -187,6 +195,7 @@ impl WasmGenerator {
                 builder.local_get(*length).if_else(
                     None,
                     |then| {
+                        then.i32_const(0).local_set(length_target);
                         // we set the offset_target to copy at the free space of stack-pointer and we move this on further
                         then.global_get(self.stack_pointer)
                             .local_tee(offset_target)
@@ -195,13 +204,14 @@ impl WasmGenerator {
                             .global_set(self.stack_pointer);
 
                         // we put the resulting offset/length on the stack
-                        then.local_get(offset_target).local_get(*length);
+                        then.local_get(offset_target);
 
                         // the cloning loop
                         then.instr(Loop { seq: loop_id });
 
                         // we set the result back to the correct locals
-                        then.local_set(*length).local_set(*offset);
+                        then.local_set(*offset);
+                        then.local_get(length_target).local_set(*length);
                     },
                     |_else| {},
                 );
@@ -236,7 +246,7 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
         }
         TypeSignature::TupleType(tup) => tup.get_type_map().values().map(dt_needed_workspace).sum(),
         TypeSignature::SequenceType(SequenceSubtype::ListType(_)) => {
-            get_type_in_memory_size(ty, false) as u32
+            get_type_in_memory_size(ty, true) as u32 - 8
         }
         _ => 0,
     }
