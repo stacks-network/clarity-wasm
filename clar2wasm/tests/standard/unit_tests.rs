@@ -3441,6 +3441,7 @@ fn principal_construct() {
                     Val::I32(contract.is_some() as i32),
                     Val::I32(1700),
                     Val::I32(contract_len),
+                    Val::I32(5000),
                 ],
                 &mut result,
             )
