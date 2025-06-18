@@ -250,10 +250,25 @@ fn secp256k1_recover_oom() {
 #[cfg(not(feature = "test-clarity-v1"))]
 #[cfg(test)]
 mod clarity_v2_v3 {
-    use clarity::vm::types::TypeSignature;
+    use clarity::vm::types::{PrincipalData, TypeSignature};
     use clarity::vm::Value;
 
     use crate::{crosscheck_oom, crosscheck_oom_with_non_literal_args, list_of};
+
+    #[test]
+    fn principal_construct_oom() {
+        crosscheck_oom(
+            "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)",
+            Ok(Some(
+                Value::okay(
+                    PrincipalData::parse("ST3X6QWWETNBZWGBK6DRGTR1KX50S74D3425Q1TPK")
+                        .unwrap()
+                        .into(),
+                )
+                .unwrap(),
+            )),
+        )
+    }
 
     #[test]
     fn replace_at_oom() {

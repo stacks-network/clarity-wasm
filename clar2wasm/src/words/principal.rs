@@ -124,6 +124,9 @@ impl ComplexWord for Construct {
 
         self.charge(generator, builder, 0)?;
 
+        let (result_offset, _) =
+            generator.create_call_stack_local(builder, &TypeSignature::PrincipalType, false, true);
+
         // Traverse the version byte
         generator.traverse_expr(builder, args.get_expr(0)?)?;
         // [ version_offset, version_length ]
@@ -148,7 +151,9 @@ impl ComplexWord for Construct {
         //   contract_present, contract_offset, contract_length ]
 
         // Call the principal-construct function in the stdlib
-        builder.call(generator.func_by_name("stdlib.principal-construct"));
+        builder
+            .local_get(result_offset)
+            .call(generator.func_by_name("stdlib.principal-construct"));
 
         Ok(())
     }

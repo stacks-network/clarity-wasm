@@ -2176,6 +2176,7 @@
             (param $contract_present i32)
             (param $contract_offset i32)
             (param $contract_length i32)
+            (param $res_principal_offset i32)
             (result i32 i32 i32 i64 i64 i32 i32 i32)
         (local $version i32) (local $valid i32) (local $result_length i32)
         ;; Return `(err u1)` if `version` is empty. The type-checker and
@@ -2236,15 +2237,15 @@
 
         ;; Build the principal on the call stack
         ;; Write the version
-        (i32.store8 (global.get $stack-pointer) (local.get $version))
+        (i32.store8 (local.get $res_principal_offset) (local.get $version))
         ;; Write the public key hash
         (memory.copy
-            (i32.add (global.get $stack-pointer) (i32.const 1))
+            (i32.add (local.get $res_principal_offset) (i32.const 1))
             (local.get $pkhash_offset)
             (i32.const 20)
         )
         ;; Write the size of the contract name
-        (i32.store8 offset=21 (global.get $stack-pointer) (local.get $contract_length))
+        (i32.store8 offset=21 (local.get $res_principal_offset) (local.get $contract_length))
 
         ;; If a contract name is specified, check if it is valid. If so,
         ;; append it to the principal
@@ -2268,7 +2269,7 @@
 
                 ;; Copy the contract name to the stack
                 (memory.copy
-                    (i32.add (global.get $stack-pointer) (i32.const 22))
+                    (i32.add (local.get $res_principal_offset) (i32.const 22))
                     (local.get $contract_offset)
                     (local.get $contract_length)
                 )
@@ -2282,7 +2283,7 @@
             (then
                 ;; (ok the-principal)
                 (i32.const 1) ;; ok indicator
-                (global.get $stack-pointer) ;; principal offset
+                (local.get $res_principal_offset) ;; principal offset
                 (local.get $result_length) ;; principal length
                 (i64.const 0) ;; error_code placeholder
                 (i64.const 0) ;; error_code placeholder
@@ -2298,13 +2299,10 @@
                 (i64.const 0) ;; error_code low
                 (i64.const 0) ;; error_code high
                 (i32.const 1) ;; principal some indicator
-                (global.get $stack-pointer) ;; principal offset
+                (local.get $res_principal_offset) ;; principal offset
                 (local.get $result_length) ;; principal length
             )
         )
-
-        ;; Adjust the stack pointer
-        (global.set $stack-pointer (i32.add (global.get $stack-pointer) (local.get $result_length)))
     )
 
     (func $stdlib.is-valid-contract-name (param $offset i32) (param $length i32) (result i32)
