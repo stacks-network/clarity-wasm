@@ -246,6 +246,7 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
         }
         TypeSignature::TupleType(tup) => tup.get_type_map().values().map(dt_needed_workspace).sum(),
         TypeSignature::SequenceType(SequenceSubtype::ListType(_)) => {
+            // we need the full capacity for a list in memory except for its actual offset and length which will be on the stack
             get_type_in_memory_size(ty, true) as u32 - 8
         }
         _ => 0,
