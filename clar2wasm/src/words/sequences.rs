@@ -1892,14 +1892,14 @@ mod tests {
     }
 
     #[test]
-    fn append_with_as_max_len() {
+    fn append_with_different_length_and_max_length() {
         crosscheck(
             "
                 (define-data-var lst (list 20 int) (list))
-                (as-max-len? (append (var-get lst) 42) u20)
+                (append (var-get lst) 42)
             ",
             Ok(Some(
-                Value::some(Value::cons_list_unsanitized(vec![Value::Int(42)]).unwrap()).unwrap(),
+                Value::cons_list_unsanitized(vec![Value::Int(42)]).unwrap(),
             )),
         )
     }
@@ -2524,11 +2524,11 @@ mod tests {
         use super::*;
 
         #[test]
-        fn replace_at_with_as_max_len() {
+        fn replace_at_with_different_length_and_max_length() {
             crosscheck(
                 "
                 (define-data-var lst (list 20 int) (list 1))
-                (as-max-len? (unwrap-panic (replace-at? (var-get lst) u0 42)) u20)
+                (replace-at? (var-get lst) u0 42)
             ",
                 Ok(Some(
                     Value::some(Value::cons_list_unsanitized(vec![Value::Int(42)]).unwrap())
