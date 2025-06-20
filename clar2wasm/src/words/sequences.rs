@@ -1865,6 +1865,19 @@ mod tests {
     }
 
     #[test]
+    fn append_with_as_max_len() {
+        crosscheck(
+            "
+                (define-data-var lst (list 20 int) (list))
+                (as-max-len? (append (var-get lst) 42) u20)
+            ",
+            Ok(Some(
+                Value::some(Value::cons_list_unsanitized(vec![Value::Int(42)]).unwrap()).unwrap(),
+            )),
+        )
+    }
+
+    #[test]
     fn test_fold_sub() {
         crosscheck(
             r#"
