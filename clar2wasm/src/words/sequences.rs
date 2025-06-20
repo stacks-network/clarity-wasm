@@ -342,33 +342,33 @@ impl ComplexWord for Append {
         let elem = args.get_expr(1)?;
 
         // WORKAROUND: setting correct types for arguments
-        match &ty {
+        let elem_ty = match &ty {
             TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+                let elem_ty = ltd.get_list_item_type();
                 generator.set_expr_type(
                     list,
                     #[allow(clippy::expect_used)]
-                    ListTypeData::new_list(ltd.get_list_item_type().clone(), ltd.get_max_len() - 1)
+                    ListTypeData::new_list(elem_ty.clone(), ltd.get_max_len() - 1)
                         .expect("Argument type should be correct as it is the same as the expression type with a smaller max_len")
                         .into(),
                 )?;
-                generator.set_expr_type(elem, ltd.get_list_item_type().clone())?;
+                generator.set_expr_type(elem, elem_ty.clone())?;
+                elem_ty.clone()
             }
             _ => {
                 return Err(GeneratorError::TypeError(
                     "append result should be a list".to_owned(),
                 ))
             }
-        }
+        };
 
         let memory = generator.get_memory()?;
 
         // Allocate stack space for the new list.
-        let (write_ptr, length) = generator.create_call_stack_local(builder, &ty, false, true);
-
-        self.charge(generator, builder, length as u32)?;
+        let (write_ptr, _) = generator.create_call_stack_local(builder, &ty, false, true);
 
         // Push the offset and length of this list to the stack to be returned.
-        builder.local_get(write_ptr).i32_const(length);
+        builder.local_get(write_ptr);
 
         // Push the write pointer onto the stack for `memory.copy`.
         builder.local_get(write_ptr);
@@ -382,7 +382,6 @@ impl ComplexWord for Append {
         // list. Save a copy of the length for later.
         let src_length = generator.module.locals.add(ValType::I32);
         builder.local_tee(src_length);
-        builder.memory_copy(memory, memory);
 
         // Increment the write pointer by the length of the source list.
         builder
@@ -391,17 +390,32 @@ impl ComplexWord for Append {
             .binop(BinaryOp::I32Add)
             .local_set(write_ptr);
 
+        // At this point, we can compute the cost which depends on the actual number of elements in the list:
+        // ((number of elements in the list) * (element type size) + (1 element type size)) / (element type size)
+        let elem_size = get_type_size(&elem_ty);
+        let number_of_elements = generator.module.locals.add(ValType::I32);
+        builder
+            .local_get(src_length)
+            .i32_const(elem_size)
+            .binop(BinaryOp::I32Add)
+            // we save this result since it will be the result length
+            .local_tee(src_length)
+            .i32_const(elem_size)
+            .binop(BinaryOp::I32DivU)
+            .local_set(number_of_elements);
+        self.charge(generator, builder, number_of_elements)?;
+
+        // We use the values on the stack to copy the list to its destination
+        builder.memory_copy(memory, memory);
+
         // Traverse the element that we're appending to the list.
         generator.traverse_expr(builder, elem)?;
 
-        // Get the type of the element that we're appending.
-        let elem_ty = generator
-            .get_expr_type(elem)
-            .ok_or_else(|| GeneratorError::TypeError("append element must be typed".to_string()))?
-            .clone();
-
         // Store the element at the write pointer.
         generator.write_to_memory(builder, write_ptr, 0, &elem_ty)?;
+
+        // For the result, we already pushed the offset previously, so here is the length.
+        builder.local_get(src_length);
 
         Ok(())
     }
