@@ -2511,6 +2511,20 @@ mod tests {
         use super::*;
 
         #[test]
+        fn replace_at_with_as_max_len() {
+            crosscheck(
+                "
+                (define-data-var lst (list 20 int) (list 1))
+                (as-max-len? (unwrap-panic (replace-at? (var-get lst) u0 42)) u20)
+            ",
+                Ok(Some(
+                    Value::some(Value::cons_list_unsanitized(vec![Value::Int(42)]).unwrap())
+                        .unwrap(),
+                )),
+            )
+        }
+
+        #[test]
         fn test_map_mixed() {
             crosscheck(
                 r#"
