@@ -1196,6 +1196,8 @@ impl ComplexWord for ReplaceAt {
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 3, args.len(), ArgumentCountCheck::Exact);
 
+        let memory = generator.get_memory()?;
+
         let seq = args.get_expr(0)?;
         let seq_ty = generator
             .get_expr_type(seq)
@@ -1203,12 +1205,13 @@ impl ComplexWord for ReplaceAt {
                 GeneratorError::TypeError("replace-at? result must be typed".to_string())
             })?
             .clone();
+        let element_ty = generator.get_sequence_element_type(seq)?;
+
+        let length = generator.module.locals.add(ValType::I32);
+        let number_of_elements = generator.module.locals.add(ValType::I32);
 
         // Create a new stack local for a copy of the input list
-        let (dest_offset, length) =
-            generator.create_call_stack_local(builder, &seq_ty, false, true);
-
-        self.charge(generator, builder, length as u32)?;
+        let (dest_offset, _) = generator.create_call_stack_local(builder, &seq_ty, false, true);
 
         // Put the destination offset on the stack
         builder.local_get(dest_offset);
@@ -1216,13 +1219,34 @@ impl ComplexWord for ReplaceAt {
         // Traverse the list, leaving the offset and length on top of the stack.
         generator.traverse_expr(builder, seq)?;
 
-        let memory = generator.get_memory()?;
+        // Save actual list length to a local + keep it on the stack for the memcpy
+        builder.local_tee(length);
+
+        // At this point, we can compute the cost of the function call using the number of elements in the list
+        builder.local_get(length);
+        match &element_ty {
+            SequenceElementType::Byte => {
+                // nothing to change here
+            }
+            SequenceElementType::UnicodeScalar => {
+                // number of bytes / 4
+                builder.i32_const(2).binop(BinaryOp::I32ShrU);
+            }
+            SequenceElementType::Other(ty) => {
+                // number of bytes / element size
+                builder
+                    .i32_const(get_type_size(ty))
+                    .binop(BinaryOp::I32DivU);
+            }
+        }
+        builder.local_set(number_of_elements);
+        self.charge(generator, builder, number_of_elements)?;
 
         // Copy the input list to the new stack local
         builder.memory_copy(memory, memory);
 
         // Extend the sequence length to 64-bits.
-        builder.i32_const(length).unop(UnaryOp::I64ExtendUI32);
+        builder.local_get(length).unop(UnaryOp::I64ExtendUI32);
 
         // Traverse the index, leaving the value on top of the stack.
         generator.traverse_expr(builder, args.get_expr(1)?)?;
@@ -1253,41 +1277,30 @@ impl ComplexWord for ReplaceAt {
         builder.local_get(index_local);
 
         // Get the offset of the specified index.
-        let element_ty = match &seq_ty {
-            TypeSignature::SequenceType(SequenceSubtype::ListType(list)) => {
+        match &element_ty {
+            SequenceElementType::Other(ty) => {
                 // The length of the list in bytes is on the top of the stack. If we
                 // divide that by the length of each element, then we'll have the
                 // length of the list in elements.
-                let elem_ty = list.get_list_item_type();
-                let element_length = get_type_size(elem_ty);
+                let element_length = get_type_size(ty);
                 builder.i64_const(element_length as i64);
 
                 // Multiply the index by the length of each element to get
                 // byte-offset into the list.
                 builder.binop(BinaryOp::I64Mul);
-
-                Ok(SequenceElementType::Other(elem_ty.clone()))
             }
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
-            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+            SequenceElementType::Byte => {
                 // The index is the same as the byte-offset, so just leave
                 // it as-is.
-
-                Ok(SequenceElementType::Byte)
             }
-            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+            SequenceElementType::UnicodeScalar => {
                 // UTF8 is represented as 32-bit (4 bytes) unicode scalars values.
                 // Calculate the total byte length of the list by multiplying the element count by 4
                 // Multiplying by 4 is equivalent to performing a bitwise left shift by 2 bits.
                 builder.i64_const(2);
                 builder.binop(BinaryOp::I64Shl);
-
-                Ok(SequenceElementType::UnicodeScalar)
             }
-            _ => Err(GeneratorError::TypeError(
-                "expected sequence type".to_string(),
-            )),
-        }?;
+        }
 
         // Save the element offset to the local.
         builder.local_tee(index_local);
@@ -1423,7 +1436,7 @@ impl ComplexWord for ReplaceAt {
         }
 
         // Push the `some` indicator with destination offset/length.
-        else_.i32_const(1).local_get(dest_offset).i32_const(length);
+        else_.i32_const(1).local_get(dest_offset).local_get(length);
 
         builder.instr(IfElse {
             consequent: then_id,
