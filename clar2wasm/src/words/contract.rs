@@ -796,4 +796,479 @@ mod tests {
             .expect("Failed to init contract.");
         assert_eq!(val.unwrap(), Value::Int(-123));
     }
+
+    #[test]
+    fn test_nested_list_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (lst (list 3 (list 3 int))))
+                (ok lst)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee list-arg (list (list 1 2 3)))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted =
+            env.evaluate("(contract-call? .contract-callee list-arg (list (list 1 2 3)))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_response_in_list_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (lst (list 3 (response int int))))
+                (ok lst)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee list-arg (list (ok 1) (err 2) (ok 3)))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted =
+            env.evaluate("(contract-call? .contract-callee list-arg (list (ok 1) (err 2) (ok 3)))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_optional_in_list_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (lst (list 3 (optional int))))
+                (ok lst)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee list-arg (list (some 1) none (some 3)))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env
+            .evaluate("(contract-call? .contract-callee list-arg (list (some 1) none (some 3)))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_tuple_in_list_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (lst (list 3 (tuple (a int) (b int)))))
+                (ok lst)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee list-arg (list (tuple (a 1) (b 2)) (tuple (a 3) (b 4)) (tuple (a 5) (b 6))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee list-arg (list (tuple (a 1) (b 2)) (tuple (a 3) (b 4)) (tuple (a 5) (b 6))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_list_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (arg (response (list 3 int) int )))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee list-arg (ok (list 1 2 3)))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted =
+            env.evaluate("(contract-call? .contract-callee list-arg (ok (list 1 2 3)))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_list_in_tuple_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (tuple (a int) (b (list 3 int)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (list 2 3 4))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env
+            .evaluate("(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (list 2 3 4))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_list_in_response_in_tuple_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (tuple (a int) (b (response (list 3 int) int)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (ok (list 2 3 4)))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate(
+            "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (ok (list 2 3 4)))))",
+        );
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_list_in_optional_in_tuple_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (tuple (a int) (b (optional (list 3 int))))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (some (list 2 3 4)))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate(
+            "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (some (list 2 3 4)))))",
+        );
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_tuple_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (response (tuple (a int) (b int)) int)))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b 2))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted =
+            env.evaluate("(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b 2))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_optional_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (opt-arg (arg (response (optional int) int)))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee opt-arg (ok (some 42)))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee opt-arg (ok (some 42)))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_list_in_optional_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (list-arg (arg (response (optional (list 3 int)) int)))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee list-arg (ok (some (list 1 2 3))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted =
+            env.evaluate("(contract-call? .contract-callee list-arg (ok (some (list 1 2 3))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_list_in_tuple_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (response (tuple (a int) (b (list 3 int))) int)))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b (list 2 3 4)))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate(
+            "(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b (list 2 3 4)))))",
+        );
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_nested_list_in_optional_in_tuple_in_response_as_argument() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (response (tuple (a int) (b (optional (list 3 int)))) int)))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b (some (list 2 3 4))))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee tuple-arg (ok (tuple (a 1) (b (some (list 2 3 4))))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_int_type_with_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (int-arg (arg (tuple (a int) (b (list 3 int)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee int-arg (tuple (a 42) (b (list 1 2 3))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env
+            .evaluate("(contract-call? .contract-callee int-arg (tuple (a 42) (b (list 1 2 3))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_uint_type_with_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (uint-arg (arg (tuple (a uint) (b (list 3 uint)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet(
+                "call-it",
+                "(contract-call? .contract-callee uint-arg (tuple (a u42) (b (list u1 u2 u3))))",
+            )
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate(
+            "(contract-call? .contract-callee uint-arg (tuple (a u42) (b (list u1 u2 u3))))",
+        );
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_bool_type_with_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (bool-arg (arg (tuple (a bool) (b (list 3 bool)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee bool-arg (tuple (a true) (b (list true false true))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee bool-arg (tuple (a true) (b (list true false true))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_string_type_with_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (string-arg (arg (tuple (a (string-ascii 10)) (b (list 3 (string-ascii 10))))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee string-arg (tuple (a \"hello\") (b (list \"one\" \"two\" \"three\"))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee string-arg (tuple (a \"hello\") (b (list \"one\" \"two\" \"three\"))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_principal_type_with_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (principal-arg (arg (tuple (a principal) (b (list 3 principal)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee principal-arg (tuple (a 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY) (b (list 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee principal-arg (tuple (a 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY) (b (list 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY 'SP3X6QWWETNBZWGBK6DRGTR1KX50S74D3433WDGJY))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_tuple_type_with_nested_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (tuple-arg (arg (tuple (a int) (b (list 3 (tuple (x int) (y (list 2 int))))))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10)))))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee tuple-arg (tuple (a 1) (b (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10)))))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_optional_type_with_nested_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (optional-arg (arg (tuple (a int) (b (optional (list 3 (tuple (x int) (y (list 2 int)))))))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee optional-arg (tuple (a 1) (b (some (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10))))))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee optional-arg (tuple (a 1) (b (some (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10))))))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
+
+    #[test]
+    fn test_response_type_with_nested_list() {
+        let mut env = TestEnvironment::default();
+        env.init_contract_with_snippet(
+            "contract-callee",
+            r#"
+            (define-public (response-arg (arg (tuple (a int) (b (response (list 3 (tuple (x int) (y (list 2 int)))) int)))))
+                (ok arg)
+            )
+            "#,
+        )
+        .expect("Failed to init contract.");
+
+        let res = env
+            .init_contract_with_snippet("call-it", "(contract-call? .contract-callee response-arg (tuple (a 1) (b (ok (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10))))))))")
+            .expect("Failed to init contract.");
+        let interpreted = env.evaluate("(contract-call? .contract-callee response-arg (tuple (a 1) (b (ok (list (tuple (x 2) (y (list 3 4))) (tuple (x 5) (y (list 6 7))) (tuple (x 8) (y (list 9 10))))))))");
+        assert_eq!(interpreted.unwrap(), res);
+    }
 }
