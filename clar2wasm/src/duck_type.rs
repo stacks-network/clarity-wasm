@@ -143,7 +143,10 @@ impl WasmGenerator {
                         "List duck typing should use only two locals".to_owned(),
                     ));
                 };
+
                 let offset_target = self.module.locals.add(ValType::I32);
+                let length_target = self.module.locals.add(ValType::I32);
+
                 builder.local_set(*length);
                 builder.local_set(*offset);
 
@@ -157,7 +160,7 @@ impl WasmGenerator {
 
                     let og_elem_size = self.read_from_memory(&mut loop_, *offset, 0, og_elem_ty)?;
                     self.duck_type_stack(&mut loop_, og_elem_ty, target_elem_ty, &target_locs)?;
-                    for l in target_locs.iter().rev() {
+                    for l in target_locs.iter() {
                         loop_.local_get(*l);
                     }
                     let target_elem_size =
@@ -174,8 +177,13 @@ impl WasmGenerator {
                         .binop(BinaryOp::I32Add)
                         .local_set(offset_target);
                     loop_
+                        .local_get(length_target)
+                        .i32_const(target_elem_size as i32)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(length_target);
+                    loop_
                         .local_get(*length)
-                        .i32_const(1)
+                        .i32_const(og_elem_size)
                         .binop(BinaryOp::I32Sub)
                         .local_tee(*length)
                         .br_if(loop_id);
@@ -187,6 +195,7 @@ impl WasmGenerator {
                 builder.local_get(*length).if_else(
                     None,
                     |then| {
+                        then.i32_const(0).local_set(length_target);
                         // we set the offset_target to copy at the free space of stack-pointer and we move this on further
                         then.global_get(self.stack_pointer)
                             .local_tee(offset_target)
@@ -195,13 +204,14 @@ impl WasmGenerator {
                             .global_set(self.stack_pointer);
 
                         // we put the resulting offset/length on the stack
-                        then.local_get(offset_target).local_get(*length);
+                        then.local_get(offset_target);
 
                         // the cloning loop
                         then.instr(Loop { seq: loop_id });
 
                         // we set the result back to the correct locals
-                        then.local_set(*length).local_set(*offset);
+                        then.local_set(*offset);
+                        then.local_get(length_target).local_set(*length);
                     },
                     |_else| {},
                 );
@@ -236,7 +246,8 @@ fn dt_needed_workspace(ty: &TypeSignature) -> u32 {
         }
         TypeSignature::TupleType(tup) => tup.get_type_map().values().map(dt_needed_workspace).sum(),
         TypeSignature::SequenceType(SequenceSubtype::ListType(_)) => {
-            get_type_in_memory_size(ty, false) as u32
+            // we need the full capacity for a list in memory except for its actual offset and length which will be on the stack
+            get_type_in_memory_size(ty, true) as u32 - 8
         }
         _ => 0,
     }
@@ -248,8 +259,8 @@ mod tests {
     use clarity::vm::analysis::ContractAnalysis;
     use clarity::vm::costs::LimitedCostTracker;
     use clarity::vm::types::{
-        QualifiedContractIdentifier, ResponseData, SequenceData, TupleData, TupleTypeSignature,
-        TypeSignature,
+        ListTypeData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
+        TupleData, TupleTypeSignature, TypeSignature,
     };
     use clarity::vm::{ClarityVersion, Value};
     use walrus::{FunctionBuilder, InstrSeqBuilder};
@@ -358,8 +369,38 @@ mod tests {
                     }
                     Ok(())
                 }
-                Value::Sequence(SequenceData::List(_list)) => {
-                    todo!("Need to complete #610 first")
+                Value::Sequence(SequenceData::List(list)) => {
+                    let TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) = ty else {
+                        return Err(GeneratorError::InternalError(
+                            "Mismatched value/type".to_owned(),
+                        ));
+                    };
+                    let offset = self.module.locals.add(walrus::ValType::I32);
+
+                    for value in list.data.iter().rev() {
+                        self.pass_value(builder, value, ltd.get_list_item_type())?;
+                    }
+
+                    builder.global_get(self.stack_pointer).local_set(offset);
+                    let mut length = 0;
+                    for _ in 0..list.data.len() {
+                        let written =
+                            self.write_to_memory(builder, offset, 0, ltd.get_list_item_type())?;
+                        builder
+                            .local_get(offset)
+                            .i32_const(written as i32)
+                            .binop(walrus::ir::BinaryOp::I32Add)
+                            .local_set(offset);
+                        length += written;
+                    }
+
+                    // the offset is already on the stack
+                    builder
+                        .global_get(self.stack_pointer)
+                        .i32_const(length as i32);
+
+                    builder.local_get(offset).global_set(self.stack_pointer);
+                    Ok(())
                 }
                 #[allow(clippy::unimplemented)]
                 Value::CallableContract(_) => unimplemented!("We can already test principals"),
@@ -420,6 +461,7 @@ mod tests {
             let memory = instance
                 .get_memory(&mut store, "memory")
                 .expect("couldn't find memory");
+
             wasm_to_clarity_value(
                 target_type,
                 0,
@@ -584,6 +626,89 @@ mod tests {
             ])
             .unwrap(),
         );
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_list_response() {
+        let value = Value::cons_list_unsanitized(vec![
+            Value::okay(Value::Int(1)).unwrap(),
+            Value::okay(Value::Int(2)).unwrap(),
+            Value::okay(Value::Int(3)).unwrap(),
+            Value::okay(Value::Int(4)).unwrap(),
+        ])
+        .unwrap();
+        let og_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::ResponseType(Box::new((
+                    TypeSignature::IntType,
+                    TypeSignature::NoType,
+                ))),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        let target_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::ResponseType(Box::new((
+                    TypeSignature::IntType,
+                    TypeSignature::PrincipalType,
+                ))),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        duck_type_test(value, og_ty, target_ty);
+    }
+
+    #[test]
+    fn duck_type_list_list_response() {
+        let list_okay_int_value = |int| {
+            Value::cons_list_unsanitized(vec![Value::okay(Value::Int(int)).unwrap()]).unwrap()
+        };
+        let value = Value::cons_list_unsanitized(vec![
+            list_okay_int_value(1),
+            list_okay_int_value(2),
+            list_okay_int_value(3),
+            list_okay_int_value(4),
+        ])
+        .unwrap();
+        let og_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(Box::new((
+                            TypeSignature::IntType,
+                            TypeSignature::NoType,
+                        ))),
+                        1,
+                    )
+                    .unwrap(),
+                )),
+                4,
+            )
+            .unwrap(),
+        ));
+
+        let target_ty = TypeSignature::SequenceType(SequenceSubtype::ListType(
+            ListTypeData::new_list(
+                TypeSignature::SequenceType(SequenceSubtype::ListType(
+                    ListTypeData::new_list(
+                        TypeSignature::ResponseType(Box::new((
+                            TypeSignature::IntType,
+                            TypeSignature::PrincipalType,
+                        ))),
+                        1,
+                    )
+                    .unwrap(),
+                )),
+                4,
+            )
+            .unwrap(),
+        ));
 
         duck_type_test(value, og_ty, target_ty);
     }
