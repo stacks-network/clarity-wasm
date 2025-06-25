@@ -802,11 +802,17 @@ mod tests {
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
 
+    #[test]
+    fn get_block_info_vrf_seed() {
         let mut env = TestEnvironment::new(
             clarity::types::StacksEpochId::Epoch25,
+            clarity::vm::ClarityVersion::Clarity2,
+        );
         env.advance_chain_tip(1);
         let result = env
             .evaluate("(get-block-info? vrf-seed u0)")
+            .expect("Failed to init contract.");
+        assert_eq!(
             result,
             Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
         );
