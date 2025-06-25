@@ -802,6 +802,16 @@ mod tests {
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
     }
 
+        let mut env = TestEnvironment::new(
+            clarity::types::StacksEpochId::Epoch25,
+        env.advance_chain_tip(1);
+        let result = env
+            .evaluate("(get-block-info? vrf-seed u0)")
+            result,
+            Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
+        );
+    }
+
     #[test]
     fn get_burn_block_info_less_than_two_args() {
         let result = evaluate("(get-burn-block-info? id-header-hash)");
