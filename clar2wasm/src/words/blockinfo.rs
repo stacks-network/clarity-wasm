@@ -81,6 +81,9 @@ impl ComplexWord for GetBlockInfo {
                     generator.func_by_name("stdlib.get_block_info_miner_spend_winner_property"),
                 );
             }
+            "vrf-seed" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_vrf_seed_property"));
+            }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
                     "{self:?} does not have a property of type {}",
