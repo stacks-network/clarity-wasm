@@ -81,6 +81,9 @@ impl ComplexWord for GetBlockInfo {
                     generator.func_by_name("stdlib.get_block_info_miner_spend_winner_property"),
                 );
             }
+            "vrf-seed" => {
+                builder.call(generator.func_by_name("stdlib.get_block_info_vrf_seed_property"));
+            }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
                     "{self:?} does not have a property of type {}",
@@ -797,6 +800,22 @@ mod tests {
             .evaluate("(get-block-info? miner-spend-winner u0)")
             .expect("Failed to init contract.");
         assert_eq!(result, Some(Value::some(Value::UInt(0)).unwrap()));
+    }
+
+    #[test]
+    fn get_block_info_vrf_seed() {
+        let mut env = TestEnvironment::new(
+            clarity::types::StacksEpochId::Epoch25,
+            clarity::vm::ClarityVersion::Clarity2,
+        );
+        env.advance_chain_tip(1);
+        let result = env
+            .evaluate("(get-block-info? vrf-seed u0)")
+            .expect("Failed to init contract.");
+        assert_eq!(
+            result,
+            Some(Value::some(Value::buff_from([0; 32].to_vec()).unwrap()).unwrap())
+        );
     }
 
     #[test]
