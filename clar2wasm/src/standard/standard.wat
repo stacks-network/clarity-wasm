@@ -331,12 +331,12 @@
     ;;       them in, and the test suite will fail due to some of the runtime code being in
     ;;      `stacks-core`
     ;;
-    ;; ;; Cost tracking globals
-    ;; (import "clarity" "cost-runtime" (global $cost-runtime (mut i64)))
-    ;; (import "clarity" "cost-read-count" (global $cost-read-count (mut i64)))
-    ;; (import "clarity" "cost-read-length" (global $cost-read-length (mut i64)))
-    ;; (import "clarity" "cost-write-count" (global $cost-write-count (mut i64)))
-    ;; (import "clarity" "cost-write-length" (global $cost-write-length (mut i64)))
+    ;; Cost tracking globals
+    (import "clarity" "cost-runtime" (global $cost-runtime (mut i64)))
+    (import "clarity" "cost-read-count" (global $cost-read-count (mut i64)))
+    (import "clarity" "cost-read-length" (global $cost-read-length (mut i64)))
+    (import "clarity" "cost-write-count" (global $cost-write-count (mut i64)))
+    (import "clarity" "cost-write-length" (global $cost-write-length (mut i64)))
 
     ;; Global definitions
     (global $stack-pointer (mut i32) (i32.const 0))
