@@ -42,8 +42,7 @@ impl ComplexWord for ListCons {
                 (list_type.get_list_item_type(), list_type.get_max_len())
             } else {
                 return Err(GeneratorError::TypeError(format!(
-                    "Expected list type for list expression, but found: {:?}",
-                    ty
+                    "Expected list type for list expression, but found: {ty:?}"
                 )));
             };
 
@@ -684,8 +683,7 @@ impl ComplexWord for Map {
                 list_type.get_list_item_type()
             } else {
                 return Err(GeneratorError::TypeError(format!(
-                    "Expected list type for list expression, but found: {:?}",
-                    ty
+                    "Expected list type for list expression, but found: {ty:?}"
                 )));
             };
 

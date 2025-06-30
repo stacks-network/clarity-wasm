@@ -73,8 +73,7 @@ impl ComplexWord for DefaultTo {
             &**opt_type
         } else {
             return Err(GeneratorError::TypeError(format!(
-                "Expected an Optional type. Found {:?}",
-                opt_ty
+                "Expected an Optional type. Found {opt_ty:?}"
             )));
         };
         // Save Optional value to locals

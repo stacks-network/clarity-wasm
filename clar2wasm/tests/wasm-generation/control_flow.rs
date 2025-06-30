@@ -13,7 +13,7 @@ fn begin_strategy() -> impl Strategy<Value = (String, PropValue, bool)> {
         let mut is_response_intermediary = false;
 
         for (i, v) in values.iter().enumerate() {
-            let s = format!("{}", v);
+            let s = format!("{v}");
             if i != len - 1 {
                 if let Value::Response(_) = v.0 {
                     is_response_intermediary = true;
@@ -30,7 +30,7 @@ fn begin_strategy() -> impl Strategy<Value = (String, PropValue, bool)> {
         let last_value = values.last().unwrap().clone();
 
         (
-            format!("(begin {})", expressions),
+            format!("(begin {expressions})"),
             last_value,
             is_response_intermediary,
         )

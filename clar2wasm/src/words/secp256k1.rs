@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_secp256k1_verify_less_than_three_args() {
-        let result = evaluate("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 
+        let result = evaluate("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
         0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)");
         assert!(result.is_err());
         assert!(result
@@ -171,9 +171,9 @@ mod tests {
 
     #[test]
     fn secp256k1_verify_more_than_three_args() {
-        let result = evaluate("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04 
-        0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301 
-        0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110 
+        let result = evaluate("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
+        0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
+        0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110
         0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)");
         assert!(result.is_err());
         assert!(result
@@ -208,8 +208,8 @@ mod tests {
 
         // Message hash too short
         let short_hash = "de5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f";
-        crosscheck(&format!("(secp256k1-recover? 0x{}
-            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)", short_hash),
+        crosscheck(&format!("(secp256k1-recover? 0x{short_hash}
+            0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301)"),
             Err(Error::Unchecked(
                 clarity::vm::errors::CheckErrors::TypeValueError(
                     TypeSignature::SequenceType(SequenceSubtype::BufferType(
@@ -260,9 +260,9 @@ mod tests {
         // Message hash too short
         let short_hash = "de5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f";
 
-        crosscheck(&format!("(secp256k1-verify 0x{}
+        crosscheck(&format!("(secp256k1-verify 0x{short_hash}
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", short_hash),
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)"),
             Err(Error::Unchecked(
                 clarity::vm::errors::CheckErrors::TypeValueError(
                     TypeSignature::SequenceType(SequenceSubtype::BufferType(
@@ -278,8 +278,8 @@ mod tests {
         let short_sig = "8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a";
 
         crosscheck(&format!("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
-            0x{}
-            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)", short_sig),
+            0x{short_sig}
+            0x03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba7786110)"),
             Ok(Some(Value::Bool(false))));
 
         // Recovery id (b'\x04') > b'\x03' (with correct signature[..64])
@@ -293,7 +293,7 @@ mod tests {
 
         crosscheck(&format!("(secp256k1-verify 0xde5b9eb9e7c5592930eb2e30a01369c36586d872082ed8181ee83d2a0ec20f04
             0x8738487ebe69b93d8e51583be8eee50bb4213fc49c767d329632730cc193b873554428fc936ca3569afc15f1c9365f6591d6251a89fee9c9ac661116824d3a1301
-            0x{})", short_pubkey),
+            0x{short_pubkey})"),
             Err(Error::Unchecked(
                 clarity::vm::errors::CheckErrors::TypeValueError(
                     TypeSignature::SequenceType(SequenceSubtype::BufferType(

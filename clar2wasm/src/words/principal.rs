@@ -367,7 +367,7 @@ mod tests {
         let pubkey_32_bytes = "03adb8de4bfb65db2cfd6120d55c6526ae9c52e675db7e47308636534ba77861";
 
         crosscheck(
-            &format!("(principal-of? 0x{})", pubkey_32_bytes),
+            &format!("(principal-of? 0x{pubkey_32_bytes})"),
             Err(Error::Unchecked(
                 clarity::vm::errors::CheckErrors::TypeValueError(
                     TypeSignature::SequenceType(SequenceSubtype::BufferType(

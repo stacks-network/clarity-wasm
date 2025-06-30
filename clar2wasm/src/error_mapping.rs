@@ -308,7 +308,7 @@ fn from_runtime_error_code(
         ErrorMap::CostOverrunReadLength => Error::from(CostErrors::CostOverflow),
         ErrorMap::CostOverrunWriteCount => Error::from(CostErrors::CostOverflow),
         ErrorMap::CostOverrunWriteLength => Error::from(CostErrors::CostOverflow),
-        _ => panic!("Runtime error code {} not supported", runtime_error_code),
+        _ => panic!("Runtime error code {runtime_error_code} not supported"),
     }
 }
 
@@ -326,7 +326,7 @@ fn get_global_i32(instance: &Instance, store: &mut impl AsContextMut, name: &str
     instance
         .get_global(&mut *store, name)
         .and_then(|glob| glob.get(store).i32())
-        .unwrap_or_else(|| panic!("Could not find ${} global with i32 value", name))
+        .unwrap_or_else(|| panic!("Could not find ${name} global with i32 value"))
 }
 
 /// Retrieves the expected and actual argument counts from a byte-encoded string.
@@ -376,13 +376,13 @@ fn short_return_value(
         .unwrap_or_else(|| panic!("Could not find wasm instance memory"));
 
     let type_ser_str = read_identifier_from_wasm(memory, store, type_ser_offset, type_ser_len)
-        .unwrap_or_else(|e| panic!("Could not recover stringified type: {}", e));
+        .unwrap_or_else(|e| panic!("Could not recover stringified type: {e}"));
 
     let value_ty = signature_from_string(&type_ser_str, *clarity_version, *epoch_id)
-        .unwrap_or_else(|e| panic!("Could not recover thrown value: {}", e));
+        .unwrap_or_else(|e| panic!("Could not recover thrown value: {e}"));
 
     read_from_wasm_indirect(memory, store, &value_ty, val_offset, *epoch_id)
-        .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {}", e))
+        .unwrap_or_else(|e| panic!("Could not read thrown value from memory: {e}"))
 }
 
 /// Retrieves the argument lengths from the runtime error global variables.

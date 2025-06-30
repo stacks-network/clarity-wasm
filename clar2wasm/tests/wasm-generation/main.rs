@@ -470,7 +470,7 @@ impl TypePrinter for ResponseData {
         } else {
             ("int".to_owned(), self.data.type_string())
         };
-        format!("(response {} {})", ok_string, err_string)
+        format!("(response {ok_string} {err_string})")
     }
 }
 

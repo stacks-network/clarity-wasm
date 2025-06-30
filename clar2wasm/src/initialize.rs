@@ -490,8 +490,7 @@ mod tests {
                 result,
                 Err(Error::Runtime(RuntimeErrorType::DivisionByZero, _))
             ),
-            "Expected a DivisionByZero runtime error, got: {:?}",
-            result
+            "Expected a DivisionByZero runtime error, got: {result:?}"
         );
 
         // Verify that event_batches is empty after the rollback.

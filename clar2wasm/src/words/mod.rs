@@ -298,7 +298,7 @@ mod tests {
                 if let Ok(TypedNativeFunction::Special(_)) =
                     TypedNativeFunction::type_native_function(&native)
                 {
-                    panic!("{:?} should not be simple!", word)
+                    panic!("{word:?} should not be simple!")
                 }
             }
         }
@@ -312,7 +312,7 @@ mod tests {
                     if word.name().as_str() == "or" || word.name().as_str() == "and" {
                         continue;
                     }
-                    panic!("{:?} should not be complex!", word)
+                    panic!("{word:?} should not be complex!")
                 }
             }
         }

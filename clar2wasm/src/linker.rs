@@ -5216,7 +5216,7 @@ fn link_log<T>(linker: &mut Linker<T>) -> Result<(), Error> {
 fn link_debug_msg<T>(linker: &mut Linker<T>) -> Result<(), Error> {
     linker
         .func_wrap("", "debug_msg", |_caller: Caller<'_, T>, param: i32| {
-            crate::debug_msg::recall(param, |s| println!("DEBUG: {}", s))
+            crate::debug_msg::recall(param, |s| println!("DEBUG: {s}"))
         })
         .map(|_| ())
         .map_err(|e| {

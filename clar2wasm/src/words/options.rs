@@ -27,8 +27,7 @@ pub fn traverse_optional(
         &**some_type
     } else {
         return Err(GeneratorError::TypeError(format!(
-            "Expected an Optional type. Found {:?}",
-            ty
+            "Expected an Optional type. Found {ty:?}"
         )));
     };
 

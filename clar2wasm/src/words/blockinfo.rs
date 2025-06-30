@@ -86,8 +86,7 @@ impl ComplexWord for GetBlockInfo {
             }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
+                    "{self:?} does not have a property of type {prop_name}"
                 )))
             }
         };
@@ -153,8 +152,7 @@ impl ComplexWord for GetBurnBlockInfo {
             }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
+                    "{self:?} does not have a property of type {prop_name}"
                 )))
             }
         };
@@ -267,8 +265,7 @@ impl ComplexWord for GetStacksBlockInfo {
             }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
+                    "{self:?} does not have a property of type {prop_name}"
                 )))
             }
         };
@@ -352,8 +349,7 @@ impl ComplexWord for GetTenureInfo {
             }
             _ => {
                 return Err(GeneratorError::InternalError(format!(
-                    "{self:?} does not have a property of type {}",
-                    prop_name
+                    "{self:?} does not have a property of type {prop_name}"
                 )))
             }
         };

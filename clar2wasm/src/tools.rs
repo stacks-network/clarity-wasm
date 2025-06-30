@@ -176,9 +176,9 @@ impl TestEnvironment {
                     analysis_db,
                     false,
                 )
-                .map_err(|e| CheckErrors::Expects(format!("Compilation failure {:?}", e)))
+                .map_err(|e| CheckErrors::Expects(format!("Compilation failure {e:?}")))
             })
-            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
+            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{e:?}"))))?;
 
         self.datastore
             .as_analysis_db()
@@ -282,7 +282,7 @@ impl TestEnvironment {
                 self.version,
                 self.epoch,
             )
-            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))?;
+            .map_err(|e| Error::Wasm(WasmError::WasmGeneratorError(format!("{e:?}"))))?;
 
             // Run the analysis passes
             run_analysis(
@@ -295,7 +295,7 @@ impl TestEnvironment {
                 self.version,
                 true,
             )
-            .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{:?}", e))))
+            .map_err(|(e, _)| Error::Wasm(WasmError::WasmGeneratorError(format!("{e:?}"))))
         })?;
 
         self.datastore
@@ -618,15 +618,14 @@ fn crosscheck_compare_only_with_env(snippet: &str, env: TestEnvironment) {
         match (result.interpreted.as_ref(), result.compiled.as_ref()) {
             (Err(interpreted_err), Err(compiled_err)) => {
                 panic!(
-                    "Interpreted and compiled snippets failed: {:?}, {:?}",
-                    interpreted_err, compiled_err
+                    "Interpreted and compiled snippets failed: {interpreted_err:?}, {compiled_err:?}"
                 );
             }
             (Err(interpreted_err), Ok(_)) => {
-                panic!("Interpreted snippet failed: {:?}", interpreted_err);
+                panic!("Interpreted snippet failed: {interpreted_err:?}");
             }
             (Ok(_), Err(compiled_err)) => {
-                panic!("Compiled snippet failed: {:?}", compiled_err);
+                panic!("Compiled snippet failed: {compiled_err:?}");
             }
             _ => {
                 // Both succeeded; no action needed.
@@ -660,7 +659,7 @@ pub fn crosscheck_compare_only_with_expected_error<E: Fn(&Error) -> bool>(
         |result| {
             if let Err(e) = &result.compiled {
                 if !expected(e) {
-                    panic!("Compiled snippet failed with unexpected error: {:?}", e);
+                    panic!("Compiled snippet failed with unexpected error: {e:?}");
                 }
             }
         },

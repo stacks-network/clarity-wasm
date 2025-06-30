@@ -139,7 +139,7 @@ proptest! {
         .map(PropValue::from).collect();
 
         let lists_str: String = lists.iter().map(|el| el.to_string() + " ").collect();
-        let snippet = format!("(map + {})", lists_str);
+        let snippet = format!("(map + {lists_str})");
 
         crosscheck(
             &snippet,
@@ -253,7 +253,7 @@ proptest! {
         if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
             if !ld.data.is_empty() {
-                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {seq} (ok 0))");
 
                 crosscheck_compare_only(
                     &snippet,
@@ -278,7 +278,7 @@ proptest! {
         if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
             if !ld.data.is_empty() {
-                let snippet = format!("{FOLD_PRELUDE} (fold knus {} (ok 0))", seq);
+                let snippet = format!("{FOLD_PRELUDE} (fold knus {seq} (ok 0))");
 
                 crosscheck_compare_only(
                     &snippet,
