@@ -93,8 +93,7 @@ impl ComplexWord for Match {
 
         if generator.is_reserved_name(success_binding) {
             return Err(GeneratorError::InternalError(format!(
-                "Name already used {:?}",
-                success_binding
+                "Name already used {success_binding:?}"
             )));
         }
 
@@ -145,8 +144,7 @@ impl ComplexWord for Match {
 
                 if generator.is_reserved_name(err_binding) {
                     return Err(GeneratorError::InternalError(format!(
-                        "Name already used {:?}",
-                        err_binding
+                        "Name already used {err_binding:?}"
                     )));
                 }
 
@@ -820,8 +818,7 @@ impl ComplexWord for Try {
                     Some(TypeSignature::OptionalType(inner_type)) => inner_type,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
-                            "expected optional type, got {:?}",
-                            other
+                            "expected optional type, got {other:?}"
                         )));
                     }
                     None => &TypeSignature::NoType,
@@ -873,8 +870,7 @@ impl ComplexWord for Try {
                     Some(TypeSignature::ResponseType(inner_types)) => &inner_types.0,
                     Some(other) => {
                         return Err(GeneratorError::TypeError(format!(
-                            "expected response type, got {:?}",
-                            other
+                            "expected response type, got {other:?}"
                         )));
                     }
                     None => &TypeSignature::NoType,

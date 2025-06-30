@@ -27,8 +27,7 @@ pub fn traverse_response(
         &**types
     } else {
         return Err(GeneratorError::TypeError(format!(
-            "Expected a Response type. Found {:?}",
-            ty
+            "Expected a Response type. Found {ty:?}"
         )));
     };
 

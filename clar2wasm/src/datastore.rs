@@ -662,7 +662,7 @@ impl Datastore {
                 self.open_chain_tip,
                 self.store
                     .get(lookup_id)
-                    .unwrap_or_else(|| panic!("Block with ID {:?} does not exist", lookup_id))
+                    .unwrap_or_else(|| panic!("Block with ID {lookup_id:?} does not exist"))
                     .clone(),
             );
 
@@ -678,6 +678,6 @@ impl Datastore {
     }
 
     pub fn make_contract_hash_key(contract: &QualifiedContractIdentifier) -> String {
-        format!("clarity-contract::{}", contract)
+        format!("clarity-contract::{contract}")
     }
 }

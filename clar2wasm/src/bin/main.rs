@@ -41,7 +41,7 @@ fn main() {
     let source = match fs::read_to_string(args.input.as_str()) {
         Ok(source) => source,
         Err(error) => {
-            eprintln!("Error reading file: {}", error);
+            eprintln!("Error reading file: {error}");
             std::process::exit(1);
         }
     };
@@ -91,7 +91,7 @@ fn main() {
     });
 
     if let Err(error) = module.emit_wasm_file(output.as_str()) {
-        eprintln!("Error writing Wasm file, {}: {}", output, error);
+        eprintln!("Error writing Wasm file, {output}: {error}");
         std::process::exit(1);
     }
 }

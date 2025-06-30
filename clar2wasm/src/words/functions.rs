@@ -35,8 +35,7 @@ impl ComplexWord for DefinePrivateFunction {
         // Making sure name is not reserved
         if generator.is_reserved_name(name) {
             return Err(GeneratorError::InternalError(format!(
-                "Name already used {:?}",
-                name
+                "Name already used {name:?}"
             )));
         }
 
@@ -73,8 +72,7 @@ impl ComplexWord for DefineReadonlyFunction {
         // Making sure name is not reserved
         if generator.is_reserved_name(name) {
             return Err(GeneratorError::InternalError(format!(
-                "Name already used {:?}",
-                name
+                "Name already used {name:?}"
             )));
         }
 
@@ -134,8 +132,7 @@ impl ComplexWord for DefinePublicFunction {
         // Making sure name is not reserved
         if generator.is_reserved_name(name) {
             return Err(GeneratorError::InternalError(format!(
-                "Name already used {:?}",
-                name
+                "Name already used {name:?}"
             )));
         }
 

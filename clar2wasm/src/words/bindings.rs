@@ -42,8 +42,7 @@ impl ComplexWord for Let {
             // make sure name does not collide with builtin symbols
             if generator.is_reserved_name(name) {
                 return Err(GeneratorError::InternalError(format!(
-                    "Name already used {:?}",
-                    name
+                    "Name already used {name:?}"
                 )));
             }
 

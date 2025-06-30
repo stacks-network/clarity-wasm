@@ -31,7 +31,7 @@ where
 {
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
-        ContractName::from(format!("clarity-{}", fn_name).as_str()),
+        ContractName::from(format!("clarity-{fn_name}").as_str()),
     );
     let mut datastore = Datastore::new();
     let constants = StacksConstants::default();
@@ -127,7 +127,7 @@ where
 {
     let contract_id = QualifiedContractIdentifier::new(
         StandardPrincipalData::transient(),
-        ContractName::from(format!("clarity-{}", fn_name).as_str()),
+        ContractName::from(format!("clarity-{fn_name}").as_str()),
     );
     let mut datastore = Datastore::new();
     let constants = StacksConstants::default();

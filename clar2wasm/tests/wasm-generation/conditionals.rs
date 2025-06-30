@@ -308,7 +308,7 @@ proptest! {
         if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
             if !ld.data.is_empty() {
-                let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+                let snippet = format!("{FILTER_PRELUDE} (filter grob {seq})");
 
                 crosscheck_compare_only(
                     &snippet,
@@ -333,7 +333,7 @@ proptest! {
         if let Value::Sequence(SequenceData::List(ld)) = seq.inner() {
             // Empty sequences fail in interpreter as well
             if !ld.data.is_empty() {
-                let snippet = format!("{FILTER_PRELUDE} (filter grob {})", seq);
+                let snippet = format!("{FILTER_PRELUDE} (filter grob {seq})");
 
                 crosscheck_compare_only(
                     &snippet,

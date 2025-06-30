@@ -133,8 +133,8 @@ impl DiagnosableError for GeneratorError {
     fn message(&self) -> String {
         match self {
             GeneratorError::NotImplemented => "Not implemented".to_string(),
-            GeneratorError::InternalError(msg) => format!("Internal error: {}", msg),
-            GeneratorError::TypeError(msg) => format!("Type error: {}", msg),
+            GeneratorError::InternalError(msg) => format!("Internal error: {msg}"),
+            GeneratorError::TypeError(msg) => format!("Type error: {msg}"),
             GeneratorError::ArgumentCountMismatch => "Argument count mismatch".to_string(),
         }
     }
@@ -991,8 +991,7 @@ impl WasmGenerator {
             | clarity::vm::Value::CallableContract(_)
             | clarity::vm::Value::Sequence(_) => {
                 return Err(GeneratorError::TypeError(format!(
-                    "Not a valid literal type: {:?}",
-                    value
+                    "Not a valid literal type: {value:?}"
                 )))
             }
         };
@@ -1659,8 +1658,7 @@ impl WasmGenerator {
             | clarity::vm::Value::Response(_)
             | clarity::vm::Value::CallableContract(_)
             | clarity::vm::Value::Sequence(_) => Err(GeneratorError::TypeError(format!(
-                "Not a valid literal type: {:?}",
-                value
+                "Not a valid literal type: {value:?}"
             ))),
         }
     }
@@ -2282,7 +2280,7 @@ mod tests {
         let c = "c".repeat(string_size);
         let d = "d".repeat(string_size);
 
-        let snippet = format!("(is-eq u\"{}\" u\"{}\" u\"{}\" u\"{}\")", a, b, c, d);
+        let snippet = format!("(is-eq u\"{a}\" u\"{b}\" u\"{c}\" u\"{d}\")");
         crosscheck(&snippet, Ok(Some(clarity::vm::Value::Bool(false))));
     }
 

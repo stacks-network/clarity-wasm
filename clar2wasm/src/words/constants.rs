@@ -33,8 +33,7 @@ impl ComplexWord for DefineConstant {
         // Making sure if name is not reserved
         if generator.is_reserved_name(name) {
             return Err(GeneratorError::InternalError(format!(
-                "Name already used {:?}",
-                name
+                "Name already used {name:?}"
             )));
         }
 
@@ -286,7 +285,7 @@ mod tests {
     fn test_large_buff() {
         let buff = "aa".repeat(1 << 20);
         crosscheck(
-            &format!("(define-constant cst 0x{}) cst", buff),
+            &format!("(define-constant cst 0x{buff}) cst"),
             Ok(Some(Value::buff_from(hex::decode(buff).unwrap()).unwrap())),
         )
     }
