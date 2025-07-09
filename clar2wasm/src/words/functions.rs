@@ -41,7 +41,13 @@ impl ComplexWord for DefinePrivateFunction {
 
         let body = args.get_expr(1)?;
 
-        generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
+        // Certain special contracts, such as PoX and signer contracts, invoke private functions directly within the contract.
+        // Additionally, development tools may call private functions during contract testing.
+        // Therefore, to support these use cases, private functions must also be exported by the WebAssembly module.
+        let function_id =
+            generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
+        generator.module.exports.add(name.as_str(), function_id);
+
         Ok(())
     }
 }
@@ -485,6 +491,19 @@ mod tests {
             Err(Error::Unchecked(CheckErrors::NameAlreadyUsed(
                 "get-symbol".to_string(),
             ))),
+        )
+    }
+
+    #[test]
+    fn private_function_direct_call() {
+        crosscheck(
+            r#"
+              (define-constant BAR 42)
+              (define-public (get-bar) (ok BAR))
+              (define-private (im-a-private-func) (get-bar))
+              (im-a-private-func)
+            "#,
+            evaluate("(ok 42)"),
         )
     }
 }
