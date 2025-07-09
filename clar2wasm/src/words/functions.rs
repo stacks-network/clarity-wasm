@@ -493,4 +493,17 @@ mod tests {
             ))),
         )
     }
+
+    #[test]
+    fn private_function_direct_call() {
+        crosscheck(
+            r#"
+              (define-constant BAR 42)
+              (define-public (get-bar) (ok BAR))
+              (define-private (im-a-private-func) (get-bar))
+              (im-a-private-func)
+            "#,
+            evaluate("(ok 42)"),
+        )
+    }
 }

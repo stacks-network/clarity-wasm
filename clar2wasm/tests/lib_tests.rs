@@ -4205,3 +4205,13 @@ test_contract_call_response!(
         assert_eq!(*response.data, Value::Int(42));
     }
 );
+
+test_contract_call_response!(
+    test_private_call,
+    "private-call",
+    "im-a-private-func",
+    |response: ResponseData| {
+        assert!(response.committed);
+        assert_eq!(*response.data, Value::Int(42));
+    }
+);
