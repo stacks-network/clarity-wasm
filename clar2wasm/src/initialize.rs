@@ -368,28 +368,11 @@ pub fn initialize_contract(
         results.push(placeholder_for_type(result_ty));
     }
 
-    let top_level_result = top_level.call(&mut store, &[], results.as_mut_slice());
-    match top_level_result {
-        Ok(_) => {}
-        Err(e) => {
-            // Before propagating the error, attempt to roll back the function context.
-            // If the rollback fails, immediately return a rollback-specific error.
-            if store.data_mut().global_context.roll_back().is_err() {
-                return Err(Error::Wasm(WasmError::Expect(
-                    "Expected entry to rollback".into(),
-                )));
-            }
-
-            // Rollback succeeded, so resolve and return the original runtime error.
-            return Err(error_mapping::resolve_error(
-                e,
-                instance,
-                &mut store,
-                &epoch,
-                &clarity_version,
-            ));
-        }
-    }
+    top_level
+        .call(&mut store, &[], results.as_mut_slice())
+        .map_err(|e| {
+            error_mapping::resolve_error(e, instance, &mut store, &epoch, &clarity_version)
+        })?;
 
     // Save the compiled Wasm module into the contract context
     store.data_mut().contract_context_mut()?.set_wasm_module(
@@ -415,89 +398,5 @@ pub fn initialize_contract(
             .map(|(val, _offset)| val)
     } else {
         Ok(None)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use clarity::consts::CHAIN_ID_TESTNET;
-    use clarity::types::StacksEpochId;
-    use clarity::vm::contexts::GlobalContext;
-    use clarity::vm::costs::LimitedCostTracker;
-    use clarity::vm::database::MemoryBackingStore;
-    use clarity::vm::errors::{CheckErrors, Error, RuntimeErrorType};
-    use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
-    use clarity::vm::{ClarityVersion, ContractContext, ContractName};
-
-    use super::initialize_contract;
-    use crate::compile;
-
-    #[test]
-    fn global_context_rollback_test() {
-        let snippet = "(define-public (abc) (ok (/ 42 0))) (abc)";
-        let contract_id = QualifiedContractIdentifier::new(
-            StandardPrincipalData::transient(),
-            ContractName::from("issue"),
-        );
-        let mut clarity_store = MemoryBackingStore::new();
-
-        let mut compile_result = clarity_store
-            .as_analysis_db()
-            .execute(|analysis_db| {
-                compile(
-                    snippet,
-                    &contract_id,
-                    LimitedCostTracker::new_free(),
-                    ClarityVersion::latest(),
-                    StacksEpochId::latest(),
-                    analysis_db,
-                    false,
-                )
-                .map_err(|_| CheckErrors::Expects("Compilation failure".to_string()))
-            })
-            .expect("Failed to compile contract.");
-
-        clarity_store
-            .as_analysis_db()
-            .execute(|analysis_db| {
-                analysis_db.insert_contract(&contract_id, &compile_result.contract_analysis)
-            })
-            .expect("Failed to insert contract analysis.");
-
-        let mut contract_context =
-            ContractContext::new(contract_id.clone(), ClarityVersion::latest());
-        contract_context.set_wasm_module(compile_result.module.emit_wasm());
-
-        let mut global_context = GlobalContext::new(
-            false,
-            CHAIN_ID_TESTNET,
-            clarity_store.as_clarity_db(),
-            LimitedCostTracker::new_free(),
-            StacksEpochId::latest(),
-        );
-
-        // Attempt to initialize the contract, which should trigger a division by zero error.
-        let result = initialize_contract(
-            &mut global_context,
-            &mut contract_context,
-            None,
-            &compile_result.contract_analysis,
-        );
-
-        // Ensure that the result is a runtime error of type DivisionByZero.
-        assert!(
-            matches!(
-                result,
-                Err(Error::Runtime(RuntimeErrorType::DivisionByZero, _))
-            ),
-            "Expected a DivisionByZero runtime error, got: {result:?}"
-        );
-
-        // Verify that event_batches is empty after the rollback.
-        assert!(
-            global_context.event_batches.is_empty(),
-            "Expected event_batches to be empty, found: {:?}",
-            global_context.event_batches
-        );
     }
 }
