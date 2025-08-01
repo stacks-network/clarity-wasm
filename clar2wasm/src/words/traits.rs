@@ -72,9 +72,9 @@ impl ComplexWord for UseTrait {
     ) -> Result<(), GeneratorError> {
         check_argument_count(generator, builder, 2, args.len(), ArgumentCountCheck::Exact)?;
 
-        // We simply add the trait alias to the memory so that contract-call?
+        // We simply add the trait to the memory so that contract-call?
         // can retrieve a correct function return type at call.
-        let name = &args
+        let trait_id = args
             .get_expr(1)?
             .match_field()
             .ok_or_else(|| {
@@ -82,8 +82,10 @@ impl ComplexWord for UseTrait {
                     "use-trait second argument should be the imported trait".to_owned(),
                 )
             })?
-            .name;
-        let _ = generator.add_string_literal(name)?;
+            .clone();
+
+        let offset_len = generator.add_trait_identifier(&trait_id)?;
+        generator.used_traits.insert(trait_id, offset_len);
 
         Ok(())
     }

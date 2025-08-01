@@ -1,6 +1,6 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::signatures::CallableSubtype;
-use clarity::vm::types::{PrincipalData, TraitIdentifier, TypeSignature};
+use clarity::vm::types::{PrincipalData, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ir::BinaryOp;
 use walrus::ValType;
@@ -99,16 +99,16 @@ impl ComplexWord for ContractCall {
                 )
             })?;
             // Check if the name is in local bindings first, then in current function arguments.
-            let trait_name = generator
+            let trait_id = generator
                 .bindings
-                .get_trait_name(dynamic_arg)
+                .get_trait_identifier(dynamic_arg)
                 .or_else(|| {
                     generator
                         .get_current_function_arg_type(dynamic_arg)
                         .and_then(|ty| match ty {
-                            TypeSignature::CallableType(CallableSubtype::Trait(
-                                TraitIdentifier { name, .. },
-                            )) => Some(name),
+                            TypeSignature::CallableType(CallableSubtype::Trait(trait_id)) => {
+                                Some(trait_id)
+                            }
                             _ => None,
                         })
                 })
@@ -118,10 +118,13 @@ impl ComplexWord for ContractCall {
                     )
                 })?;
 
-            let (offset, len) = generator.get_string_literal(trait_name).ok_or_else(|| {
-                GeneratorError::TypeError(format!("Usage of an unimported trait: {trait_name}"))
+            let (offset, len) = generator.used_traits.get(trait_id).ok_or_else(|| {
+                GeneratorError::TypeError(format!(
+                    "Usage of an unimported trait: {}",
+                    trait_id.name
+                ))
             })?;
-            builder.i32_const(offset as i32).i32_const(len as i32);
+            builder.i32_const(*offset as i32).i32_const(*len as i32);
             // Traversing the expression should load the contract identifier
             // onto the stack.
             generator.traverse_expr(builder, contract_expr)?;
