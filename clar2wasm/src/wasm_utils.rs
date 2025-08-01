@@ -1790,3 +1790,33 @@ macro_rules! check_args {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+
+    use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
+    use clarity::vm::{ClarityName, ContractName};
+    use proptest::prelude::*;
+
+    use crate::wasm_utils::{trait_identifier_as_bytes, trait_identifier_from_bytes};
+
+    proptest! {
+        #[test]
+        fn serialize_deserialize_trait_id(
+            issuer in (0u8..32, proptest::array::uniform20(any::<u8>()))
+                .prop_map(|(v, bs)| StandardPrincipalData::new_unsafe(v, bs)),
+            contract_name in "[a-zA-Z]([a-zA-Z0-9]|[-_]){0,127}"
+                .prop_map(|name| ContractName::try_from(name).unwrap()),
+            trait_name in "[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*]){0,127}"
+                .prop_map(|name| ClarityName::try_from(name).unwrap())
+        ) {
+            let trait_id = TraitIdentifier::new(issuer, contract_name, trait_name);
+
+            assert_eq!(
+                trait_identifier_from_bytes(&trait_identifier_as_bytes(&trait_id))
+                    .expect("Could not deserialize the trait identifier"),
+                trait_id
+            );
+        }
+    }
+}
