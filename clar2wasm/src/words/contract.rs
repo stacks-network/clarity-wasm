@@ -198,7 +198,7 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck_multi_contract, evaluate, TestEnvironment};
 
     #[test]
     fn as_contract_less_than_one_arg() {
@@ -795,5 +795,46 @@ mod tests {
             .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
             .expect("Failed to init contract.");
         assert_eq!(val.unwrap(), Value::Int(-123));
+    }
+
+    #[test]
+    fn multi_dynamic_define_impl_call() {
+        let foo_trait = "
+            (define-trait foo
+                (
+                    (do-it () (response bool uint))
+                )
+            )
+            ";
+
+        let foo_impl = "
+            (impl-trait .foo.foo)
+
+            (define-public (do-it)
+                (ok true)
+            )
+            ";
+
+        let call_foo = "
+            (use-trait foo .foo.foo)
+
+            (define-public (call-do-it (opt-f (optional <foo>)))
+                (match opt-f
+                    f (contract-call? f do-it)
+                    (ok false)
+                )
+            )
+
+            (call-do-it (some .foo-impl))
+            ";
+
+        crosscheck_multi_contract(
+            &[
+                ("foo".into(), foo_trait),
+                ("foo-impl".into(), foo_impl),
+                ("call-foo".into(), call_foo),
+            ],
+            Ok(Some(Value::okay_true())),
+        );
     }
 }
