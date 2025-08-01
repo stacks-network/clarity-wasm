@@ -4303,8 +4303,8 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
             "clarity",
             "contract_call",
             |mut caller: Caller<'_, ClarityWasmContext>,
-             trait_name_offset: i32,
-             trait_name_length: i32,
+             trait_id_offset: i32,
+             trait_id_length: i32,
              contract_offset: i32,
              contract_length: i32,
              function_offset: i32,
@@ -4351,7 +4351,7 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 )?;
 
                 // Retrieve the contract context for the contract we're calling
-                let contract = caller
+                let mut contract = caller
                     .data_mut()
                     .global_context
                     .database
@@ -4420,30 +4420,34 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                 }?;
 
                 // Write the result to the return buffer
-                let return_ty = if trait_name_length == 0 {
+                let return_ty = if trait_id_length == 0 {
                     // This is a direct call
-                    function.get_return_type().as_ref()
+                    function
+                        .get_return_type()
+                        .as_ref()
+                        .ok_or(CheckErrors::DefineFunctionBadSignature)?
                 } else {
                     // This is a dynamic call
-                    let trait_name = read_identifier_from_wasm(
-                        memory,
-                        &mut caller,
-                        trait_name_offset,
-                        trait_name_length,
-                    )?;
+                    let trait_id =
+                        read_bytes_from_wasm(memory, &mut caller, trait_id_offset, trait_id_length)
+                            .and_then(|bs| trait_identifier_from_bytes(&bs))?;
+                    contract = if &trait_id.contract_identifier == contract_id {
+                        contract
+                    } else {
+                        caller
+                            .data_mut()
+                            .global_context
+                            .database
+                            .get_contract(&trait_id.contract_identifier)?
+                    };
                     contract
                         .contract_context
                         .defined_traits
-                        .get(trait_name.as_str())
+                        .get(trait_id.name.as_str())
                         .and_then(|trait_functions| trait_functions.get(function_name.as_str()))
                         .map(|f_ty| &f_ty.returns)
-                }
-                .ok_or(CheckErrors::DefineFunctionBadSignature)?;
-
-                let memory = caller
-                    .get_export("memory")
-                    .and_then(|export| export.into_memory())
-                    .ok_or(Error::Wasm(WasmError::MemoryNotFound))?;
+                        .ok_or(CheckErrors::DefineFunctionBadSignature)?
+                };
 
                 write_to_wasm(
                     &mut caller,
