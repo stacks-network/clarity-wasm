@@ -39,7 +39,7 @@ pub struct TestEnvironment {
     is_mainnet: bool,
     chain_id: u32,
     emit_cost_code: bool,
-    cost_tracker: LimitedCostTracker,
+    pub cost_tracker: LimitedCostTracker,
 }
 
 impl TestEnvironment {
@@ -48,6 +48,7 @@ impl TestEnvironment {
         epoch: StacksEpochId,
         version: ClarityVersion,
         network: Network,
+        emit_cost_code: bool,
     ) -> Self {
         let (epoch, version) = if !Self::epoch_and_clarity_match(epoch, version) {
             let valid_version = ClarityVersion::default_for_epoch(epoch);
@@ -96,7 +97,7 @@ impl TestEnvironment {
             events: vec![],
             is_mainnet,
             chain_id,
-            emit_cost_code: TestConfig::track_cost(),
+            emit_cost_code,
             cost_tracker: LimitedCostTracker::new_free(),
         };
 
@@ -153,11 +154,11 @@ impl TestEnvironment {
     ///
     /// An instance of the environment configured with the validated epoch and Clarity version.
     pub fn new(epoch: StacksEpochId, version: ClarityVersion) -> Self {
-        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, Network::Testnet)
+        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, Network::Testnet, false)
     }
 
     pub fn new_with_amount(amount: u128, epoch: StacksEpochId, version: ClarityVersion) -> Self {
-        Self::new_full(amount, epoch, version, Network::Testnet)
+        Self::new_full(amount, epoch, version, Network::Testnet, false)
     }
 
     pub fn new_with_network(
@@ -165,7 +166,11 @@ impl TestEnvironment {
         version: ClarityVersion,
         network: Network,
     ) -> Self {
-        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, network)
+        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, network, false)
+    }
+
+    pub fn new_with_cost(epoch: StacksEpochId, version: ClarityVersion) -> Self {
+        Self::new_full(DEFAULT_ENV_AMOUNT, epoch, version, Network::Testnet, true)
     }
 
     /// Checks whether the given epoch and Clarity version are compatible.
@@ -520,10 +525,6 @@ impl TestConfig {
         }
     }
 
-    pub fn track_cost() -> bool {
-        matches!((), _ if cfg!(feature = "test-cost-tracking"))
-    }
-
     /// Latest Stacks epoch.
     pub fn latest_epoch() -> StacksEpochId {
         StacksEpochId::latest()
@@ -590,12 +591,6 @@ impl CrossEvalResult {
         compare_events(
             self.env_interpreted.get_events(),
             self.env_compiled.get_events(),
-        );
-
-        #[cfg(feature = "test-cost-tracking")]
-        assert_eq!(
-            self.env_compiled.cost_tracker,
-            self.env_interpreted.cost_tracker
         );
     }
 }
