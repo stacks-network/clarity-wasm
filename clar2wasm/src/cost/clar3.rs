@@ -416,6 +416,16 @@ lazy_static! {
             },
         );
         map.insert(
+            Construct.name(),
+            WordCost {
+                runtime: Constant(398),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
             Destruct.name(),
             WordCost {
                 runtime: Constant(314),
@@ -827,16 +837,6 @@ lazy_static! {
             IsSome.name(),
             WordCost {
                 runtime: Constant(195),
-                read_count: None,
-                read_length: None,
-                write_count: None,
-                write_length: None,
-            },
-        );
-        map.insert(
-            Construct.name(),
-            WordCost {
-                runtime: Constant(398),
                 read_count: None,
                 read_length: None,
                 write_count: None,

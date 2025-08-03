@@ -6,11 +6,19 @@ use lazy_static::lazy_static;
 use super::{Caf, WordCost};
 use crate::words::arithmetic::{Add, Div, Log2, Modulo, Mul, Power, Sqrti, Sub};
 use crate::words::bindings::Let;
-use crate::words::blockinfo::{AtBlock, GetBlockInfo, GetStacksBlockInfo, GetTenureInfo};
+use crate::words::bitwise::{
+    BitwiseAnd, BitwiseLShift, BitwiseNot, BitwiseOr, BitwiseRShift, BitwiseXor,
+};
+use crate::words::blockinfo::{
+    AtBlock, GetBlockInfo, GetBurnBlockInfo, GetStacksBlockInfo, GetTenureInfo,
+};
+use crate::words::buff_to_integer::{BuffToIntBe, BuffToIntLe, BuffToUintBe, BuffToUintLe};
 use crate::words::comparison::{CmpGeq, CmpGreater, CmpLeq, CmpLess};
 use crate::words::conditionals::{And, Asserts, Filter, If, Match, Or, Try, Unwrap, UnwrapErr};
+use crate::words::consensus_buff::{FromConsensusBuff, ToConsensusBuff};
 use crate::words::contract::{AsContract, ContractCall};
 use crate::words::control_flow::{Begin, UnwrapErrPanic, UnwrapPanic};
+use crate::words::conversion::{IntToAscii, IntToUtf8, StringToInt, StringToUint};
 use crate::words::data_vars::{GetDataVar, SetDataVar};
 use crate::words::default_to::DefaultTo;
 use crate::words::enums::{ClarityErr, ClarityOk, ClaritySome};
@@ -20,12 +28,14 @@ use crate::words::logical::Not;
 use crate::words::maps::{MapDelete, MapGet, MapInsert, MapSet};
 use crate::words::noop::{ContractOf, ToInt, ToUint};
 use crate::words::options::{IsNone, IsSome};
-use crate::words::principal::{IsStandard, PrincipalOf};
+use crate::words::principal::{Construct, Destruct, IsStandard, PrincipalOf};
 use crate::words::print::Print;
 use crate::words::responses::{IsErr, IsOk};
 use crate::words::secp256k1::{Recover, Verify};
-use crate::words::sequences::{Append, AsMaxLen, Concat, ElementAt, Fold, Len, ListCons, Map};
-use crate::words::stx::{StxBurn, StxGetBalance, StxTransfer};
+use crate::words::sequences::{
+    Append, AsMaxLen, Concat, ElementAt, Fold, Len, ListCons, Map, ReplaceAt, Slice,
+};
+use crate::words::stx::{StxBurn, StxGetAccount, StxGetBalance, StxTransfer};
 use crate::words::tokens::{
     BurnFungibleToken, BurnNonFungibleToken, GetBalanceOfFungibleToken, GetOwnerOfNonFungibleToken,
     GetSupplyOfFungibleToken, MintFungibleToken, MintNonFungibleToken, TransferFungibleToken,
@@ -126,6 +136,106 @@ lazy_static! {
             },
         );
         map.insert(
+            BitwiseAnd.name(),
+            WordCost {
+                runtime: Linear { a: 15, b: 129 },
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BitwiseOr.name(),
+            WordCost {
+                runtime: Linear { a: 15, b: 129 },
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BitwiseXor.name(),
+            WordCost {
+                runtime: Linear { a: 15, b: 129 },
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BitwiseNot.name(),
+            WordCost {
+                runtime: Constant(147),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BitwiseLShift.name(),
+            WordCost {
+                runtime: Constant(167),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BitwiseRShift.name(),
+            WordCost {
+                runtime: Constant(167),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BuffToIntLe.name(),
+            WordCost {
+                runtime: Constant(141),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BuffToIntBe.name(),
+            WordCost {
+                runtime: Constant(141),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BuffToUintLe.name(),
+            WordCost {
+                runtime: Constant(141),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            BuffToUintBe.name(),
+            WordCost {
+                runtime: Constant(141),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
             CmpGreater.name(),
             WordCost {
                 runtime: Constant(170),
@@ -189,6 +299,46 @@ lazy_static! {
             Not.name(),
             WordCost {
                 runtime: Constant(170),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            IntToAscii.name(),
+            WordCost {
+                runtime: Constant(147),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            IntToUtf8.name(),
+            WordCost {
+                runtime: Constant(181),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            StringToInt.name(),
+            WordCost {
+                runtime: Constant(168),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            StringToUint.name(),
+            WordCost {
+                runtime: Constant(168),
                 read_count: None,
                 read_length: None,
                 write_count: None,
@@ -286,6 +436,16 @@ lazy_static! {
                 write_length: None,
             },
         );
+        map.insert(
+            StxGetAccount.name(),
+            WordCost {
+                runtime: Constant(4294),
+                read_count: Constant(1),
+                read_length: Constant(1),
+                write_count: None,
+                write_length: None,
+            },
+        );
 
         // complex words
 
@@ -313,6 +473,16 @@ lazy_static! {
             GetBlockInfo.name(),
             WordCost {
                 runtime: Constant(6321),
+                read_count: Constant(1),
+                read_length: Constant(1),
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            GetBurnBlockInfo.name(),
+            WordCost {
+                runtime: Constant(96479),
                 read_count: Constant(1),
                 read_length: Constant(1),
                 write_count: None,
@@ -425,6 +595,26 @@ lazy_static! {
             UnwrapPanic.name(),
             WordCost {
                 runtime: Constant(339),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            FromConsensusBuff.name(),
+            WordCost {
+                runtime: NLogN { a: 3, b: 185 },
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            ToConsensusBuff.name(),
+            WordCost {
+                runtime: Linear { a: 1, b: 233 },
                 read_count: None,
                 read_length: None,
                 write_count: None,
@@ -552,6 +742,26 @@ lazy_static! {
             },
         );
         map.insert(
+            ReplaceAt.name(),
+            WordCost {
+                runtime: Linear { a: 1, b: 561 },
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            Slice.name(),
+            WordCost {
+                runtime: Constant(498),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
             MapGet.name(),
             WordCost {
                 runtime: Linear { a: 1, b: 1539 },
@@ -617,6 +827,26 @@ lazy_static! {
             IsSome.name(),
             WordCost {
                 runtime: Constant(287),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            Construct.name(),
+            WordCost {
+                runtime: Constant(398),
+                read_count: None,
+                read_length: None,
+                write_count: None,
+                write_length: None,
+            },
+        );
+        map.insert(
+            Destruct.name(),
+            WordCost {
+                runtime: Constant(314),
                 read_count: None,
                 read_length: None,
                 write_count: None,
