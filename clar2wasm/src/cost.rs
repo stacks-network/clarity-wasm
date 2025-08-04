@@ -1286,27 +1286,27 @@ mod word {
         2 => CostMeter { runtime: 190,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
         3 => CostMeter { runtime: 58,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
     });
-    // TODO:
     decl_tests!("stx_burn", "(stx-burn? u100 'S1G2081040G2081040G2081040G208105NK8PE5)", {
-        1 => CostMeter { runtime: 4000, read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
-        2 => CostMeter { runtime: 199,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
-        3 => CostMeter { runtime: 164,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
+        1 => CostMeter { runtime: 1000, read_count: 2, read_length: 1, write_count: 2, write_length: 1 },
+        2 => CostMeter { runtime: 612,  read_count: 2, read_length: 1, write_count: 2, write_length: 1 },
+        3 => CostMeter { runtime: 549,  read_count: 2, read_length: 1, write_count: 2, write_length: 1 },
     });
     decl_tests!("stx_get_balance", "(stx-get-balance 'S1G2081040G2081040G2081040G208105NK8PE5)", {
-        1 => CostMeter { runtime: 4000, read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
-        2 => CostMeter { runtime: 199,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
-        3 => CostMeter { runtime: 164,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
+        1 => CostMeter { runtime: 1000, read_count: 1, read_length: 1, write_count: 0, write_length: 0 },
+        2 => CostMeter { runtime: 1385,  read_count: 1, read_length: 1, write_count: 0, write_length: 0 },
+        3 => CostMeter { runtime: 4294,  read_count: 1, read_length: 1, write_count: 0, write_length: 0 },
     });
     decl_tests!("stx_get_account", "(stx-account 'SZ2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQ9H6DPR)", {
-        3 => CostMeter { runtime: 164,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
+        3 => CostMeter { runtime: 4654,  read_count: 1, read_length: 1, write_count: 0, write_length: 0 },
     });
     decl_tests!("principal_construct", "(principal-construct? 0x1a 0xfa6bf38ed557fe417333710d6033e9419391a320)", {
-        3 => CostMeter { runtime: 164,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
+        3 => CostMeter { runtime: 398,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
     });
     decl_tests!("principal_destruct", "(principal-destruct? 'STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6)", {
-        3 => CostMeter { runtime: 164,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
+        3 => CostMeter { runtime: 314,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
     });
 
+    // TODO:
     decl_tests!("let", "(let ((a 42)) a)", {
         1 => CostMeter { runtime: 4000, read_count: 0, read_length: 0, write_count: 0, write_length: 0 },
         2 => CostMeter { runtime: 199,  read_count: 0, read_length: 0, write_count: 0, write_length: 0 },

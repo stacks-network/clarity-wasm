@@ -267,15 +267,14 @@ lazy_static! {
                 write_length: None,
             },
         );
-        // TODO: check if this indeed costs nothing (SUSPICIOUS)
         map.insert(
             StxBurn.name(),
             WordCost {
-                runtime: None,
-                read_count: None,
-                read_length: None,
-                write_count: None,
-                write_length: None,
+                runtime: Constant(612),
+                read_count: Constant(2),
+                read_length: Constant(1),
+                write_count: Constant(2),
+                write_length: Constant(1),
             },
         );
         map.insert(
