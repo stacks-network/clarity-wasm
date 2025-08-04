@@ -228,7 +228,7 @@ lazy_static! {
         map.insert(
             Keccak256.name(),
             WordCost {
-                runtime: Linear { a: 1, b: 127 },
+                runtime: Linear { a: 1000, b: 1000 },
                 read_count: None,
                 read_length: None,
                 write_count: None,
