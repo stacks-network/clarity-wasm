@@ -840,4 +840,48 @@ mod tests {
             Ok(Some(Value::okay_true())),
         );
     }
+
+    /// This is the same test as [multi_dynamic_define_impl_call], but it checks that it still works
+    /// when we deal with the linked functions defined in stacks-core (duplication issue).
+    #[test]
+    fn multi_dynamic_define_impl_call_duplication_issue() {
+        let foo_trait = "
+            (define-trait foo
+                (
+                    (do-it () (response bool uint))
+                )
+            )
+            ";
+
+        let foo_impl = "
+            (impl-trait .foo.foo)
+
+            (define-public (do-it)
+                (ok true)
+            )
+            ";
+
+        let call_foo = "
+            (use-trait foo .foo.foo)
+
+            (define-public (call-do-it (opt-f (optional <foo>)))
+                (match opt-f
+                    f (contract-call? f do-it)
+                    (ok false)
+                )
+            )
+            ";
+
+        let bar = "(contract-call? .call-foo call-do-it (some .foo-impl))";
+
+        crosscheck_multi_contract(
+            &[
+                ("foo".into(), foo_trait),
+                ("foo-impl".into(), foo_impl),
+                ("call-foo".into(), call_foo),
+                ("bar".into(), bar),
+            ],
+            Ok(Some(Value::okay_true())),
+        );
+    }
 }
