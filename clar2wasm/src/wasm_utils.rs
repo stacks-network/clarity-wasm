@@ -1628,6 +1628,8 @@ fn reserve_space_for_return(
     }
 }
 
+/// Serializes a [TraitIdentifier] to bytes with this format:
+/// issuer principal as 21 bytes + contract name length as byte + contract name as bytes + trait name length as byte + trait name as bytes
 pub fn trait_identifier_as_bytes(
     TraitIdentifier {
         name: trait_name,
@@ -1657,6 +1659,8 @@ pub fn trait_identifier_as_bytes(
     res
 }
 
+/// Tries to deserialize bytes into a [TraitIdentifier].
+/// This is the opposite of the function [trait_identifier_as_bytes].
 pub fn trait_identifier_from_bytes(bytes: &[u8]) -> Result<TraitIdentifier, Error> {
     let not_enough_bytes = || {
         Error::Wasm(WasmError::Expect(

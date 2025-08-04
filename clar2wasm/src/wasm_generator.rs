@@ -938,6 +938,8 @@ impl WasmGenerator {
         Ok((offset, len))
     }
 
+    /// Adds a serialized [TraitIdentifier] to the wasm memory.
+    /// Returns the offset and length of the bytes written.
     pub(crate) fn add_trait_identifier(
         &mut self,
         trait_id: &TraitIdentifier,
