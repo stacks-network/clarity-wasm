@@ -1671,6 +1671,9 @@ pub fn trait_identifier_from_bytes(bytes: &[u8]) -> Result<TraitIdentifier, Erro
     // deserilize issuer
     let (version, bytes) = bytes.split_first().ok_or_else(not_enough_bytes)?;
     let (issuer_bytes, bytes) = bytes.split_at_checked(20).ok_or_else(not_enough_bytes)?;
+
+    // we can unwrap here since we now that we took the exact number of bytes to create a Principal.
+    #[allow(clippy::unwrap_used)]
     let issuer = StandardPrincipalData::new(*version, issuer_bytes.try_into().unwrap())?;
 
     // deserialize contract name
