@@ -139,7 +139,7 @@ impl TestEnvironment {
             ) => version <= ClarityVersion::Clarity2,
 
             // For epochs 30 and 31, all clarity versions are supported.
-            (StacksEpochId::Epoch30 | StacksEpochId::Epoch31, _) => true,
+            (StacksEpochId::Epoch30 | StacksEpochId::Epoch31 | StacksEpochId::Epoch32, _) => true,
         }
     }
 
