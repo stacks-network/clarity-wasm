@@ -8,9 +8,10 @@ use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{
     ASCIIData, BuffData, BufferLength, CallableData, CharType, ListData, OptionalData,
     PrincipalData, QualifiedContractIdentifier, ResponseData, SequenceData, SequenceSubtype,
-    SequencedValue, StandardPrincipalData, StringSubtype, TupleData, TypeSignature,
+    SequencedValue, StandardPrincipalData, StringSubtype, TraitIdentifier, TupleData,
+    TypeSignature,
 };
-use clarity::vm::{CallStack, ClarityVersion, ContractContext, ContractName, Value};
+use clarity::vm::{CallStack, ClarityName, ClarityVersion, ContractContext, ContractName, Value};
 use stacks_common::types::StacksEpochId;
 use walrus::{GlobalId, InstrSeqBuilder};
 use wasmtime::{AsContextMut, Linker, Memory, Module, Store, Val, ValType};
@@ -1627,6 +1628,75 @@ fn reserve_space_for_return(
     }
 }
 
+/// Serializes a [TraitIdentifier] to bytes with this format:
+/// issuer principal as 21 bytes + contract name length as byte + contract name as bytes + trait name length as byte + trait name as bytes
+pub fn trait_identifier_as_bytes(
+    TraitIdentifier {
+        name: trait_name,
+        contract_identifier:
+            QualifiedContractIdentifier {
+                issuer,
+                name: contract_name,
+            },
+    }: &TraitIdentifier,
+) -> Vec<u8> {
+    let mut res = Vec::with_capacity(
+        1 + 20 + 1 + contract_name.len() as usize + 1 + trait_name.len() as usize,
+    );
+
+    // serialize issuer: 1 byte version + 20 bytes
+    res.push(issuer.version());
+    res.extend(issuer.1);
+
+    // serialize contract_name: 1 byte name length + name bytes
+    res.push(contract_name.len());
+    res.extend(contract_name.bytes());
+
+    // serialize trait name: 1 byte name length + name bytes
+    res.push(trait_name.len());
+    res.extend(trait_name.bytes());
+
+    res
+}
+
+/// Tries to deserialize bytes into a [TraitIdentifier].
+/// This is the opposite of the function [trait_identifier_as_bytes].
+pub fn trait_identifier_from_bytes(bytes: &[u8]) -> Result<TraitIdentifier, Error> {
+    let not_enough_bytes = || {
+        Error::Wasm(WasmError::Expect(
+            "Not enough bytes for a trait deserialization".to_owned(),
+        ))
+    };
+
+    // deserilize issuer
+    let (version, bytes) = bytes.split_first().ok_or_else(not_enough_bytes)?;
+    let (issuer_bytes, bytes) = bytes.split_at_checked(20).ok_or_else(not_enough_bytes)?;
+
+    // we can unwrap here since we took the exact number of bytes to create a Principal.
+    #[allow(clippy::unwrap_used)]
+    let issuer = StandardPrincipalData::new(*version, issuer_bytes.try_into().unwrap())?;
+
+    // deserialize contract name
+    let (contract_name_len, bytes) = bytes.split_first().ok_or_else(not_enough_bytes)?;
+    let (contract_name_bytes, bytes) = bytes
+        .split_at_checked(*contract_name_len as usize)
+        .ok_or_else(not_enough_bytes)?;
+    let contract_name: ContractName = String::from_utf8(contract_name_bytes.to_owned())
+        .map_err(|err| Error::Wasm(WasmError::UnableToReadIdentifier(err)))?
+        .try_into()?;
+
+    // deserialize trait name
+    let (trait_name_len, bytes) = bytes.split_first().ok_or_else(not_enough_bytes)?;
+    if bytes.len() != *trait_name_len as usize {
+        return Err(not_enough_bytes());
+    }
+    let trait_name: ClarityName = String::from_utf8(bytes.to_owned())
+        .map_err(|err| Error::Wasm(WasmError::UnableToReadIdentifier(err)))?
+        .try_into()?;
+
+    Ok(TraitIdentifier::new(issuer, contract_name, trait_name))
+}
+
 pub fn signature_from_string(
     val: &str,
     version: ClarityVersion,
@@ -1726,4 +1796,34 @@ macro_rules! check_args {
             return Ok(());
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+
+    use clarity::vm::types::{StandardPrincipalData, TraitIdentifier};
+    use clarity::vm::{ClarityName, ContractName};
+    use proptest::prelude::*;
+
+    use crate::wasm_utils::{trait_identifier_as_bytes, trait_identifier_from_bytes};
+
+    proptest! {
+        #[test]
+        fn serialize_deserialize_trait_id(
+            issuer in (0u8..32, proptest::array::uniform20(any::<u8>()))
+                .prop_map(|(v, bs)| StandardPrincipalData::new_unsafe(v, bs)),
+            contract_name in "[a-zA-Z]([a-zA-Z0-9]|[-_]){0,127}"
+                .prop_map(|name| ContractName::try_from(name).unwrap()),
+            trait_name in "[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*]){0,127}"
+                .prop_map(|name| ClarityName::try_from(name).unwrap())
+        ) {
+            let trait_id = TraitIdentifier::new(issuer, contract_name, trait_name);
+
+            assert_eq!(
+                trait_identifier_from_bytes(&trait_identifier_as_bytes(&trait_id))
+                    .expect("Could not deserialize the trait identifier"),
+                trait_id
+            );
+        }
+    }
 }

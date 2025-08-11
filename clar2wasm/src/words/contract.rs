@@ -1,6 +1,6 @@
 use clarity::vm::clarity_wasm::get_type_size;
 use clarity::vm::types::signatures::CallableSubtype;
-use clarity::vm::types::{PrincipalData, TraitIdentifier, TypeSignature};
+use clarity::vm::types::{PrincipalData, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression, SymbolicExpressionType, Value};
 use walrus::ir::BinaryOp;
 use walrus::ValType;
@@ -99,16 +99,16 @@ impl ComplexWord for ContractCall {
                 )
             })?;
             // Check if the name is in local bindings first, then in current function arguments.
-            let trait_name = generator
+            let trait_id = generator
                 .bindings
-                .get_trait_name(dynamic_arg)
+                .get_trait_identifier(dynamic_arg)
                 .or_else(|| {
                     generator
                         .get_current_function_arg_type(dynamic_arg)
                         .and_then(|ty| match ty {
-                            TypeSignature::CallableType(CallableSubtype::Trait(
-                                TraitIdentifier { name, .. },
-                            )) => Some(name),
+                            TypeSignature::CallableType(CallableSubtype::Trait(trait_id)) => {
+                                Some(trait_id)
+                            }
                             _ => None,
                         })
                 })
@@ -118,10 +118,13 @@ impl ComplexWord for ContractCall {
                     )
                 })?;
 
-            let (offset, len) = generator.get_string_literal(trait_name).ok_or_else(|| {
-                GeneratorError::TypeError(format!("Usage of an unimported trait: {trait_name}"))
+            let (offset, len) = generator.used_traits.get(trait_id).ok_or_else(|| {
+                GeneratorError::TypeError(format!(
+                    "Usage of an unimported trait: {}",
+                    trait_id.name
+                ))
             })?;
-            builder.i32_const(offset as i32).i32_const(len as i32);
+            builder.i32_const(*offset as i32).i32_const(*len as i32);
             // Traversing the expression should load the contract identifier
             // onto the stack.
             generator.traverse_expr(builder, contract_expr)?;
@@ -198,7 +201,7 @@ impl ComplexWord for ContractCall {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{evaluate, TestEnvironment};
+    use crate::tools::{crosscheck_multi_contract, evaluate, TestEnvironment};
 
     #[test]
     fn as_contract_less_than_one_arg() {
@@ -795,5 +798,90 @@ mod tests {
             .init_contract_with_snippet("check-value", "(contract-call? .contract-callee get-val)")
             .expect("Failed to init contract.");
         assert_eq!(val.unwrap(), Value::Int(-123));
+    }
+
+    #[test]
+    fn multi_dynamic_define_impl_call() {
+        let foo_trait = "
+            (define-trait foo
+                (
+                    (do-it () (response bool uint))
+                )
+            )
+            ";
+
+        let foo_impl = "
+            (impl-trait .foo.foo)
+
+            (define-public (do-it)
+                (ok true)
+            )
+            ";
+
+        let call_foo = "
+            (use-trait foo .foo.foo)
+
+            (define-public (call-do-it (opt-f (optional <foo>)))
+                (match opt-f
+                    f (contract-call? f do-it)
+                    (ok false)
+                )
+            )
+
+            (call-do-it (some .foo-impl))
+            ";
+
+        crosscheck_multi_contract(
+            &[
+                ("foo".into(), foo_trait),
+                ("foo-impl".into(), foo_impl),
+                ("call-foo".into(), call_foo),
+            ],
+            Ok(Some(Value::okay_true())),
+        );
+    }
+
+    /// This is the same test as [multi_dynamic_define_impl_call], but it checks that it still works
+    /// when we deal with the linked functions defined in stacks-core (duplication issue).
+    #[test]
+    fn multi_dynamic_define_impl_call_duplication_issue() {
+        let foo_trait = "
+            (define-trait foo
+                (
+                    (do-it () (response bool uint))
+                )
+            )
+            ";
+
+        let foo_impl = "
+            (impl-trait .foo.foo)
+
+            (define-public (do-it)
+                (ok true)
+            )
+            ";
+
+        let call_foo = "
+            (use-trait foo .foo.foo)
+
+            (define-public (call-do-it (opt-f (optional <foo>)))
+                (match opt-f
+                    f (contract-call? f do-it)
+                    (ok false)
+                )
+            )
+            ";
+
+        let bar = "(contract-call? .call-foo call-do-it (some .foo-impl))";
+
+        crosscheck_multi_contract(
+            &[
+                ("foo".into(), foo_trait),
+                ("foo-impl".into(), foo_impl),
+                ("call-foo".into(), call_foo),
+                ("bar".into(), bar),
+            ],
+            Ok(Some(Value::okay_true())),
+        );
     }
 }

@@ -10,7 +10,7 @@ use clarity::vm::diagnostic::DiagnosableError;
 use clarity::vm::types::signatures::{CallableSubtype, StringUTF8Length, BUFF_1};
 use clarity::vm::types::{
     ASCIIData, CharType, FixedFunction, FunctionType, ListTypeData, PrincipalData, SequenceData,
-    SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
+    SequenceSubtype, StringSubtype, TraitIdentifier, TupleTypeSignature, TypeSignature,
 };
 use clarity::vm::variables::NativeVariables;
 use clarity::vm::{functions, variables, ClarityName, SymbolicExpression, SymbolicExpressionType};
@@ -26,7 +26,7 @@ use crate::cost::{ChargeContext, WordCharge};
 use crate::error_mapping::ErrorMap;
 use crate::wasm_utils::{
     check_argument_count, get_type_in_memory_size, get_type_size, signature_from_string,
-    ArgumentCountCheck, PRINCIPAL_BYTES_MAX,
+    trait_identifier_as_bytes, ArgumentCountCheck, PRINCIPAL_BYTES_MAX,
 };
 use crate::{check_args, debug_msg, words};
 
@@ -59,6 +59,8 @@ pub struct WasmGenerator {
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
     /// The type of defined NFTs
     pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
+    /// The (offsets, lengths) of trait IDs
+    pub(crate) used_traits: HashMap<TraitIdentifier, (u32, u32)>,
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
@@ -100,9 +102,9 @@ impl Bindings {
         self.0.get(name).map(|b| b.locals.as_slice())
     }
 
-    pub(crate) fn get_trait_name(&self, name: &ClarityName) -> Option<&ClarityName> {
+    pub(crate) fn get_trait_identifier(&self, name: &ClarityName) -> Option<&TraitIdentifier> {
         self.0.get(name).and_then(|b| match &b.ty {
-            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(&t.name),
+            TypeSignature::CallableType(CallableSubtype::Trait(t)) => Some(t),
             _ => None,
         })
     }
@@ -339,6 +341,7 @@ impl WasmGenerator {
             maps_types: HashMap::new(),
             local_pool: Rc::new(RefCell::new(HashMap::new())),
             nft_types: HashMap::new(),
+            used_traits: HashMap::new(),
         })
     }
 
@@ -935,14 +938,13 @@ impl WasmGenerator {
         Ok((offset, len))
     }
 
-    pub(crate) fn get_string_literal(&self, name: &str) -> Option<(u32, u32)> {
-        if !name.is_ascii() {
-            return None;
-        }
-        let entry = LiteralMemoryEntry::Ascii(name.to_owned());
-        self.literal_memory_offset
-            .get(&entry)
-            .map(|offset| (*offset, name.len() as u32))
+    /// Adds a serialized [TraitIdentifier] to the wasm memory.
+    /// Returns the offset and length of the bytes written.
+    pub(crate) fn add_trait_identifier(
+        &mut self,
+        trait_id: &TraitIdentifier,
+    ) -> Result<(u32, u32), GeneratorError> {
+        self.add_bytes_literal(&trait_identifier_as_bytes(trait_id))
     }
 
     /// Adds a new literal into the memory, and returns the offset and length.
