@@ -1840,4 +1840,53 @@ impl WasmGenerator {
             ListUnionType(_) => unreachable!("ListUnionType should not be deserialized"),
         }
     }
+
+    pub fn serialization_size(
+        &self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        todo!()
+    }
+
+    fn serialization_size_constant(ty: &TypeSignature) -> Result<i32, GeneratorError> {
+        Ok(match ty {
+            // only 1 byte
+            TypeSignature::BoolType => 1,
+            // 1 byte + 16 for representation
+            TypeSignature::IntType | TypeSignature::UIntType => 17,
+            // at least 1 byte + 1 byte version + 20 bytes
+            TypeSignature::PrincipalType => 22,
+            // all sequences have 1 byte + length in 4 bytes
+            TypeSignature::SequenceType(_) => 5,
+            // we don't know more than the 1 byte representing some or none
+            TypeSignature::OptionalType(_) => 1,
+            // we don't know more than the 1 byte representing ok or err
+            TypeSignature::ResponseType(_) => 1,
+            // we have 1 byte + 4 bytes length + the size of each element
+            // which is (1 byte name size + name bytes + constant of the inner type)
+            TypeSignature::TupleType(tup) => {
+                5 + tup
+                    .get_type_map()
+                    .iter()
+                    .map(|(name, inner)| {
+                        1 + name.len() as i32 + Self::serialization_size_constant(inner)
+                    })
+                    .sum()
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(format!(
+                    "This type cannot be seriazialized: {ty}"
+                )))
+            }
+        })
+    }
+
+    fn serialization_size_variable(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        match ty {}
+    }
 }
