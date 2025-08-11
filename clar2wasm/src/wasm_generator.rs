@@ -59,7 +59,7 @@ pub struct WasmGenerator {
     pub(crate) maps_types: HashMap<ClarityName, (TypeSignature, TypeSignature)>,
     /// The type of defined NFTs
     pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
-    /// The (offsets, lengths) of trait aliases identifiers
+    /// The (offsets, lengths) of trait IDs
     pub(crate) used_traits: HashMap<TraitIdentifier, (u32, u32)>,
 
     /// The locals for the current function.
