@@ -940,4 +940,206 @@ impl WasmGenerator {
             ListUnionType(_) => unreachable!("ListUnionType should not be serialized"),
         }
     }
+
+    pub fn serialization_size(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        if let Some(size) = Self::serialization_size_simple(ty) {
+            builder.i32_const(size);
+            Ok(())
+        } else {
+            self.serialization_size_runtime(builder, ty)
+        }
+    }
+
+    fn serialization_size_simple(ty: &TypeSignature) -> Option<i32> {
+        match ty {
+            TypeSignature::BoolType => Some(1),
+            TypeSignature::IntType | TypeSignature::UIntType => Some(17),
+            TypeSignature::TupleType(tup) => tup
+                .get_type_map()
+                .iter()
+                .map(|(name, inner_ty)| {
+                    let inner_size = Self::serialization_size_simple(inner_ty)?;
+                    Some(1 + name.len() as i32 + inner_size)
+                })
+                .sum::<Option<i32>>()
+                .map(|n| n + 5),
+            _ => None,
+        }
+    }
+
+    fn serialization_size_runtime(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+    ) -> Result<(), GeneratorError> {
+        let value = self.save_to_locals(builder, ty, true);
+        let size = self.borrow_local(ValType::I32);
+
+        builder.i32_const(Self::serialization_size_constant(ty)?);
+
+        self.serialization_size_variable(builder, ty, &value)?;
+        builder.local_set(*size);
+
+        for v in value {
+            builder.local_get(v);
+        }
+        builder.local_get(*size);
+
+        Ok(())
+    }
+
+    fn serialization_size_constant(ty: &TypeSignature) -> Result<i32, GeneratorError> {
+        match ty {
+            // only 1 byte
+            TypeSignature::BoolType => Ok(1),
+            // 1 byte + 16 for representation
+            TypeSignature::IntType | TypeSignature::UIntType => Ok(17),
+            // 1 byte + 1 byte version + 20 bytes
+            TypeSignature::PrincipalType => Ok(22),
+            // all sequences have 1 byte + length in 4 bytes
+            TypeSignature::SequenceType(_) => Ok(5),
+            // we don't know more than the 1 byte representing some or none
+            TypeSignature::OptionalType(_) => Ok(1),
+            // we don't know more than the 1 byte representing ok or err
+            TypeSignature::ResponseType(_) => Ok(1),
+            // we have 1 byte + 4 bytes length + the size of each element
+            // which is (1 byte name size + name bytes + constant of the inner type)
+            TypeSignature::TupleType(tup) => tup
+                .get_type_map()
+                .iter()
+                .map(|(name, inner)| {
+                    Ok(1 + name.len() as i32 + Self::serialization_size_constant(inner)?)
+                })
+                .sum::<Result<i32, _>>()
+                .map(|n| n + 5),
+            _ => Err(GeneratorError::TypeError(format!(
+                "This type cannot be seriazialized: {ty}"
+            ))),
+        }
+    }
+
+    fn serialization_size_variable(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+        value: &[LocalId],
+    ) -> Result<(), GeneratorError> {
+        static MISMATCHED_TYPE_VALUE: fn(&TypeSignature) -> Result<(), GeneratorError> = |ty| {
+            Err(GeneratorError::TypeError(format!(
+                "Mismatched value for type {ty}"
+            )))
+        };
+        match ty {
+            TypeSignature::BoolType | TypeSignature::IntType | TypeSignature::UIntType => {
+                // nothing variable for those types
+            }
+            TypeSignature::PrincipalType => {
+                // For the case of a contract principal, we need to add the name length byte and the name bytes.
+                let &[_offset, length] = value else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                // To check if we have a contract principal, we know it is one of those if the length is > 22.
+                // In this case we can add 1 byte for the name length and (length - 22) for the name bytes
+                builder
+                    // select true: 0
+                    .i32_const(0)
+                    // select false: length - 21
+                    .local_get(length)
+                    .i32_const(21)
+                    .binop(BinaryOp::I32Sub)
+                    // select condition: length > 22
+                    .local_get(length)
+                    .i32_const(22)
+                    .binop(BinaryOp::I32GtU)
+                    // select
+                    .select(Some(ValType::I32));
+
+                builder.binop(BinaryOp::I32Add);
+            }
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
+            | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
+                // in those cases, we just add the number of bytes/char
+                let &[_offset, length] = value else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                builder.local_get(length).binop(BinaryOp::I32Add);
+            }
+            TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(_))) => {
+                // we need to know the number of bytes in the utf8 form, which is not what we have in memory.
+                // no choice but to traverse each char and check how many bytes they would take.
+                let &[offset, length] = value else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                let current = self.borrow_local(ValType::I32);
+                let remaining = self.borrow_local(ValType::I32);
+                let code_point = self.borrow_local(ValType::I32);
+                let ser_size = self.borrow_local(ValType::I32);
+
+                builder.local_set(*ser_size);
+                builder.local_get(offset).local_set(*current);
+                builder.local_get(length).local_tee(*remaining);
+
+                let loop_id = {
+                    let mut loop_ = builder.dangling_instr_seq(None);
+                    let loop_id = loop_.id();
+                    let load_i32_be = self.func_by_name("stdlib.load-i32-be");
+
+                    // get the current char
+                    loop_
+                        .local_get(*current)
+                        .call(load_i32_be)
+                        .local_set(*code_point);
+
+                    // find the number of bytes in utf8: 1 + (code_point > 0x7F) + (code_point > 0x7FF) + (code_point > 0xFFFF)
+                    loop_
+                        .i32_const(1)
+                        .local_get(*code_point)
+                        .i32_const(0x7f)
+                        .binop(BinaryOp::I32GtU)
+                        .binop(BinaryOp::I32Add)
+                        .local_get(*code_point)
+                        .i32_const(0x7ff)
+                        .binop(BinaryOp::I32GtU)
+                        .binop(BinaryOp::I32Add)
+                        .local_get(*code_point)
+                        .i32_const(0xffff)
+                        .binop(BinaryOp::I32GtU)
+                        .binop(BinaryOp::I32Add);
+
+                    // add this to the current size
+                    loop_
+                        .local_get(*ser_size)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*ser_size);
+
+                    // now we increase the current offset and check if we should keep looping
+                    loop_
+                        .local_get(*current)
+                        .i32_const(4)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*current);
+                    loop_
+                        .local_get(*remaining)
+                        .i32_const(4)
+                        .binop(BinaryOp::I32Sub)
+                        .local_tee(*remaining)
+                        .br_if(loop_id);
+
+                    loop_id
+                };
+                todo!()
+            }
+            TypeSignature::OptionalType(_) => todo!(),
+            TypeSignature::ResponseType(_) => todo!(),
+            TypeSignature::SequenceType(SequenceSubtype::ListType(_ltd)) => todo!(),
+            TypeSignature::TupleType(_) => todo!(),
+            TypeSignature::NoType => todo!(),
+            _ => unimplemented!(),
+        }
+        Ok(())
+    }
 }
