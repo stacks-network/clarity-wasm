@@ -950,7 +950,8 @@ impl WasmGenerator {
             builder.i32_const(size);
             Ok(())
         } else {
-            self.serialization_size_runtime(builder, ty)
+            let value = self.save_to_locals(builder, ty, true);
+            self.serialization_size_runtime(builder, ty, &value)
         }
     }
 
@@ -975,17 +976,17 @@ impl WasmGenerator {
         &mut self,
         builder: &mut InstrSeqBuilder,
         ty: &TypeSignature,
+        value: &[LocalId],
     ) -> Result<(), GeneratorError> {
-        let value = self.save_to_locals(builder, ty, true);
         let size = self.borrow_local(ValType::I32);
 
         builder.i32_const(Self::serialization_size_constant(ty)?);
 
-        self.serialization_size_variable(builder, ty, &value)?;
+        self.serialization_size_variable(builder, ty, value)?;
         builder.local_set(*size);
 
         for v in value {
-            builder.local_get(v);
+            builder.local_get(*v);
         }
         builder.local_get(*size);
 
@@ -1079,10 +1080,6 @@ impl WasmGenerator {
                 let code_point = self.borrow_local(ValType::I32);
                 let ser_size = self.borrow_local(ValType::I32);
 
-                builder.local_set(*ser_size);
-                builder.local_get(offset).local_set(*current);
-                builder.local_get(length).local_tee(*remaining);
-
                 let loop_id = {
                     let mut loop_ = builder.dangling_instr_seq(None);
                     let loop_id = loop_.id();
@@ -1131,13 +1128,127 @@ impl WasmGenerator {
 
                     loop_id
                 };
-                todo!()
+
+                builder.local_get(length).if_else(
+                    Some(ValType::I32),
+                    |then| {
+                        then.local_set(*ser_size);
+                        then.local_get(offset).local_set(*current);
+                        then.local_get(length).local_tee(*remaining);
+                        then.instr(Loop { seq: loop_id });
+                        then.local_get(*ser_size);
+                    },
+                    |_else| {},
+                );
             }
-            TypeSignature::OptionalType(_) => todo!(),
-            TypeSignature::ResponseType(_) => todo!(),
-            TypeSignature::SequenceType(SequenceSubtype::ListType(_ltd)) => todo!(),
+            TypeSignature::OptionalType(opt) => {
+                // we have to add to the size only for the case where we have "some"
+                let Some((variant, opt_value)) = value.split_first() else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                let some_instr = {
+                    let mut some = builder.dangling_instr_seq(ValType::I32);
+                    self.serialization_size_runtime(&mut some, opt, opt_value)?;
+                    some.id()
+                };
+                let none_instr = builder.dangling_instr_seq(ValType::I32).i32_const(0).id();
+
+                builder
+                    .local_get(*variant)
+                    .instr(IfElse {
+                        consequent: some_instr,
+                        alternative: none_instr,
+                    })
+                    .binop(BinaryOp::I32Add);
+            }
+            TypeSignature::ResponseType(resp) => {
+                // we have to check which variant we have, then compute the size according to it.
+                let Some((variant, resp_values)) = value.split_first() else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                let Some((ok_value, err_value)) =
+                    resp_values.split_at_checked(clar2wasm_ty(&resp.as_ref().0).len())
+                else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                let ok_instr = {
+                    let mut ok = builder.dangling_instr_seq(ValType::I32);
+                    self.serialization_size_runtime(&mut ok, &resp.as_ref().0, ok_value)?;
+                    ok.id()
+                };
+                let err_instr = {
+                    let mut err = builder.dangling_instr_seq(ValType::I32);
+                    self.serialization_size_runtime(&mut err, &resp.as_ref().1, err_value)?;
+                    err.id()
+                };
+
+                builder
+                    .local_get(*variant)
+                    .instr(IfElse {
+                        consequent: ok_instr,
+                        alternative: err_instr,
+                    })
+                    .binop(BinaryOp::I32Add);
+            }
+            TypeSignature::SequenceType(SequenceSubtype::ListType(ltd)) => {
+                // since the actual size isn't known at compile time, and the actual size of the elements
+                // might also need to be computed at runtime, we will have to go element by element to find the
+                // result.
+                let &[offset, length] = value else {
+                    return MISMATCHED_TYPE_VALUE(ty);
+                };
+                let current = self.borrow_local(ValType::I32);
+                let remaining = self.borrow_local(ValType::I32);
+                let ser_size = self.borrow_local(ValType::I32);
+
+                let loop_id = {
+                    let mut loop_ = builder.dangling_instr_seq(None);
+                    let loop_id = loop_.id();
+
+                    let elem_size =
+                        self.read_from_memory(&mut loop_, *current, 0, ltd.get_list_item_type())?;
+                    let elem_locals =
+                        self.save_to_locals(&mut loop_, ltd.get_list_item_type(), true);
+                    self.serialization_size_runtime(
+                        &mut loop_,
+                        ltd.get_list_item_type(),
+                        &elem_locals,
+                    )?;
+
+                    loop_
+                        .local_get(*ser_size)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*ser_size);
+
+                    loop_
+                        .local_get(*current)
+                        .i32_const(elem_size)
+                        .binop(BinaryOp::I32Add)
+                        .local_set(*current);
+
+                    loop_
+                        .local_get(*remaining)
+                        .i32_const(elem_size)
+                        .binop(BinaryOp::I32Sub)
+                        .local_tee(*remaining)
+                        .br_if(loop_id);
+
+                    loop_id
+                };
+
+                builder.local_get(length).if_else(
+                    Some(ValType::I32),
+                    |then| {
+                        then.local_set(*ser_size);
+                        then.local_get(offset).local_set(*current);
+                        then.local_get(length).local_tee(*remaining);
+                        then.instr(Loop { seq: loop_id });
+                        then.local_get(*ser_size);
+                    },
+                    |_else| {},
+                );
+            }
             TypeSignature::TupleType(_) => todo!(),
-            TypeSignature::NoType => todo!(),
             _ => unimplemented!(),
         }
         Ok(())
