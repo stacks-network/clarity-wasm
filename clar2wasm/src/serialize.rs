@@ -1248,7 +1248,22 @@ impl WasmGenerator {
                     |_else| {},
                 );
             }
-            TypeSignature::TupleType(_) => todo!(),
+            TypeSignature::TupleType(tup) => {
+                // we need to compute the serialization size of all elements in the tuple.
+                let mut remaining = value;
+                for elem_ty in tup.get_type_map().values() {
+                    let Some((elem, rest)) =
+                        remaining.split_at_checked(clar2wasm_ty(elem_ty).len())
+                    else {
+                        return MISMATCHED_TYPE_VALUE(ty);
+                    };
+                    remaining = rest;
+
+                    // we don't need the constant size, it was computed before.
+                    self.serialization_size_variable(builder, elem_ty, elem)?;
+                    builder.binop(BinaryOp::I32Add);
+                }
+            }
             _ => unimplemented!(),
         }
         Ok(())

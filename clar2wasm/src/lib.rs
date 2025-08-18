@@ -28,6 +28,9 @@ mod debug_msg;
 pub mod duck_type;
 mod error_mapping;
 
+#[cfg(test)]
+pub mod test_utils;
+
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1
 pub const BLOCK_LIMIT_MAINNET_21: ExecutionCost = ExecutionCost {
