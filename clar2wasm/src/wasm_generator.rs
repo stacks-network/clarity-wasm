@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -704,26 +703,37 @@ impl WasmGenerator {
         expr: &SymbolicExpression,
         runtime_error: ErrorMap,
     ) -> Result<(), GeneratorError> {
-        if let Some(block_id) = self.early_return_block_id {
-            builder.instr(walrus::ir::Br { block: block_id });
-            return Ok(());
-        }
-
-        match runtime_error {
-            ErrorMap::ShortReturnAssertionFailure
-            | ErrorMap::ShortReturnExpectedValue
-            | ErrorMap::ShortReturnExpectedValueResponse => {
+        match self.early_return_block_id {
+            Some(block_id) => {
+                builder.instr(walrus::ir::Br { block: block_id });
+                Ok(())
+            }
+            None => {
                 let ty = self
                     .get_expr_type(expr)
                     .ok_or_else(|| {
                         GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
                     })?
                     .clone();
+                self.short_return_error(builder, &ty, runtime_error)
+            }
+        }
+    }
 
-                let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
-                self.write_to_memory(builder, val_offset, 0, &ty)?;
+    pub(crate) fn short_return_error(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        ty: &TypeSignature,
+        runtime_error: ErrorMap,
+    ) -> Result<(), GeneratorError> {
+        match runtime_error {
+            ErrorMap::ShortReturnAssertionFailure
+            | ErrorMap::ShortReturnExpectedValue
+            | ErrorMap::ShortReturnExpectedValueResponse => {
+                let (val_offset, _) = self.create_call_stack_local(builder, ty, false, true);
+                self.write_to_memory(builder, val_offset, 0, ty)?;
 
-                let serialized_ty = self.type_for_serialization(&ty).to_string();
+                let serialized_ty = self.type_for_serialization(ty).to_string();
 
                 // Validate serialized type
                 signature_from_string(
@@ -737,7 +747,7 @@ impl WasmGenerator {
 
                 let (type_ser_offset, type_ser_len) =
                     self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
-                        data: serialized_ty.bytes().collect(),
+                        data: serialized_ty.into_bytes(),
                     }))?;
 
                 // Set runtime error globals
@@ -1409,10 +1419,11 @@ impl WasmGenerator {
             // saved, then drop that value.
             if let Some(ty) = self.get_expr_type(stmt) {
                 if let Some(last_ty) = &last_ty {
-                    drop_value(builder.borrow_mut(), last_ty);
+                    drop_value(builder, last_ty);
                 }
                 last_ty = Some(ty.clone());
             }
+            eprintln!("LAST TYPE: {last_ty:?}");
             self.traverse_expr(builder, stmt)?;
         }
 
