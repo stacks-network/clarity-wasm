@@ -1,12 +1,14 @@
 use clarity::vm::types::TypeSignature;
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{IfElse, UnaryOp};
+use walrus::ir::{Block, IfElse, InstrSeqType, UnaryOp};
 
 use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
-use crate::wasm_generator::{drop_value, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{
+    clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError, WasmGenerator,
+};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
 #[derive(Debug)]
@@ -36,16 +38,32 @@ impl ComplexWord for Begin {
 
         self.charge(generator, builder, 0)?;
 
+        let ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
+            .clone();
+        let wasm_ty = clar2wasm_ty(&ty);
+
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError("begin must have at least one arg".to_string())
             })?,
-            generator
-                .get_expr_type(expr)
-                .ok_or_else(|| GeneratorError::TypeError("begin must be typed".to_owned()))?
-                .clone(),
+            ty,
         )?;
-        generator.traverse_statement_list(builder, args)
+
+        let return_ty = InstrSeqType::new(&mut generator.module.types, &[], &wasm_ty);
+        let former_scope = generator.early_return_block_id;
+
+        let mut begin_scope = builder.dangling_instr_seq(return_ty);
+        let scope_id = begin_scope.id();
+        generator.early_return_block_id = Some(scope_id);
+
+        generator.traverse_statement_list(&mut begin_scope, args)?;
+
+        builder.instr(Block { seq: scope_id });
+        generator.early_return_block_id = former_scope;
+
+        Ok(())
     }
 }
 

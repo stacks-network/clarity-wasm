@@ -50,7 +50,7 @@ pub struct WasmGenerator {
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
-    early_return_block_id: Option<InstrSeqId>,
+    pub(crate) early_return_block_id: Option<InstrSeqId>,
     /// The type of the current function.
     pub(crate) current_function_type: Option<FixedFunction>,
     /// The types of defined data-vars
