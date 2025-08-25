@@ -1423,7 +1423,6 @@ impl WasmGenerator {
                 }
                 last_ty = Some(ty.clone());
             }
-            eprintln!("LAST TYPE: {last_ty:?}");
             self.traverse_expr(builder, stmt)?;
         }
 
