@@ -1666,10 +1666,10 @@ mod tests {
     #[test]
     fn try_something_in_fn_ok() {
         let snippet = "
-        (define-public (foo) 
+        (define-public (foo)
             (ok (try! (if true (ok true) (err u3))))
         )
-        
+
         (foo)
         ";
 
@@ -1679,13 +1679,69 @@ mod tests {
     #[test]
     fn try_something_in_fn_err() {
         let snippet = "
-        (define-public (foo) 
+        (define-public (foo)
             (ok (try! (if false (ok true) (err u3))))
         )
-        
+
         (foo)
         ";
 
         crosscheck(snippet, Ok(Some(Value::err_uint(3))));
+    }
+
+    #[test]
+    fn try_reponse_true() {
+        crosscheck(
+            "(try! (if true (ok true) (err u3)))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_stx_transfer() {
+        crosscheck(
+            "(try! (stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_nested_response_true() {
+        crosscheck(
+            "(try! (if true (ok (try! (if true (ok true) (err u3)))) (err false)))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_begin_nested() {
+        crosscheck(
+            "(begin (try! (if true (ok (try! (if true (ok true) (err u3)))) (err false))))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_reponse_inside_funtion() {
+        crosscheck(
+            "(define-public (foo) (ok (try! (if true (ok true) (err u3))))) (foo)",
+            Ok(Some(Value::okay_true())),
+        )
+    }
+
+    #[test]
+    fn try_begin_response_inside_function() {
+        crosscheck(
+            "(define-public (foo) (begin (+ 1 2) (ok (try! (if true (ok true) (err u3)))))) (foo)",
+            Ok(Some(Value::okay_true())),
+        )
+    }
+
+    #[test]
+    fn try_mint_ft() {
+        crosscheck(
+            "(define-fungible-token wasm-token) (try! (ft-mint? wasm-token u1000 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))",
+            Ok(Some(Value::Bool(true))),
+        )
     }
 }
