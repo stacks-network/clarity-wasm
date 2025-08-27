@@ -892,43 +892,16 @@ impl ComplexWord for Asserts {
         generator.set_expr_type(thrown, thrown_type.clone())?;
         generator.traverse_expr(builder, thrown)?;
 
-        match generator.early_return_block_id {
-            Some(block_id) => {
-                builder
-                    .local_get(predicate)
-                    .unop(UnaryOp::I32Eqz)
-                    .br_if(block_id);
-                drop_value(builder, &thrown_type);
-            }
-            None => {
-                let thrown_value = generator.save_to_locals(builder, &thrown_type, true);
+        let short_return_thrown = AssertionValue::new_any(
+            generator,
+            builder,
+            &thrown_type,
+            ErrorMap::ShortReturnAssertionFailure,
+        );
 
-                let throw_branch_id = {
-                    let mut throw_branch = builder.dangling_instr_seq(None);
-
-                    thrown_value.into_iter().for_each(|l| {
-                        throw_branch.local_get(l);
-                    });
-
-                    generator.short_return_error(
-                        &mut throw_branch,
-                        &thrown_type,
-                        ErrorMap::ShortReturnAssertionFailure,
-                    )?;
-
-                    throw_branch.id()
-                };
-                let empty_branch_id = builder.dangling_instr_seq(None).id();
-
-                builder
-                    .local_get(predicate)
-                    .unop(UnaryOp::I32Eqz)
-                    .instr(IfElse {
-                        consequent: throw_branch_id,
-                        alternative: empty_branch_id,
-                    });
-            }
-        }
+        short_return_thrown.short_return(generator, builder, |instrs| {
+            instrs.local_get(predicate).unop(UnaryOp::I32Eqz);
+        })?;
 
         builder.i32_const(1);
 
