@@ -7,33 +7,30 @@ use super::{ComplexWord, SimpleWord, Word};
 use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
-    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
+    add_placeholder_for_clarity_type, drop_value, ArgumentsExt, GeneratorError,
     SequenceElementType, WasmGenerator,
 };
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::{check_args, words};
 
-enum AssertionValue<'a> {
-    OptionVal {
+enum ShortReturnable<'a> {
+    Optional {
         inner_type: &'a TypeSignature,
-        variant: LocalId,
         value: Vec<LocalId>,
     },
-    ResponseVal {
-        ok_type: &'a TypeSignature,
+    Response {
         err_type: &'a TypeSignature,
-        variant: LocalId,
         ok_value: Vec<LocalId>,
         err_value: Vec<LocalId>,
     },
-    AnyVal {
+    Any {
         ty: &'a TypeSignature,
         value: Vec<LocalId>,
         err_kind: ErrorMap,
     },
 }
 
-impl<'a> AssertionValue<'a> {
+impl<'a> ShortReturnable<'a> {
     fn new(
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
@@ -45,9 +42,8 @@ impl<'a> AssertionValue<'a> {
                 let variant = generator.module.locals.add(ValType::I32);
                 builder.local_set(variant);
                 Ok((
-                    Self::OptionVal {
+                    Self::Optional {
                         inner_type: opt,
-                        variant,
                         value,
                     },
                     variant,
@@ -60,10 +56,8 @@ impl<'a> AssertionValue<'a> {
                 let variant = generator.module.locals.add(ValType::I32);
                 builder.local_set(variant);
                 Ok((
-                    Self::ResponseVal {
-                        ok_type,
+                    Self::Response {
                         err_type,
-                        variant,
                         ok_value,
                         err_value,
                     },
@@ -83,7 +77,7 @@ impl<'a> AssertionValue<'a> {
         err_kind: ErrorMap,
     ) -> Self {
         let value = generator.save_to_locals(builder, ty, true);
-        Self::AnyVal {
+        Self::Any {
             ty,
             value,
             err_kind,
@@ -92,20 +86,20 @@ impl<'a> AssertionValue<'a> {
 
     fn push_success_value(&self, builder: &mut InstrSeqBuilder) {
         match self {
-            AssertionValue::OptionVal { value, .. } => value.iter().for_each(|&l| {
+            ShortReturnable::Optional { value, .. } => value.iter().for_each(|&l| {
                 builder.local_get(l);
             }),
-            AssertionValue::ResponseVal { ok_value, .. } => ok_value.iter().for_each(|&l| {
+            ShortReturnable::Response { ok_value, .. } => ok_value.iter().for_each(|&l| {
                 builder.local_get(l);
             }),
-            AssertionValue::AnyVal { value, .. } => value.iter().for_each(|&l| {
+            ShortReturnable::Any { value, .. } => value.iter().for_each(|&l| {
                 builder.local_get(l);
             }),
         }
     }
 
     fn push_err_value(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
-        if let AssertionValue::ResponseVal { err_value, .. } = self {
+        if let ShortReturnable::Response { err_value, .. } = self {
             err_value.iter().for_each(|&l| {
                 builder.local_get(l);
             });
@@ -115,19 +109,21 @@ impl<'a> AssertionValue<'a> {
         }
     }
 
-    fn short_return(
+    fn handle_short_return(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
         condition: impl FnMut(&mut InstrSeqBuilder),
     ) -> Result<(), GeneratorError> {
         match generator.get_current_function_return_type() {
-            Some(return_ty) => self.short_return_function(generator, builder, return_ty, condition),
-            None => self.short_return_top_level(generator, builder, condition),
+            Some(return_ty) => {
+                self.handle_short_return_function(generator, builder, return_ty, condition)
+            }
+            None => self.handle_short_return_top_level(generator, builder, condition),
         }
     }
 
-    fn short_return_top_level(
+    fn handle_short_return_top_level(
         &self,
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
@@ -136,14 +132,14 @@ impl<'a> AssertionValue<'a> {
         let short_return_id = {
             let mut sr = builder.dangling_instr_seq(None);
             match self {
-                AssertionValue::OptionVal { inner_type, .. } => {
+                ShortReturnable::Optional { inner_type, .. } => {
                     generator.short_return_error(
                         &mut sr,
                         inner_type,
                         ErrorMap::ShortReturnExpectedValueOptional,
                     )?;
                 }
-                AssertionValue::ResponseVal {
+                ShortReturnable::Response {
                     err_type,
                     err_value,
                     ..
@@ -157,7 +153,7 @@ impl<'a> AssertionValue<'a> {
                         ErrorMap::ShortReturnExpectedValueResponse,
                     )?;
                 }
-                AssertionValue::AnyVal {
+                ShortReturnable::Any {
                     ty,
                     value,
                     err_kind,
@@ -182,7 +178,7 @@ impl<'a> AssertionValue<'a> {
         Ok(())
     }
 
-    fn short_return_function(
+    fn handle_short_return_function(
         &self,
         generator: &WasmGenerator,
         builder: &mut InstrSeqBuilder,
@@ -190,11 +186,11 @@ impl<'a> AssertionValue<'a> {
         mut condition: impl FnMut(&mut InstrSeqBuilder),
     ) -> Result<(), GeneratorError> {
         match self {
-            AssertionValue::OptionVal { inner_type, .. } => {
+            ShortReturnable::Optional { inner_type, .. } => {
                 builder.i32_const(0);
                 add_placeholder_for_clarity_type(builder, inner_type);
             }
-            AssertionValue::ResponseVal { err_value, .. } => {
+            ShortReturnable::Response { err_value, .. } => {
                 builder.i32_const(0);
                 let TypeSignature::ResponseType(expected_resp) = expected_type else {
                     return Err(GeneratorError::TypeError(format!(
@@ -207,7 +203,7 @@ impl<'a> AssertionValue<'a> {
                     builder.local_get(l);
                 }
             }
-            Self::AnyVal { value, .. } => {
+            Self::Any { value, .. } => {
                 for &l in value {
                     builder.local_get(l);
                 }
@@ -770,22 +766,23 @@ impl ComplexWord for Unwrap {
             .cloned()?;
 
         generator.traverse_expr(builder, input)?;
-        let (assertion_value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
+        let (short_returnable_input, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
 
         generator.traverse_expr(builder, throw)?;
 
-        let short_return_throw = AssertionValue::new_any(
+        let short_returnable_throw = ShortReturnable::new_any(
             generator,
             builder,
             &throw_ty,
             ErrorMap::ShortReturnExpectedValue,
         );
 
-        short_return_throw.short_return(generator, builder, |instrs| {
+        short_returnable_throw.handle_short_return(generator, builder, |instrs| {
             instrs.local_get(variant).unop(UnaryOp::I32Eqz);
         })?;
 
-        assertion_value.push_success_value(builder);
+        short_returnable_input.push_success_value(builder);
 
         Ok(())
     }
@@ -833,22 +830,23 @@ impl ComplexWord for UnwrapErr {
             .cloned()?;
 
         generator.traverse_expr(builder, input)?;
-        let (assertion_value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
+        let (short_returnable_input, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
 
         generator.traverse_expr(builder, throw)?;
 
-        let short_return_throw = AssertionValue::new_any(
+        let short_returnable_throw = ShortReturnable::new_any(
             generator,
             builder,
             dbg!(&throw_ty),
             ErrorMap::ShortReturnExpectedValue,
         );
 
-        short_return_throw.short_return(generator, builder, |instrs| {
+        short_returnable_throw.handle_short_return(generator, builder, |instrs| {
             instrs.local_get(variant);
         })?;
 
-        assertion_value.push_err_value(builder)?;
+        short_returnable_input.push_err_value(builder)?;
 
         Ok(())
     }
@@ -892,14 +890,14 @@ impl ComplexWord for Asserts {
         generator.set_expr_type(thrown, thrown_type.clone())?;
         generator.traverse_expr(builder, thrown)?;
 
-        let short_return_thrown = AssertionValue::new_any(
+        let short_returnable_thrown = ShortReturnable::new_any(
             generator,
             builder,
             &thrown_type,
             ErrorMap::ShortReturnAssertionFailure,
         );
 
-        short_return_thrown.short_return(generator, builder, |instrs| {
+        short_returnable_thrown.handle_short_return(generator, builder, |instrs| {
             instrs.local_get(predicate).unop(UnaryOp::I32Eqz);
         })?;
 
@@ -937,16 +935,17 @@ impl ComplexWord for Try {
 
         generator.traverse_expr(builder, input)?;
 
-        let (value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
+        let (short_returnable_value, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
 
         // if we are in a function and we have a none/err, we need to branch to the end of
         // the current scope. If we are at top level, we need to create a short return error.
-        value.short_return(generator, builder, |instrs| {
+        short_returnable_value.handle_short_return(generator, builder, |instrs| {
             instrs.local_get(variant).unop(UnaryOp::I32Eqz);
         })?;
 
         // otherwise, we push the success value to the stack.
-        value.push_success_value(builder);
+        short_returnable_value.push_success_value(builder);
 
         Ok(())
     }
