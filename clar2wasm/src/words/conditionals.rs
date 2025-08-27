@@ -13,7 +13,7 @@ use crate::wasm_generator::{
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::{check_args, words};
 
-enum AssertionValues<'a> {
+enum AssertionValue<'a> {
     OptionVal {
         inner_type: &'a TypeSignature,
         variant: LocalId,
@@ -26,24 +26,32 @@ enum AssertionValues<'a> {
         ok_value: Vec<LocalId>,
         err_value: Vec<LocalId>,
     },
+    AnyVal {
+        ty: &'a TypeSignature,
+        value: Vec<LocalId>,
+        err_kind: ErrorMap,
+    },
 }
 
-impl<'a> AssertionValues<'a> {
+impl<'a> AssertionValue<'a> {
     fn new(
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
         ty: &'a TypeSignature,
-    ) -> Result<Self, GeneratorError> {
+    ) -> Result<(Self, LocalId), GeneratorError> {
         match ty {
             TypeSignature::OptionalType(opt) => {
                 let value = generator.save_to_locals(builder, opt, true);
                 let variant = generator.module.locals.add(ValType::I32);
                 builder.local_set(variant);
-                Ok(Self::OptionVal {
-                    inner_type: opt,
+                Ok((
+                    Self::OptionVal {
+                        inner_type: opt,
+                        variant,
+                        value,
+                    },
                     variant,
-                    value,
-                })
+                ))
             }
             TypeSignature::ResponseType(resp) => {
                 let (ok_type, err_type) = resp.as_ref();
@@ -51,13 +59,16 @@ impl<'a> AssertionValues<'a> {
                 let ok_value = generator.save_to_locals(builder, ok_type, true);
                 let variant = generator.module.locals.add(ValType::I32);
                 builder.local_set(variant);
-                Ok(Self::ResponseVal {
-                    ok_type,
-                    err_type,
+                Ok((
+                    Self::ResponseVal {
+                        ok_type,
+                        err_type,
+                        variant,
+                        ok_value,
+                        err_value,
+                    },
                     variant,
-                    ok_value,
-                    err_value,
-                })
+                ))
             }
             _ => Err(GeneratorError::TypeError(format!(
                 "Invalid type for assertion: {ty}"
@@ -65,21 +76,42 @@ impl<'a> AssertionValues<'a> {
         }
     }
 
+    fn new_any(
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        ty: &'a TypeSignature,
+        err_kind: ErrorMap,
+    ) -> Self {
+        let value = generator.save_to_locals(builder, ty, true);
+        Self::AnyVal {
+            ty,
+            value,
+            err_kind,
+        }
+    }
+
     fn push_success_value(&self, builder: &mut InstrSeqBuilder) {
         match self {
-            AssertionValues::OptionVal { value, .. } => value.iter().for_each(|&l| {
+            AssertionValue::OptionVal { value, .. } => value.iter().for_each(|&l| {
                 builder.local_get(l);
             }),
-            AssertionValues::ResponseVal { ok_value, .. } => ok_value.iter().for_each(|&l| {
+            AssertionValue::ResponseVal { ok_value, .. } => ok_value.iter().for_each(|&l| {
+                builder.local_get(l);
+            }),
+            AssertionValue::AnyVal { value, .. } => value.iter().for_each(|&l| {
                 builder.local_get(l);
             }),
         }
     }
 
-    fn variant(&self) -> LocalId {
-        match self {
-            AssertionValues::OptionVal { variant, .. } => *variant,
-            AssertionValues::ResponseVal { variant, .. } => *variant,
+    fn push_err_value(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+        if let AssertionValue::ResponseVal { err_value, .. } = self {
+            err_value.iter().for_each(|&l| {
+                builder.local_get(l);
+            });
+            Ok(())
+        } else {
+            Err(GeneratorError::TypeError("Expected a response".to_owned()))
         }
     }
 
@@ -104,14 +136,14 @@ impl<'a> AssertionValues<'a> {
         let short_return_id = {
             let mut sr = builder.dangling_instr_seq(None);
             match self {
-                AssertionValues::OptionVal { inner_type, .. } => {
+                AssertionValue::OptionVal { inner_type, .. } => {
                     generator.short_return_error(
                         &mut sr,
                         inner_type,
                         ErrorMap::ShortReturnExpectedValueOptional,
                     )?;
                 }
-                AssertionValues::ResponseVal {
+                AssertionValue::ResponseVal {
                     err_type,
                     err_value,
                     ..
@@ -124,6 +156,16 @@ impl<'a> AssertionValues<'a> {
                         err_type,
                         ErrorMap::ShortReturnExpectedValueResponse,
                     )?;
+                }
+                AssertionValue::AnyVal {
+                    ty,
+                    value,
+                    err_kind,
+                } => {
+                    for &l in value {
+                        sr.local_get(l);
+                    }
+                    generator.short_return_error(&mut sr, ty, *err_kind)?;
                 }
             }
             sr.id()
@@ -147,12 +189,13 @@ impl<'a> AssertionValues<'a> {
         expected_type: &TypeSignature,
         mut condition: impl FnMut(&mut InstrSeqBuilder),
     ) -> Result<(), GeneratorError> {
-        builder.i32_const(0);
         match self {
-            AssertionValues::OptionVal { inner_type, .. } => {
+            AssertionValue::OptionVal { inner_type, .. } => {
+                builder.i32_const(0);
                 add_placeholder_for_clarity_type(builder, inner_type);
             }
-            AssertionValues::ResponseVal { err_value, .. } => {
+            AssertionValue::ResponseVal { err_value, .. } => {
+                builder.i32_const(0);
                 let TypeSignature::ResponseType(expected_resp) = expected_type else {
                     return Err(GeneratorError::TypeError(format!(
                         "Expected Response type in assertion, got {expected_type}"
@@ -161,6 +204,11 @@ impl<'a> AssertionValues<'a> {
                 let (expected_ok_type, _expected_err_type) = expected_resp.as_ref();
                 add_placeholder_for_clarity_type(builder, expected_ok_type);
                 for &l in err_value {
+                    builder.local_get(l);
+                }
+            }
+            Self::AnyVal { value, .. } => {
+                for &l in value {
                     builder.local_get(l);
                 }
             }
@@ -704,65 +752,41 @@ impl ComplexWord for Unwrap {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
-        generator.traverse_expr(builder, input)?;
+        let input_ty = generator
+            .get_expr_type(input)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
+            })
+            .cloned()?;
 
-        let throw_type = clar2wasm_ty(
-            generator
-                .get_expr_type(throw)
-                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        if let Some(ty) = generator.get_current_function_return_type().cloned() {
+            generator.set_expr_type(throw, ty)?;
+        }
+        let throw_ty = generator
+            .get_expr_type(throw)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Thrown value for unwrap! should be typed".to_owned())
+            })
+            .cloned()?;
+
+        generator.traverse_expr(builder, input)?;
+        let (assertion_value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
+
+        generator.traverse_expr(builder, throw)?;
+
+        let short_return_throw = AssertionValue::new_any(
+            generator,
+            builder,
+            &throw_ty,
+            ErrorMap::ShortReturnExpectedValue,
         );
 
-        let inner_type = match generator.get_expr_type(input) {
-            Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
-            Some(TypeSignature::ResponseType(inner_types)) => {
-                let (ok_type, err_type) = &**inner_types;
-                // Drop the err value;
-                drop_value(builder, err_type);
-                ok_type.clone()
-            }
-            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
-        };
+        short_return_throw.short_return(generator, builder, |instrs| {
+            instrs.local_get(variant).unop(UnaryOp::I32Eqz);
+        })?;
 
-        // stack [ discriminant some_val ]
-        let some_locals = generator.save_to_locals(builder, &inner_type, true);
+        assertion_value.push_success_value(builder);
 
-        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &throw_type,
-        ));
-
-        // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here. If the return
-        // type is not set, then we are not in a function, and the type can't
-        // be determined.
-        if let Some(return_ty) = generator.get_current_function_return_type() {
-            generator.set_expr_type(throw, return_ty.clone())?;
-        }
-        generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
-
-        let throw_branch_id = throw_branch.id();
-
-        // stack [ discriminant ]
-
-        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &clar2wasm_ty(&inner_type),
-        ));
-
-        // in unwrap we restore the value from the locals
-        for local in some_locals {
-            unwrap_branch.local_get(local);
-        }
-
-        let unwrap_branch_id = unwrap_branch.id();
-
-        builder.instr(ir::IfElse {
-            consequent: unwrap_branch_id,
-            alternative: throw_branch_id,
-        });
         Ok(())
     }
 }
@@ -791,72 +815,40 @@ impl ComplexWord for UnwrapErr {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
-        generator.traverse_expr(builder, input)?;
+        let input_ty = generator
+            .get_expr_type(input)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
+            })
+            .cloned()?;
 
-        let throw_type = clar2wasm_ty(
-            generator
-                .get_expr_type(throw)
-                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        if let Some(ty) = generator.get_current_function_return_type().cloned() {
+            generator.set_expr_type(throw, ty)?;
+        }
+        let throw_ty = generator
+            .get_expr_type(throw)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Thrown value for unwrap! should be typed".to_owned())
+            })
+            .cloned()?;
+
+        generator.traverse_expr(builder, input)?;
+        let (assertion_value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
+
+        generator.traverse_expr(builder, throw)?;
+
+        let short_return_throw = AssertionValue::new_any(
+            generator,
+            builder,
+            dbg!(&throw_ty),
+            ErrorMap::ShortReturnExpectedValue,
         );
 
-        let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
-            generator.get_expr_type(input)
-        {
-            (**inner_types).clone()
-        } else {
-            return Err(GeneratorError::TypeError(
-                "unwrap-error! only accepts response types".to_string(),
-            ));
-        };
+        short_return_throw.short_return(generator, builder, |instrs| {
+            instrs.local_get(variant);
+        })?;
 
-        // Save the err value
-        let err_locals = generator.save_to_locals(builder, &err_type, true);
-
-        // drop the ok value
-        drop_value(builder, &ok_type);
-
-        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &throw_type,
-        ));
-
-        // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here. If the return
-        // type is not set, then we are not in a function, and the type can't
-        // be determined.
-        if let Some(return_ty) = generator.get_current_function_return_type() {
-            generator.set_expr_type(throw, return_ty.clone())?;
-        }
-        generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
-
-        let throw_branch_id = throw_branch.id();
-
-        // stack [ discriminant ]
-
-        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &clar2wasm_ty(&err_type),
-        ));
-
-        // in unwrap we restore the value from the locals
-        for local in err_locals {
-            unwrap_branch.local_get(local);
-        }
-
-        let unwrap_branch_id = unwrap_branch.id();
-
-        builder
-            // invert the value
-            .i32_const(0)
-            .binop(ir::BinaryOp::I32Eq)
-            // conditionally branch
-            .instr(ir::IfElse {
-                consequent: unwrap_branch_id,
-                alternative: throw_branch_id,
-            });
+        assertion_value.push_err_value(builder)?;
 
         Ok(())
     }
@@ -972,12 +964,12 @@ impl ComplexWord for Try {
 
         generator.traverse_expr(builder, input)?;
 
-        let value = AssertionValues::new(generator, builder, &input_ty)?;
+        let (value, variant) = AssertionValue::new(generator, builder, &input_ty)?;
 
         // if we are in a function and we have a none/err, we need to branch to the end of
         // the current scope. If we are at top level, we need to create a short return error.
         value.short_return(generator, builder, |instrs| {
-            instrs.local_get(value.variant()).unop(UnaryOp::I32Eqz);
+            instrs.local_get(variant).unop(UnaryOp::I32Eqz);
         })?;
 
         // otherwise, we push the success value to the stack.
