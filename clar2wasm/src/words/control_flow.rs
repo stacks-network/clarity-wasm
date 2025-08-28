@@ -51,6 +51,7 @@ impl ComplexWord for Begin {
             ty,
         )?;
 
+        // we introdue a new scope for the functions that can return a ShortResult
         let return_ty = InstrSeqType::new(&mut generator.module.types, &[], &wasm_ty);
         let former_scope = generator.early_return_block_id;
 
@@ -60,6 +61,7 @@ impl ComplexWord for Begin {
 
         generator.traverse_statement_list(&mut begin_scope, args)?;
 
+        // we link the new scope to the previous one.
         builder.instr(Block { seq: scope_id });
         generator.early_return_block_id = former_scope;
 

@@ -668,58 +668,12 @@ impl WasmGenerator {
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    /// Handles early return scenarios in the code generation process.
+    /// Generates the wasm code for a ShortReturn error.
     ///
-    /// This function is responsible for managing early returns in the generated code,
-    /// used in the context of `try!`, `unwrap!`, `unwrap-err!` and `asserts!` functions.
-    /// It handles different types of runtime errors and generates appropriate
-    /// WebAssembly instructions for each case.
-    ///
-    /// # Arguments
-    ///
-    /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
-    ///   the WebAssembly instruction sequence.
-    /// * `expr` - A reference to the `SymbolicExpression` representing the expression
-    ///   that triggered the early return.
-    /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` if the early return is handled successfully, or a `GeneratorError`
-    /// if an error occurs during the process.
-    ///
-    /// # Behavior
-    ///
-    /// - If `early_return_block_id` is set, it will generate a branch instruction to that block.
-    /// - For `ShortReturnAssertionFailure`, `ShortReturnExpectedValue`, and `ShortReturnExpectedValueResponse`:
-    ///   - It generates code to create a local variable, write the value to memory,
-    ///     serialize the type, and set up global variables for the runtime error.
-    /// - For `ShortReturnExpectedValueOptional`, it directly calls the runtime error function.
-    /// - For any other error type, it returns an `InternalError`.
-    ///
-    pub fn return_early(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
-        runtime_error: ErrorMap,
-    ) -> Result<(), GeneratorError> {
-        match self.early_return_block_id {
-            Some(block_id) => {
-                builder.instr(walrus::ir::Br { block: block_id });
-                Ok(())
-            }
-            None => {
-                let ty = self
-                    .get_expr_type(expr)
-                    .ok_or_else(|| {
-                        GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
-                    })?
-                    .clone();
-                self.short_return_error(builder, &ty, runtime_error)
-            }
-        }
-    }
-
+    /// It takes for the `runtime_error`
+    /// argument either a [ErrorMap::ShortReturnAssertionFailure], a
+    /// [ErrorMap::ShortReturnExpectedValue], a [ErrorMap::ShortReturnExpectedValueResponse]
+    /// or a [ErrorMap::ShortReturnExpectedValueOptional].
     pub(crate) fn short_return_error(
         &mut self,
         builder: &mut InstrSeqBuilder,

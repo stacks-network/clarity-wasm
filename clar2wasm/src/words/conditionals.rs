@@ -13,16 +13,21 @@ use crate::wasm_generator::{
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::{check_args, words};
 
+/// Handles Wasm values that can be short-returned in functions such as
+/// `try!`, `asserts!`, or `unwrap!`.
 enum ShortReturnable<'a> {
+    /// Inner value of a wasm optional
     Optional {
         inner_type: &'a TypeSignature,
         value: Vec<LocalId>,
     },
+    /// Inner values of a wasm response
     Response {
         err_type: &'a TypeSignature,
         ok_value: Vec<LocalId>,
         err_value: Vec<LocalId>,
     },
+    /// Any kind of value in Wasm
     Any {
         ty: &'a TypeSignature,
         value: Vec<LocalId>,
@@ -31,6 +36,9 @@ enum ShortReturnable<'a> {
 }
 
 impl<'a> ShortReturnable<'a> {
+    /// Creates a handler for an optional or a response that could be short-returned.
+    ///
+    /// Returns the local containing the variant of the optional or response.
     fn new(
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
@@ -70,6 +78,12 @@ impl<'a> ShortReturnable<'a> {
         }
     }
 
+    /// Creates a handler for any value that could be short-returned.
+    ///
+    /// Takes as an argument the kind of [ErrorMap] that should be returned at short-return.
+    /// It should be one of [ErrorMap::ShortReturnAssertionFailure],
+    /// [ErrorMap::ShortReturnExpectedValue], [ErrorMap::ShortReturnExpectedValueResponse]
+    /// or [ErrorMap::ShortReturnExpectedValueOptional].
     fn new_any(
         generator: &mut WasmGenerator,
         builder: &mut InstrSeqBuilder,
@@ -84,6 +98,11 @@ impl<'a> ShortReturnable<'a> {
         }
     }
 
+    /// Push a value onto the stack:
+    ///
+    /// - the value inside `some` for an optional
+    /// - the value inside `ok` for a response
+    /// - the whole value otherwise
     fn push_success_value(&self, builder: &mut InstrSeqBuilder) {
         match self {
             ShortReturnable::Optional { value, .. } => value.iter().for_each(|&l| {
@@ -98,6 +117,9 @@ impl<'a> ShortReturnable<'a> {
         }
     }
 
+    /// Push the value contained inside the `err` of a response.
+    ///
+    /// Can fail if we don't have a response.
     fn push_err_value(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
         if let ShortReturnable::Response { err_value, .. } = self {
             err_value.iter().for_each(|&l| {
@@ -109,6 +131,7 @@ impl<'a> ShortReturnable<'a> {
         }
     }
 
+    /// Generates the handling of a ShortReturn error.
     fn handle_short_return(
         &self,
         generator: &mut WasmGenerator,
@@ -123,6 +146,9 @@ impl<'a> ShortReturnable<'a> {
         }
     }
 
+    /// Generates the handling of a ShortReturn error when we are not in a function.
+    ///
+    /// This is part of [ShortReturnable::handle_short_return] and shouldn't be used directly.
     fn handle_short_return_top_level(
         &self,
         generator: &mut WasmGenerator,
@@ -132,6 +158,7 @@ impl<'a> ShortReturnable<'a> {
         let short_return_id = {
             let mut sr = builder.dangling_instr_seq(None);
             match self {
+                // for an optional, nothing to do but short-return.
                 ShortReturnable::Optional { inner_type, .. } => {
                     generator.short_return_error(
                         &mut sr,
@@ -139,6 +166,7 @@ impl<'a> ShortReturnable<'a> {
                         ErrorMap::ShortReturnExpectedValueOptional,
                     )?;
                 }
+                // for a response, we need to push the value inside `err` to the stack then short-return.
                 ShortReturnable::Response {
                     err_type,
                     err_value,
@@ -153,6 +181,7 @@ impl<'a> ShortReturnable<'a> {
                         ErrorMap::ShortReturnExpectedValueResponse,
                     )?;
                 }
+                // for any other value, we push it to the stack then short-return.
                 ShortReturnable::Any {
                     ty,
                     value,
@@ -178,6 +207,9 @@ impl<'a> ShortReturnable<'a> {
         Ok(())
     }
 
+    /// Generates the handling of a ShortReturn error when we are in a function.
+    ///
+    /// This is part of [ShortReturnable::handle_short_return] and shouldn't be used directly.
     fn handle_short_return_function(
         &self,
         generator: &WasmGenerator,
@@ -186,10 +218,15 @@ impl<'a> ShortReturnable<'a> {
         mut condition: impl FnMut(&mut InstrSeqBuilder),
     ) -> Result<(), GeneratorError> {
         match self {
+            // for an optional, we need to push the full value to the stack
             ShortReturnable::Optional { inner_type, .. } => {
                 builder.i32_const(0);
                 add_placeholder_for_clarity_type(builder, inner_type);
             }
+            // for a response, we need to create the full value:
+            // - 0 for err
+            // - a placeholder for the ok value with the type of the function return type
+            // - the err value
             ShortReturnable::Response { err_value, .. } => {
                 builder.i32_const(0);
                 let TypeSignature::ResponseType(expected_resp) = expected_type else {
@@ -203,6 +240,7 @@ impl<'a> ShortReturnable<'a> {
                     builder.local_get(l);
                 }
             }
+            // for any value, we just push the value on the stack
             Self::Any { value, .. } => {
                 for &l in value {
                     builder.local_get(l);
@@ -216,9 +254,11 @@ impl<'a> ShortReturnable<'a> {
             )
         })?;
 
+        // we check if we should short-return, and if yes we br_if to the current early-return block id.
         condition(builder);
         builder.br_if(early_return_block_id);
 
+        // if we didn't short return, we need to drop the value that was pushed to the stack.
         drop_value(builder, expected_type);
 
         Ok(())
@@ -755,6 +795,8 @@ impl ComplexWord for Unwrap {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
+        // we need a workaround for the input: we need to make sure that the `some` or `ok` value
+        // will have the same type as the type of the whole expression.
         let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
             GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
         })? {
@@ -770,6 +812,7 @@ impl ComplexWord for Unwrap {
         };
         generator.set_expr_type(input, input_ty.clone())?;
 
+        // if we are in a function, we should make sure the thrown value is the same type as the return type.
         if let Some(ty) = generator.get_current_function_return_type().cloned() {
             generator.set_expr_type(throw, ty)?;
         }
@@ -781,11 +824,14 @@ impl ComplexWord for Unwrap {
             .cloned()?;
 
         generator.traverse_expr(builder, input)?;
+
+        // we save the input as a short-returnable by convenience: we have accesse to [ShortReturnable::push_success_value]
         let (short_returnable_input, variant) =
             ShortReturnable::new(generator, builder, &input_ty)?;
 
         generator.traverse_expr(builder, throw)?;
 
+        // we save the thrown value as a short returnable and handle a short-return
         let short_returnable_throw = ShortReturnable::new_any(
             generator,
             builder,
@@ -794,9 +840,11 @@ impl ComplexWord for Unwrap {
         );
 
         short_returnable_throw.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `none` or `err`
             instrs.local_get(variant).unop(UnaryOp::I32Eqz);
         })?;
 
+        // if we didn't short-return, we push the inner value of the input.
         short_returnable_input.push_success_value(builder);
 
         Ok(())
@@ -834,6 +882,8 @@ impl ComplexWord for UnwrapErr {
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
+        // we need a workaround for the input: we need to make sure that the `err` value
+        // will have the same type as the type of the whole expression.
         let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
             GeneratorError::TypeError("Input value for unwrap-err! should be typed".to_owned())
         })? {
@@ -848,6 +898,7 @@ impl ComplexWord for UnwrapErr {
         };
         generator.set_expr_type(input, input_ty.clone())?;
 
+        // if we are in a function, we should make sure the thrown value is the same type as the return type.
         if let Some(ty) = generator.get_current_function_return_type().cloned() {
             generator.set_expr_type(throw, ty)?;
         }
@@ -859,11 +910,14 @@ impl ComplexWord for UnwrapErr {
             .cloned()?;
 
         generator.traverse_expr(builder, input)?;
+
+        // we save the input as a short-returnable by convenience: we have accesse to [ShortReturnable::push_err_value]
         let (short_returnable_input, variant) =
             ShortReturnable::new(generator, builder, &input_ty)?;
 
         generator.traverse_expr(builder, throw)?;
 
+        // we save the thrown value as a short returnable and handle a short-return
         let short_returnable_throw = ShortReturnable::new_any(
             generator,
             builder,
@@ -872,9 +926,11 @@ impl ComplexWord for UnwrapErr {
         );
 
         short_returnable_throw.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `ok`
             instrs.local_get(variant);
         })?;
 
+        // if we didn't short-return, we push the `err` value of the input.
         short_returnable_input.push_err_value(builder)?;
 
         Ok(())
@@ -919,6 +975,7 @@ impl ComplexWord for Asserts {
         generator.set_expr_type(thrown, thrown_type.clone())?;
         generator.traverse_expr(builder, thrown)?;
 
+        // we save the thrown as a short-returnable, and we handle its short-return.
         let short_returnable_thrown = ShortReturnable::new_any(
             generator,
             builder,
@@ -927,9 +984,11 @@ impl ComplexWord for Asserts {
         );
 
         short_returnable_thrown.handle_short_return(generator, builder, |instrs| {
+            // we need to short return if predicate is false.
             instrs.local_get(predicate).unop(UnaryOp::I32Eqz);
         })?;
 
+        // if we didn't short-return, the result is always `true`
         builder.i32_const(1);
 
         Ok(())
@@ -964,16 +1023,16 @@ impl ComplexWord for Try {
 
         generator.traverse_expr(builder, input)?;
 
+        // we save the input as a short-returnable and handle the short-return
         let (short_returnable_value, variant) =
             ShortReturnable::new(generator, builder, &input_ty)?;
 
-        // if we are in a function and we have a none/err, we need to branch to the end of
-        // the current scope. If we are at top level, we need to create a short return error.
         short_returnable_value.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `none` or `err`
             instrs.local_get(variant).unop(UnaryOp::I32Eqz);
         })?;
 
-        // otherwise, we push the success value to the stack.
+        // if no short-return, we push the success value to the stack.
         short_returnable_value.push_success_value(builder);
 
         Ok(())

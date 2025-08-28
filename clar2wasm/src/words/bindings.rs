@@ -81,6 +81,7 @@ impl ComplexWord for Let {
             expr_ty,
         )?;
 
+        // we introdue a new scope for the functions that can return a ShortResult.
         let former_scope = generator.early_return_block_id;
         let mut let_scope = builder.dangling_instr_seq(return_ty);
         let scope_id = let_scope.id();
@@ -89,9 +90,10 @@ impl ComplexWord for Let {
         // Traverse the body
         generator.traverse_statement_list(&mut let_scope, &args[1..])?;
 
+        // we link the new scope to the previous one.
         builder.instr(Block { seq: scope_id });
 
-        // Restore the named locals
+        // Restore the named locals and previous scope.
         generator.bindings = saved_locals;
         generator.early_return_block_id = former_scope;
 
