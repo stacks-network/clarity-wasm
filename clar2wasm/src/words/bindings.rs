@@ -103,10 +103,8 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        errors::{Error, ShortReturnType},
-        Value,
-    };
+    use clarity::vm::errors::{Error, ShortReturnType};
+    use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
 

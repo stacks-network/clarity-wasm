@@ -143,9 +143,9 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (unwrap! (if true (err {err_val}) (ok {ok_val})) {throw_val})
-            ) 
+            )
             (foo)
         ");
 
@@ -162,9 +162,9 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t)))
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (unwrap! (if true none (some {some_val})) {throw_val})
-            ) 
+            )
             (foo)
         ");
 
@@ -184,7 +184,7 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!(r#"
-            (begin 
+            (begin
                 (unwrap! (some {some_val}) {throw_val})
                 {val}
             )
@@ -206,7 +206,7 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!(r#"
-            (begin 
+            (begin
                 (unwrap! (if true none (some {some_val})) {throw_val})
                 {val}
             )
@@ -231,7 +231,7 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!(r#"
-            (begin 
+            (begin
                 (unwrap! (ok {ok_val}) {throw_val})
                 {val}
             )
@@ -254,7 +254,7 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!(r#"
-            (begin 
+            (begin
                 (unwrap! (if true (err {err_val}) (ok {ok_val})) {throw_val})
                 {val}
             )
@@ -276,12 +276,12 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (begin
                     (unwrap! (if true (err {err_val}) (ok {ok_val})) {throw_val})
                     {val}
                 )
-            ) 
+            )
             (foo)
         ");
 
@@ -301,12 +301,12 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t)))
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (begin
                     (unwrap! (if true none (some {some_val})) {throw_val})
                     {val}
                 )
-            ) 
+            )
             (foo)
         ");
 
@@ -361,9 +361,9 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t)))
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
-            ) 
+            )
             (foo)
         ");
 
@@ -381,9 +381,9 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
-            ) 
+            )
             (foo)
         ");
 
@@ -453,12 +453,12 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (begin
                     (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
                     {val}
                 )
-            ) 
+            )
             (foo)
         ");
 
@@ -479,12 +479,12 @@ proptest! {
             .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
     ) {
         let snippet = format!("
-            (define-private (foo) 
+            (define-private (foo)
                 (begin
                     (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
                     {val}
                 )
-            ) 
+            )
             (foo)
         ");
 
