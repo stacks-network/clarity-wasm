@@ -500,17 +500,108 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn crosscheck_asserts_boolean(bool in any::<bool>(), val in PropValue::any()) {
-        let expected = if bool {
-            Ok(Some(Value::Bool(bool)))
-        } else {
-            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(Value::from(val.clone()))))
-        };
+    fn asserts_true(throw_val in PropValue::any()) {
+        crosscheck(
+            &format!("(asserts! true {throw_val})"),
+            Ok(Some(Value::Bool(true))),
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn asserts_false(throw_val in PropValue::any()) {
+        crosscheck(
+            &format!("(asserts! false {throw_val})"),
+            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(Value::from(throw_val)))),
+        );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn asserts_with_begin_true(
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (begin
+                (asserts! true {throw_val})
+                {val}
+            )
+        ");
+
+        crosscheck(&snippet, Ok(Some(val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn asserts_with_begin_false(
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (begin
+                (asserts! false {throw_val})
+                {val}
+            )
+        ");
 
         crosscheck(
-            &format!("(asserts! {bool} {val})"),
-            expected
+            &snippet,
+            Err(Error::ShortReturn(ShortReturnType::AssertionFailed(Value::from(throw_val)))),
         );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn asserts_in_function_true(
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (define-private (foo)
+                (begin
+                    (asserts! true {throw_val})
+                    {val}
+                )
+            )
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn asserts_in_function_false(
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (define-private (foo)
+                (begin
+                    (asserts! false {throw_val})
+                    {val}
+                )
+            )
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(throw_val.into())));
     }
 }
 
