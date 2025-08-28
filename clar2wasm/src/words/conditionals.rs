@@ -738,22 +738,37 @@ impl ComplexWord for Unwrap {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         self.charge(generator, builder, 0)?;
 
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Unwrap expression should have a type".to_owned())
+            })
+            .cloned()?;
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
-        let input_ty = generator
-            .get_expr_type(input)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
-            })
-            .cloned()?;
+        let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
+            GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
+        })? {
+            TypeSignature::OptionalType(_) => TypeSignature::OptionalType(Box::new(expr_ty)),
+            TypeSignature::ResponseType(resp) => {
+                TypeSignature::ResponseType(Box::new((expr_ty, resp.as_ref().1.clone())))
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "Unwrap expects an optional or response input".to_owned(),
+                ))
+            }
+        };
+        generator.set_expr_type(input, input_ty.clone())?;
 
         if let Some(ty) = generator.get_current_function_return_type().cloned() {
             generator.set_expr_type(throw, ty)?;
@@ -802,22 +817,36 @@ impl ComplexWord for UnwrapErr {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         self.charge(generator, builder, 0)?;
 
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Unwrap-err expression should have a type".to_owned())
+            })
+            .cloned()?;
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
-        let input_ty = generator
-            .get_expr_type(input)
-            .ok_or_else(|| {
-                GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
-            })
-            .cloned()?;
+        let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
+            GeneratorError::TypeError("Input value for unwrap-err! should be typed".to_owned())
+        })? {
+            TypeSignature::ResponseType(resp) => {
+                TypeSignature::ResponseType(Box::new((resp.as_ref().0.clone(), expr_ty)))
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "Unwrap-err expects a response input".to_owned(),
+                ))
+            }
+        };
+        generator.set_expr_type(input, input_ty.clone())?;
 
         if let Some(ty) = generator.get_current_function_return_type().cloned() {
             generator.set_expr_type(throw, ty)?;
@@ -825,7 +854,7 @@ impl ComplexWord for UnwrapErr {
         let throw_ty = generator
             .get_expr_type(throw)
             .ok_or_else(|| {
-                GeneratorError::TypeError("Thrown value for unwrap! should be typed".to_owned())
+                GeneratorError::TypeError("Thrown value for unwrap-err! should be typed".to_owned())
             })
             .cloned()?;
 
@@ -838,7 +867,7 @@ impl ComplexWord for UnwrapErr {
         let short_returnable_throw = ShortReturnable::new_any(
             generator,
             builder,
-            dbg!(&throw_ty),
+            &throw_ty,
             ErrorMap::ShortReturnExpectedValue,
         );
 
@@ -1668,5 +1697,41 @@ mod tests {
             "(define-fungible-token wasm-token) (try! (ft-mint? wasm-token u1000 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))",
             Ok(Some(Value::Bool(true))),
         )
+    }
+
+    #[test]
+    fn unwrap_needs_workaround_optional() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap! (if true none (some none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn unwrap_needs_workaround_response() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap! (if true (err none) (ok none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn unwrap_err_needs_workaround() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap-err! (if true (ok none) (err none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
     }
 }
