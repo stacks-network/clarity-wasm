@@ -322,12 +322,18 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn unwrap_err_response_ok_inside_function(val in PropValue::any()) {
-        let snippet = format!("(define-private (foo) (unwrap-err! (if true (ok 1) (err {val})) {val})) (foo)");
+    fn unwrap_err_response_ok(
+        ok_val in PropValue::any(),
+        (err_val, throw_val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t)))
+    ) {
+        let snippet = format!("
+            (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
+        ");
 
         crosscheck(
             &snippet,
-            Ok(Some(val.into()))
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::from(throw_val))))
         );
     }
 }
@@ -336,13 +342,157 @@ proptest! {
     #![proptest_config(super::runtime_config())]
 
     #[test]
-    fn unwrap_err_response_err_inside_function(val in PropValue::any()) {
-        let snippet = format!("(define-private (foo) (unwrap-err! (if false (ok 1) (err {val})) {val})) (foo)");
+    fn unwrap_err_response_err(
+        ok_val in PropValue::any(),
+        (err_val, throw_val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
+        ");
+
+        crosscheck(&snippet, Ok(Some(err_val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_ok_inside_function(
+        ok_val in PropValue::any(),
+        (err_val, throw_val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t)))
+    ) {
+        let snippet = format!("
+            (define-private (foo) 
+                (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
+            ) 
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(throw_val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_err_inside_function(
+        ok_val in PropValue::any(),
+        (err_val, throw_val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (define-private (foo) 
+                (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
+            ) 
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(err_val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_ok_with_begin(
+        ok_val in PropValue::any(),
+        err_val in PropValue::any().prop_filter("avoid intermediary unchecked responses", |v| {
+            !matches!(v, PropValue(Value::Response(_)))
+        }),
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (begin
+                (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
+                {val}
+            )
+        ");
 
         crosscheck(
             &snippet,
-            Ok(Some(val.into()))
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(Value::from(throw_val))))
         );
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_err_with_begin(
+        ok_val in PropValue::any(),
+        err_val in PropValue::any().prop_filter("avoid intermediary unchecked responses", |v| {
+            !matches!(v, PropValue(Value::Response(_)))
+        }),
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (begin
+                (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
+                {val}
+            )
+        ");
+
+        crosscheck(&snippet, Ok(Some(val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_ok_inside_function_with_begin(
+        ok_val in PropValue::any(),
+        err_val in PropValue::any().prop_filter("avoid intermediary unchecked responses", |v| {
+            !matches!(v, PropValue(Value::Response(_)))
+        }),
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (define-private (foo) 
+                (begin
+                    (unwrap-err! (if true (ok {ok_val}) (err {err_val})) {throw_val})
+                    {val}
+                )
+            ) 
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(throw_val.into())));
+    }
+}
+
+proptest! {
+    #![proptest_config(super::runtime_config())]
+
+    #[test]
+    fn unwrap_err_response_err_inside_function_with_begin(
+        ok_val in PropValue::any(),
+        err_val in PropValue::any().prop_filter("avoid intermediary unchecked responses", |v| {
+            !matches!(v, PropValue(Value::Response(_)))
+        }),
+        (throw_val, val) in prop_signature()
+            .prop_flat_map(|t| (PropValue::from_type(t.clone()), PropValue::from_type(t))),
+    ) {
+        let snippet = format!("
+            (define-private (foo) 
+                (begin
+                    (unwrap-err! (if false (ok {ok_val}) (err {err_val})) {throw_val})
+                    {val}
+                )
+            ) 
+            (foo)
+        ");
+
+        crosscheck(&snippet, Ok(Some(val.into())));
     }
 }
 
