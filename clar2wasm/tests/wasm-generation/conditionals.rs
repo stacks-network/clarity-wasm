@@ -1,12 +1,8 @@
 use clar2wasm::tools::{crosscheck, crosscheck_compare_only};
 use clarity::vm::errors::{Error, ShortReturnType};
-use clarity::vm::types::{
-    ListTypeData, ResponseData, SequenceData, SequenceSubtype, TypeSignature,
-};
+use clarity::vm::types::{ListTypeData, SequenceData, SequenceSubtype, TypeSignature};
 use clarity::vm::Value;
-use proptest::prelude::any;
-use proptest::proptest;
-use proptest::strategy::{Just, Strategy};
+use proptest::prelude::*;
 
 use crate::{prop_signature, type_string, PropValue};
 
