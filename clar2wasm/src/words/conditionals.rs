@@ -235,7 +235,7 @@ impl<'a> ShortReturnable<'a> {
                     )));
                 };
                 let (expected_ok_type, _expected_err_type) = expected_resp.as_ref();
-                add_placeholder_for_clarity_type(builder, expected_ok_type);
+                add_placeholder_for_clarity_type(builder, dbg!(expected_ok_type));
                 for &l in err_value {
                     builder.local_get(l);
                 }
@@ -1792,5 +1792,22 @@ mod tests {
         ";
 
         crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn nested_begin_with_try() {
+        let snippet = r#"
+            (define-private (foo)
+                (begin
+                    (begin
+                        (try! (if false (ok "hello") (err u5555)))
+                    )
+                    (ok true)
+                )
+            )
+            (foo)
+        "#;
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(5555))));
     }
 }

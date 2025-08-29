@@ -1,9 +1,8 @@
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{Block, InstrSeqType};
 
 use crate::check_args;
 use crate::cost::WordCharge;
-use crate::wasm_generator::{clar2wasm_ty, ArgumentsExt, GeneratorError, WasmGenerator};
+use crate::wasm_generator::{ArgumentsExt, GeneratorError, WasmGenerator};
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::words::{ComplexWord, Word};
 
@@ -69,9 +68,6 @@ impl ComplexWord for Let {
             .ok_or_else(|| GeneratorError::TypeError("let expression should be typed".to_owned()))?
             .clone();
 
-        let return_ty =
-            InstrSeqType::new(&mut generator.module.types, &[], &clar2wasm_ty(&expr_ty));
-
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError(
@@ -81,21 +77,11 @@ impl ComplexWord for Let {
             expr_ty,
         )?;
 
-        // we introdue a new scope for the functions that can return a ShortResult.
-        let former_scope = generator.early_return_block_id;
-        let mut let_scope = builder.dangling_instr_seq(return_ty);
-        let scope_id = let_scope.id();
-        generator.early_return_block_id = Some(scope_id);
-
         // Traverse the body
-        generator.traverse_statement_list(&mut let_scope, &args[1..])?;
+        generator.traverse_statement_list(builder, &args[1..])?;
 
-        // we link the new scope to the previous one.
-        builder.instr(Block { seq: scope_id });
-
-        // Restore the named locals and previous scope.
+        // Restore the named locals.
         generator.bindings = saved_locals;
-        generator.early_return_block_id = former_scope;
 
         Ok(())
     }
