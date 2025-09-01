@@ -67,6 +67,7 @@ impl ComplexWord for Let {
             .get_expr_type(_expr)
             .ok_or_else(|| GeneratorError::TypeError("let expression should be typed".to_owned()))?
             .clone();
+
         generator.set_expr_type(
             args.last().ok_or_else(|| {
                 GeneratorError::TypeError(
@@ -79,7 +80,7 @@ impl ComplexWord for Let {
         // Traverse the body
         generator.traverse_statement_list(builder, &args[1..])?;
 
-        // Restore the named locals
+        // Restore the named locals.
         generator.bindings = saved_locals;
 
         Ok(())
@@ -88,6 +89,7 @@ impl ComplexWord for Let {
 
 #[cfg(test)]
 mod tests {
+    use clarity::vm::errors::{Error, ShortReturnType};
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, crosscheck_compare_only, crosscheck_expect_failure, evaluate};
@@ -168,5 +170,78 @@ mod tests {
 
         // Custom variable name duplicate
         crosscheck_expect_failure("(let ((a 2) (a 3)) (+ a a))");
+    }
+
+    #[test]
+    fn let_with_try_ok() {
+        let snippet = r#"
+            (let
+                ( (ok-val true) (err-no u42) )
+                (try! (if true (ok ok-val) (err err-no)))
+                "result"
+            )
+        "#;
+
+        crosscheck(
+            snippet,
+            Ok(Some(
+                Value::string_ascii_from_bytes(b"result".to_vec()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn let_with_try_err() {
+        let snippet = r#"
+            (let
+                ( (ok-val true) (err-no u42) )
+                (try! (if false (ok ok-val) (err err-no)))
+                "result"
+            )
+        "#;
+
+        crosscheck(
+            snippet,
+            Err(Error::ShortReturn(ShortReturnType::ExpectedValue(
+                Value::err_uint(42),
+            ))),
+        );
+    }
+
+    #[test]
+    fn let_with_try_in_function_ok() {
+        let snippet = r#"
+            (define-private (foo)
+                (let
+                    ( (ok-val true) (err-no u42) )
+                    (try! (if true (ok ok-val) (err err-no)))
+                    (ok "result")
+                )
+            )
+            (foo)
+        "#;
+
+        crosscheck(
+            snippet,
+            Ok(Some(
+                Value::okay(Value::string_ascii_from_bytes(b"result".to_vec()).unwrap()).unwrap(),
+            )),
+        );
+    }
+
+    #[test]
+    fn let_with_try_in_function_err() {
+        let snippet = r#"
+            (define-private (foo)
+                (let
+                    ( (ok-val true) (err-no u42) )
+                    (try! (if false (ok ok-val) (err err-no)))
+                    (ok "result")
+                )
+            )
+            (foo)
+        "#;
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(42))));
     }
 }

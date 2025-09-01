@@ -1,17 +1,269 @@
 use clarity::vm::types::{FixedFunction, FunctionType, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{self, InstrSeqType, Loop};
-use walrus::ValType;
+use walrus::ir::{self, IfElse, InstrSeqType, Loop, UnaryOp};
+use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::{ComplexWord, SimpleWord, Word};
 use crate::cost::WordCharge;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
-    add_placeholder_for_clarity_type, clar2wasm_ty, drop_value, ArgumentsExt, GeneratorError,
+    add_placeholder_for_clarity_type, drop_value, ArgumentsExt, GeneratorError,
     SequenceElementType, WasmGenerator,
 };
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 use crate::{check_args, words};
+
+/// Handles Wasm values that can be short-returned in functions such as
+/// `try!`, `asserts!`, or `unwrap!`.
+enum ShortReturnable<'a> {
+    /// Inner value of a wasm optional
+    Optional {
+        inner_type: &'a TypeSignature,
+        value: Vec<LocalId>,
+    },
+    /// Inner values of a wasm response
+    Response {
+        err_type: &'a TypeSignature,
+        ok_value: Vec<LocalId>,
+        err_value: Vec<LocalId>,
+    },
+    /// Any kind of value in Wasm
+    Any {
+        ty: &'a TypeSignature,
+        value: Vec<LocalId>,
+        err_kind: ErrorMap,
+    },
+}
+
+impl<'a> ShortReturnable<'a> {
+    /// Creates a handler for an optional or a response that could be short-returned.
+    ///
+    /// Returns the local containing the variant of the optional or response.
+    fn new(
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        ty: &'a TypeSignature,
+    ) -> Result<(Self, LocalId), GeneratorError> {
+        match ty {
+            TypeSignature::OptionalType(opt) => {
+                let value = generator.save_to_locals(builder, opt, true);
+                let variant = generator.module.locals.add(ValType::I32);
+                builder.local_set(variant);
+                Ok((
+                    Self::Optional {
+                        inner_type: opt,
+                        value,
+                    },
+                    variant,
+                ))
+            }
+            TypeSignature::ResponseType(resp) => {
+                let (ok_type, err_type) = resp.as_ref();
+                let err_value = generator.save_to_locals(builder, err_type, true);
+                let ok_value = generator.save_to_locals(builder, ok_type, true);
+                let variant = generator.module.locals.add(ValType::I32);
+                builder.local_set(variant);
+                Ok((
+                    Self::Response {
+                        err_type,
+                        ok_value,
+                        err_value,
+                    },
+                    variant,
+                ))
+            }
+            _ => Err(GeneratorError::TypeError(format!(
+                "Invalid type for assertion: {ty}"
+            ))),
+        }
+    }
+
+    /// Creates a handler for any value that could be short-returned.
+    ///
+    /// Takes as an argument the kind of [ErrorMap] that should be returned at short-return.
+    /// It should be one of [ErrorMap::ShortReturnAssertionFailure],
+    /// [ErrorMap::ShortReturnExpectedValue], [ErrorMap::ShortReturnExpectedValueResponse]
+    /// or [ErrorMap::ShortReturnExpectedValueOptional].
+    fn new_any(
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        ty: &'a TypeSignature,
+        err_kind: ErrorMap,
+    ) -> Self {
+        let value = generator.save_to_locals(builder, ty, true);
+        Self::Any {
+            ty,
+            value,
+            err_kind,
+        }
+    }
+
+    /// Push a value onto the stack:
+    ///
+    /// - the value inside `some` for an optional
+    /// - the value inside `ok` for a response
+    /// - the whole value otherwise
+    fn push_success_value(&self, builder: &mut InstrSeqBuilder) {
+        match self {
+            ShortReturnable::Optional { value, .. } => value.iter().for_each(|&l| {
+                builder.local_get(l);
+            }),
+            ShortReturnable::Response { ok_value, .. } => ok_value.iter().for_each(|&l| {
+                builder.local_get(l);
+            }),
+            ShortReturnable::Any { value, .. } => value.iter().for_each(|&l| {
+                builder.local_get(l);
+            }),
+        }
+    }
+
+    /// Push the value contained inside the `err` of a response.
+    ///
+    /// Can fail if we don't have a response.
+    fn push_err_value(&self, builder: &mut InstrSeqBuilder) -> Result<(), GeneratorError> {
+        if let ShortReturnable::Response { err_value, .. } = self {
+            err_value.iter().for_each(|&l| {
+                builder.local_get(l);
+            });
+            Ok(())
+        } else {
+            Err(GeneratorError::TypeError("Expected a response".to_owned()))
+        }
+    }
+
+    /// Generates the handling of a ShortReturn error.
+    fn handle_short_return(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        condition: impl FnMut(&mut InstrSeqBuilder),
+    ) -> Result<(), GeneratorError> {
+        match generator.get_current_function_return_type() {
+            Some(return_ty) => {
+                self.handle_short_return_function(generator, builder, return_ty, condition)
+            }
+            None => self.handle_short_return_top_level(generator, builder, condition),
+        }
+    }
+
+    /// Generates the handling of a ShortReturn error when we are not in a function.
+    ///
+    /// This is part of [ShortReturnable::handle_short_return] and shouldn't be used directly.
+    fn handle_short_return_top_level(
+        &self,
+        generator: &mut WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        mut condition: impl FnMut(&mut InstrSeqBuilder),
+    ) -> Result<(), GeneratorError> {
+        let short_return_id = {
+            let mut sr = builder.dangling_instr_seq(None);
+            match self {
+                // for an optional, nothing to do but short-return.
+                ShortReturnable::Optional { inner_type, .. } => {
+                    generator.short_return_error(
+                        &mut sr,
+                        inner_type,
+                        ErrorMap::ShortReturnExpectedValueOptional,
+                    )?;
+                }
+                // for a response, we need to push the value inside `err` to the stack then short-return.
+                ShortReturnable::Response {
+                    err_type,
+                    err_value,
+                    ..
+                } => {
+                    for &l in err_value {
+                        sr.local_get(l);
+                    }
+                    generator.short_return_error(
+                        &mut sr,
+                        err_type,
+                        ErrorMap::ShortReturnExpectedValueResponse,
+                    )?;
+                }
+                // for any other value, we push it to the stack then short-return.
+                ShortReturnable::Any {
+                    ty,
+                    value,
+                    err_kind,
+                } => {
+                    for &l in value {
+                        sr.local_get(l);
+                    }
+                    generator.short_return_error(&mut sr, ty, *err_kind)?;
+                }
+            }
+            sr.id()
+        };
+
+        let empty_id = builder.dangling_instr_seq(None).id();
+
+        condition(builder);
+        builder.instr(IfElse {
+            consequent: short_return_id,
+            alternative: empty_id,
+        });
+
+        Ok(())
+    }
+
+    /// Generates the handling of a ShortReturn error when we are in a function.
+    ///
+    /// This is part of [ShortReturnable::handle_short_return] and shouldn't be used directly.
+    fn handle_short_return_function(
+        &self,
+        generator: &WasmGenerator,
+        builder: &mut InstrSeqBuilder,
+        expected_type: &TypeSignature,
+        mut condition: impl FnMut(&mut InstrSeqBuilder),
+    ) -> Result<(), GeneratorError> {
+        match self {
+            // for an optional, we need to push the full value to the stack
+            ShortReturnable::Optional { inner_type, .. } => {
+                builder.i32_const(0);
+                add_placeholder_for_clarity_type(builder, inner_type);
+            }
+            // for a response, we need to create the full value:
+            // - 0 for err
+            // - a placeholder for the ok value with the type of the function return type
+            // - the err value
+            ShortReturnable::Response { err_value, .. } => {
+                builder.i32_const(0);
+                let TypeSignature::ResponseType(expected_resp) = expected_type else {
+                    return Err(GeneratorError::TypeError(format!(
+                        "Expected Response type in assertion, got {expected_type}"
+                    )));
+                };
+                let (expected_ok_type, _expected_err_type) = expected_resp.as_ref();
+                add_placeholder_for_clarity_type(builder, dbg!(expected_ok_type));
+                for &l in err_value {
+                    builder.local_get(l);
+                }
+            }
+            // for any value, we just push the value on the stack
+            Self::Any { value, .. } => {
+                for &l in value {
+                    builder.local_get(l);
+                }
+            }
+        }
+
+        let early_return_block_id = generator.early_return_block_id.ok_or_else(|| {
+            GeneratorError::InternalError(
+                "Expected a block id for returning after an assertion".to_owned(),
+            )
+        })?;
+
+        // we check if we should short-return, and if yes we br_if to the current early-return block id.
+        condition(builder);
+        builder.br_if(early_return_block_id);
+
+        // if we didn't short return, we need to drop the value that was pushed to the stack.
+        drop_value(builder, expected_type);
+
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub struct If;
@@ -526,75 +778,75 @@ impl ComplexWord for Unwrap {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         self.charge(generator, builder, 0)?;
 
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Unwrap expression should have a type".to_owned())
+            })
+            .cloned()?;
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
+        // we need a workaround for the input: we need to make sure that the `some` or `ok` value
+        // will have the same type as the type of the whole expression.
+        let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
+            GeneratorError::TypeError("Input value for unwrap! should be typed".to_owned())
+        })? {
+            TypeSignature::OptionalType(_) => TypeSignature::OptionalType(Box::new(expr_ty)),
+            TypeSignature::ResponseType(resp) => {
+                TypeSignature::ResponseType(Box::new((expr_ty, resp.as_ref().1.clone())))
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "Unwrap expects an optional or response input".to_owned(),
+                ))
+            }
+        };
+        generator.set_expr_type(input, input_ty.clone())?;
+
+        // if we are in a function, we should make sure the thrown value is the same type as the return type.
+        if let Some(ty) = generator.get_current_function_return_type().cloned() {
+            generator.set_expr_type(throw, ty)?;
+        }
+        let throw_ty = generator
+            .get_expr_type(throw)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Thrown value for unwrap! should be typed".to_owned())
+            })
+            .cloned()?;
+
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(
-            generator
-                .get_expr_type(throw)
-                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        // we save the input as a short-returnable by convenience: we have accesse to [ShortReturnable::push_success_value]
+        let (short_returnable_input, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
+
+        generator.traverse_expr(builder, throw)?;
+
+        // we save the thrown value as a short returnable and handle a short-return
+        let short_returnable_throw = ShortReturnable::new_any(
+            generator,
+            builder,
+            &throw_ty,
+            ErrorMap::ShortReturnExpectedValue,
         );
 
-        let inner_type = match generator.get_expr_type(input) {
-            Some(TypeSignature::OptionalType(inner_type)) => (**inner_type).clone(),
-            Some(TypeSignature::ResponseType(inner_types)) => {
-                let (ok_type, err_type) = &**inner_types;
-                // Drop the err value;
-                drop_value(builder, err_type);
-                ok_type.clone()
-            }
-            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
-        };
+        short_returnable_throw.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `none` or `err`
+            instrs.local_get(variant).unop(UnaryOp::I32Eqz);
+        })?;
 
-        // stack [ discriminant some_val ]
-        let some_locals = generator.save_to_locals(builder, &inner_type, true);
+        // if we didn't short-return, we push the inner value of the input.
+        short_returnable_input.push_success_value(builder);
 
-        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &throw_type,
-        ));
-
-        // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here. If the return
-        // type is not set, then we are not in a function, and the type can't
-        // be determined.
-        if let Some(return_ty) = generator.get_current_function_return_type() {
-            generator.set_expr_type(throw, return_ty.clone())?;
-        }
-        generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
-
-        let throw_branch_id = throw_branch.id();
-
-        // stack [ discriminant ]
-
-        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &clar2wasm_ty(&inner_type),
-        ));
-
-        // in unwrap we restore the value from the locals
-        for local in some_locals {
-            unwrap_branch.local_get(local);
-        }
-
-        let unwrap_branch_id = unwrap_branch.id();
-
-        builder.instr(ir::IfElse {
-            consequent: unwrap_branch_id,
-            alternative: throw_branch_id,
-        });
         Ok(())
     }
 }
@@ -613,82 +865,73 @@ impl ComplexWord for UnwrapErr {
         &self,
         generator: &mut WasmGenerator,
         builder: &mut walrus::InstrSeqBuilder,
-        _expr: &SymbolicExpression,
+        expr: &SymbolicExpression,
         args: &[SymbolicExpression],
     ) -> Result<(), GeneratorError> {
         check_args!(generator, builder, 2, args.len(), ArgumentCountCheck::Exact);
 
         self.charge(generator, builder, 0)?;
 
+        let expr_ty = generator
+            .get_expr_type(expr)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Unwrap-err expression should have a type".to_owned())
+            })
+            .cloned()?;
+
         let input = args.get_expr(0)?;
         let throw = args.get_expr(1)?;
 
+        // we need a workaround for the input: we need to make sure that the `err` value
+        // will have the same type as the type of the whole expression.
+        let input_ty = match generator.get_expr_type(input).ok_or_else(|| {
+            GeneratorError::TypeError("Input value for unwrap-err! should be typed".to_owned())
+        })? {
+            TypeSignature::ResponseType(resp) => {
+                TypeSignature::ResponseType(Box::new((resp.as_ref().0.clone(), expr_ty)))
+            }
+            _ => {
+                return Err(GeneratorError::TypeError(
+                    "Unwrap-err expects a response input".to_owned(),
+                ))
+            }
+        };
+        generator.set_expr_type(input, input_ty.clone())?;
+
+        // if we are in a function, we should make sure the thrown value is the same type as the return type.
+        if let Some(ty) = generator.get_current_function_return_type().cloned() {
+            generator.set_expr_type(throw, ty)?;
+        }
+        let throw_ty = generator
+            .get_expr_type(throw)
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Thrown value for unwrap-err! should be typed".to_owned())
+            })
+            .cloned()?;
+
         generator.traverse_expr(builder, input)?;
 
-        let throw_type = clar2wasm_ty(
-            generator
-                .get_expr_type(throw)
-                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
+        // we save the input as a short-returnable by convenience: we have accesse to [ShortReturnable::push_err_value]
+        let (short_returnable_input, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
+
+        generator.traverse_expr(builder, throw)?;
+
+        // we save the thrown value as a short returnable and handle a short-return
+        let short_returnable_throw = ShortReturnable::new_any(
+            generator,
+            builder,
+            &throw_ty,
+            ErrorMap::ShortReturnExpectedValue,
         );
 
-        let (ok_type, err_type) = if let Some(TypeSignature::ResponseType(inner_types)) =
-            generator.get_expr_type(input)
-        {
-            (**inner_types).clone()
-        } else {
-            return Err(GeneratorError::TypeError(
-                "unwrap-error! only accepts response types".to_string(),
-            ));
-        };
+        short_returnable_throw.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `ok`
+            instrs.local_get(variant);
+        })?;
 
-        // Save the err value
-        let err_locals = generator.save_to_locals(builder, &err_type, true);
-
-        // drop the ok value
-        drop_value(builder, &ok_type);
-
-        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &throw_type,
-        ));
-
-        // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here. If the return
-        // type is not set, then we are not in a function, and the type can't
-        // be determined.
-        if let Some(return_ty) = generator.get_current_function_return_type() {
-            generator.set_expr_type(throw, return_ty.clone())?;
-        }
-        generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(&mut throw_branch, throw, ErrorMap::ShortReturnExpectedValue)?;
-
-        let throw_branch_id = throw_branch.id();
-
-        // stack [ discriminant ]
-
-        let mut unwrap_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &clar2wasm_ty(&err_type),
-        ));
-
-        // in unwrap we restore the value from the locals
-        for local in err_locals {
-            unwrap_branch.local_get(local);
-        }
-
-        let unwrap_branch_id = unwrap_branch.id();
-
-        builder
-            // invert the value
-            .i32_const(0)
-            .binop(ir::BinaryOp::I32Eq)
-            // conditionally branch
-            .instr(ir::IfElse {
-                consequent: unwrap_branch_id,
-                alternative: throw_branch_id,
-            });
+        // if we didn't short-return, we push the `err` value of the input.
+        short_returnable_input.push_err_value(builder)?;
 
         Ok(())
     }
@@ -715,61 +958,38 @@ impl ComplexWord for Asserts {
 
         self.charge(generator, builder, 0)?;
 
-        let input = args.get_expr(0)?;
-        let throw = args.get_expr(1)?;
+        let predicate_expr = args.get_expr(0)?;
+        let thrown = args.get_expr(1)?;
 
-        generator.traverse_expr(builder, input)?;
+        generator.traverse_expr(builder, predicate_expr)?;
+        let predicate = generator.module.locals.add(ValType::I32);
+        builder.local_set(predicate);
 
-        let input_type = clar2wasm_ty(
-            generator
-                .get_expr_type(input)
-                .ok_or_else(|| GeneratorError::TypeError("Input must be typed".to_owned()))?,
-        );
-        let throw_type = clar2wasm_ty(
-            generator
-                .get_expr_type(throw)
-                .ok_or_else(|| GeneratorError::TypeError("Throw must be typed".to_owned()))?,
-        );
+        let thrown_type = generator
+            .get_current_function_return_type()
+            .or_else(|| generator.get_expr_type(thrown))
+            .ok_or_else(|| {
+                GeneratorError::TypeError("Thrown value in an asserts! should be typed".to_owned())
+            })
+            .cloned()?;
+        generator.set_expr_type(thrown, thrown_type.clone())?;
+        generator.traverse_expr(builder, thrown)?;
 
-        let mut success_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &input_type,
-        ));
-
-        // always returns true
-        success_branch.i32_const(1);
-        let succ_branch_id = success_branch.id();
-
-        let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-            &mut generator.module.types,
-            &[],
-            &throw_type,
-        ));
-
-        // The type-checker does not fill in the complete type for the throw
-        // expression, so we need to manually update it here. If the return
-        // type is not set, then we are not in a function, and the type can't
-        // be determined.
-        if let Some(return_ty) = generator.get_current_function_return_type() {
-            generator.set_expr_type(throw, return_ty.clone())?;
-        }
-
-        generator.traverse_expr(&mut throw_branch, throw)?;
-        generator.return_early(
-            &mut throw_branch,
-            throw,
+        // we save the thrown as a short-returnable, and we handle its short-return.
+        let short_returnable_thrown = ShortReturnable::new_any(
+            generator,
+            builder,
+            &thrown_type,
             ErrorMap::ShortReturnAssertionFailure,
-        )?;
+        );
 
-        let throw_branch_id = throw_branch.id();
+        short_returnable_thrown.handle_short_return(generator, builder, |instrs| {
+            // we need to short return if predicate is false.
+            instrs.local_get(predicate).unop(UnaryOp::I32Eqz);
+        })?;
 
-        // stack [ discriminant ]
-
-        builder.instr(ir::IfElse {
-            consequent: succ_branch_id,
-            alternative: throw_branch_id,
-        });
+        // if we didn't short-return, the result is always `true`
+        builder.i32_const(1);
 
         Ok(())
     }
@@ -797,122 +1017,23 @@ impl ComplexWord for Try {
         self.charge(generator, builder, 0)?;
 
         let input = args.get_expr(0)?;
+        let input_ty = generator.get_expr_type(input).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("The argument in try! should be typed".to_owned())
+        })?;
+
         generator.traverse_expr(builder, input)?;
 
-        let (succ_branch_id, throw_branch_id) = match generator.get_expr_type(input).cloned() {
-            Some(ref full_type @ TypeSignature::OptionalType(ref inner_type)) => {
-                let some_type = &**inner_type;
+        // we save the input as a short-returnable and handle the short-return
+        let (short_returnable_value, variant) =
+            ShortReturnable::new(generator, builder, &input_ty)?;
 
-                let some_locals = generator.save_to_locals(builder, some_type, true);
+        short_returnable_value.handle_short_return(generator, builder, |instrs| {
+            // we need to short-return if the variant is `none` or `err`
+            instrs.local_get(variant).unop(UnaryOp::I32Eqz);
+        })?;
 
-                let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-                    &mut generator.module.types,
-                    &[],
-                    &clar2wasm_ty(full_type),
-                ));
-
-                // In the case of throw, we need to re-push the discriminant,
-                // then add a placeholder for the some-type of the return type.
-                throw_branch.i32_const(0);
-                let placeholder_ty = match generator.get_current_function_return_type() {
-                    Some(TypeSignature::OptionalType(inner_type)) => inner_type,
-                    Some(other) => {
-                        return Err(GeneratorError::TypeError(format!(
-                            "expected optional type, got {other:?}"
-                        )));
-                    }
-                    None => &TypeSignature::NoType,
-                };
-                add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
-                generator.return_early(
-                    &mut throw_branch,
-                    _expr,
-                    ErrorMap::ShortReturnExpectedValueOptional,
-                )?;
-
-                let throw_branch_id = throw_branch.id();
-
-                // on Some
-
-                let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
-                    &mut generator.module.types,
-                    &[],
-                    &clar2wasm_ty(some_type),
-                ));
-
-                // in unwrap we restore the value from the locals
-                for local in &some_locals {
-                    succ_branch.local_get(*local);
-                }
-
-                let succ_branch_id = succ_branch.id();
-
-                (succ_branch_id, throw_branch_id)
-            }
-            Some(ref full_type @ TypeSignature::ResponseType(ref inner_types)) => {
-                let (ok_type, err_type) = &**inner_types;
-
-                // save both values to local
-                let err_locals = generator.save_to_locals(builder, err_type, true);
-                let ok_locals = generator.save_to_locals(builder, ok_type, true);
-
-                let mut throw_branch = builder.dangling_instr_seq(InstrSeqType::new(
-                    &mut generator.module.types,
-                    &[],
-                    &clar2wasm_ty(full_type),
-                ));
-
-                // In the case of throw, we need to re-push the discriminant,
-                // then add a placeholder for the ok-type of the return type
-                // and restore the err value from the locals.
-                throw_branch.i32_const(0);
-                let placeholder_ty = match generator.get_current_function_return_type() {
-                    Some(TypeSignature::ResponseType(inner_types)) => &inner_types.0,
-                    Some(other) => {
-                        return Err(GeneratorError::TypeError(format!(
-                            "expected response type, got {other:?}"
-                        )));
-                    }
-                    None => &TypeSignature::NoType,
-                };
-                add_placeholder_for_clarity_type(&mut throw_branch, placeholder_ty);
-                for local in &err_locals {
-                    throw_branch.local_get(*local);
-                }
-                generator.return_early(
-                    &mut throw_branch,
-                    _expr,
-                    ErrorMap::ShortReturnExpectedValueResponse,
-                )?;
-
-                let throw_branch_id = throw_branch.id();
-
-                // On success
-
-                let mut succ_branch = builder.dangling_instr_seq(InstrSeqType::new(
-                    &mut generator.module.types,
-                    &[],
-                    &clar2wasm_ty(ok_type),
-                ));
-
-                // in ok case we restore the value from the locals
-                for local in &ok_locals {
-                    succ_branch.local_get(*local);
-                }
-
-                let succ_branch_id = succ_branch.id();
-
-                (succ_branch_id, throw_branch_id)
-            }
-            _ => return Err(GeneratorError::TypeError("Invalid type for unwrap".into())),
-        };
-
-        // stack [ discriminant ]
-
-        builder.instr(ir::IfElse {
-            consequent: succ_branch_id,
-            alternative: throw_branch_id,
-        });
+        // if no short-return, we push the success value to the stack.
+        short_returnable_value.push_success_value(builder);
 
         Ok(())
     }
@@ -1539,5 +1660,154 @@ mod tests {
                 Value::Optional(clarity::vm::types::OptionalData { data: None }),
             ))),
         )
+    }
+
+    #[test]
+    fn try_something() {
+        let snippet = "(ok (try! (if true (ok true) (err u3))))";
+
+        crosscheck(snippet, Ok(Some(Value::okay_true())));
+    }
+
+    #[test]
+    fn try_something_begin() {
+        let snippet = "(begin (ok (try! (if true (ok true) (err u3)))))";
+
+        crosscheck(snippet, Ok(Some(Value::okay_true())));
+    }
+
+    #[test]
+    fn try_something_in_fn_ok() {
+        let snippet = "
+        (define-public (foo)
+            (ok (try! (if true (ok true) (err u3))))
+        )
+
+        (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::okay_true())));
+    }
+
+    #[test]
+    fn try_something_in_fn_err() {
+        let snippet = "
+        (define-public (foo)
+            (ok (try! (if false (ok true) (err u3))))
+        )
+
+        (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(3))));
+    }
+
+    #[test]
+    fn try_reponse_true() {
+        crosscheck(
+            "(try! (if true (ok true) (err u3)))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_stx_transfer() {
+        crosscheck(
+            "(try! (stx-transfer? u100 'S1G2081040G2081040G2081040G208105NK8PE5 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_nested_response_true() {
+        crosscheck(
+            "(try! (if true (ok (try! (if true (ok true) (err u3)))) (err false)))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_begin_nested() {
+        crosscheck(
+            "(begin (try! (if true (ok (try! (if true (ok true) (err u3)))) (err false))))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn try_reponse_inside_funtion() {
+        crosscheck(
+            "(define-public (foo) (ok (try! (if true (ok true) (err u3))))) (foo)",
+            Ok(Some(Value::okay_true())),
+        )
+    }
+
+    #[test]
+    fn try_begin_response_inside_function() {
+        crosscheck(
+            "(define-public (foo) (begin (+ 1 2) (ok (try! (if true (ok true) (err u3)))))) (foo)",
+            Ok(Some(Value::okay_true())),
+        )
+    }
+
+    #[test]
+    fn try_mint_ft() {
+        crosscheck(
+            "(define-fungible-token wasm-token) (try! (ft-mint? wasm-token u1000 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))",
+            Ok(Some(Value::Bool(true))),
+        )
+    }
+
+    #[test]
+    fn unwrap_needs_workaround_optional() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap! (if true none (some none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn unwrap_needs_workaround_response() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap! (if true (err none) (ok none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn unwrap_err_needs_workaround() {
+        let snippet = "
+            (define-private (foo) 
+                (unwrap-err! (if true (ok none) (err none)) (some (err u1)))
+            ) 
+            (foo)
+        ";
+
+        crosscheck(snippet, Ok(Some(Value::some(Value::err_uint(1)).unwrap())));
+    }
+
+    #[test]
+    fn nested_begin_with_try() {
+        let snippet = r#"
+            (define-private (foo)
+                (begin
+                    (begin
+                        (try! (if false (ok "hello") (err u5555)))
+                    )
+                    (ok true)
+                )
+            )
+            (foo)
+        "#;
+
+        crosscheck(snippet, Ok(Some(Value::err_uint(5555))));
     }
 }

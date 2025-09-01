@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -50,7 +49,7 @@ pub struct WasmGenerator {
     /// Map constants to an offset in the literal memory.
     pub(crate) constants: HashMap<String, u32>,
     /// The current function body block, used for early exit
-    early_return_block_id: Option<InstrSeqId>,
+    pub(crate) early_return_block_id: Option<InstrSeqId>,
     /// The type of the current function.
     pub(crate) current_function_type: Option<FixedFunction>,
     /// The types of defined data-vars
@@ -669,61 +668,26 @@ impl WasmGenerator {
         Ok(func_builder.finish(param_locals, &mut self.module.funcs))
     }
 
-    /// Handles early return scenarios in the code generation process.
+    /// Generates the wasm code for a ShortReturn error.
     ///
-    /// This function is responsible for managing early returns in the generated code,
-    /// used in the context of `try!`, `unwrap!`, `unwrap-err!` and `asserts!` functions.
-    /// It handles different types of runtime errors and generates appropriate
-    /// WebAssembly instructions for each case.
-    ///
-    /// # Arguments
-    ///
-    /// * `builder` - A mutable reference to the `InstrSeqBuilder`, used to construct
-    ///   the WebAssembly instruction sequence.
-    /// * `expr` - A reference to the `SymbolicExpression` representing the expression
-    ///   that triggered the early return.
-    /// * `runtime_error` - The `ErrorMap` variant indicating the type of runtime error.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` if the early return is handled successfully, or a `GeneratorError`
-    /// if an error occurs during the process.
-    ///
-    /// # Behavior
-    ///
-    /// - If `early_return_block_id` is set, it will generate a branch instruction to that block.
-    /// - For `ShortReturnAssertionFailure`, `ShortReturnExpectedValue`, and `ShortReturnExpectedValueResponse`:
-    ///   - It generates code to create a local variable, write the value to memory,
-    ///     serialize the type, and set up global variables for the runtime error.
-    /// - For `ShortReturnExpectedValueOptional`, it directly calls the runtime error function.
-    /// - For any other error type, it returns an `InternalError`.
-    ///
-    pub fn return_early(
+    /// It takes for the `runtime_error`
+    /// argument either a [ErrorMap::ShortReturnAssertionFailure], a
+    /// [ErrorMap::ShortReturnExpectedValue], a [ErrorMap::ShortReturnExpectedValueResponse]
+    /// or a [ErrorMap::ShortReturnExpectedValueOptional].
+    pub(crate) fn short_return_error(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        expr: &SymbolicExpression,
+        ty: &TypeSignature,
         runtime_error: ErrorMap,
     ) -> Result<(), GeneratorError> {
-        if let Some(block_id) = self.early_return_block_id {
-            builder.instr(walrus::ir::Br { block: block_id });
-            return Ok(());
-        }
-
         match runtime_error {
             ErrorMap::ShortReturnAssertionFailure
             | ErrorMap::ShortReturnExpectedValue
             | ErrorMap::ShortReturnExpectedValueResponse => {
-                let ty = self
-                    .get_expr_type(expr)
-                    .ok_or_else(|| {
-                        GeneratorError::TypeError("asserts! thrown-value must be typed".to_owned())
-                    })?
-                    .clone();
+                let (val_offset, _) = self.create_call_stack_local(builder, ty, false, true);
+                self.write_to_memory(builder, val_offset, 0, ty)?;
 
-                let (val_offset, _) = self.create_call_stack_local(builder, &ty, false, true);
-                self.write_to_memory(builder, val_offset, 0, &ty)?;
-
-                let serialized_ty = self.type_for_serialization(&ty).to_string();
+                let serialized_ty = self.type_for_serialization(ty).to_string();
 
                 // Validate serialized type
                 signature_from_string(
@@ -737,7 +701,7 @@ impl WasmGenerator {
 
                 let (type_ser_offset, type_ser_len) =
                     self.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
-                        data: serialized_ty.bytes().collect(),
+                        data: serialized_ty.into_bytes(),
                     }))?;
 
                 // Set runtime error globals
@@ -1409,7 +1373,7 @@ impl WasmGenerator {
             // saved, then drop that value.
             if let Some(ty) = self.get_expr_type(stmt) {
                 if let Some(last_ty) = &last_ty {
-                    drop_value(builder.borrow_mut(), last_ty);
+                    drop_value(builder, last_ty);
                 }
                 last_ty = Some(ty.clone());
             }
