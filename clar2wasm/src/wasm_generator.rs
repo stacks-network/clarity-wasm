@@ -1694,7 +1694,7 @@ impl WasmGenerator {
                 GeneratorError::TypeError("function call expression must be typed".to_owned())
             })?
             .clone();
-        self.visit_call_user_defined(builder, &return_ty, name)
+        self.visit_call_user_defined(builder, name, &return_ty, None)
     }
 
     /// Visit a function call to a user-defined function. Arguments must have
@@ -1702,8 +1702,9 @@ impl WasmGenerator {
     pub fn visit_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        return_ty: &TypeSignature,
         name: &ClarityName,
+        return_ty: &TypeSignature,
+        duck_ty: Option<&TypeSignature>,
     ) -> Result<(), GeneratorError> {
         // this local contains the offset at which we will copy the each new element of the result
         // if there is an in-memory type
@@ -1749,11 +1750,16 @@ impl WasmGenerator {
             )));
         }
 
+        let expected_ty = duck_ty.unwrap_or(return_ty);
+
+        // if needed, we can convert the argument to another compatible type.
+        self.duck_type(builder, return_ty, expected_ty)?;
+
         // If an in-memory value is returned from the function, we need to copy
         // it to our frame, from the callee's frame.
         if let Some(return_offset) = in_memory_offset {
-            let locals = self.save_to_locals(builder, return_ty, true);
-            self.copy_value(builder, return_ty, &locals, return_offset)?;
+            let locals = self.save_to_locals(builder, expected_ty, true);
+            self.copy_value(builder, expected_ty, &locals, return_offset)?;
 
             for l in locals {
                 builder.local_get(l);

@@ -264,7 +264,12 @@ impl ComplexWord for Fold {
             simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
         } else {
             // Call user defined function
-            generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+            generator.visit_call_user_defined(
+                &mut loop_,
+                func,
+                &result_clar_ty,
+                fold_func_ty.as_ref().map(|func_ty| &func_ty.acc_ty),
+            )?;
             // since the accumulator and the return type of the function could have different types, we need to duck-type.
             if let Some(tys) = &fold_func_ty {
                 generator.duck_type(&mut loop_, &tys.return_ty, &tys.acc_ty)?;
@@ -860,7 +865,7 @@ impl ComplexWord for Map {
             }
         } else {
             // Call user defined function.
-            generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
+            generator.visit_call_user_defined(&mut loop_, fname, return_element_type, None)?;
         }
 
         // Write the result to the output sequence.
