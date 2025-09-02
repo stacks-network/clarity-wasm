@@ -864,8 +864,22 @@ impl ComplexWord for Map {
                 simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
             }
         } else {
+            let func_return_ty =
+                if let Some(FunctionType::Fixed(FixedFunction { returns, .. })) =
+                    generator.get_function_type(fname)
+                {
+                    returns
+                } else {
+                    return_element_type
+                }
+                .clone();
             // Call user defined function.
-            generator.visit_call_user_defined(&mut loop_, fname, return_element_type, None)?;
+            generator.visit_call_user_defined(
+                &mut loop_,
+                fname,
+                &func_return_ty,
+                Some(return_element_type),
+            )?;
         }
 
         // Write the result to the output sequence.
@@ -2471,6 +2485,24 @@ mod tests {
             (fold foo (list (ok 1)) (ok 2))
         ";
         crosscheck(snippet, Ok(Some(Value::okay(Value::Int(3)).unwrap())));
+    }
+
+    #[test]
+    fn map_needs_ducktyping() {
+        let snippet = r#"
+            (define-private (foo (a int))
+                (ok a)
+            )
+
+            (if true (map foo (list 1)) (list (err "unreachable")))
+        "#;
+
+        crosscheck(
+            snippet,
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::okay(Value::Int(1)).unwrap()]).unwrap(),
+            )),
+        );
     }
 
     #[test]
