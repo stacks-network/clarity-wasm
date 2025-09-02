@@ -108,7 +108,7 @@ impl ComplexWord for DefineConstant {
         // and evaluated value to a persistent data structure.
         builder.call(generator.func_by_name("stdlib.save_constant"));
 
-        generator.constants.insert(name.to_string(), offset);
+        generator.constants.insert(name.to_string(), value_ty);
 
         Ok(())
     }
@@ -118,7 +118,7 @@ impl ComplexWord for DefineConstant {
 mod tests {
     use clarity::types::StacksEpochId;
     use clarity::vm::types::{
-        ASCIIData, CharType, ListData, ListTypeData, PrincipalData, SequenceData,
+        ASCIIData, CharType, ListData, ListTypeData, PrincipalData, SequenceData, TupleData,
     };
     use clarity::vm::Value;
 
@@ -370,6 +370,35 @@ mod tests {
                     &StacksEpochId::latest(),
                 )
                 .unwrap()
+            )),
+        );
+    }
+
+    #[test]
+    fn constants_need_ducktyping() {
+        let snippet = "
+            (define-constant cst (err u1))
+            
+            (define-private (foo)
+                (if false (ok true) cst)
+            )
+
+            (define-private (bar)
+                (if false (ok 42) cst)
+            )
+
+            {foo: (foo), bar: (bar)} 
+        ";
+
+        crosscheck(
+            snippet,
+            Ok(Some(
+                TupleData::from_data(vec![
+                    ("foo".into(), Value::err_uint(1)),
+                    ("bar".into(), Value::err_uint(1)),
+                ])
+                .unwrap()
+                .into(),
             )),
         );
     }
