@@ -1667,34 +1667,41 @@ impl WasmGenerator {
         //             arguments. We set them ourselves. We don't make the distinction between
         //             epochs since it would require a deeper modification and it doesn't impact
         //             the newer ones.
-        if let Some(FunctionType::Fixed(FixedFunction {
-            args: function_args,
-            ..
-        })) = self.get_function_type(name).cloned()
-        {
-            check_args!(
-                self,
-                builder,
-                function_args.len(),
-                args.len(),
-                ArgumentCountCheck::Exact
-            );
-            for (arg, signature) in args
-                .iter()
-                .zip(function_args.into_iter().map(|a| a.signature))
-            {
-                self.set_expr_type(arg, signature)?;
+        let return_ty = match self.get_function_type(name).cloned() {
+            Some(FunctionType::Fixed(FixedFunction {
+                args: function_args,
+                returns,
+            })) => {
+                check_args!(
+                    self,
+                    builder,
+                    function_args.len(),
+                    args.len(),
+                    ArgumentCountCheck::Exact
+                );
+                for (arg, signature) in args
+                    .iter()
+                    .zip(function_args.into_iter().map(|a| a.signature))
+                {
+                    self.set_expr_type(arg, signature)?;
+                }
+                returns
             }
-        }
+            fn_ty => {
+                return Err(GeneratorError::TypeError(format!(
+                    "Wrong type for a user defined function: {fn_ty:?}"
+                )));
+            }
+        };
         self.traverse_args(builder, args)?;
 
-        let return_ty = self
+        let expected_ty = self
             .get_expr_type(expr)
             .ok_or_else(|| {
                 GeneratorError::TypeError("function call expression must be typed".to_owned())
             })?
             .clone();
-        self.visit_call_user_defined(builder, name, &return_ty, None)
+        self.visit_call_user_defined(builder, name, &return_ty, Some(&expected_ty))
     }
 
     /// Visit a function call to a user-defined function. Arguments must have
@@ -2418,6 +2425,23 @@ mod tests {
         );
 
         crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    #[test]
+    fn function_call_needs_ducktyping() {
+        let snippet = r#"
+            (define-public (execute)
+                (if true (foo) (err u42))
+            )
+
+            (define-private (foo)
+                (ok u123)
+            )
+
+            (execute)
+    "#;
+
+        crosscheck(snippet, Ok(Some(Value::okay(Value::UInt(123)).unwrap())));
     }
 
     //
