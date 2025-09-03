@@ -47,7 +47,7 @@ pub struct WasmGenerator {
     /// Map strings saved in the literal memory to their offset.
     pub(crate) literal_memory_offset: HashMap<LiteralMemoryEntry, u32>,
     /// Map constants to an offset in the literal memory.
-    pub(crate) constants: HashMap<String, u32>,
+    pub(crate) constants: HashMap<String, TypeSignature>,
     /// The current function body block, used for early exit
     pub(crate) early_return_block_id: Option<InstrSeqId>,
     /// The type of the current function.
@@ -1515,15 +1515,17 @@ impl WasmGenerator {
         name: &str,
         expr: &SymbolicExpression,
     ) -> Result<bool, GeneratorError> {
-        if self.constants.contains_key(name) {
-            let ty = self
+        if let Some(cst_ty) = self.constants.get(name).cloned() {
+            let expected_ty = self
                 .get_expr_type(expr)
-                .ok_or_else(|| GeneratorError::TypeError("constant must be typed".to_owned()))?
+                .ok_or_else(|| {
+                    GeneratorError::TypeError("expression using constant must be typed".to_owned())
+                })?
                 .clone();
 
             // Reserve stack space for the constant copy
             let (result_local, result_size) =
-                self.create_call_stack_local(builder, &ty, true, true);
+                self.create_call_stack_local(builder, &expected_ty, true, true);
 
             let (name_offset, name_length) = self.add_string_literal(name)?;
 
@@ -1538,7 +1540,8 @@ impl WasmGenerator {
             // constant attributes from a data structure.
             builder.call(self.func_by_name("stdlib.load_constant"));
 
-            self.read_from_memory(builder, result_local, 0, &ty)?;
+            self.read_from_memory(builder, result_local, 0, &cst_ty)?;
+            self.duck_type(builder, &cst_ty, &expected_ty)?;
 
             Ok(true)
         } else {
