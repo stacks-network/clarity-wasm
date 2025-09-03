@@ -1670,34 +1670,41 @@ impl WasmGenerator {
         //             arguments. We set them ourselves. We don't make the distinction between
         //             epochs since it would require a deeper modification and it doesn't impact
         //             the newer ones.
-        if let Some(FunctionType::Fixed(FixedFunction {
-            args: function_args,
-            ..
-        })) = self.get_function_type(name).cloned()
-        {
-            check_args!(
-                self,
-                builder,
-                function_args.len(),
-                args.len(),
-                ArgumentCountCheck::Exact
-            );
-            for (arg, signature) in args
-                .iter()
-                .zip(function_args.into_iter().map(|a| a.signature))
-            {
-                self.set_expr_type(arg, signature)?;
+        let return_ty = match self.get_function_type(name).cloned() {
+            Some(FunctionType::Fixed(FixedFunction {
+                args: function_args,
+                returns,
+            })) => {
+                check_args!(
+                    self,
+                    builder,
+                    function_args.len(),
+                    args.len(),
+                    ArgumentCountCheck::Exact
+                );
+                for (arg, signature) in args
+                    .iter()
+                    .zip(function_args.into_iter().map(|a| a.signature))
+                {
+                    self.set_expr_type(arg, signature)?;
+                }
+                returns
             }
-        }
+            fn_ty => {
+                return Err(GeneratorError::TypeError(format!(
+                    "Wrong type for a user defined function: {fn_ty:?}"
+                )));
+            }
+        };
         self.traverse_args(builder, args)?;
 
-        let return_ty = self
+        let expected_ty = self
             .get_expr_type(expr)
             .ok_or_else(|| {
                 GeneratorError::TypeError("function call expression must be typed".to_owned())
             })?
             .clone();
-        self.visit_call_user_defined(builder, &return_ty, name)
+        self.visit_call_user_defined(builder, name, &return_ty, Some(&expected_ty))
     }
 
     /// Visit a function call to a user-defined function. Arguments must have
@@ -1705,8 +1712,9 @@ impl WasmGenerator {
     pub fn visit_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
-        return_ty: &TypeSignature,
         name: &ClarityName,
+        return_ty: &TypeSignature,
+        duck_ty: Option<&TypeSignature>,
     ) -> Result<(), GeneratorError> {
         // this local contains the offset at which we will copy the each new element of the result
         // if there is an in-memory type
@@ -1752,11 +1760,16 @@ impl WasmGenerator {
             )));
         }
 
+        let expected_ty = duck_ty.unwrap_or(return_ty);
+
+        // if needed, we can convert the argument to another compatible type.
+        self.duck_type(builder, return_ty, expected_ty)?;
+
         // If an in-memory value is returned from the function, we need to copy
         // it to our frame, from the callee's frame.
         if let Some(return_offset) = in_memory_offset {
-            let locals = self.save_to_locals(builder, return_ty, true);
-            self.copy_value(builder, return_ty, &locals, return_offset)?;
+            let locals = self.save_to_locals(builder, expected_ty, true);
+            self.copy_value(builder, expected_ty, &locals, return_offset)?;
 
             for l in locals {
                 builder.local_get(l);
@@ -2415,6 +2428,23 @@ mod tests {
         );
 
         crosscheck(snippet, Ok(Some(expected)));
+    }
+
+    #[test]
+    fn function_call_needs_ducktyping() {
+        let snippet = r#"
+            (define-public (execute)
+                (if true (foo) (err u42))
+            )
+
+            (define-private (foo)
+                (ok u123)
+            )
+
+            (execute)
+    "#;
+
+        crosscheck(snippet, Ok(Some(Value::okay(Value::UInt(123)).unwrap())));
     }
 
     //

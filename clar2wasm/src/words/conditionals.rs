@@ -235,7 +235,7 @@ impl<'a> ShortReturnable<'a> {
                     )));
                 };
                 let (expected_ok_type, _expected_err_type) = expected_resp.as_ref();
-                add_placeholder_for_clarity_type(builder, dbg!(expected_ok_type));
+                add_placeholder_for_clarity_type(builder, expected_ok_type);
                 for &l in err_value {
                     builder.local_get(l);
                 }

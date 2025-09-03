@@ -264,7 +264,12 @@ impl ComplexWord for Fold {
             simple.visit(generator, &mut loop_, arg_types, &result_clar_ty)?;
         } else {
             // Call user defined function
-            generator.visit_call_user_defined(&mut loop_, &result_clar_ty, func)?;
+            generator.visit_call_user_defined(
+                &mut loop_,
+                func,
+                &result_clar_ty,
+                fold_func_ty.as_ref().map(|func_ty| &func_ty.acc_ty),
+            )?;
             // since the accumulator and the return type of the function could have different types, we need to duck-type.
             if let Some(tys) = &fold_func_ty {
                 generator.duck_type(&mut loop_, &tys.return_ty, &tys.acc_ty)?;
@@ -859,8 +864,22 @@ impl ComplexWord for Map {
                 simple.visit(generator, &mut loop_, &arg_types, return_element_type)?;
             }
         } else {
+            let func_return_ty =
+                if let Some(FunctionType::Fixed(FixedFunction { returns, .. })) =
+                    generator.get_function_type(fname)
+                {
+                    returns
+                } else {
+                    return_element_type
+                }
+                .clone();
             // Call user defined function.
-            generator.visit_call_user_defined(&mut loop_, return_element_type, fname)?;
+            generator.visit_call_user_defined(
+                &mut loop_,
+                fname,
+                &func_return_ty,
+                Some(return_element_type),
+            )?;
         }
 
         // Write the result to the output sequence.
@@ -2466,6 +2485,24 @@ mod tests {
             (fold foo (list (ok 1)) (ok 2))
         ";
         crosscheck(snippet, Ok(Some(Value::okay(Value::Int(3)).unwrap())));
+    }
+
+    #[test]
+    fn map_needs_ducktyping() {
+        let snippet = r#"
+            (define-private (foo (a int))
+                (ok a)
+            )
+
+            (if true (map foo (list 1)) (list (err "unreachable")))
+        "#;
+
+        crosscheck(
+            snippet,
+            Ok(Some(
+                Value::cons_list_unsanitized(vec![Value::okay(Value::Int(1)).unwrap()]).unwrap(),
+            )),
+        );
     }
 
     #[test]
