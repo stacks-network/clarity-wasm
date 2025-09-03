@@ -320,7 +320,12 @@ pub fn wasm_to_clarity_value(
                     wasm_to_clarity_value(ty, index, buffer, memory, store, epoch)?;
                 data_map.push((
                     name.clone(),
-                    value.ok_or(Error::Unchecked(CheckErrors::BadTupleConstruction))?,
+                    value.ok_or_else(|| {
+                        Error::Unchecked(CheckErrors::BadTupleConstruction(format!(
+                            "Failed to convert Wasm value into Clarity value for field `{}`",
+                            name.to_owned()
+                        )))
+                    })?,
                 ));
                 index += increment;
             }
