@@ -323,7 +323,7 @@ pub fn wasm_to_clarity_value(
                     value.ok_or_else(|| {
                         Error::Unchecked(CheckErrors::BadTupleConstruction(format!(
                             "Failed to convert Wasm value into Clarity value for field `{}`",
-                            name.to_owned()
+                            name
                         )))
                     })?,
                 ));
