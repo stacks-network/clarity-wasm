@@ -470,7 +470,7 @@ impl HeadersDB for BurnDatastore {
         id_bhh: &StacksBlockId,
         _epoch_id: &StacksEpochId,
     ) -> Option<StacksAddress> {
-        self.store.get(id_bhh).map(|id| id.miner)
+        self.store.get(id_bhh).map(|id| id.miner.clone())
     }
     fn get_burnchain_tokens_spent_for_block(
         &self,
