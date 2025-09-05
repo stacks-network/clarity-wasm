@@ -1024,19 +1024,13 @@ impl WasmGenerator {
                 };
 
                 // A standard principal is always 22 bytes, a qualified one is (length + 1)
+                // This is the same as `length + (length > 22)`.
                 builder
-                    // select true: 0
-                    .i32_const(22)
-                    // select false: length - 21
                     .local_get(length)
-                    .i32_const(1)
-                    .binop(BinaryOp::I32Add)
-                    // select condition: length == 22
                     .local_get(length)
                     .i32_const(22)
-                    .binop(BinaryOp::I32Eq)
-                    // select
-                    .select(Some(ValType::I32));
+                    .binop(BinaryOp::I32GtU)
+                    .binop(BinaryOp::I32Add);
             }
             TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
             | TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(_))) => {
