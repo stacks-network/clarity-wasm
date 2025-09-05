@@ -15,6 +15,7 @@ use crate::wasm_generator::{
 use crate::wasm_utils::{placeholder_for_type, wasm_to_clarity_value};
 
 impl WasmGenerator {
+    /// Creates an empty WasmGenerator.
     pub fn empty() -> Self {
         let empty_analysis = ContractAnalysis::new(
             QualifiedContractIdentifier::transient(),
@@ -27,6 +28,7 @@ impl WasmGenerator {
             .expect("failed to build WasmGenerator for empty contract")
     }
 
+    /// Adds the instructions to have a value of some type on top of the stack.
     pub fn pass_value(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -147,6 +149,9 @@ impl WasmGenerator {
         }
     }
 
+    /// Creates a module containing a `.top-level` function which will contain the instructions
+    /// passed in the closure `add_instruction`. This closure takes as argument the current
+    /// generator and the current builder.
     pub fn create_module(
         &mut self,
         return_ty: &TypeSignature,
@@ -165,9 +170,9 @@ impl WasmGenerator {
             walrus::GlobalKind::Local(walrus::InitExpr::Value(walrus::ir::Value::I32(20000)));
     }
 
+    /// Compiles and executes the current module and returns the value on top of the stack.
+    /// If the value isn't of the type passed as a parameter, the function panics.
     pub fn execute_module(&mut self, return_ty: &TypeSignature) -> Value {
-        std::fs::write("debug.wasm", self.module.emit_wasm()).unwrap();
-
         let engine = Engine::default();
         let mut store = Store::new(&engine, ());
         let linker = dummy_linker(&engine).expect("failed to create linker");

@@ -941,6 +941,8 @@ impl WasmGenerator {
         }
     }
 
+    /// Generate the computation to determine the size of the value currently on top of the stack.
+    /// The generated code will push on the stack the original value and its serialization size as i32.
     pub fn serialization_size(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -963,15 +965,19 @@ impl WasmGenerator {
         Ok(())
     }
 
+    /// Tries to compute the serialization size of a simple value at compile time.
     fn serialization_size_simple(ty: &TypeSignature) -> Option<i32> {
         match ty {
             TypeSignature::BoolType => Some(1),
             TypeSignature::IntType | TypeSignature::UIntType => Some(17),
             TypeSignature::OptionalType(opt) => {
+                // this is automatically a `none`
                 (opt.as_ref() == &TypeSignature::NoType).then_some(1)
             }
             TypeSignature::ResponseType(resp) => match resp.as_ref() {
+                // this is automatically a `(ok ...)`
                 (ok_ty, TypeSignature::NoType) => Some(1 + Self::serialization_size_simple(ok_ty)?),
+                // this is automatically a `(err ...)`
                 (TypeSignature::NoType, err_ty) => {
                     Some(1 + Self::serialization_size_simple(err_ty)?)
                 }
@@ -990,6 +996,7 @@ impl WasmGenerator {
         }
     }
 
+    /// Adds the instructions to compute the serialization size of a value at runtime.
     fn serialization_size_runtime(
         &mut self,
         builder: &mut InstrSeqBuilder,
@@ -1012,13 +1019,11 @@ impl WasmGenerator {
                 builder.i32_const(17);
             }
             TypeSignature::PrincipalType => {
-                // For the case of a contract principal, we need to add the name length byte and the name bytes.
                 let &[_offset, length] = value else {
                     return MISMATCHED_TYPE_VALUE(ty);
                 };
 
-                // To check if we have a contract principal, we know it is one of those if the length is > 22.
-                // In this case we can add 1 byte for the name length and (length - 22) for the name bytes
+                // A standard principal is always 22 bytes, a qualified one is (length + 1)
                 builder
                     // select true: 0
                     .i32_const(22)
