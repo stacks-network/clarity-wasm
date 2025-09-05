@@ -1258,7 +1258,7 @@ impl WasmGenerator {
 #[cfg(test)]
 mod tests {
     use clarity::vm::{
-        types::{TupleData, TupleTypeSignature, TypeSignature},
+        types::{PrincipalData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature},
         Value,
     };
 
@@ -1302,5 +1302,188 @@ mod tests {
         .into();
 
         assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn serialization_size_int() {
+        let value = Value::Int(42);
+        let ty = TypeSignature::IntType;
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_uint() {
+        let value = Value::UInt(42);
+        let ty = TypeSignature::UIntType;
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_principal() {
+        let value = PrincipalData::parse("STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6")
+            .unwrap()
+            .into();
+        let ty = TypeSignature::PrincipalType;
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_qualified_principal() {
+        let value = PrincipalData::parse("STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foobar")
+            .unwrap()
+            .into();
+        let ty = TypeSignature::PrincipalType;
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_buffer() {
+        let value = Value::buff_from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
+        let ty =
+            TypeSignature::SequenceType(SequenceSubtype::BufferType(50u32.try_into().unwrap()));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_string_ascii() {
+        let value = Value::string_ascii_from_bytes(b"hello, world!".to_vec()).unwrap();
+        let ty = TypeSignature::SequenceType(SequenceSubtype::StringType(
+            clarity::vm::types::StringSubtype::ASCII(96u32.try_into().unwrap()),
+        ));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_string_utf8() {
+        let value = Value::string_utf8_from_bytes(
+            "Hello, 🌍! 你好, Привет, صباح الخير!"
+                .to_owned()
+                .into_bytes(),
+        )
+        .unwrap();
+        let ty = TypeSignature::SequenceType(SequenceSubtype::StringType(
+            clarity::vm::types::StringSubtype::UTF8(100usize.try_into().unwrap()),
+        ));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_optional_none() {
+        let value = Value::none();
+        let ty = TypeSignature::OptionalType(Box::new(TypeSignature::PrincipalType));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_optional_some() {
+        let value = Value::some(Value::UInt(1234)).unwrap();
+        let ty = TypeSignature::OptionalType(Box::new(TypeSignature::UIntType));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_optional_none_simple() {
+        let value = Value::none();
+        let ty = TypeSignature::OptionalType(Box::new(TypeSignature::NoType));
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_response_okay() {
+        let value = Value::okay_true();
+        let ty =
+            TypeSignature::new_response(TypeSignature::BoolType, TypeSignature::UIntType).unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_response_err() {
+        let value = Value::err_uint(99999);
+        let ty = TypeSignature::new_response(TypeSignature::PrincipalType, TypeSignature::UIntType)
+            .unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_response_okay_simple() {
+        let value = Value::okay_true();
+        let ty =
+            TypeSignature::new_response(TypeSignature::BoolType, TypeSignature::NoType).unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_response_err_simple() {
+        let value = Value::err_uint(99999);
+        let ty =
+            TypeSignature::new_response(TypeSignature::NoType, TypeSignature::UIntType).unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_list() {
+        let value = Value::cons_list_unsanitized((0i128..=5).map(Value::Int).collect()).unwrap();
+        let ty = TypeSignature::list_of(TypeSignature::IntType, 100).unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_tuple() {
+        let value = TupleData::from_data(vec![
+            ("int".into(), Value::Int(1)),
+            (
+                "principal".into(),
+                PrincipalData::parse("STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6.foobar")
+                    .unwrap()
+                    .into(),
+            ),
+        ])
+        .unwrap()
+        .into();
+        let ty = TypeSignature::type_of(&value).unwrap();
+
+        test_serialization_size(value, ty);
+    }
+
+    #[test]
+    fn serialization_size_complex_size() {
+        let value = TupleData::from_data(vec![
+            ("uint".into(), Value::UInt(5)),
+            ("buff".into(), Value::buff_from(vec![52, 53, 54]).unwrap()),
+            (
+                "list".into(),
+                Value::cons_list_unsanitized((1u8..10u8).map(Value::buff_from_byte).collect())
+                    .unwrap(),
+            ),
+            (
+                "tuple".into(),
+                TupleData::from_data(vec![
+                    ("subint".into(), Value::Int(0)),
+                    ("subbool".into(), Value::Bool(true)),
+                ])
+                .unwrap()
+                .into(),
+            ),
+        ])
+        .unwrap()
+        .into();
+        let ty = TypeSignature::type_of(&value).unwrap();
+
+        test_serialization_size(value, ty);
     }
 }
