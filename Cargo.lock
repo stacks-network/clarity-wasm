@@ -429,6 +429,7 @@ dependencies = [
  "assert_fs",
  "chrono",
  "clap",
+ "clar2wasm",
  "clarity",
  "criterion",
  "hex",
