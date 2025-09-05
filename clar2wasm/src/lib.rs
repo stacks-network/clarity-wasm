@@ -1,5 +1,3 @@
-extern crate lazy_static;
-
 use clarity::types::StacksEpochId;
 use clarity::vm::analysis::{run_analysis, AnalysisDatabase, ContractAnalysis};
 use clarity::vm::ast::{build_ast_with_diagnostics, ContractAST};
@@ -27,6 +25,9 @@ pub mod tools;
 mod debug_msg;
 pub mod duck_type;
 mod error_mapping;
+
+#[cfg(feature = "developer-mode")]
+pub mod test_utils;
 
 // FIXME: This is copied from stacks-blockchain
 // Block limit in Stacks 2.1

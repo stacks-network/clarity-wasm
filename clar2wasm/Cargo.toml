@@ -27,8 +27,10 @@ pb = []
 test-clarity-v1 = []
 test-clarity-v2 = []
 test-clarity-v3 = []
+developer-mode = []
 
 [dev-dependencies]
+clar2wasm = {path = ".", features = ["developer-mode"]}
 criterion = "0.5"
 proptest = "1.2.0"
 num-integer = { version = "0.1.45", default-features = false }
