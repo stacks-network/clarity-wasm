@@ -1,8 +1,6 @@
 use clar2wasm::wasm_generator::WasmGenerator;
-use clarity::vm::{
-    types::{TupleData, TupleTypeSignature, TypeSignature},
-    Value,
-};
+use clarity::vm::types::{TupleData, TupleTypeSignature, TypeSignature};
+use clarity::vm::Value;
 use proptest::prelude::*;
 
 use crate::{prop_signature, PropValue};

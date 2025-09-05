@@ -1262,10 +1262,10 @@ impl WasmGenerator {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::{
-        types::{PrincipalData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature},
-        Value,
+    use clarity::vm::types::{
+        PrincipalData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature,
     };
+    use clarity::vm::Value;
 
     use crate::wasm_generator::WasmGenerator;
 
