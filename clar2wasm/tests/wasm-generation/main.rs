@@ -23,6 +23,7 @@ pub mod regression;
 pub mod response;
 pub mod secp256k1;
 pub mod sequences;
+pub mod serialization_size;
 pub mod stx;
 pub mod tokens;
 pub mod traits;
