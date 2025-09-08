@@ -5,7 +5,7 @@ use super::{ComplexWord, Word};
 use crate::check_args;
 use crate::error_mapping::ErrorMap;
 use crate::wasm_generator::{
-    get_global, ArgumentsExt, FunctionKind, GeneratorError, LiteralMemoryEntry, WasmGenerator,
+    get_global, ArgumentsExt, FunctionKind, GeneratorError, WasmGenerator,
 };
 use crate::wasm_utils::{check_argument_count, ArgumentCountCheck};
 
@@ -47,6 +47,7 @@ impl ComplexWord for DefinePrivateFunction {
         let function_id =
             generator.traverse_define_function(builder, name, body, FunctionKind::Private)?;
         generator.module.exports.add(name.as_str(), function_id);
+        generator.defined_functions.insert(name.to_string());
 
         Ok(())
     }
@@ -85,8 +86,7 @@ impl ComplexWord for DefineReadonlyFunction {
         // Handling function name collision.
         // Detects duplicate names and generates
         // appropriate WebAssembly instructions to report the error.
-        let entry = LiteralMemoryEntry::Ascii(name.to_string());
-        if generator.literal_memory_offset.contains_key(&entry) {
+        if generator.defined_functions.contains(&name.to_string()) {
             let (arg_name_offset, arg_name_len) =
                 generator.add_clarity_string_literal(&CharType::ASCII(ASCIIData {
                     data: name.as_bytes().to_vec(),
@@ -108,6 +108,7 @@ impl ComplexWord for DefineReadonlyFunction {
         let function_id =
             generator.traverse_define_function(builder, name, body, FunctionKind::ReadOnly)?;
         generator.module.exports.add(name.as_str(), function_id);
+        generator.defined_functions.insert(name.to_string());
         Ok(())
     }
 }
@@ -147,17 +148,19 @@ impl ComplexWord for DefinePublicFunction {
         let function_id =
             generator.traverse_define_function(builder, name, body, FunctionKind::Public)?;
         generator.module.exports.add(name.as_str(), function_id);
+        generator.defined_functions.insert(name.to_string());
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use clarity::types::StacksEpochId;
     use clarity::vm::errors::{CheckErrors, Error};
-    use clarity::vm::Value;
+    use clarity::vm::{ClarityVersion, Value};
 
     use crate::tools::{
-        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, evaluate,
+        crosscheck, crosscheck_expect_failure, crosscheck_multi_contract, evaluate, TestEnvironment,
     };
 
     //
@@ -505,5 +508,26 @@ mod tests {
             "#,
             evaluate("(ok 42)"),
         )
+    }
+
+    #[test]
+    fn false_duplicate_function_name() {
+        let foo = r#"
+(define-data-var counter uint u0)
+
+(define-read-only (get-counter) (var-get counter))
+        "#;
+        let bar = r#"
+(define-public (call-get-counter)
+    (ok (contract-call? .foo get-counter))
+)
+
+(define-read-only (get-counter) (ok true))
+        "#;
+        let mut env = TestEnvironment::new(StacksEpochId::Epoch25, ClarityVersion::Clarity2);
+        env.init_contract_with_snippet("foo", foo)
+            .unwrap();
+        env.init_contract_with_snippet("bar", bar)
+            .unwrap();
     }
 }
