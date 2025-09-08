@@ -525,9 +525,7 @@ mod tests {
 (define-read-only (get-counter) (ok true))
         "#;
         let mut env = TestEnvironment::new(StacksEpochId::Epoch25, ClarityVersion::Clarity2);
-        env.init_contract_with_snippet("foo", foo)
-            .unwrap();
-        env.init_contract_with_snippet("bar", bar)
-            .unwrap();
+        env.init_contract_with_snippet("foo", foo).unwrap();
+        env.init_contract_with_snippet("bar", bar).unwrap();
     }
 }
