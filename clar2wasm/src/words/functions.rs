@@ -511,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn false_duplicate_function_name() {
+    fn test_no_cross_contract_function_name_collision() {
         let foo = r#"
 (define-data-var counter uint u0)
 
