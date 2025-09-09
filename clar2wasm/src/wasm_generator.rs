@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -60,6 +60,8 @@ pub struct WasmGenerator {
     pub(crate) nft_types: HashMap<ClarityName, TypeSignature>,
     /// The (offsets, lengths) of trait IDs
     pub(crate) used_traits: HashMap<TraitIdentifier, (u32, u32)>,
+    /// The names of defined functions
+    pub(crate) defined_functions: HashSet<String>,
 
     /// The locals for the current function.
     pub(crate) bindings: Bindings,
@@ -341,6 +343,7 @@ impl WasmGenerator {
             local_pool: Rc::new(RefCell::new(HashMap::new())),
             nft_types: HashMap::new(),
             used_traits: HashMap::new(),
+            defined_functions: HashSet::new(),
         })
     }
 
