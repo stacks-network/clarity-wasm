@@ -227,15 +227,12 @@ mod tests {
         let caller_snippet = "(contract-call? .callee test-string-ascii \"abc\")";
 
         crate::tools::crosscheck_multi_contract(
-            &[
-                (callee, callee_snippet),
-                (caller, caller_snippet),
-            ],
+            &[(callee, callee_snippet), (caller, caller_snippet)],
             Ok(Some(Value::Int(42))),
         );
     }
 
-        #[test]
+    #[test]
     fn test_print_string_ascii_param_2() {
         let snippet = r#"
 (define-read-only (test-string-ascii (str (string-ascii 3)))
@@ -244,7 +241,7 @@ mod tests {
 (test-string-ascii "abc")
   "#;
 
-         crosscheck(
+        crosscheck(
             snippet,
             Ok(Some(Value::Sequence(SequenceData::String(
                 CharType::ASCII(ASCIIData {
@@ -265,10 +262,7 @@ mod tests {
         let caller_snippet = "(contract-call? .callee test-string-utf8 u\"abc\")";
 
         crate::tools::crosscheck_multi_contract(
-            &[
-                (callee, callee_snippet),
-                (caller, caller_snippet),
-            ],
+            &[(callee, callee_snippet), (caller, caller_snippet)],
             Ok(Some(Value::Int(42))),
         );
     }

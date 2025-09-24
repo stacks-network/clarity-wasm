@@ -4221,9 +4221,7 @@ test_multi_contract_call_response!(
     ["print"],
     "print",
     "test-string-ascii",
-    &[
-        Value::string_ascii_from_bytes(b"abc".to_vec()).unwrap(),
-    ],
+    &[Value::string_ascii_from_bytes(b"abc".to_vec()).unwrap(),],
     |response: ResponseData| {
         assert!(response.committed);
         println!("response: {:?}", response);
@@ -4235,12 +4233,11 @@ test_multi_contract_call_response!(
     ["print"],
     "print",
     "test-list-string-ascii",
-    &[
-        Value::cons_list_unsanitized(vec![
-            Value::string_ascii_from_bytes(b"hello".to_vec()).unwrap(),
-            Value::string_ascii_from_bytes(b"world".to_vec()).unwrap()
-        ]).unwrap(),
-    ],
+    &[Value::cons_list_unsanitized(vec![
+        Value::string_ascii_from_bytes(b"hello".to_vec()).unwrap(),
+        Value::string_ascii_from_bytes(b"world".to_vec()).unwrap()
+    ])
+    .unwrap(),],
     |response: ResponseData| {
         assert!(response.committed);
         println!("response: {:?}", response);
@@ -4252,9 +4249,7 @@ test_multi_contract_call_response!(
     ["print"],
     "print",
     "test-string-utf8",
-    &[
-        Value::string_utf8_from_string_utf8_literal("a".to_owned()).unwrap(),
-    ],
+    &[Value::string_utf8_from_string_utf8_literal("a".to_owned()).unwrap(),],
     |response: ResponseData| {
         assert!(response.committed);
         println!("response: {:?}", response);
@@ -4266,13 +4261,12 @@ test_multi_contract_call_response!(
     ["print"],
     "print",
     "test-list-string-utf8",
-    &[
-        Value::cons_list_unsanitized(vec![
-            Value::string_utf8_from_string_utf8_literal("a".to_owned()).unwrap(),
-            Value::string_utf8_from_string_utf8_literal("b".to_owned()).unwrap(),
-            Value::string_utf8_from_string_utf8_literal("c".to_owned()).unwrap(),
-        ]).unwrap(),
-    ],
+    &[Value::cons_list_unsanitized(vec![
+        Value::string_utf8_from_string_utf8_literal("a".to_owned()).unwrap(),
+        Value::string_utf8_from_string_utf8_literal("b".to_owned()).unwrap(),
+        Value::string_utf8_from_string_utf8_literal("c".to_owned()).unwrap(),
+    ])
+    .unwrap(),],
     |response: ResponseData| {
         assert!(response.committed);
         println!("response: {:?}", response);
