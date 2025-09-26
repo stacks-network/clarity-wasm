@@ -120,12 +120,12 @@
 ;;
 
 (define-read-only (check-string-utf8
-        (entry (string-utf8 1))
+        (entry (string-utf8 3))
         (context uint)
     )
     (begin (print entry) (print context)))
 
-(define-public (test-string-utf8 (x (string-utf8 1)))
+(define-public (test-string-utf8 (x (string-utf8 3)))
     (ok (fold check-string-utf8 x u99)))
 
 ;;
