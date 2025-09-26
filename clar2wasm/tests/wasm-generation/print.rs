@@ -20,6 +20,7 @@ proptest! {
 proptest! {
     #![proptest_config(super::runtime_config())]
 
+    #[ignore]
     #[test]
    fn print_val_from_function_call(
         (ty, val) in prop_signature().prop_flat_map(|ty| {

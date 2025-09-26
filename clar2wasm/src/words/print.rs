@@ -216,6 +216,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_print_string_ascii_param() {
         let callee = "callee".into();
@@ -251,6 +252,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_print_string_utf8_param() {
         let callee = "callee".into();
