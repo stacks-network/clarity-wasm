@@ -1327,7 +1327,7 @@ impl WasmGenerator {
                     .binop(BinaryOp::I32Eq)
                     .binop(BinaryOp::I32And);
             }
-            let bits_in_last = if result_len % 32 == 0 {
+            let bits_in_last = if result_len.is_multiple_of(32) {
                 u32::MAX as i32
             } else {
                 (1u32 << (result_len % 32)).wrapping_sub(1) as i32
