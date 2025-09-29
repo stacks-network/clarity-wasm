@@ -92,7 +92,9 @@ impl ComplexWord for Print {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{ASCIIData, CharType, ListTypeData, SequenceData, TupleData};
+    use clarity::vm::types::{
+        ASCIIData, CharType, ListTypeData, SequenceData, TupleData, UTF8Data,
+    };
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate};

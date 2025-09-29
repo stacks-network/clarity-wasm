@@ -1331,7 +1331,7 @@ pub fn call_function<'a>(
         .as_ref()
         .ok_or(Error::Wasm(WasmError::ExpectedReturnValue))?
         .clone();
-    let (mut results, offset) = reserve_space_for_return(offset, &return_type)?;
+    let (mut results, offset) = reserve_space_for_return(in_mem_offset, &return_type)?;
 
     // Update the stack pointer after space is reserved for the arguments and
     // return values.
