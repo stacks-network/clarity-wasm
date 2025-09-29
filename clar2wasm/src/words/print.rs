@@ -218,7 +218,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_print_string_ascii_param() {
         let callee = "callee".into();
@@ -231,12 +230,16 @@ mod tests {
 
         crate::tools::crosscheck_multi_contract(
             &[(callee, callee_snippet), (caller, caller_snippet)],
-            Ok(Some(Value::Int(42))),
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "abc".bytes().collect(),
+                }),
+            )))),
         );
     }
 
     #[test]
-    fn test_print_string_ascii_param_2() {
+    fn test_print_string_ascii_param_top_level() {
         let snippet = r#"
 (define-read-only (test-string-ascii (str (string-ascii 3)))
   (print str))
@@ -254,20 +257,23 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_print_string_utf8_param() {
         let callee = "callee".into();
         let callee_snippet = r#"
-(define-public (test-string-utf8 (str (string-utf8 3)))
-  (ok (print str)))"#;
+(define-read-only (test-string-utf8 (str (string-utf8 3)))
+  (print str))"#;
 
         let caller = "caller".into();
         let caller_snippet = "(contract-call? .callee test-string-utf8 u\"abc\")";
 
         crate::tools::crosscheck_multi_contract(
             &[(callee, callee_snippet), (caller, caller_snippet)],
-            Ok(Some(Value::Int(42))),
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+                UTF8Data {
+                    data: "abc".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         );
     }
 }
