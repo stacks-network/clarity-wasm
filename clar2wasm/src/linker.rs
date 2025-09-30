@@ -4456,7 +4456,7 @@ fn link_contract_call_fn(linker: &mut Linker<ClarityWasmContext>) -> Result<(), 
                     return_offset,
                     return_offset + get_type_size(return_ty),
                     &result,
-                    false,
+                    true,
                 )?;
 
                 Ok(())

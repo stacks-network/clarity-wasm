@@ -92,7 +92,9 @@ impl ComplexWord for Print {
 #[cfg(test)]
 mod tests {
     use clarity::types::StacksEpochId;
-    use clarity::vm::types::{ListTypeData, TupleData};
+    use clarity::vm::types::{
+        ASCIIData, CharType, ListTypeData, SequenceData, TupleData, UTF8Data,
+    };
     use clarity::vm::Value;
 
     use crate::tools::{crosscheck, evaluate};
@@ -213,6 +215,65 @@ mod tests {
                 )
                 .unwrap(),
             )),
+        );
+    }
+
+    #[test]
+    fn test_print_string_ascii_param() {
+        let callee = "callee".into();
+        let callee_snippet = r#"
+(define-read-only (test-string-ascii (str (string-ascii 3)))
+  (print str))"#;
+
+        let caller = "caller".into();
+        let caller_snippet = "(contract-call? .callee test-string-ascii \"abc\")";
+
+        crate::tools::crosscheck_multi_contract(
+            &[(callee, callee_snippet), (caller, caller_snippet)],
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "abc".bytes().collect(),
+                }),
+            )))),
+        );
+    }
+
+    #[test]
+    fn test_print_string_ascii_param_top_level() {
+        let snippet = r#"
+(define-read-only (test-string-ascii (str (string-ascii 3)))
+  (print str))
+
+(test-string-ascii "abc")
+  "#;
+
+        crosscheck(
+            snippet,
+            Ok(Some(Value::Sequence(SequenceData::String(
+                CharType::ASCII(ASCIIData {
+                    data: "abc".bytes().collect(),
+                }),
+            )))),
+        );
+    }
+
+    #[test]
+    fn test_print_string_utf8_param() {
+        let callee = "callee".into();
+        let callee_snippet = r#"
+(define-read-only (test-string-utf8 (str (string-utf8 3)))
+  (print str))"#;
+
+        let caller = "caller".into();
+        let caller_snippet = "(contract-call? .callee test-string-utf8 u\"abc\")";
+
+        crate::tools::crosscheck_multi_contract(
+            &[(callee, callee_snippet), (caller, caller_snippet)],
+            Ok(Some(Value::Sequence(SequenceData::String(CharType::UTF8(
+                UTF8Data {
+                    data: "abc".bytes().map(|b| vec![b]).collect(),
+                },
+            ))))),
         );
     }
 }

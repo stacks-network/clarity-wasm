@@ -93,3 +93,50 @@
 (define-public (print-tuple)
   (ok (print {key1: 1, key2: true}))
 )
+
+;;
+;; String-ASCII
+;;
+
+(define-public (test-string-ascii (str (string-ascii 3)))
+    (ok (print str))
+    )
+
+;;
+;; List of String-ASCII
+;;
+
+(define-read-only (check-list-string-ascii
+        (entry (string-ascii 5))
+        (context uint)
+    )
+    (begin (print entry) (print context)))
+
+(define-public (test-list-string-ascii (listparam (list 3 (string-ascii 5))))
+  (ok (fold check-list-string-ascii listparam u999)))
+
+;;
+;; String-UTF8
+;;
+
+(define-read-only (check-string-utf8
+        (entry (string-utf8 3))
+        (context uint)
+    )
+    (begin (print entry) (print context)))
+
+(define-public (test-string-utf8 (x (string-utf8 3)))
+    (ok (fold check-string-utf8 x u99)))
+
+;;
+;; List of String-UTF8
+;;
+
+(define-read-only (check-list-string-utf8
+        (entry (string-utf8 1))
+        (context uint)
+    )
+    (begin (print entry) (print context)))
+
+(define-public (test-list-string-utf8 (listparam (list 3 (string-utf8 1))))
+  (ok (fold check-list-string-utf8 listparam u1)))
