@@ -111,16 +111,13 @@ impl ComplexWord for Fold {
         // (- 6 (- 4 (- 2 0)))
         // ```
 
-        // To make sure that the initial value will reserve enough space in memory, we reassign its type to the type of the expression.
-        generator.set_expr_type(
-            initial,
-            generator
-                .get_expr_type(expr)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("fold expression should be typed".to_owned())
-                })?
-                .clone(),
-        )?;
+        // We allocate some space for the return value
+        let expr_ty = generator.get_expr_type(expr).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Fold expression should be typed".to_owned())
+        })?;
+        // the `include_repr` argument should be false here, but with our current implementation, we need the full size of the
+        // type without (offset, len), which is a behavior we don't have for now. We are allocating 8 bytes too many.
+        let (return_offset, _) = generator.create_call_stack_local(builder, &expr_ty, true, true);
 
         // We need to find the correct types expected by the function `func` and the result type of the fold expression
         // to make sure everything will be coherent in the end.
@@ -269,7 +266,7 @@ impl ComplexWord for Fold {
                 func,
                 &result_clar_ty,
                 fold_func_ty.as_ref().map(|func_ty| &func_ty.acc_ty),
-                None,
+                Some(return_offset),
             )?;
             // since the accumulator and the return type of the function could have different types, we need to duck-type.
             if let Some(tys) = &fold_func_ty {
