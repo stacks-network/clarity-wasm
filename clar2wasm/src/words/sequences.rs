@@ -269,6 +269,7 @@ impl ComplexWord for Fold {
                 func,
                 &result_clar_ty,
                 fold_func_ty.as_ref().map(|func_ty| &func_ty.acc_ty),
+                None,
             )?;
             // since the accumulator and the return type of the function could have different types, we need to duck-type.
             if let Some(tys) = &fold_func_ty {
@@ -879,6 +880,7 @@ impl ComplexWord for Map {
                 fname,
                 &func_return_ty,
                 Some(return_element_type),
+                None,
             )?;
         }
 
