@@ -1707,35 +1707,43 @@ impl WasmGenerator {
                 GeneratorError::TypeError("function call expression must be typed".to_owned())
             })?
             .clone();
-        self.visit_call_user_defined(builder, name, &return_ty, Some(&expected_ty))
+        self.visit_call_user_defined(builder, name, &return_ty, Some(&expected_ty), None)
     }
 
     /// Visit a function call to a user-defined function. Arguments must have
     /// already been traversed and pushed to the stack.
+    ///
+    /// If needed, the final answer can be duck-typed to another compatible type.
+    ///
+    /// If needed, if some space has been pre-allocated, we can pass a local containing the offset of the space. Otherwise,
+    /// the space is allocated at $stack-pointer.
     pub fn visit_call_user_defined(
         &mut self,
         builder: &mut InstrSeqBuilder,
         name: &ClarityName,
         return_ty: &TypeSignature,
         duck_ty: Option<&TypeSignature>,
+        preallocated_memory: Option<LocalId>,
     ) -> Result<(), GeneratorError> {
         // this local contains the offset at which we will copy the each new element of the result
         // if there is an in-memory type
         let in_memory_offset = has_in_memory_type(return_ty).then(|| {
-            let return_offset = self.module.locals.add(ValType::I32);
+            preallocated_memory.unwrap_or_else(|| {
+                let return_offset = self.module.locals.add(ValType::I32);
 
-            // in case there is an in-memory type to copy, we reserve some space in memory
-            let return_size = count_in_memory_space(return_ty) as i32;
-            self.frame_size += return_size;
+                // in case there is an in-memory type to copy, we reserve some space in memory
+                let return_size = count_in_memory_space(return_ty) as i32;
+                self.frame_size += return_size;
 
-            builder
-                .global_get(self.stack_pointer)
-                .local_tee(return_offset)
-                .i32_const(return_size)
-                .binop(BinaryOp::I32Add)
-                .global_set(self.stack_pointer);
+                builder
+                    .global_get(self.stack_pointer)
+                    .local_tee(return_offset)
+                    .i32_const(return_size)
+                    .binop(BinaryOp::I32Add)
+                    .global_set(self.stack_pointer);
 
-            return_offset
+                return_offset
+            })
         });
 
         if self
