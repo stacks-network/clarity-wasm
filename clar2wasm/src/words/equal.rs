@@ -1354,4 +1354,11 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn is_eq_with_different_operands_types() {
+        let snippet = "(is-eq (err false) (if true (ok u1) (err true)))";
+
+        crosscheck(snippet, Ok(Some(Value::Bool(false))));
+    }
 }
