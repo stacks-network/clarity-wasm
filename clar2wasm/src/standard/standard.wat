@@ -2138,16 +2138,6 @@
         (i32.eqz (local.get $bool_in))
     )
 
-    ;;
-    ;; 'is-eq-int' implementation
-    ;;
-    (func $stdlib.is-eq-int (param $a_lo i64) (param $a_hi i64) (param $b_lo i64) (param $b_hi i64) (result i32)
-        (i32.and
-            (i64.eq (local.get $a_lo) (local.get $b_lo))
-            (i64.eq (local.get $a_hi) (local.get $b_hi))
-        )
-    )
-
     (func $stdlib.is-eq-bytes (param $offset_a i32) (param $length_a i32) (param $offset_b i32) (param $length_b i32) (result i32)
         (if (i32.ne (local.get $length_a) (local.get $length_b)) (then (return (i32.const 0))))
         (if (i32.eqz (local.get $length_a)) (then (return (i32.const 1))))
@@ -4032,7 +4022,6 @@
     (export "stdlib.buff-to-uint-be" (func $stdlib.buff-to-uint-be))
     (export "stdlib.buff-to-uint-le" (func $stdlib.buff-to-uint-le))
     (export "stdlib.not" (func $stdlib.not))
-    (export "stdlib.is-eq-int" (func $stdlib.is-eq-int))
     (export "stdlib.is-eq-bytes" (func $stdlib.is-eq-bytes))
     (export "stdlib.principal-construct" (func $stdlib.principal-construct))
     (export "stdlib.is-valid-contract-name" (func $stdlib.is-valid-contract-name))

@@ -453,24 +453,31 @@ fn wasm_equal(
 }
 
 fn wasm_equal_int128(
-    generator: &mut WasmGenerator,
+    _generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     first_op: &[LocalId],
     nth_op: &[LocalId],
 ) -> Result<(), GeneratorError> {
-    // Get first operand from the local and put it onto stack.
-    for val in first_op {
-        builder.local_get(*val);
-    }
+    let [a_lo, a_hi] = first_op else {
+        return Err(GeneratorError::InternalError(
+            "wrong representation of int for equality".to_owned(),
+        ));
+    };
+    let [b_lo, b_hi] = nth_op else {
+        return Err(GeneratorError::InternalError(
+            "wrong representation of int for equality".to_owned(),
+        ));
+    };
 
-    // Get second operand from the local and put it onto stack.
-    for val in nth_op {
-        builder.local_get(*val);
-    }
-
-    // Call the function with the operands on the stack.
-    let func = generator.func_by_name("stdlib.is-eq-int");
-    builder.call(func);
+    builder
+        .local_get(*a_lo)
+        .local_get(*b_lo)
+        .binop(BinaryOp::I64Eq);
+    builder
+        .local_get(*a_hi)
+        .local_get(*b_hi)
+        .binop(BinaryOp::I64Eq);
+    builder.binop(BinaryOp::I32And);
 
     Ok(())
 }
