@@ -1,5 +1,5 @@
 use clarity::vm::types::signatures::CallableSubtype;
-use clarity::vm::types::{SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature};
+use clarity::vm::types::{SequenceSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
 use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
@@ -98,14 +98,7 @@ impl ComplexWord for IsEq {
             assign_to_locals(builder, &ty, &operand_ty, &nth_locals)?;
 
             // check equality
-            wasm_equal(
-                &ty,
-                &operand_ty,
-                generator,
-                builder,
-                &val_locals,
-                &nth_locals,
-            )?;
+            wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
 
             // Do an "and" operation with the result from the previous function call.
             builder.binop(BinaryOp::I32And);
@@ -267,14 +260,7 @@ impl ComplexWord for IndexOf {
 
                 // Check item and element equality.
                 // And push the result of the comparison onto the top of the stack.
-                wasm_equal(
-                    &item_ty,
-                    &item_ty,
-                    generator,
-                    loop_body,
-                    &item_locals,
-                    &elem_locals,
-                )?;
+                wasm_equal(&item_ty, generator, loop_body, &item_locals, &elem_locals)?;
                 // STACK: [wasm_equal_result]
 
                 loop_body.if_else(
@@ -407,20 +393,11 @@ fn assign_first_operand_to_locals(
 
 fn wasm_equal(
     ty: &TypeSignature,
-    nth_ty: &TypeSignature,
     generator: &mut WasmGenerator,
     builder: &mut InstrSeqBuilder,
     first_op: &[LocalId],
     nth_op: &[LocalId],
 ) -> Result<(), GeneratorError> {
-    // This is for the case where we have to compare two type that differs, it is a direct false
-    // Only case should be a NoType with something, in the case where we compare
-    // Response<NoType, x> == Response<y, NoType>
-    let mut no_type_match = || {
-        builder.i32_const(0);
-        Ok(())
-    };
-
     match ty {
         // we should never compare NoType
         TypeSignature::NoType => {
@@ -436,83 +413,40 @@ fn wasm_equal(
         }
         // is-eq-int function can be reused to both int and uint types.
         TypeSignature::IntType | TypeSignature::UIntType => {
-            if ty == nth_ty {
-                wasm_equal_int128(generator, builder, first_op, nth_op)
-            } else {
-                no_type_match()
-            }
+            wasm_equal_int128(generator, builder, first_op, nth_op)
         }
         // is-eq-bytes function can be used for types with (offset, length)
         TypeSignature::SequenceType(SequenceSubtype::BufferType(_))
         | TypeSignature::SequenceType(SequenceSubtype::StringType(_)) => {
-            if matches!(
-                (ty, nth_ty),
-                (
-                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-                    TypeSignature::SequenceType(SequenceSubtype::BufferType(_)),
-                ) | (
-                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                        _
-                    ))),
-                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                        _
-                    ))),
-                ) | (
-                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
-                        _
-                    ))),
-                    TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
-                        _
-                    ))),
-                )
-            ) {
-                wasm_equal_bytes(generator, builder, first_op, nth_op)
-            } else {
-                no_type_match()
-            }
+            wasm_equal_bytes(generator, builder, first_op, nth_op)
         }
         TypeSignature::PrincipalType
         | TypeSignature::CallableType(CallableSubtype::Principal(_)) => {
-            if ty == nth_ty {
-                wasm_equal_bytes(generator, builder, first_op, nth_op)
-            } else {
-                no_type_match()
-            }
+            wasm_equal_bytes(generator, builder, first_op, nth_op)
         }
-        TypeSignature::OptionalType(some_ty) => match nth_ty {
-            TypeSignature::OptionalType(nth_some_ty) => {
-                wasm_equal_optional(generator, builder, first_op, nth_op, some_ty, nth_some_ty)
-            }
-            _ => no_type_match(),
-        },
-        TypeSignature::ResponseType(ok_err_ty) => match nth_ty {
-            TypeSignature::ResponseType(nth_okerr_ty) => wasm_equal_response(
-                generator,
-                builder,
-                first_op,
-                nth_op,
-                (&ok_err_ty.0, &ok_err_ty.1),
-                (&nth_okerr_ty.0, &nth_okerr_ty.1),
-            ),
-            _ => no_type_match(),
-        },
-        TypeSignature::TupleType(tuple_ty) => match nth_ty {
-            TypeSignature::TupleType(nth_tuple_ty) => {
-                wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty, nth_tuple_ty)
-            }
-            _ => no_type_match(),
-        },
-        TypeSignature::SequenceType(SequenceSubtype::ListType(list_ty)) => match nth_ty {
-            TypeSignature::SequenceType(SequenceSubtype::ListType(nth_list_ty)) => wasm_equal_list(
-                generator,
-                builder,
-                first_op,
-                nth_op,
-                list_ty.get_list_item_type(),
-                nth_list_ty.get_list_item_type(),
-            ),
-            _ => no_type_match(),
-        },
+        TypeSignature::OptionalType(some_ty) => {
+            wasm_equal_optional(generator, builder, first_op, nth_op, some_ty)
+        }
+
+        TypeSignature::ResponseType(ok_err_ty) => wasm_equal_response(
+            generator,
+            builder,
+            first_op,
+            nth_op,
+            (&ok_err_ty.0, &ok_err_ty.1),
+        ),
+        TypeSignature::TupleType(tuple_ty) => {
+            wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty)
+        }
+
+        TypeSignature::SequenceType(SequenceSubtype::ListType(list_ty)) => wasm_equal_list(
+            generator,
+            builder,
+            first_op,
+            nth_op,
+            list_ty.get_list_item_type(),
+        ),
+
         _ => Err(GeneratorError::NotImplemented),
     }
 }
@@ -569,7 +503,6 @@ fn wasm_equal_optional(
     first_op: &[LocalId],
     nth_op: &[LocalId],
     some_ty: &TypeSignature,
-    nth_some_ty: &TypeSignature,
 ) -> Result<(), GeneratorError> {
     let Some((first_variant, first_inner)) = first_op.split_first() else {
         return Err(GeneratorError::InternalError(
@@ -602,14 +535,7 @@ fn wasm_equal_optional(
 
         let some_case_id = {
             let mut some_ = then.dangling_instr_seq(ValType::I32);
-            wasm_equal(
-                some_ty,
-                nth_some_ty,
-                generator,
-                &mut some_,
-                first_inner,
-                nth_inner,
-            )?;
+            wasm_equal(some_ty, generator, &mut some_, first_inner, nth_inner)?;
             some_.id()
         };
 
@@ -642,7 +568,6 @@ fn wasm_equal_response(
     first_op: &[LocalId],
     nth_op: &[LocalId],
     ok_err_ty: (&TypeSignature, &TypeSignature),
-    nth_okerr_ty: (&TypeSignature, &TypeSignature),
 ) -> Result<(), GeneratorError> {
     let Some((first_variant, first_ok, first_err)) =
         first_op.split_first().map(|(variant, rest)| {
@@ -656,7 +581,7 @@ fn wasm_equal_response(
         ));
     };
     let Some((nth_variant, nth_ok, nth_err)) = nth_op.split_first().map(|(variant, rest)| {
-        let split_ok_err_idx = clar2wasm_ty(nth_okerr_ty.0).len();
+        let split_ok_err_idx = clar2wasm_ty(ok_err_ty.0).len();
         let (ok, err) = rest.split_at(split_ok_err_idx);
         (variant, ok, err)
     }) else {
@@ -672,27 +597,13 @@ fn wasm_equal_response(
 
     let ok_id = {
         let mut ok_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(
-            ok_err_ty.0,
-            nth_okerr_ty.0,
-            generator,
-            &mut ok_case,
-            first_ok,
-            nth_ok,
-        )?;
+        wasm_equal(ok_err_ty.0, generator, &mut ok_case, first_ok, nth_ok)?;
         ok_case.id()
     };
 
     let err_id = {
         let mut err_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(
-            ok_err_ty.1,
-            nth_okerr_ty.1,
-            generator,
-            &mut err_case,
-            first_err,
-            nth_err,
-        )?;
+        wasm_equal(ok_err_ty.1, generator, &mut err_case, first_err, nth_err)?;
         err_case.id()
     };
 
@@ -735,7 +646,6 @@ fn wasm_equal_tuple(
     first_op: &[LocalId],
     nth_op: &[LocalId],
     tuple_ty: &TupleTypeSignature,
-    nth_tuple_ty: &TupleTypeSignature,
 ) -> Result<(), GeneratorError> {
     // we'll compare tuple lazily field by field, so that
     // `(is-eq {x: a1, y: a2, z: a3} {x: b1, y: b2, z: b3})` becomes
@@ -768,22 +678,14 @@ fn wasm_equal_tuple(
         },
     );
 
-    // types for nth argument
-    let nth_type_map = nth_tuple_ty.get_type_map();
-    let mut nth_types = nth_type_map.values().rev();
-
     // if this is a 1-tuple, we can just check for equality of element
     if depth == 1 {
         let (ty, range) = wasm_ranges.next().ok_or_else(|| {
             GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
         })?;
-        let nth_ty = nth_types.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
-        })?;
 
         return wasm_equal(
             ty,
-            nth_ty,
             generator,
             builder,
             &first_op[range.clone()],
@@ -797,13 +699,9 @@ fn wasm_equal_tuple(
         let (ty, range) = wasm_ranges.next().ok_or_else(|| {
             GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
         })?;
-        let nth_ty = nth_types.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
-        })?;
 
         wasm_equal(
             ty,
-            nth_ty,
             generator,
             &mut instr,
             &first_op[range.clone()],
@@ -819,9 +717,6 @@ fn wasm_equal_tuple(
         let (ty, range) = wasm_ranges.next().ok_or_else(|| {
             GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
         })?;
-        let nth_ty = nth_types.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
-        })?;
 
         let else_id = {
             let mut else_ = builder.dangling_instr_seq(ValType::I32);
@@ -834,7 +729,6 @@ fn wasm_equal_tuple(
 
             wasm_equal(
                 ty,
-                nth_ty,
                 generator,
                 &mut if_else,
                 &first_op[range.clone()],
@@ -856,9 +750,6 @@ fn wasm_equal_tuple(
     let (ty, range) = wasm_ranges.next().ok_or_else(|| {
         GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
     })?;
-    let nth_ty = nth_types.next().ok_or_else(|| {
-        GeneratorError::InternalError("Expected second tuple type for comparison".to_owned())
-    })?;
     let top_else_id = {
         let mut else_ = builder.dangling_instr_seq(ValType::I32);
         else_.i32_const(0);
@@ -867,7 +758,6 @@ fn wasm_equal_tuple(
 
     wasm_equal(
         ty,
-        nth_ty,
         generator,
         builder,
         &first_op[range.clone()],
@@ -888,7 +778,6 @@ fn wasm_equal_list(
     first_op: &[LocalId],
     nth_op: &[LocalId],
     list_ty: &TypeSignature,
-    nth_list_ty: &TypeSignature,
 ) -> Result<(), GeneratorError> {
     let [offset_a, len_a] = first_op else {
         return Err(GeneratorError::InternalError(
@@ -944,18 +833,11 @@ fn wasm_equal_list(
             assign_first_operand_to_locals(&mut loop_, list_ty, &first_locals)?;
 
             // same for nth list
-            offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, nth_list_ty)?;
-            assign_to_locals(&mut loop_, list_ty, nth_list_ty, &nth_locals)?;
+            offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, list_ty)?;
+            assign_to_locals(&mut loop_, list_ty, list_ty, &nth_locals)?;
 
             // compare both elements
-            wasm_equal(
-                list_ty,
-                nth_list_ty,
-                generator,
-                &mut loop_,
-                &first_locals,
-                &nth_locals,
-            )?;
+            wasm_equal(list_ty, generator, &mut loop_, &first_locals, &nth_locals)?;
 
             // if there is equality, we update the variables and we loop
             loop_.if_else(
