@@ -35,6 +35,18 @@ impl ComplexWord for IsEq {
 
         self.charge(generator, builder, args_len as u32)?;
 
+        // Since all argument should have compatible types, we unify them so that they all have the same representation.
+        let unified_ty = args.iter().try_fold(TypeSignature::NoType, |ty, arg| {
+            let arg_ty = generator.get_expr_type(arg).ok_or_else(|| {
+                GeneratorError::TypeError("Is-eq argument should be typed".to_owned())
+            })?;
+            TypeSignature::least_supertype(&generator.contract_analysis.epoch, &ty, arg_ty)
+                .map_err(|e| GeneratorError::TypeError(format!("Incompatible types in is-eq: {e}")))
+        })?;
+        for a in args {
+            generator.set_expr_type(a, unified_ty.clone())?;
+        }
+
         // Traverse the first operand pushing it onto the stack
         let first_op = args.get_expr(0)?;
         generator.traverse_expr(builder, first_op)?;
