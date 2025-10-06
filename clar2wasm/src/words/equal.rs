@@ -892,18 +892,10 @@ fn wasm_equal_list(
         instr.id()
     };
 
-    // compute effective sizes of both lists
-    builder
-        .local_get(*len_a)
-        .i32_const(offset_delta_a)
-        .binop(BinaryOp::I32DivU);
-    builder
-        .local_get(*len_b)
-        .i32_const(offset_delta_b)
-        .binop(BinaryOp::I32DivU);
-
     // if-else sizes are equal or not?
     builder
+        .local_get(*len_a)
+        .local_get(*len_b)
         .binop(BinaryOp::I32Eq)
         // consequent when same sizes, alternative for different sizes
         .instr(IfElse {
