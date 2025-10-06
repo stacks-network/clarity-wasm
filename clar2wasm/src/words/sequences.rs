@@ -111,16 +111,13 @@ impl ComplexWord for Fold {
         // (- 6 (- 4 (- 2 0)))
         // ```
 
-        // To make sure that the initial value will reserve enough space in memory, we reassign its type to the type of the expression.
-        generator.set_expr_type(
-            initial,
-            generator
-                .get_expr_type(expr)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("fold expression should be typed".to_owned())
-                })?
-                .clone(),
-        )?;
+        // We allocate some space for the return value
+        let expr_ty = generator.get_expr_type(expr).cloned().ok_or_else(|| {
+            GeneratorError::TypeError("Fold expression should be typed".to_owned())
+        })?;
+        // the `include_repr` argument should be false here, but with our current implementation, we need the full size of the
+        // type without (offset, len), which is a behavior we don't have for now. We are allocating 8 bytes too many.
+        let (return_offset, _) = generator.create_call_stack_local(builder, &expr_ty, true, true);
 
         // We need to find the correct types expected by the function `func` and the result type of the fold expression
         // to make sure everything will be coherent in the end.
@@ -269,6 +266,7 @@ impl ComplexWord for Fold {
                 func,
                 &result_clar_ty,
                 fold_func_ty.as_ref().map(|func_ty| &func_ty.acc_ty),
+                Some(return_offset),
             )?;
             // since the accumulator and the return type of the function could have different types, we need to duck-type.
             if let Some(tys) = &fold_func_ty {
@@ -879,6 +877,7 @@ impl ComplexWord for Map {
                 fname,
                 &func_return_ty,
                 Some(return_element_type),
+                None,
             )?;
         }
 
@@ -1736,7 +1735,7 @@ impl ComplexWord for Slice {
 mod tests {
     use clarity::vm::Value;
 
-    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate};
+    use crate::tools::{crosscheck, crosscheck_compare_only, evaluate, interpret};
 
     #[test]
     fn fold_less_than_three_args() {
@@ -2854,5 +2853,48 @@ mod tests {
             let a = "(map int-to-utf8 (list u1 u2 u3))";
             crosscheck(a, evaluate("(list u\"1\" u\"2\" u\"3\")"));
         }
+    }
+
+    #[test]
+    fn fold_cannot_oom() {
+        // this comes from a proptest, which is why this is so big and the type/values look so weird.
+        let snippet = r#"
+            (define-data-var res (list 10 {HUjqhooZkWOxCBP: {FptMqjTJNUNgg: (string-ascii 86),aXGLXMMVAwPHl: (string-utf8 6),dPliquaWzyA: (string-utf8 6),},KjI: (buff 106),LlhgxuCkgvY: uint,cLzfhdGIFWt: principal,cT: (string-utf8 5),}) (list))
+
+            (define-private (accumulate (elem {HUjqhooZkWOxCBP: {FptMqjTJNUNgg: (string-ascii 86),aXGLXMMVAwPHl: (string-utf8 6),dPliquaWzyA: (string-utf8 6),},KjI: (buff 106),LlhgxuCkgvY: uint,cLzfhdGIFWt: principal,cT: (string-utf8 5),}) (acc (list 20 {HUjqhooZkWOxCBP: {FptMqjTJNUNgg: (string-ascii 86),aXGLXMMVAwPHl: (string-utf8 6),dPliquaWzyA: (string-utf8 6),},KjI: (buff 106),LlhgxuCkgvY: uint,cLzfhdGIFWt: principal,cT: (string-utf8 5),})))
+                (unwrap-panic (as-max-len? (append acc elem) u20))
+            )
+
+            (fold accumulate
+                (list
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "}R+/PK>jm//o`a-GN(3\"aK! lFiX:1kZ94nwxT`;P@@1DT=`N<NN@pdPHN2zTb<Q*[mAE5{BUF8ge d6\\Af^f:") (aXGLXMMVAwPHl u"}\u{9B76E}::\u{771C3}]") (dPliquaWzyA u"\u{1F574}Z\u{8A24B}p$\u{FEFF}"))) (KjI 0x1d16e49ed0a6780ebd431192856b2efba35c0d0a7072efacca76372d6778e35e485434435a10e6cdbc070ff522e07bec5b242d40dcf4f00df6c2de55c8aba8d67c8942f3d7b3fe201bc7722352a52ea9ae725ac6a87a5136b275e272e85db812801174ce6f947c2644bc) (LlhgxuCkgvY u266584415760704871682925682368427159672) (cLzfhdGIFWt 'SC7RDYK8R075CT65GJF46BWFBEPZD3F4107BECX5) (cT u"\u{F3F0}\u{D}\u{32C69}`\u{468}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "YYAXt;[.xV?do;!?_vcv+UIuyUQXI#vWhLSr[L**n!xjrORli-rRu8Z#!C>j7cM{C;vke8-QJX;G<Zh@t4u\\j$") (aXGLXMMVAwPHl u"\u{1B}`\u{A5}h\u{BFD24}`") (dPliquaWzyA u"\u{23A}{\u{103C41}7\u{6B8B3}\u{0}"))) (KjI 0x77099cb8af6c27735855f8e22397c05d3b83345ea374287362a36c35069164497628c984ff26d3e5398cd7d98c47c49c0c84fe275ca96dd37f5545930e9c52794521cfb5d043136b5c02190194525a66d131f27ce9847d39687e35289eb3dfd78152309dc999dc437431) (LlhgxuCkgvY u290403534025191254672308036914300859385) (cLzfhdGIFWt 'S31VQ762JEFDBRG2AN6GMJ46Q5A42CVN81SYRTHH5) (cT u"\u{9}\u{D}:F}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "$nrO.#;n6}efpH)4<&<nsg(|{j6xL*4Kg1:Otm?D=>DI0be\"C_7j[%TO\\D-(b 5zvF[Ux#2Cl|l])FHmzmya1S") (aXGLXMMVAwPHl u"x&j\u{A5}\u{9FB98}a") (dPliquaWzyA u"`\u{23A}\u{B}\u{23A}\u{BE}&"))) (KjI 0xd4c3155ee99c15bfd2163f0d6deb998e003d967cee91cb168bfe6c7ddd066b15294e88842538e5245d0b579242bf069c21b4601b121fa214a030195ec4dc66d697d9bbac32f75cb33939c677529944fcb2421455679a85736eeea0168d4090285f29d47b3835d10fce90) (LlhgxuCkgvY u112340289429567555812382063329072771939) (cLzfhdGIFWt 'SX33HWZ9D8N62BS4PWEE1TXAHXJS8CT77C3MZT223) (cT u"U\u{106EBA}:u~"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "/rG?'{p&L|LHM7m0Pf'zDaN@%5TTSI`IjlS!pAW#kSIGq]=I\\gTV(\"-1#GD^DtweW=Fr8v1m* VIZEzm'mb86n") (aXGLXMMVAwPHl u"\u{202E}\u{9DE06}*\u{468}\u{B}`") (dPliquaWzyA u"\u{7F}\u{A}=6\u{6342C}\u{F6}"))) (KjI 0xd8a431afc574142072940c1d80fa7a76c8079132e9b3ad99f5a7af0df8bd06da102792d69fb489bd00d5857df298c7ab7685bbca38a6c442bb34d152ff1836298d2bde2fd38394674fbc2d3a2af0208a7864bd741808987ab3cd6bdcbd061854c931433d34a515f7b912) (LlhgxuCkgvY u180909627654866266770371222299909290078) (cLzfhdGIFWt 'SGJGSDVNSCCWATPE7QN38E3VD7ZWQFGR8AT296Y0) (cT u"\u{361D9}&\u{D}'\u{B}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "zBwm8ArbBL!T >kLsQ@x+za\"a*4Q9II14:\\>Ff\"sM|D8dF63(?I,j}U:\\SXFj{<Fux|?q<WRskA{n:y29@[QF:") (aXGLXMMVAwPHl u"$\u{202E}\u{94DCC}\u{202E}'\u{C4762}") (dPliquaWzyA u"'`\u{F8EAE}\u{0}\u{9}\u{0}"))) (KjI 0xdfdf24465c485e22c372dd0a0acedbac90fd2f68b703af66002ab5d437f2eb1df61472580925d7846d2322bdc1d37664a553dac7ea25269f73687e49e37e95ebfb2057ad388cfb3bcb08797fb38a8f9ed08751d47f0e8f5ede286afb566089aad97a933abe292e1b71a9) (LlhgxuCkgvY u52803673722867896838744451212775160657) (cLzfhdGIFWt 'SG3VNED7GQKFMBX92CR6375GRJ0S1SVTS29EHK36X.MMFKlfGOxhOfdVapvrPWXoCKxBDnILfe) (cT u"\u{97}\u{B}v\u{FFFD}e"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "X\"LbZDW)tQkjd?DB+(9OaK5UmYL6Eu;.$)2H8(0S.lN*')Y`'[h}DWz\\Dc l-/G('o:;?'\\t.#?gD,e{$Z9uO?") (aXGLXMMVAwPHl u"\u{23A}\u{1F574}\u{8EF57}{\"\u{107F93}") (dPliquaWzyA u"\u{E3B9D}`.2\u{C14BF}\u{D1CD9}"))) (KjI 0x81377e6109e49e6e50b37894cf5e259a6175d5c68cd37cbd3469a778bf86ea1956d997f9500d968cac6aa20f34444b93c313b9139bbeef06c2fd6902ffc913bf0aae2abbefc338babec1022e1bbd8a8df3fccaab3aa17108254c8e6b415d3edcfd9e0738bca4ea3c2749) (LlhgxuCkgvY u86526039109882199526131538780536033377) (cLzfhdGIFWt 'S92XK4FCQJCXK2AES16WVJWP66689MGXKHSTJW6NV.IopLHoUBzNdvRaEnoDjDri) (cT u".[\u{3EBDC}?\u{51CF4}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "qEM?kK^:^y0hBKdX2KGx4j(2,mJWF5whQ&{9]zq9M?hO`}7-J}7`#&yz(V/mSe{-f)ydt({0w*xhBIHedB+qNd") (aXGLXMMVAwPHl u"\u{10DB3B}|\u{B}<\u{D4}$") (dPliquaWzyA u"u<&\u{5474A}\u{FFFD}\u{37831}"))) (KjI 0x883e5fba16581ffaf0760531bad9760c3bfad38f585ed395bcbd87fea722737a545882d339e212b2473c20ed5df75747af5dc6c285fa7291446f4cd640b11ed0da45a5f65254dc03ceda920eda93a366ed457cb96769826e9dcbe793755b596f918b12e1156c14c6aac8) (LlhgxuCkgvY u54905774066604940256152088345328184940) (cLzfhdGIFWt 'SDFXQR791656BCGQJE2PBM7Z10134852HX2X22HJ) (cT u"5f`\u{468}\u{63CCA}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "?1b?U*-}@{%{T(Z9/fIcV$KD,\"Es-TrcnS`.HZTYnY[00l& Q*Qk,kio2@x<&N{r3)`6f`.{SKGcBEzd >c[5p") (aXGLXMMVAwPHl u"=\u{4856D}\u{23A}{\u{0}:") (dPliquaWzyA u"\u{468}%\u{E4}\"\u{202E}\u{23A}"))) (KjI 0x65632440e4cb2a9c12821ba9e6c6dca8352f081b8b18e8fd40df33110adf2084c0bb7290e1fd4fd68e0c9de78ed8c1d4fc08879a1b59b17776a4b7109e2cc661c5af67048d1a094c6daff3f467401a13b6d107f963742be1b6ca39d7fb0b0f3824066311120113e2a8e3) (LlhgxuCkgvY u55353300269423966798277265961322403298) (cLzfhdGIFWt 'SW3JYDPJMCDCT5M42TFVXSG07NN1FRY1P16N4DDKW.PsuTiLAbPJiaTjsYRKFfrca) (cT u"{.\u{F04E9}\u{A}k"))
+                )
+                (var-get res)
+            )
+        "#;
+
+        let expected = interpret(
+            r#"
+                (list
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "}R+/PK>jm//o`a-GN(3\"aK! lFiX:1kZ94nwxT`;P@@1DT=`N<NN@pdPHN2zTb<Q*[mAE5{BUF8ge d6\\Af^f:") (aXGLXMMVAwPHl u"}\u{9B76E}::\u{771C3}]") (dPliquaWzyA u"\u{1F574}Z\u{8A24B}p$\u{FEFF}"))) (KjI 0x1d16e49ed0a6780ebd431192856b2efba35c0d0a7072efacca76372d6778e35e485434435a10e6cdbc070ff522e07bec5b242d40dcf4f00df6c2de55c8aba8d67c8942f3d7b3fe201bc7722352a52ea9ae725ac6a87a5136b275e272e85db812801174ce6f947c2644bc) (LlhgxuCkgvY u266584415760704871682925682368427159672) (cLzfhdGIFWt 'SC7RDYK8R075CT65GJF46BWFBEPZD3F4107BECX5) (cT u"\u{F3F0}\u{D}\u{32C69}`\u{468}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "YYAXt;[.xV?do;!?_vcv+UIuyUQXI#vWhLSr[L**n!xjrORli-rRu8Z#!C>j7cM{C;vke8-QJX;G<Zh@t4u\\j$") (aXGLXMMVAwPHl u"\u{1B}`\u{A5}h\u{BFD24}`") (dPliquaWzyA u"\u{23A}{\u{103C41}7\u{6B8B3}\u{0}"))) (KjI 0x77099cb8af6c27735855f8e22397c05d3b83345ea374287362a36c35069164497628c984ff26d3e5398cd7d98c47c49c0c84fe275ca96dd37f5545930e9c52794521cfb5d043136b5c02190194525a66d131f27ce9847d39687e35289eb3dfd78152309dc999dc437431) (LlhgxuCkgvY u290403534025191254672308036914300859385) (cLzfhdGIFWt 'S31VQ762JEFDBRG2AN6GMJ46Q5A42CVN81SYRTHH5) (cT u"\u{9}\u{D}:F}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "$nrO.#;n6}efpH)4<&<nsg(|{j6xL*4Kg1:Otm?D=>DI0be\"C_7j[%TO\\D-(b 5zvF[Ux#2Cl|l])FHmzmya1S") (aXGLXMMVAwPHl u"x&j\u{A5}\u{9FB98}a") (dPliquaWzyA u"`\u{23A}\u{B}\u{23A}\u{BE}&"))) (KjI 0xd4c3155ee99c15bfd2163f0d6deb998e003d967cee91cb168bfe6c7ddd066b15294e88842538e5245d0b579242bf069c21b4601b121fa214a030195ec4dc66d697d9bbac32f75cb33939c677529944fcb2421455679a85736eeea0168d4090285f29d47b3835d10fce90) (LlhgxuCkgvY u112340289429567555812382063329072771939) (cLzfhdGIFWt 'SX33HWZ9D8N62BS4PWEE1TXAHXJS8CT77C3MZT223) (cT u"U\u{106EBA}:u~"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "/rG?'{p&L|LHM7m0Pf'zDaN@%5TTSI`IjlS!pAW#kSIGq]=I\\gTV(\"-1#GD^DtweW=Fr8v1m* VIZEzm'mb86n") (aXGLXMMVAwPHl u"\u{202E}\u{9DE06}*\u{468}\u{B}`") (dPliquaWzyA u"\u{7F}\u{A}=6\u{6342C}\u{F6}"))) (KjI 0xd8a431afc574142072940c1d80fa7a76c8079132e9b3ad99f5a7af0df8bd06da102792d69fb489bd00d5857df298c7ab7685bbca38a6c442bb34d152ff1836298d2bde2fd38394674fbc2d3a2af0208a7864bd741808987ab3cd6bdcbd061854c931433d34a515f7b912) (LlhgxuCkgvY u180909627654866266770371222299909290078) (cLzfhdGIFWt 'SGJGSDVNSCCWATPE7QN38E3VD7ZWQFGR8AT296Y0) (cT u"\u{361D9}&\u{D}'\u{B}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "zBwm8ArbBL!T >kLsQ@x+za\"a*4Q9II14:\\>Ff\"sM|D8dF63(?I,j}U:\\SXFj{<Fux|?q<WRskA{n:y29@[QF:") (aXGLXMMVAwPHl u"$\u{202E}\u{94DCC}\u{202E}'\u{C4762}") (dPliquaWzyA u"'`\u{F8EAE}\u{0}\u{9}\u{0}"))) (KjI 0xdfdf24465c485e22c372dd0a0acedbac90fd2f68b703af66002ab5d437f2eb1df61472580925d7846d2322bdc1d37664a553dac7ea25269f73687e49e37e95ebfb2057ad388cfb3bcb08797fb38a8f9ed08751d47f0e8f5ede286afb566089aad97a933abe292e1b71a9) (LlhgxuCkgvY u52803673722867896838744451212775160657) (cLzfhdGIFWt 'SG3VNED7GQKFMBX92CR6375GRJ0S1SVTS29EHK36X.MMFKlfGOxhOfdVapvrPWXoCKxBDnILfe) (cT u"\u{97}\u{B}v\u{FFFD}e"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "X\"LbZDW)tQkjd?DB+(9OaK5UmYL6Eu;.$)2H8(0S.lN*')Y`'[h}DWz\\Dc l-/G('o:;?'\\t.#?gD,e{$Z9uO?") (aXGLXMMVAwPHl u"\u{23A}\u{1F574}\u{8EF57}{\"\u{107F93}") (dPliquaWzyA u"\u{E3B9D}`.2\u{C14BF}\u{D1CD9}"))) (KjI 0x81377e6109e49e6e50b37894cf5e259a6175d5c68cd37cbd3469a778bf86ea1956d997f9500d968cac6aa20f34444b93c313b9139bbeef06c2fd6902ffc913bf0aae2abbefc338babec1022e1bbd8a8df3fccaab3aa17108254c8e6b415d3edcfd9e0738bca4ea3c2749) (LlhgxuCkgvY u86526039109882199526131538780536033377) (cLzfhdGIFWt 'S92XK4FCQJCXK2AES16WVJWP66689MGXKHSTJW6NV.IopLHoUBzNdvRaEnoDjDri) (cT u".[\u{3EBDC}?\u{51CF4}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "qEM?kK^:^y0hBKdX2KGx4j(2,mJWF5whQ&{9]zq9M?hO`}7-J}7`#&yz(V/mSe{-f)ydt({0w*xhBIHedB+qNd") (aXGLXMMVAwPHl u"\u{10DB3B}|\u{B}<\u{D4}$") (dPliquaWzyA u"u<&\u{5474A}\u{FFFD}\u{37831}"))) (KjI 0x883e5fba16581ffaf0760531bad9760c3bfad38f585ed395bcbd87fea722737a545882d339e212b2473c20ed5df75747af5dc6c285fa7291446f4cd640b11ed0da45a5f65254dc03ceda920eda93a366ed457cb96769826e9dcbe793755b596f918b12e1156c14c6aac8) (LlhgxuCkgvY u54905774066604940256152088345328184940) (cLzfhdGIFWt 'SDFXQR791656BCGQJE2PBM7Z10134852HX2X22HJ) (cT u"5f`\u{468}\u{63CCA}"))
+                    (tuple (HUjqhooZkWOxCBP (tuple (FptMqjTJNUNgg "?1b?U*-}@{%{T(Z9/fIcV$KD,\"Es-TrcnS`.HZTYnY[00l& Q*Qk,kio2@x<&N{r3)`6f`.{SKGcBEzd >c[5p") (aXGLXMMVAwPHl u"=\u{4856D}\u{23A}{\u{0}:") (dPliquaWzyA u"\u{468}%\u{E4}\"\u{202E}\u{23A}"))) (KjI 0x65632440e4cb2a9c12821ba9e6c6dca8352f081b8b18e8fd40df33110adf2084c0bb7290e1fd4fd68e0c9de78ed8c1d4fc08879a1b59b17776a4b7109e2cc661c5af67048d1a094c6daff3f467401a13b6d107f963742be1b6ca39d7fb0b0f3824066311120113e2a8e3) (LlhgxuCkgvY u55353300269423966798277265961322403298) (cLzfhdGIFWt 'SW3JYDPJMCDCT5M42TFVXSG07NN1FRY1P16N4DDKW.PsuTiLAbPJiaTjsYRKFfrca) (cT u"{.\u{F04E9}\u{A}k"))
+                )
+            "#,
+        );
+
+        crosscheck(snippet, expected);
     }
 }
