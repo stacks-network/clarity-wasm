@@ -433,7 +433,8 @@ fn wasm_equal(
             builder,
             first_op,
             nth_op,
-            (&ok_err_ty.0, &ok_err_ty.1),
+            &ok_err_ty.0,
+            &ok_err_ty.1,
         ),
         TypeSignature::TupleType(tuple_ty) => {
             wasm_equal_tuple(generator, builder, first_op, nth_op, tuple_ty)
@@ -567,11 +568,12 @@ fn wasm_equal_response(
     builder: &mut InstrSeqBuilder,
     first_op: &[LocalId],
     nth_op: &[LocalId],
-    ok_err_ty: (&TypeSignature, &TypeSignature),
+    ok_ty: &TypeSignature,
+    err_ty: &TypeSignature,
 ) -> Result<(), GeneratorError> {
     let Some((first_variant, first_ok, first_err)) =
         first_op.split_first().map(|(variant, rest)| {
-            let split_ok_err_idx = clar2wasm_ty(ok_err_ty.0).len();
+            let split_ok_err_idx = clar2wasm_ty(ok_ty).len();
             let (ok, err) = rest.split_at(split_ok_err_idx);
             (variant, ok, err)
         })
@@ -581,7 +583,7 @@ fn wasm_equal_response(
         ));
     };
     let Some((nth_variant, nth_ok, nth_err)) = nth_op.split_first().map(|(variant, rest)| {
-        let split_ok_err_idx = clar2wasm_ty(ok_err_ty.0).len();
+        let split_ok_err_idx = clar2wasm_ty(ok_ty).len();
         let (ok, err) = rest.split_at(split_ok_err_idx);
         (variant, ok, err)
     }) else {
@@ -597,13 +599,13 @@ fn wasm_equal_response(
 
     let ok_id = {
         let mut ok_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(ok_err_ty.0, generator, &mut ok_case, first_ok, nth_ok)?;
+        wasm_equal(ok_ty, generator, &mut ok_case, first_ok, nth_ok)?;
         ok_case.id()
     };
 
     let err_id = {
         let mut err_case = builder.dangling_instr_seq(ValType::I32);
-        wasm_equal(ok_err_ty.1, generator, &mut err_case, first_err, nth_err)?;
+        wasm_equal(err_ty, generator, &mut err_case, first_err, nth_err)?;
         err_case.id()
     };
 
@@ -616,14 +618,10 @@ fn wasm_equal_response(
     // inner if is checking if both are err (consequent) or ok (alternative)
     let inner_if_id = {
         let mut inner_if = builder.dangling_instr_seq(ValType::I32);
-        inner_if
-            .local_get(*first_variant)
-            // 0 is err
-            .unop(UnaryOp::I32Eqz)
-            .instr(IfElse {
-                consequent: err_id,
-                alternative: ok_id,
-            });
+        inner_if.local_get(*first_variant).instr(IfElse {
+            consequent: ok_id,
+            alternative: err_id,
+        });
         inner_if.id()
     };
 
