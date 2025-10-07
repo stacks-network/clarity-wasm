@@ -64,21 +64,7 @@ impl ComplexWord for IsEq {
             return Ok(());
         }
 
-        // Save the first_op to a local to be further used.
-        // This allows to use the first_op value without
-        // traversing again the expression.
-        let wasm_types = clar2wasm_ty(&ty);
-        let val_locals: Vec<_> = wasm_types
-            .iter()
-            .map(|local_ty| generator.module.locals.add(*local_ty))
-            .collect();
-        assign_first_operand_to_locals(builder, &ty, &val_locals)?;
-
-        // initialize (reusable) locals for the other operands
-        let nth_locals: Vec<_> = wasm_types
-            .iter()
-            .map(|local_ty| generator.module.locals.add(*local_ty))
-            .collect();
+        let val_locals = generator.save_to_locals(builder, &ty, true);
 
         // Initialize boolean result accumulator to TRUE
         builder.i32_const(1);
@@ -87,15 +73,7 @@ impl ComplexWord for IsEq {
         for operand in args.iter().skip(1) {
             // push the new operand on the stack
             generator.traverse_expr(builder, operand)?;
-
-            // insert the new operand into locals
-            let operand_ty = generator
-                .get_expr_type(operand)
-                .ok_or_else(|| {
-                    GeneratorError::TypeError("is-eq value expression must be typed".to_owned())
-                })?
-                .clone();
-            assign_to_locals(builder, &ty, &operand_ty, &nth_locals)?;
+            let nth_locals = generator.save_to_locals(builder, &ty, true);
 
             // check equality
             wasm_equal(&ty, generator, builder, &val_locals, &nth_locals)?;
@@ -325,70 +303,6 @@ impl ComplexWord for IndexOf {
 
         Ok(())
     }
-}
-
-fn assign_to_locals(
-    builder: &mut walrus::InstrSeqBuilder,
-    original_ty: &TypeSignature,
-    current_ty: &TypeSignature,
-    locals: &[LocalId],
-) -> Result<(), GeneratorError> {
-    // WE HAVE TO GO THROUGH LOCALS IN REVERSE ORDER!!!
-    match (original_ty, current_ty) {
-        // Any NoType isn't worth assigning to a local, and can just be dropped
-        (TypeSignature::NoType, _) | (_, TypeSignature::NoType) => {
-            drop_value(builder, current_ty);
-        }
-        (TypeSignature::OptionalType(t), TypeSignature::OptionalType(s)) => {
-            let (variant_local, inner_locals) = locals.split_first().ok_or_else(|| {
-                GeneratorError::InternalError("missing locals for optional variant".to_string())
-            })?;
-            assign_to_locals(builder, t, s, inner_locals)?;
-            builder.local_set(*variant_local);
-        }
-        (TypeSignature::ResponseType(t), TypeSignature::ResponseType(s)) => {
-            let (variant_local, inner_locals) = locals.split_first().ok_or_else(|| {
-                GeneratorError::InternalError("missing locals for response variant".to_string())
-            })?;
-            let first_ok_size = clar2wasm_ty(&t.0).len();
-            let (ok_locals, err_locals) = inner_locals.split_at(first_ok_size);
-            assign_to_locals(builder, &t.1, &s.1, err_locals)?;
-            assign_to_locals(builder, &t.0, &s.0, ok_locals)?;
-            builder.local_set(*variant_local);
-        }
-        (TypeSignature::TupleType(t), TypeSignature::TupleType(s)) => {
-            let mut remaining_locals = locals;
-            for (tt, ss) in t
-                .get_type_map()
-                .values()
-                .rev()
-                .zip(s.get_type_map().values().rev())
-            {
-                let tt_size = clar2wasm_ty(tt).len();
-                let (rest, cur_locals) =
-                    remaining_locals.split_at(remaining_locals.len() - tt_size);
-                remaining_locals = rest;
-                assign_to_locals(builder, tt, ss, cur_locals)?;
-            }
-        }
-        // All the other types aren't influenced by inner NoType and can just be assigned automatically
-        _ => {
-            for i in (0..clar2wasm_ty(original_ty).len()).rev() {
-                builder.local_set(*locals.get(i).ok_or_else(|| {
-                    GeneratorError::InternalError("not enough locals for simple type".to_string())
-                })?);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn assign_first_operand_to_locals(
-    builder: &mut walrus::InstrSeqBuilder,
-    ty: &TypeSignature,
-    locals: &[LocalId],
-) -> Result<(), GeneratorError> {
-    assign_to_locals(builder, ty, ty, locals)
 }
 
 fn wasm_equal(
@@ -804,17 +718,6 @@ fn wasm_equal_list(
         ));
     };
 
-    let first_wasm_types = clar2wasm_ty(list_ty);
-    let first_locals: Vec<_> = first_wasm_types
-        .iter()
-        .map(|local_ty| generator.module.locals.add(*local_ty))
-        .collect();
-
-    let nth_locals: Vec<_> = first_wasm_types
-        .iter()
-        .map(|local_ty| generator.module.locals.add(*local_ty))
-        .collect();
-
     // need offset_delta for both types = clar2wasm_ty(list_ty).len()
     // those are the result of `generator.read_from_memory`, which is computed
     // in a block later, hence the declaration here.
@@ -844,11 +747,11 @@ fn wasm_equal_list(
 
             // read an element from first list and assign it to locals
             offset_delta_a = generator.read_from_memory(&mut loop_, *offset_a, 0, list_ty)?;
-            assign_first_operand_to_locals(&mut loop_, list_ty, &first_locals)?;
+            let first_locals = generator.save_to_locals(&mut loop_, list_ty, true);
 
             // same for nth list
             offset_delta_b = generator.read_from_memory(&mut loop_, *offset_b, 0, list_ty)?;
-            assign_to_locals(&mut loop_, list_ty, list_ty, &nth_locals)?;
+            let nth_locals = generator.save_to_locals(&mut loop_, list_ty, true);
 
             // compare both elements
             wasm_equal(list_ty, generator, &mut loop_, &first_locals, &nth_locals)?;
