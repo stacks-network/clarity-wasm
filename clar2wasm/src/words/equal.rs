@@ -488,19 +488,91 @@ fn wasm_equal_bytes(
     first_op: &[LocalId],
     nth_op: &[LocalId],
 ) -> Result<(), GeneratorError> {
-    // Get first operand from the local and put it onto stack.
-    for val in first_op {
-        builder.local_get(*val);
-    }
+    let [offset_a, len_a] = first_op else {
+        return Err(GeneratorError::InternalError(
+            "wrong representation of sequence for equality".to_owned(),
+        ));
+    };
+    let [offset_b, len_b] = nth_op else {
+        return Err(GeneratorError::InternalError(
+            "wrong representation of sequence for equality".to_owned(),
+        ));
+    };
 
-    // Get second operand from the local and put it onto stack.
-    for val in nth_op {
-        builder.local_get(*val);
-    }
+    let memory = generator.get_memory()?;
 
-    // Call the function with the operands on the stack.
-    let func = generator.func_by_name("stdlib.is-eq-bytes");
-    builder.call(func);
+    let len = generator.borrow_local(ValType::I32);
+    let current_a = generator.borrow_local(ValType::I32);
+    let current_b = generator.borrow_local(ValType::I32);
+
+    builder.block(None, |block| {
+        let block_id = block.id();
+        // if the sizes are different, we can exit immediately.
+        block
+            .local_get(*len_a)
+            .local_get(*len_b)
+            .binop(BinaryOp::I32Xor)
+            .local_tee(*len)
+            .br_if(block_id);
+
+        // if size equal 0, we don't loop
+        block
+            .local_get(*len_a)
+            .local_tee(*len)
+            .unop(UnaryOp::I32Eqz)
+            .br_if(block_id);
+
+        // we loop through bytes until we have a difference or we have
+        // gone throug all bytes.
+        block.local_get(*offset_a).local_set(*current_a);
+        block.local_get(*offset_b).local_set(*current_b);
+        block.loop_(None, |loop_| {
+            let loop_id = loop_.id();
+            // we load the current byte of both sequences and check for equality
+            loop_.local_get(*current_a).load(
+                memory,
+                walrus::ir::LoadKind::I32_8 {
+                    kind: walrus::ir::ExtendedLoad::ZeroExtend,
+                },
+                walrus::ir::MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            );
+            loop_.local_get(*current_b).load(
+                memory,
+                walrus::ir::LoadKind::I32_8 {
+                    kind: walrus::ir::ExtendedLoad::ZeroExtend,
+                },
+                walrus::ir::MemArg {
+                    align: 1,
+                    offset: 0,
+                },
+            );
+            loop_.binop(BinaryOp::I32Ne).br_if(block_id);
+
+            // we update our current variables and loop if we still have elements.
+            loop_
+                .local_get(*current_a)
+                .i32_const(1)
+                .binop(BinaryOp::I32Add)
+                .local_set(*current_a);
+            loop_
+                .local_get(*current_b)
+                .i32_const(1)
+                .binop(BinaryOp::I32Add)
+                .local_set(*current_b);
+            loop_
+                .local_get(*len)
+                .i32_const(1)
+                .binop(BinaryOp::I32Sub)
+                .local_tee(*len)
+                .br_if(loop_id);
+        });
+    });
+
+    // if we reached len == 0, it means that all bytes are equal
+    builder.local_get(*len).unop(UnaryOp::I32Eqz);
 
     Ok(())
 }
