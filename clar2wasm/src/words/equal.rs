@@ -437,7 +437,7 @@ fn wasm_equal_bytes(
             .br_if(block_id);
 
         // we loop through bytes until we have a difference or we have
-        // gone throug all bytes.
+        // gone through all bytes.
         block.local_get(*offset_a).local_set(*current_a);
         block.local_get(*offset_b).local_set(*current_b);
         block.loop_(None, |loop_| {
