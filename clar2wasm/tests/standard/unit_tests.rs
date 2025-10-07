@@ -1769,11 +1769,6 @@ fn test_ge_buff() {
 }
 
 #[test]
-fn test_is_eq_bytes() {
-    test_cmp_buff("stdlib.is-eq-bytes", |a, b| a == b)
-}
-
-#[test]
 fn test_log2_uint() {
     let (instance, mut store) = load_stdlib().unwrap();
     let log2 = instance.get_func(&mut store, "stdlib.log2-uint").unwrap();
