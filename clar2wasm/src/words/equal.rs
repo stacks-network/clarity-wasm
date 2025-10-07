@@ -651,20 +651,20 @@ fn wasm_equal_response(
     err_ty: &TypeSignature,
 ) -> Result<(), GeneratorError> {
     let Some((first_variant, first_ok, first_err)) =
-        first_op.split_first().map(|(variant, rest)| {
+        first_op.split_first().and_then(|(variant, rest)| {
             let split_ok_err_idx = clar2wasm_ty(ok_ty).len();
-            let (ok, err) = rest.split_at(split_ok_err_idx);
-            (variant, ok, err)
+            let (ok, err) = rest.split_at_checked(split_ok_err_idx)?;
+            Some((variant, ok, err))
         })
     else {
         return Err(GeneratorError::InternalError(
             "Response operand should have at least one argument".into(),
         ));
     };
-    let Some((nth_variant, nth_ok, nth_err)) = nth_op.split_first().map(|(variant, rest)| {
+    let Some((nth_variant, nth_ok, nth_err)) = nth_op.split_first().and_then(|(variant, rest)| {
         let split_ok_err_idx = clar2wasm_ty(ok_ty).len();
-        let (ok, err) = rest.split_at(split_ok_err_idx);
-        (variant, ok, err)
+        let (ok, err) = rest.split_at_checked(split_ok_err_idx)?;
+        Some((variant, ok, err))
     }) else {
         return Err(GeneratorError::InternalError(
             "Response operand should have at least one argument".into(),
@@ -743,27 +743,35 @@ fn wasm_equal_tuple(
 
     let result = generator.borrow_local(ValType::I32);
 
-    // this is an iterator of `(ty, range)`, where `ty` is the type of the current tuple element and `range` is
-    // the range index of this element in the list of locals
-    let wasm_ranges = tuple_inner_ty.into_iter().scan(0, |i, ty| {
-        let old = *i;
-        *i += clar2wasm_ty(ty).len();
-        Some((ty, old..*i))
-    });
-
     let block_id = {
         let mut block = builder.dangling_instr_seq(None);
         let block_id = block.id();
 
         // we will check for the equality of each element, and exit the block if one is unequal
-        for (ty, range) in wasm_ranges {
-            wasm_equal(
-                ty,
-                generator,
-                &mut block,
-                &first_op[range.clone()],
-                &nth_op[range],
-            )?;
+        let mut first_op_rest = first_op;
+        let mut nth_op_rest = nth_op;
+        for ty in tuple_inner_ty {
+            let size = clar2wasm_ty(ty).len();
+
+            let first_op_elem = if let Some((elem, rest)) = first_op_rest.split_at_checked(size) {
+                first_op_rest = rest;
+                elem
+            } else {
+                return Err(GeneratorError::InternalError(
+                    "Not enough values for equality of tuples first operand".to_owned(),
+                ));
+            };
+
+            let nth_op_elem = if let Some((elem, rest)) = nth_op_rest.split_at_checked(size) {
+                nth_op_rest = rest;
+                elem
+            } else {
+                return Err(GeneratorError::InternalError(
+                    "Not enough values for equality of tuples nth operand".to_owned(),
+                ));
+            };
+
+            wasm_equal(ty, generator, &mut block, first_op_elem, nth_op_elem)?;
             block
                 .local_tee(*result)
                 .unop(UnaryOp::I32Eqz)
