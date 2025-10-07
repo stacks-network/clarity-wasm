@@ -1,7 +1,7 @@
 use clarity::vm::types::signatures::CallableSubtype;
 use clarity::vm::types::{SequenceSubtype, TupleTypeSignature, TypeSignature};
 use clarity::vm::{ClarityName, SymbolicExpression};
-use walrus::ir::{BinaryOp, IfElse, InstrSeqType, Loop, UnaryOp};
+use walrus::ir::{BinaryOp, Block, IfElse, InstrSeqType, Loop, UnaryOp};
 use walrus::{InstrSeqBuilder, LocalId, ValType};
 
 use super::{ComplexWord, Word};
@@ -724,127 +724,56 @@ fn wasm_equal_tuple(
     nth_op: &[LocalId],
     tuple_ty: &TupleTypeSignature,
 ) -> Result<(), GeneratorError> {
+    let tuple_inner_ty: Vec<_> = tuple_ty.get_type_map().values().collect();
+
+    // if this is a 1-tuple, we can just check for equality of element
+    if let &[ty] = tuple_inner_ty.as_slice() {
+        return wasm_equal(ty, generator, builder, first_op, nth_op);
+    }
+
     // we'll compare tuple lazily field by field, so that
     // `(is-eq {x: a1, y: a2, z: a3} {x: b1, y: b2, z: b3})` becomes
     // ```
-    // if (a1 == b1)
-    //   then if (a2 == b2)
-    //     then (a3 == b3)
-    //     else false
-    //   else false
+    // (block
+    //     br_if (a1 != b1)
+    //     br_if (a2 != b2)
+    //     br_if (a3 != b3)
+    // )
     // ```
-    // we have to build the if sequence bottom-up
 
-    let field_types = tuple_ty.get_type_map();
+    let result = generator.borrow_local(ValType::I32);
 
-    // this is the number of elements in the tuple. Always >= 1 due to Clarity constraints.
-    let mut depth = field_types.len();
-
-    // this is an iterator in reverse order (for bottom-up sequence) of
-    // `(ty, range)`, where `ty` is the type of the current tuple element and `range` is
+    // this is an iterator of `(ty, range)`, where `ty` is the type of the current tuple element and `range` is
     // the range index of this element in the list of locals
-    let mut wasm_ranges = field_types.values().rev().scan(
-        field_types.values().map(|ty| clar2wasm_ty(ty).len()).sum(),
-        |i, ty| {
-            (*i != 0).then(|| {
-                let wasm_ty = clar2wasm_ty(ty);
-                let old = *i;
-                *i -= wasm_ty.len();
-                (ty, *i..old)
-            })
-        },
-    );
+    let wasm_ranges = tuple_inner_ty.into_iter().scan(0, |i, ty| {
+        let old = *i;
+        *i += clar2wasm_ty(ty).len();
+        Some((ty, old..*i))
+    });
 
-    // if this is a 1-tuple, we can just check for equality of element
-    if depth == 1 {
-        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
-        })?;
+    let block_id = {
+        let mut block = builder.dangling_instr_seq(None);
+        let block_id = block.id();
 
-        return wasm_equal(
-            ty,
-            generator,
-            builder,
-            &first_op[range.clone()],
-            &nth_op[range],
-        );
-    }
-
-    // bottom equality statement
-    let mut instr_id = {
-        let mut instr = builder.dangling_instr_seq(ValType::I32);
-        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
-        })?;
-
-        wasm_equal(
-            ty,
-            generator,
-            &mut instr,
-            &first_op[range.clone()],
-            &nth_op[range],
-        )?;
-
-        instr.id()
-    };
-    depth -= 1;
-
-    // intermediary if-else statements
-    while depth > 1 {
-        let (ty, range) = wasm_ranges.next().ok_or_else(|| {
-            GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
-        })?;
-
-        let else_id = {
-            let mut else_ = builder.dangling_instr_seq(ValType::I32);
-            else_.i32_const(0);
-            else_.id()
-        };
-
-        instr_id = {
-            let mut if_else = builder.dangling_instr_seq(ValType::I32);
-
+        // we will check for the equality of each element, and exit the block if one is unequal
+        for (ty, range) in wasm_ranges {
             wasm_equal(
                 ty,
                 generator,
-                &mut if_else,
+                &mut block,
                 &first_op[range.clone()],
                 &nth_op[range],
             )?;
+            block
+                .local_tee(*result)
+                .unop(UnaryOp::I32Eqz)
+                .br_if(block_id);
+        }
 
-            if_else.instr(IfElse {
-                consequent: instr_id,
-                alternative: else_id,
-            });
-
-            if_else.id()
-        };
-
-        depth -= 1;
-    }
-
-    // top if-else statement
-    let (ty, range) = wasm_ranges.next().ok_or_else(|| {
-        GeneratorError::InternalError("Expected first tuple type for comparison".to_owned())
-    })?;
-    let top_else_id = {
-        let mut else_ = builder.dangling_instr_seq(ValType::I32);
-        else_.i32_const(0);
-        else_.id()
+        block_id
     };
 
-    wasm_equal(
-        ty,
-        generator,
-        builder,
-        &first_op[range.clone()],
-        &nth_op[range],
-    )?;
-
-    builder.instr(IfElse {
-        consequent: instr_id,
-        alternative: top_else_id,
-    });
+    builder.instr(Block { seq: block_id }).local_get(*result);
 
     Ok(())
 }
